@@ -9,7 +9,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CupertinoApp(
-      title: 'Timestamp Converter',
+      title: 'Masquerade - Utility Toolbox',
       theme: const CupertinoThemeData(
         primaryColor: CupertinoColors.systemBlue,
         brightness: Brightness.light,
@@ -67,9 +67,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const ResponsiveLayout(
-        child: MyHomePage(title: 'Timestamp Converter'),
-      ),
+      home: const ResponsiveLayout(child: MyHomePage(title: 'Masquerade')),
     );
   }
 }

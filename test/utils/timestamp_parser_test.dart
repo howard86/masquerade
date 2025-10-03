@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:magic_box/utils/timestamp_parser.dart';
+import 'package:masquerade/utils/timestamp_parser.dart';
 
 void main() {
   group('TimestampParser', () {

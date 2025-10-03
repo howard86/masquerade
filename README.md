@@ -1,4 +1,4 @@
-# magic_box
+# masquerade
 
 A new Flutter project.
 

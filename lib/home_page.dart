@@ -1,6 +1,5 @@
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
-import 'timestamp_display_card.dart';
+import 'package:masquerade/widgets/timestamp_display_card.dart';
 import 'utils/timestamp_parser.dart';
 
 class MyHomePage extends StatefulWidget {
@@ -32,7 +31,7 @@ class _MyHomePageState extends State<MyHomePage> {
       _parsedTimestamp = TimestampParser.parseTimestamp(input);
       _errorMessage = _parsedTimestamp != null
           ? null
-          : 'Invalid timestamp format. Try Unix timestamp (seconds/milliseconds) or ISO 8601 format.';
+          : 'Invalid timestamp format. Please enter a Unix timestamp (seconds/milliseconds) or ISO 8601 date format.';
     });
   }
 
@@ -66,7 +65,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Enter a timestamp to convert:',
+                        'Timestamp Converter Tool',
                         style: CupertinoTheme.of(context).textTheme.textStyle
                             .copyWith(
                               color: CupertinoColors.secondaryLabel,
@@ -77,7 +76,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       const SizedBox(height: 20),
                       CupertinoTextField(
                         controller: _inputController,
-                        placeholder: 'Unix timestamp or ISO 8601 date',
+                        placeholder: 'Enter Unix timestamp or ISO 8601 date',
                         prefix: const Padding(
                           padding: EdgeInsets.only(left: 8.0),
                           child: Icon(

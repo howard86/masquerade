@@ -2,15 +2,15 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:magic_box/app.dart';
+import 'package:masquerade/app.dart';
 
 void main() {
-  testWidgets('Timestamp converter app test', (WidgetTester tester) async {
+  testWidgets('Masquerade app test', (WidgetTester tester) async {
     // Build the app and trigger a frame.
     await tester.pumpWidget(const MyApp());
 
     // Verify the app title is displayed
-    expect(find.text('Timestamp Converter'), findsOneWidget);
+    expect(find.text('Masquerade'), findsOneWidget);
 
     // Verify SafeArea is present
     expect(find.byType(SafeArea), findsOneWidget);
@@ -19,8 +19,7 @@ void main() {
     final inputField = find.byWidgetPredicate(
       (widget) =>
           widget is CupertinoTextField &&
-          widget.placeholder ==
-              'Enter Unix timestamp (seconds/milliseconds) or ISO 8601 date',
+          widget.placeholder == 'Enter Unix timestamp or ISO 8601 date',
     );
     expect(inputField, findsOneWidget);
 
@@ -29,7 +28,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Should display the TimestampDisplayCard
-    expect(find.text('Timestamp Conversion'), findsOneWidget);
+    expect(find.text('Conversion Results'), findsOneWidget);
     expect(find.text('UTC Time:'), findsOneWidget);
     expect(find.text('Local Time:'), findsOneWidget);
     expect(find.text('Unix Timestamp (seconds):'), findsOneWidget);
@@ -40,7 +39,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Should still display the TimestampDisplayCard
-    expect(find.text('Timestamp Conversion'), findsOneWidget);
+    expect(find.text('Conversion Results'), findsOneWidget);
 
     // Test with an invalid string.
     await tester.enterText(inputField, 'not a timestamp');
@@ -68,8 +67,7 @@ void main() {
     final inputField = find.byWidgetPredicate(
       (widget) =>
           widget is CupertinoTextField &&
-          widget.placeholder ==
-              'Enter Unix timestamp (seconds/milliseconds) or ISO 8601 date',
+          widget.placeholder == 'Enter Unix timestamp or ISO 8601 date',
     );
     await tester.enterText(inputField, '1700000000');
     await tester.pumpAndSettle();

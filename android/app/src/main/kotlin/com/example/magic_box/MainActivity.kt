@@ -1,4 +1,4 @@
-package com.example.magic_box
+package com.example.masquerade
 
 import io.flutter.embedding.android.FlutterActivity
 
