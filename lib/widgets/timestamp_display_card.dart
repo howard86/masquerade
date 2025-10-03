@@ -38,7 +38,6 @@ class TimestampDisplayCard extends StatelessWidget {
               value: DateFormat(
                 'yyyy-MM-dd HH:mm:ss',
               ).format(timestamp.toUtc()),
-              icon: CupertinoIcons.globe,
             ),
             const SizedBox(height: 12),
             TimestampRow(
@@ -46,7 +45,6 @@ class TimestampDisplayCard extends StatelessWidget {
               value: DateFormat(
                 'yyyy-MM-dd HH:mm:ss',
               ).format(timestamp.toLocal()),
-              icon: CupertinoIcons.location,
             ),
             const SizedBox(height: 12),
             TimestampRow(
@@ -54,13 +52,11 @@ class TimestampDisplayCard extends StatelessWidget {
               value: (timestamp.millisecondsSinceEpoch / 1000)
                   .round()
                   .toString(),
-              icon: CupertinoIcons.number,
             ),
             const SizedBox(height: 12),
             TimestampRow(
               label: 'Unix Timestamp (milliseconds):',
               value: timestamp.millisecondsSinceEpoch.toString(),
-              icon: CupertinoIcons.number_circle,
             ),
           ],
         ),

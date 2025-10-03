@@ -74,9 +74,7 @@ void main() {
     // Find a copyable timestamp value and tap it
     final copyableValue = find.byWidgetPredicate(
       (widget) =>
-          widget is GestureDetector &&
-          widget.child is Container &&
-          (widget.child as Container).child is Row,
+          widget is GestureDetector && widget.child is AnimatedCrossFade,
     );
     expect(copyableValue, findsWidgets);
 
