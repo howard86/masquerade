@@ -1,8 +1,7 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:device_frame/device_frame.dart';
-import 'package:magic_box/widgets/iphone_frame.dart';
+import 'package:masquerade/widgets/iphone_frame.dart';
 
 void main() {
   group('ResponsiveLayout', () {
