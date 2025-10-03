@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -11,11 +12,14 @@ void main() {
     // Verify the app title is displayed
     expect(find.text('Timestamp Converter'), findsOneWidget);
 
-    // Find the input field by its hint text.
+    // Verify SafeArea is present
+    expect(find.byType(SafeArea), findsOneWidget);
+
+    // Find the input field by its placeholder text.
     final inputField = find.byWidgetPredicate(
       (widget) =>
-          widget is TextField &&
-          widget.decoration?.hintText ==
+          widget is CupertinoTextField &&
+          widget.placeholder ==
               'Enter Unix timestamp (seconds/milliseconds) or ISO 8601 date',
     );
     expect(inputField, findsOneWidget);
@@ -63,8 +67,8 @@ void main() {
     // Enter a valid timestamp
     final inputField = find.byWidgetPredicate(
       (widget) =>
-          widget is TextField &&
-          widget.decoration?.hintText ==
+          widget is CupertinoTextField &&
+          widget.placeholder ==
               'Enter Unix timestamp (seconds/milliseconds) or ISO 8601 date',
     );
     await tester.enterText(inputField, '1700000000');
@@ -83,7 +87,12 @@ void main() {
     await tester.tap(copyableValue.first);
     await tester.pumpAndSettle();
 
-    // Should show a snackbar with copy confirmation
+    // Should show a notification with copy confirmation
+    expect(find.text('Copied to clipboard'), findsOneWidget);
     expect(find.textContaining('Copied to clipboard'), findsOneWidget);
+
+    // Wait for the auto-dismiss timer and pump
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
   });
 }
