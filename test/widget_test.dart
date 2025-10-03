@@ -1,30 +1,89 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:magic_box/main.dart';
+import 'package:magic_box/app.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
+  testWidgets('Timestamp converter app test', (WidgetTester tester) async {
+    // Build the app and trigger a frame.
     await tester.pumpWidget(const MyApp());
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // Verify the app title is displayed
+    expect(find.text('Timestamp Converter'), findsOneWidget);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    // Find the input field by its hint text.
+    final inputField = find.byWidgetPredicate(
+      (widget) =>
+          widget is TextField &&
+          widget.decoration?.hintText ==
+              'Enter Unix timestamp (seconds/milliseconds) or ISO 8601 date',
+    );
+    expect(inputField, findsOneWidget);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Test with a valid Unix timestamp (seconds).
+    await tester.enterText(inputField, '1700000000');
+    await tester.pumpAndSettle();
+
+    // Should display the TimestampDisplayCard
+    expect(find.text('Timestamp Conversion'), findsOneWidget);
+    expect(find.text('UTC Time:'), findsOneWidget);
+    expect(find.text('Local Time:'), findsOneWidget);
+    expect(find.text('Unix Timestamp (seconds):'), findsOneWidget);
+    expect(find.text('Unix Timestamp (milliseconds):'), findsOneWidget);
+
+    // Test with a valid Unix timestamp (milliseconds).
+    await tester.enterText(inputField, '1700000000000');
+    await tester.pumpAndSettle();
+
+    // Should still display the TimestampDisplayCard
+    expect(find.text('Timestamp Conversion'), findsOneWidget);
+
+    // Test with an invalid string.
+    await tester.enterText(inputField, 'not a timestamp');
+    await tester.pumpAndSettle();
+
+    // Should display an error message.
+    expect(find.textContaining('Invalid timestamp format'), findsOneWidget);
+
+    // Clear the input.
+    await tester.enterText(inputField, '');
+    await tester.pumpAndSettle();
+
+    // Should not display the timestamp card or error message.
+    expect(find.text('Timestamp Conversion'), findsNothing);
+    expect(find.textContaining('Invalid timestamp format'), findsNothing);
+  });
+
+  testWidgets('TimestampDisplayCard copy functionality test', (
+    WidgetTester tester,
+  ) async {
+    // Build the app and trigger a frame.
+    await tester.pumpWidget(const MyApp());
+
+    // Enter a valid timestamp
+    final inputField = find.byWidgetPredicate(
+      (widget) =>
+          widget is TextField &&
+          widget.decoration?.hintText ==
+              'Enter Unix timestamp (seconds/milliseconds) or ISO 8601 date',
+    );
+    await tester.enterText(inputField, '1700000000');
+    await tester.pumpAndSettle();
+
+    // Find a copyable timestamp value and tap it
+    final copyableValue = find.byWidgetPredicate(
+      (widget) =>
+          widget is GestureDetector &&
+          widget.child is Container &&
+          (widget.child as Container).child is Row,
+    );
+    expect(copyableValue, findsWidgets);
+
+    // Tap on the first copyable value
+    await tester.tap(copyableValue.first);
+    await tester.pumpAndSettle();
+
+    // Should show a snackbar with copy confirmation
+    expect(find.textContaining('Copied to clipboard'), findsOneWidget);
   });
 }
