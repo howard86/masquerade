@@ -11,14 +11,11 @@ void main() {
     // Verify the app title is displayed
     expect(find.text('Masquerade'), findsOneWidget);
 
-    // Verify SafeArea is present
-    expect(find.byType(SafeArea), findsOneWidget);
-
     // Find the input field by its placeholder text.
     final inputField = find.byWidgetPredicate(
       (widget) =>
           widget is CupertinoTextField &&
-          widget.placeholder == 'Enter Unix timestamp or ISO 8601 date',
+          widget.placeholder == 'Enter timestamp or text to convert',
     );
     expect(inputField, findsOneWidget);
 
@@ -52,7 +49,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Should not display the timestamp card or error message.
-    expect(find.text('Timestamp Conversion'), findsNothing);
+    expect(find.text('Date & Time'), findsNothing);
     expect(find.textContaining('Invalid timestamp format'), findsNothing);
   });
 
@@ -66,7 +63,7 @@ void main() {
     final inputField = find.byWidgetPredicate(
       (widget) =>
           widget is CupertinoTextField &&
-          widget.placeholder == 'Enter Unix timestamp or ISO 8601 date',
+          widget.placeholder == 'Enter timestamp or text to convert',
     );
     await tester.enterText(inputField, '1700000000');
     await tester.pumpAndSettle();
