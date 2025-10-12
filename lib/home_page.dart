@@ -1,6 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:masquerade/widgets/timestamp_display_card.dart';
+import 'package:masquerade/widgets/encoding_display_card.dart';
 import 'utils/timestamp_parser.dart';
+import 'utils/encoding_parser.dart';
 import 'dart:async';
 
 class MyHomePage extends StatefulWidget {
@@ -16,6 +18,9 @@ class _MyHomePageState extends State<MyHomePage> {
   final TextEditingController _inputController = TextEditingController();
   DateTime? _parsedTimestamp;
   String? _errorMessage;
+  String? _originalValue;
+  String? _encodingType;
+  EncodingResult? _encodingResult;
   Timer? _debounceTimer;
 
   void _parseTimestampDebounced() {
@@ -35,17 +40,51 @@ class _MyHomePageState extends State<MyHomePage> {
       setState(() {
         _parsedTimestamp = null;
         _errorMessage = null;
+        _originalValue = null;
+        _encodingType = null;
+        _encodingResult = null;
       });
       return;
     }
 
-    final updatedTimestamp = TimestampParser.parseTimestamp(input);
+    // Check for encoding (hex or base64) - this runs in parallel with timestamp parsing
+    final encodingResult = EncodingParser.detectAndConvert(input);
+    final hasValidEncoding = encodingResult.isSuccess;
+
+    // Try parsing as timestamp (both direct and through encoded formats)
+    final parseResult = TimestampParser.parseAnyFormat(input);
+    final hasValidTimestamp = parseResult.isSuccess;
 
     setState(() {
-      _parsedTimestamp = updatedTimestamp;
-      _errorMessage = updatedTimestamp == null
-          ? 'Invalid timestamp format. Please enter a Unix timestamp (seconds/milliseconds) or ISO 8601 date format.'
-          : null;
+      // Set encoding information if valid
+      if (hasValidEncoding) {
+        _originalValue = input;
+        _encodingType = encodingResult.type.name;
+        _encodingResult = encodingResult;
+      } else {
+        _originalValue = null;
+        _encodingType = null;
+        _encodingResult = null;
+      }
+
+      // Set timestamp information if valid
+      if (hasValidTimestamp) {
+        _parsedTimestamp = parseResult.timestamp;
+      } else {
+        _parsedTimestamp = null;
+      }
+
+      // Set error message only if neither parsing succeeded
+      if (!hasValidEncoding && !hasValidTimestamp) {
+        _errorMessage =
+            'Invalid input format. Supported formats:\n'
+            '• Unix timestamp (seconds/milliseconds)\n'
+            '• ISO 8601 date format\n'
+            '• Base64 encoded strings\n'
+            '• Hex encoded strings';
+      } else {
+        _errorMessage = null;
+      }
     });
   }
 
@@ -91,7 +130,8 @@ class _MyHomePageState extends State<MyHomePage> {
                       const SizedBox(height: 20),
                       CupertinoTextField(
                         controller: _inputController,
-                        placeholder: 'Enter Unix timestamp or ISO 8601 date',
+                        placeholder:
+                            'Enter timestamp (Unix, ISO 8601, Base64, or Hex)',
                         prefix: const Padding(
                           padding: EdgeInsets.only(left: 8.0),
                           child: Icon(
@@ -156,7 +196,22 @@ class _MyHomePageState extends State<MyHomePage> {
                             ),
                           ),
                         ),
+                      // Show encoding display for hex/base64 inputs
+                      if (_originalValue != null && _encodingType != null) ...[
+                        AnimatedOpacity(
+                          opacity: _originalValue != null ? 1.0 : 0.0,
+                          duration: const Duration(milliseconds: 300),
+                          child: EncodingDisplayCard(
+                            originalValue: _originalValue!,
+                            encodingType: _encodingType!,
+                            decodedValue: _encodingResult!.result!,
+                          ),
+                        ),
+                      ],
+
+                      // Show timestamp display for timestamp inputs
                       if (_parsedTimestamp != null) ...[
+                        // Timestamp display
                         AnimatedOpacity(
                           opacity: _parsedTimestamp != null ? 1.0 : 0.0,
                           duration: const Duration(milliseconds: 300),
@@ -186,6 +241,9 @@ class _MyHomePageState extends State<MyHomePage> {
                     setState(() {
                       _parsedTimestamp = null;
                       _errorMessage = null;
+                      _originalValue = null;
+                      _encodingType = null;
+                      _encodingResult = null;
                     });
                   },
                   child: const Row(

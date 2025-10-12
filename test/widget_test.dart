@@ -27,7 +27,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Should display the TimestampDisplayCard
-    expect(find.text('Conversion Results'), findsOneWidget);
+    expect(find.text('Date & Time'), findsOneWidget);
     expect(find.text('UTC Time:'), findsOneWidget);
     expect(find.text('Local Time:'), findsOneWidget);
     expect(find.text('Unix Timestamp (seconds):'), findsOneWidget);
@@ -38,7 +38,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Should still display the TimestampDisplayCard
-    expect(find.text('Conversion Results'), findsOneWidget);
+    expect(find.text('Date & Time'), findsOneWidget);
 
     // Test with an invalid string.
     await tester.enterText(inputField, 'not a timestamp');

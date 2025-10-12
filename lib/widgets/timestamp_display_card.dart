@@ -28,7 +28,7 @@ class TimestampDisplayCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Conversion Results',
+              'Date & Time',
               style: CupertinoTheme.of(context).textTheme.navTitleTextStyle
                   .copyWith(fontSize: 20, fontWeight: FontWeight.w600),
             ),
