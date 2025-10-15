@@ -76,7 +76,8 @@ act -W .github/workflows/ci.yml -j linux --dryrun
 1. **Pre-commit job missing Flutter setup** - Added Java and Flutter setup steps
 2. **Missing dependencies** - All required tools now properly configured
 3. **Linux build failing due to missing GTK dependencies** - Added Linux system dependencies installation step
-4. **Workflow optimization** - Separated platform jobs with proper caching and dependencies
+4. **iOS build failing due to missing Podfile** - Created missing Podfile for iOS platform
+5. **Workflow optimization** - Separated platform jobs with proper caching and dependencies
 
 ## Troubleshooting
 

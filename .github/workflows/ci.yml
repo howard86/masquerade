@@ -212,8 +212,13 @@ jobs:
       - name: Pod install
         run: |
           cd ios
-          pod repo update --silent
-          pod install
+          if [ -f "Podfile" ]; then
+            pod repo update --silent
+            pod install
+          else
+            echo "No Podfile found, skipping pod install"
+            exit 1
+          fi
 
       - name: Build iOS (no codesign)
         run: flutter build ios --debug --no-codesign --no-pub
