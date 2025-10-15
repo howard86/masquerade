@@ -10,8 +10,12 @@ This directory contains tools and scripts for testing GitHub Actions workflows l
 # Test all CI jobs (dry run)
 act -W .github/workflows/ci.yml --dryrun
 
-# Test specific job
+# Test specific jobs
 act -W .github/workflows/ci.yml -j pre-commit --dryrun
+act -W .github/workflows/ci.yml -j android --dryrun
+act -W .github/workflows/ci.yml -j ios --dryrun
+act -W .github/workflows/ci.yml -j web --dryrun
+act -W .github/workflows/ci.yml -j linux --dryrun
 ```
 
 ### Option 2: Using Manual Script
@@ -50,17 +54,29 @@ act -W .github/workflows/ci.yml -j pre-commit --dryrun
 
 ## Workflow Status
 
-| Workflow                                 | Status     | Notes                         |
-| ---------------------------------------- | ---------- | ----------------------------- |
-| CI (`ci.yml`)                            | ✅ Working | All jobs testable with act    |
-| Release (`release.yml`)                  | ⚠️ Limited | YAML valid but act has issues |
-| Dependabot (`dependabot-auto-merge.yml`) | ✅ Working | Testable with act             |
+| Workflow                                 | Status     | Notes                                       |
+| ---------------------------------------- | ---------- | ------------------------------------------- |
+| CI (`ci.yml`)                            | ✅ Working | Separated platform jobs with proper caching |
+| Dependabot (`dependabot-auto-merge.yml`) | ✅ Working | Testable with act                           |
+
+### CI Workflow Jobs
+
+1. **pre-commit** - Pre-commit hooks validation
+2. **analyze-and-test** - Code analysis and unit tests
+3. **android** - Android APK build with Gradle caching
+4. **ios** - iOS build (no codesign) with CocoaPods caching
+5. **web** - Web build with Flutter web support
+6. **linux** - Linux build with system dependencies
+7. **windows** - Windows build
+8. **macos** - macOS build
+9. **security** - Security vulnerability scanning
 
 ## Fixed Issues
 
 1. **Pre-commit job missing Flutter setup** - Added Java and Flutter setup steps
-2. **YAML indentation issues** - Fixed inconsistent indentation in release workflow
-3. **Missing dependencies** - All required tools now properly configured
+2. **Missing dependencies** - All required tools now properly configured
+3. **Linux build failing due to missing GTK dependencies** - Added Linux system dependencies installation step
+4. **Workflow optimization** - Separated platform jobs with proper caching and dependencies
 
 ## Troubleshooting
 
