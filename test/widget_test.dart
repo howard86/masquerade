@@ -15,7 +15,8 @@ void main() {
     final inputField = find.byWidgetPredicate(
       (widget) =>
           widget is CupertinoTextField &&
-          widget.placeholder == 'Enter timestamp or text to convert',
+          widget.placeholder ==
+              'Enter timestamp (Unix, ISO 8601, Base64, or Hex)',
     );
     expect(inputField, findsOneWidget);
 
@@ -42,7 +43,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Should display an error message.
-    expect(find.textContaining('Invalid timestamp format'), findsOneWidget);
+    expect(find.textContaining('Invalid input format'), findsOneWidget);
 
     // Clear the input.
     await tester.enterText(inputField, '');
@@ -50,7 +51,7 @@ void main() {
 
     // Should not display the timestamp card or error message.
     expect(find.text('Date & Time'), findsNothing);
-    expect(find.textContaining('Invalid timestamp format'), findsNothing);
+    expect(find.textContaining('Invalid input format'), findsNothing);
   });
 
   testWidgets('TimestampDisplayCard copy functionality test', (
@@ -63,7 +64,8 @@ void main() {
     final inputField = find.byWidgetPredicate(
       (widget) =>
           widget is CupertinoTextField &&
-          widget.placeholder == 'Enter timestamp or text to convert',
+          widget.placeholder ==
+              'Enter timestamp (Unix, ISO 8601, Base64, or Hex)',
     );
     await tester.enterText(inputField, '1700000000');
     await tester.pumpAndSettle();
@@ -71,7 +73,9 @@ void main() {
     // Find a copyable timestamp value and tap it
     final copyableValue = find.byWidgetPredicate(
       (widget) =>
-          widget is GestureDetector && widget.child is AnimatedCrossFade,
+          widget is GestureDetector &&
+          widget.child is AnimatedCrossFade &&
+          widget.onTap != null,
     );
     expect(copyableValue, findsWidgets);
 
