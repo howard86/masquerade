@@ -1,0 +1,80 @@
+# Pre-commit hooks configuration for Flutter project
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+
+repos:
+  # General hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: check-json
+      - id: check-toml
+      - id: check-xml
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+
+  # Custom Flutter hooks
+  - repo: local
+    hooks:
+      - id: dart-format
+        name: Dart Format
+        entry: dart format --set-exit-if-changed
+        language: system
+        types: [dart]
+        pass_filenames: true
+
+      - id: flutter-analyze
+        name: Flutter Analyze
+        entry: flutter analyze
+        language: system
+        types: [dart]
+        pass_filenames: false
+
+      - id: flutter-test
+        name: Flutter Test
+        entry: flutter test --exclude-tags=integration
+        language: system
+        types: [dart]
+        pass_filenames: false
+        stages: [manual]  # Skip in pre-commit, run manually
+
+      - id: flutter-build-check
+        name: Flutter Build Check
+        entry: flutter build apk --debug
+        language: system
+        types: [dart]
+        pass_filenames: false
+        stages: [manual]  # Only run on manual trigger
+
+  # Security checks (disabled for now due to false positives)
+  # - repo: https://github.com/Yelp/detect-secrets
+  #   rev: v1.5.0
+  #   hooks:
+  #     - id: detect-secrets
+  #       args: ['--baseline', '.secrets.baseline']
+  #       exclude: package.lock.json
+
+  # Commit message linting
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.9.1
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]
+
+# Configuration for specific hooks
+ci:
+  autofix_commit_msg: |
+    [pre-commit.ci] auto fixes from pre-commit.com hooks
+
+    for more information, see https://pre-commit.ci
+  autofix_prs: true
+  autoupdate_branch: ''
+  autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
+  autoupdate_schedule: weekly
+  skip: []
+  submodules: false

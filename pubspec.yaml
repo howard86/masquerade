@@ -48,6 +48,15 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
 
+  # Testing and code quality
+  mockito: ^5.4.4
+  build_runner: ^2.4.9
+  json_serializable: ^6.8.0
+  json_annotation: ^4.9.0
+
+  # Pre-commit hooks (Python package, but useful for CI)
+  # Note: Install with: pip install pre-commit
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
@@ -57,7 +66,7 @@ flutter:
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
-  uses-material-design: false 
+  uses-material-design: false
 
   # To add assets to your application, add an assets section, like this:
   # assets:

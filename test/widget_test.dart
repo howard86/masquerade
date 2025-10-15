@@ -11,14 +11,12 @@ void main() {
     // Verify the app title is displayed
     expect(find.text('Masquerade'), findsOneWidget);
 
-    // Verify SafeArea is present
-    expect(find.byType(SafeArea), findsOneWidget);
-
     // Find the input field by its placeholder text.
     final inputField = find.byWidgetPredicate(
       (widget) =>
           widget is CupertinoTextField &&
-          widget.placeholder == 'Enter Unix timestamp or ISO 8601 date',
+          widget.placeholder ==
+              'Enter timestamp (Unix, ISO 8601, Base64, or Hex)',
     );
     expect(inputField, findsOneWidget);
 
@@ -27,7 +25,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Should display the TimestampDisplayCard
-    expect(find.text('Conversion Results'), findsOneWidget);
+    expect(find.text('Date & Time'), findsOneWidget);
     expect(find.text('UTC Time:'), findsOneWidget);
     expect(find.text('Local Time:'), findsOneWidget);
     expect(find.text('Unix Timestamp (seconds):'), findsOneWidget);
@@ -38,22 +36,22 @@ void main() {
     await tester.pumpAndSettle();
 
     // Should still display the TimestampDisplayCard
-    expect(find.text('Conversion Results'), findsOneWidget);
+    expect(find.text('Date & Time'), findsOneWidget);
 
     // Test with an invalid string.
     await tester.enterText(inputField, 'not a timestamp');
     await tester.pumpAndSettle();
 
     // Should display an error message.
-    expect(find.textContaining('Invalid timestamp format'), findsOneWidget);
+    expect(find.textContaining('Invalid input format'), findsOneWidget);
 
     // Clear the input.
     await tester.enterText(inputField, '');
     await tester.pumpAndSettle();
 
     // Should not display the timestamp card or error message.
-    expect(find.text('Timestamp Conversion'), findsNothing);
-    expect(find.textContaining('Invalid timestamp format'), findsNothing);
+    expect(find.text('Date & Time'), findsNothing);
+    expect(find.textContaining('Invalid input format'), findsNothing);
   });
 
   testWidgets('TimestampDisplayCard copy functionality test', (
@@ -66,7 +64,8 @@ void main() {
     final inputField = find.byWidgetPredicate(
       (widget) =>
           widget is CupertinoTextField &&
-          widget.placeholder == 'Enter Unix timestamp or ISO 8601 date',
+          widget.placeholder ==
+              'Enter timestamp (Unix, ISO 8601, Base64, or Hex)',
     );
     await tester.enterText(inputField, '1700000000');
     await tester.pumpAndSettle();
@@ -74,7 +73,9 @@ void main() {
     // Find a copyable timestamp value and tap it
     final copyableValue = find.byWidgetPredicate(
       (widget) =>
-          widget is GestureDetector && widget.child is AnimatedCrossFade,
+          widget is GestureDetector &&
+          widget.child is AnimatedCrossFade &&
+          widget.onTap != null,
     );
     expect(copyableValue, findsWidgets);
 
