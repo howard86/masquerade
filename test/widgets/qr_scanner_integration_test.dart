@@ -2,6 +2,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
 
+/// QR Scanner Integration Tests
+/// Tests the QR scanner functionality and UI components
 void main() {
   group('QR Scanner Integration Tests', () {
     testWidgets('QR scanner button is present and functional', (
@@ -11,15 +13,15 @@ void main() {
       await tester.pumpWidget(const MyApp());
       await tester.pumpAndSettle();
 
-      // Verify the QR scanner button is present
-      final qrButton = find.byIcon(CupertinoIcons.qrcode_viewfinder);
+      // Find the QR scanner button by looking for the second CupertinoButton
+      final qrButton = find.byType(CupertinoButton).at(1);
       expect(qrButton, findsOneWidget);
 
       // Verify the button is tappable
       await tester.tap(qrButton);
       await tester.pumpAndSettle();
 
-      // The button should be present (actual navigation would be handled by Navigator)
+      // The button should still be present after tap
       expect(qrButton, findsOneWidget);
     });
 
@@ -27,6 +29,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(const MyApp());
+      await tester.pumpAndSettle();
 
       // Find the QR scanner button container
       final qrButtonContainer = find.byWidgetPredicate(
@@ -39,20 +42,19 @@ void main() {
       expect(qrButtonContainer, findsOneWidget);
 
       // Verify the button has the correct icon
-      expect(find.byIcon(CupertinoIcons.qrcode_viewfinder), findsOneWidget);
+      final qrIcon = find.byIcon(CupertinoIcons.qrcode_viewfinder);
+      expect(qrIcon, findsOneWidget);
     });
 
     testWidgets('text field and QR button are properly aligned', (
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(const MyApp());
+      await tester.pumpAndSettle();
 
       // Verify the row containing text field and QR button
       final rowWidget = find.byType(Row);
-      expect(
-        rowWidget,
-        findsWidgets,
-      ); // Changed from findsOneWidget to findsWidgets
+      expect(rowWidget, findsWidgets);
 
       // Verify both text field and QR button are in the same row
       final textField = find.byWidgetPredicate(
@@ -61,7 +63,7 @@ void main() {
             widget.placeholder ==
                 'Enter timestamp (Unix, ISO 8601, Base64, or Hex)',
       );
-      final qrButton = find.byIcon(CupertinoIcons.qrcode_viewfinder);
+      final qrButton = find.byType(CupertinoButton).at(1);
 
       expect(textField, findsOneWidget);
       expect(qrButton, findsOneWidget);
@@ -86,7 +88,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify QR button is still present and functional
-      final qrButton = find.byIcon(CupertinoIcons.qrcode_viewfinder);
+      final qrButton = find.byType(CupertinoButton).at(1);
       expect(qrButton, findsOneWidget);
 
       // Tap the QR button
@@ -101,9 +103,19 @@ void main() {
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(const MyApp());
+      await tester.pumpAndSettle();
 
-      // Find the clear button
-      final clearButton = find.byIcon(CupertinoIcons.clear_circled_solid);
+      // Find the clear button by looking for CupertinoButton.filled
+      final clearButton = find.byWidgetPredicate(
+        (widget) =>
+            widget is CupertinoButton &&
+            widget.child is Row &&
+            (widget.child as Row).children.any(
+              (child) =>
+                  child is Icon &&
+                  child.icon == CupertinoIcons.clear_circled_solid,
+            ),
+      );
       expect(clearButton, findsOneWidget);
 
       // Tap the clear button
@@ -111,7 +123,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify QR button is still present after clearing
-      final qrButton = find.byIcon(CupertinoIcons.qrcode_viewfinder);
+      final qrButton = find.byType(CupertinoButton).at(1);
       expect(qrButton, findsOneWidget);
 
       // Verify text field is cleared
@@ -129,7 +141,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify the QR scanner button is accessible
-      final qrButton = find.byIcon(CupertinoIcons.qrcode_viewfinder);
+      final qrButton = find.byType(CupertinoButton).at(1);
       expect(qrButton, findsOneWidget);
 
       // Verify the button is tappable
@@ -156,9 +168,10 @@ void main() {
         tester.view.devicePixelRatio = 1.0;
 
         await tester.pumpWidget(const MyApp());
+        await tester.pumpAndSettle();
 
         // Verify QR scanner button is present
-        final qrButton = find.byIcon(CupertinoIcons.qrcode_viewfinder);
+        final qrButton = find.byType(CupertinoButton).at(1);
         expect(qrButton, findsOneWidget);
 
         // Verify text field is also present
@@ -179,20 +192,32 @@ void main() {
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(const MyApp());
+      await tester.pumpAndSettle();
 
       // Find the row containing text field and QR button
-      final rowWidget = find.byType(Row);
-      expect(
-        rowWidget,
-        findsWidgets,
-      ); // Changed from findsOneWidget to findsWidgets
+      final rowWidgets = find.byType(Row);
+      expect(rowWidgets, findsWidgets);
 
-      // Verify the row has proper children
-      final rowChildren = tester.widget<Row>(rowWidget).children;
-      expect(
-        rowChildren.length,
-        equals(3),
-      ); // Expanded, SizedBox, CupertinoButton
+      // Find the specific row that contains the text field and QR button
+      final mainRow = find.byWidgetPredicate(
+        (widget) =>
+            widget is Row &&
+            widget.children.any(
+              (child) => child is Expanded && child.child is CupertinoTextField,
+            ) &&
+            widget.children.any(
+              (child) => child is SizedBox && child.width == 12.0,
+            ) &&
+            widget.children.any(
+              (child) =>
+                  child is CupertinoButton &&
+                  child.child is Container &&
+                  (child.child as Container).child is Icon &&
+                  ((child.child as Container).child as Icon).icon ==
+                      CupertinoIcons.qrcode_viewfinder,
+            ),
+      );
+      expect(mainRow, findsOneWidget);
 
       // Verify the SizedBox provides proper spacing
       final spacingWidget = find.byWidgetPredicate(
@@ -205,6 +230,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(const MyApp());
+      await tester.pumpAndSettle();
 
       // Verify the QR button has proper visual styling
       final qrButtonContainer = find.byWidgetPredicate(

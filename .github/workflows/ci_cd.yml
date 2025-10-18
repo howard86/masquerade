@@ -1,0 +1,299 @@
+# CI/CD Pipeline for Flutter Multi-Platform App
+# This file should trigger deployment-specific Flutter rules
+#
+# REQUIRED SECRETS FOR DEPLOYMENT:
+# =================================
+#
+# For Web Deployment (Firebase Hosting):
+# - FIREBASE_SERVICE_ACCOUNT: JSON service account key for Firebase
+# - FIREBASE_PROJECT_ID: Firebase project ID
+#
+# For Android Deployment (Google Play Store):
+# - GOOGLE_PLAY_SERVICE_ACCOUNT: JSON service account key for Play Console
+#
+# For iOS Deployment (TestFlight):
+# - APPSTORE_API_PRIVATE_KEY: Private key (.p8 file content) for App Store Connect API
+# - APPSTORE_API_KEY_ID: Key ID for App Store Connect API
+# - APPSTORE_ISSUER_ID: Issuer ID for App Store Connect API
+#
+# NOTE: If secrets are not provided, the pipeline will:
+# - Still build all platforms
+# - Skip deployment steps
+# - Provide clear messages about missing credentials
+# - Make build artifacts available for manual upload
+#
+# To add secrets:
+# 1. Go to your GitHub repository
+# 2. Navigate to Settings > Secrets and variables > Actions
+# 3. Add the required secrets listed above
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  FLUTTER_VERSION: "3.16.0"
+
+jobs:
+  code-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: "stable"
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run linter
+        run: flutter analyze
+
+      - name: Run formatter
+        run: dart format --set-exit-if-changed .
+
+      - name: Run tests
+        run: flutter test
+
+  build-web:
+    needs: code-quality
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: "stable"
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build web
+        run: flutter build web --release
+
+      - name: Deploy to Firebase Hosting
+        if: env.FIREBASE_SERVICE_ACCOUNT != '' && env.FIREBASE_PROJECT_ID != ''
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+        with:
+          repoToken: "${{ secrets.GITHUB_TOKEN }}"
+          firebaseServiceAccount: "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}"
+          channelId: live
+          projectId: ${{ secrets.FIREBASE_PROJECT_ID }}
+
+      - name: Skip Firebase deployment
+        if: env.FIREBASE_SERVICE_ACCOUNT == '' || env.FIREBASE_PROJECT_ID == ''
+        run: |
+          echo "⚠️  Skipping Firebase deployment - credentials not provided"
+          echo "Set FIREBASE_SERVICE_ACCOUNT and FIREBASE_PROJECT_ID secrets to enable deployment"
+
+  build-android:
+    needs: code-quality
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: "stable"
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: "zulu"
+          java-version: "17"
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Android APK
+        run: flutter build apk --release
+
+      - name: Build Android App Bundle
+        run: flutter build appbundle --release
+
+      - name: Upload to Play Store
+        if: env.GOOGLE_PLAY_SERVICE_ACCOUNT != ''
+        uses: r0adkll/upload-google-play@v1
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT }}
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT }}
+          packageName: com.example.myapp
+          releaseFiles: build/app/outputs/bundle/release/app-release.aab
+          track: internal
+          status: completed
+
+      - name: Skip Play Store upload
+        if: env.GOOGLE_PLAY_SERVICE_ACCOUNT == ''
+        run: |
+          echo "⚠️  Skipping Play Store upload - credentials not provided"
+          echo "Set GOOGLE_PLAY_SERVICE_ACCOUNT secret to enable Play Store deployment"
+          echo "APK and AAB files are available in build outputs for manual upload"
+
+  build-ios:
+    needs: code-quality
+    runs-on: macos-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: "stable"
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build iOS IPA
+        run: |
+          flutter build ios --release --no-codesign
+          # Create IPA file for TestFlight upload
+          cd build/ios/iphoneos
+          mkdir -p Payload
+          cp -r Runner.app Payload/
+          zip -r ../Runner.ipa Payload
+          cd ../../..
+
+      - name: Upload to TestFlight
+        if: env.APPSTORE_API_PRIVATE_KEY != '' && env.APPSTORE_API_KEY_ID != '' && env.APPSTORE_ISSUER_ID != ''
+        uses: apple-actions/upload-testflight-build@v3
+        env:
+          APPSTORE_API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+        with:
+          app-path: build/ios/Runner.ipa
+          issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
+          api-key-id: ${{ secrets.APPSTORE_API_KEY_ID }}
+          api-private-key: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+
+      - name: Skip TestFlight upload
+        if: env.APPSTORE_API_PRIVATE_KEY == '' || env.APPSTORE_API_KEY_ID == '' || env.APPSTORE_ISSUER_ID == ''
+        run: |
+          echo "⚠️  Skipping TestFlight upload - credentials not provided"
+          echo "Set APPSTORE_API_PRIVATE_KEY, APPSTORE_API_KEY_ID, and APPSTORE_ISSUER_ID secrets to enable TestFlight deployment"
+          echo "iOS IPA is available in build/ios/Runner.ipa for manual upload"
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: "stable"
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run integration tests
+        run: flutter test integration_test/
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run security scan
+        run: |
+          echo "Running security scan..."
+          # Add security scanning tools here
+          # Example: CodeQL, Snyk, etc.
+
+  performance-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: "stable"
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run performance tests
+        run: flutter test --coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: coverage/lcov.info
+
+  create-artifacts:
+    needs: [build-web, build-android, build-ios]
+    runs-on: ubuntu-latest
+    if: always() && (needs.build-web.result == 'success' || needs.build-android.result == 'success' || needs.build-ios.result == 'success')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download web build artifacts
+        if: needs.build-web.result == 'success'
+        run: |
+          echo "📦 Web build artifacts are available in the build-web job"
+          echo "Build output: build/web/"
+
+      - name: Download Android build artifacts
+        if: needs.build-android.result == 'success'
+        run: |
+          echo "📦 Android build artifacts are available in the build-android job"
+          echo "APK: build/app/outputs/flutter-apk/app-release.apk"
+          echo "AAB: build/app/outputs/bundle/release/app-release.aab"
+
+      - name: Download iOS build artifacts
+        if: needs.build-ios.result == 'success'
+        run: |
+          echo "📦 iOS build artifacts are available in the build-ios job"
+          echo "iOS IPA: build/ios/Runner.ipa"
+
+      - name: Summary
+        run: |
+          echo "🎉 Build Summary:"
+          echo "================"
+          if [ "${{ needs.build-web.result }}" == "success" ]; then
+              echo "✅ Web build completed"
+          fi
+          if [ "${{ needs.build-android.result }}" == "success" ]; then
+              echo "✅ Android build completed"
+          fi
+          if [ "${{ needs.build-ios.result }}" == "success" ]; then
+              echo "✅ iOS build completed"
+          fi
+          echo ""
+          echo "📋 Next Steps:"
+          echo "- If deployment secrets are configured, apps will be automatically deployed"
+          echo "- Web: Deployed to Firebase Hosting (if configured)"
+          echo "- Android: Uploaded to Play Store Internal Track (if configured)"
+          echo "- iOS: Uploaded to TestFlight (if configured)"
+          echo "- If not, download build artifacts from the respective build jobs"
+          echo "- Manual upload instructions are provided in the skip deployment steps"

@@ -11,12 +11,16 @@ repos:
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-added-large-files
+        args: ['--maxkb=1000']  # Limit to 1MB files
       - id: check-merge-conflict
       - id: check-json
       - id: check-toml
       - id: check-xml
       - id: mixed-line-ending
         args: ['--fix=lf']
+      - id: check-case-conflict
+      - id: check-docstring-first
+      - id: debug-statements
 
   # Custom Flutter hooks
   - repo: local
@@ -51,13 +55,38 @@ repos:
         pass_filenames: false
         stages: [manual]  # Only run on manual trigger
 
-  # Security checks (disabled for now due to false positives)
-  # - repo: https://github.com/Yelp/detect-secrets
-  #   rev: v1.5.0
-  #   hooks:
-  #     - id: detect-secrets
-  #       args: ['--baseline', '.secrets.baseline']
-  #       exclude: package.lock.json
+      - id: dart-fix
+        name: Dart Fix
+        entry: dart fix --apply
+        language: system
+        types: [dart]
+        pass_filenames: false
+        stages: [manual]  # Only run on manual trigger
+
+      - id: flutter-deps-check
+        name: Flutter Dependencies Check
+        entry: flutter pub deps --json
+        language: system
+        types: [yaml]
+        files: ^pubspec\.yaml$
+        pass_filenames: false
+        stages: [manual]  # Only run on manual trigger
+
+  # Security checks
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: |
+          (?x)^(
+            .*\.lock$|
+            .*\.min\.js$|
+            .*\.min\.css$|
+            pubspec\.lock$|
+            .*\.g\.dart$|
+            .*\.freezed\.dart$
+          )$
 
   # Commit message linting
   - repo: https://github.com/commitizen-tools/commitizen

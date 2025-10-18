@@ -54,6 +54,8 @@ dev_dependencies:
   build_runner: ^2.4.9
   json_serializable: ^6.8.0
   json_annotation: ^4.9.0
+  integration_test:
+    sdk: flutter
 
   # Pre-commit hooks (Python package, but useful for CI)
   # Note: Install with: pip install pre-commit
