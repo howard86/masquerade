@@ -51,7 +51,7 @@ dev_dependencies:
   # Testing and code quality
   mockito: ^5.4.4
   build_runner: ^2.10.3
-  json_serializable: ^6.8.0
+  json_serializable: ^6.11.3
   json_annotation: ^4.9.0
 
   # Pre-commit hooks (Python package, but useful for CI)
