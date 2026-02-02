@@ -52,7 +52,7 @@ dev_dependencies:
   mockito: ^5.6.3
   build_runner: ^2.10.5
   json_serializable: ^6.11.4
-  json_annotation: ^4.9.0
+  json_annotation: ^4.10.0
 
   # Pre-commit hooks (Python package, but useful for CI)
   # Note: Install with: pip install pre-commit
