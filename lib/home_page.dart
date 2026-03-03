@@ -1,6 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:masquerade/widgets/timestamp_display_card.dart';
 import 'package:masquerade/widgets/encoding_display_card.dart';
+import 'package:masquerade/widgets/qr_code_display_card.dart';
+import 'package:masquerade/widgets/qr_scanner_screen.dart';
 import 'utils/timestamp_parser.dart';
 import 'utils/encoding_parser.dart';
 import 'dart:async';
@@ -23,6 +25,10 @@ class _MyHomePageState extends State<MyHomePage> {
   EncodingResult? _encodingResult;
   Timer? _debounceTimer;
 
+  // QR Code related state
+  String? _qrScannedData;
+  DateTime? _qrScanTime;
+
   void _parseTimestampDebounced() {
     // Cancel any existing timer
     _debounceTimer?.cancel();
@@ -31,6 +37,45 @@ class _MyHomePageState extends State<MyHomePage> {
     _debounceTimer = Timer(const Duration(milliseconds: 200), () {
       _parseTimestamp();
     });
+  }
+
+  /// Opens the QR code scanner and handles the result.
+  Future<void> _scanQrCode() async {
+    try {
+      final result = await Navigator.of(context).push<String>(
+        CupertinoPageRoute(builder: (context) => const QrScannerScreen()),
+      );
+
+      if (result != null && mounted) {
+        setState(() {
+          _qrScannedData = result;
+          _qrScanTime = DateTime.now();
+          // Also populate the text field with the scanned data
+          _inputController.text = result;
+        });
+        // Parse the scanned data
+        _parseTimestamp();
+      }
+    } catch (e) {
+      if (mounted) {
+        // Show error dialog if scanning fails
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('Scan Error'),
+            content: const Text(
+              'Unable to access camera. Please check permissions.',
+            ),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('OK'),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+        );
+      }
+    }
   }
 
   void _parseTimestamp() {
@@ -43,6 +88,8 @@ class _MyHomePageState extends State<MyHomePage> {
         _originalValue = null;
         _encodingType = null;
         _encodingResult = null;
+        _qrScannedData = null;
+        _qrScanTime = null;
       });
       return;
     }
@@ -128,31 +175,62 @@ class _MyHomePageState extends State<MyHomePage> {
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 20),
-                      CupertinoTextField(
-                        controller: _inputController,
-                        placeholder:
-                            'Enter timestamp (Unix, ISO 8601, Base64, or Hex)',
-                        prefix: const Padding(
-                          padding: EdgeInsets.only(left: 8.0),
-                          child: Icon(
-                            CupertinoIcons.time,
-                            color: CupertinoColors.systemGrey,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: CupertinoTextField(
+                              controller: _inputController,
+                              placeholder:
+                                  'Enter timestamp (Unix, ISO 8601, Base64, or Hex)',
+                              prefix: const Padding(
+                                padding: EdgeInsets.only(left: 8.0),
+                                child: Icon(
+                                  CupertinoIcons.time,
+                                  color: CupertinoColors.systemGrey,
+                                ),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12.0,
+                                vertical: 16.0,
+                              ),
+                              decoration: BoxDecoration(
+                                color: CupertinoColors.systemGrey6,
+                                borderRadius: BorderRadius.circular(8.0),
+                                border: Border.all(
+                                  color: CupertinoColors.systemGrey4,
+                                  width: 0.5,
+                                ),
+                              ),
+                              onChanged: (_) => _parseTimestampDebounced(),
+                              keyboardType: TextInputType.text,
+                            ),
                           ),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12.0,
-                          vertical: 16.0,
-                        ),
-                        decoration: BoxDecoration(
-                          color: CupertinoColors.systemGrey6,
-                          borderRadius: BorderRadius.circular(8.0),
-                          border: Border.all(
-                            color: CupertinoColors.systemGrey4,
-                            width: 0.5,
+                          const SizedBox(width: 12),
+                          CupertinoButton(
+                            onPressed: _scanQrCode,
+                            padding: const EdgeInsets.all(12),
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: CupertinoColors.systemBlue,
+                                borderRadius: BorderRadius.circular(8),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: CupertinoColors.systemBlue
+                                        .withValues(alpha: 0.3),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                CupertinoIcons.qrcode_viewfinder,
+                                color: CupertinoColors.white,
+                                size: 24,
+                              ),
+                            ),
                           ),
-                        ),
-                        onChanged: (_) => _parseTimestampDebounced(),
-                        keyboardType: TextInputType.text,
+                        ],
                       ),
                       const SizedBox(height: 20),
                       if (_errorMessage != null)
@@ -162,10 +240,12 @@ class _MyHomePageState extends State<MyHomePage> {
                           child: Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: CupertinoColors.systemRed.withOpacity(0.1),
+                              color: CupertinoColors.systemRed.withValues(
+                                alpha: 0.1,
+                              ),
                               border: Border.all(
-                                color: CupertinoColors.systemRed.withOpacity(
-                                  0.3,
+                                color: CupertinoColors.systemRed.withValues(
+                                  alpha: 0.3,
                                 ),
                                 width: 0.5,
                               ),
@@ -196,6 +276,18 @@ class _MyHomePageState extends State<MyHomePage> {
                             ),
                           ),
                         ),
+                      // Show QR code display for scanned QR codes
+                      if (_qrScannedData != null && _qrScanTime != null) ...[
+                        AnimatedOpacity(
+                          opacity: _qrScannedData != null ? 1.0 : 0.0,
+                          duration: const Duration(milliseconds: 300),
+                          child: QrCodeDisplayCard(
+                            scannedData: _qrScannedData!,
+                            scanTime: _qrScanTime!,
+                          ),
+                        ),
+                      ],
+
                       // Show encoding display for hex/base64 inputs
                       if (_originalValue != null && _encodingType != null) ...[
                         AnimatedOpacity(
@@ -244,6 +336,8 @@ class _MyHomePageState extends State<MyHomePage> {
                       _originalValue = null;
                       _encodingType = null;
                       _encodingResult = null;
+                      _qrScannedData = null;
+                      _qrScanTime = null;
                     });
                   },
                   child: const Row(
