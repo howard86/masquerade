@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:masquerade/utils/encoding_parser.dart';
 import 'package:masquerade/utils/unit_parser.dart';
 
 void main() {
@@ -172,6 +173,49 @@ void main() {
         final result = UnitParser.parse('3.14');
         expect(result.isSuccess, isFalse);
       });
+    });
+  });
+
+  group('UnitParser.parse — encoding delegation', () {
+    test('detects base64 and sets encoding category', () {
+      // "aGVsbG8=" is base64 for "hello"
+      final result = UnitParser.parse('aGVsbG8=');
+      expect(result.isSuccess, isTrue);
+      expect(result.category, UnitCategory.encoding);
+      expect(result.encodingResult, isNotNull);
+      expect(result.encodingResult!.type, EncodingType.base64);
+    });
+
+    test('detects hex string and sets encoding category', () {
+      // "68656c6c6f" is hex for "hello"
+      final result = UnitParser.parse('68656c6c6f');
+      expect(result.isSuccess, isTrue);
+      expect(result.category, UnitCategory.encoding);
+      expect(result.encodingResult!.type, EncodingType.hex);
+    });
+  });
+
+  group('UnitParser.parse — timestamp delegation', () {
+    test('detects Unix timestamp (pure integer)', () {
+      final result = UnitParser.parse('1672531200');
+      expect(result.isSuccess, isTrue);
+      expect(result.category, UnitCategory.timestamp);
+      expect(result.timestamp, isNotNull);
+      expect(result.timestamp!.year, 2023);
+    });
+
+    test('detects ISO 8601 date string', () {
+      final result = UnitParser.parse('2023-11-14T22:13:20Z');
+      expect(result.isSuccess, isTrue);
+      expect(result.category, UnitCategory.timestamp);
+      expect(result.timestamp!.year, 2023);
+    });
+
+    test('pure integer is not treated as hex', () {
+      // "1714000000" contains only 0-9 chars (valid hex chars)
+      // but should be treated as a timestamp, not encoding
+      final result = UnitParser.parse('1714000000');
+      expect(result.category, UnitCategory.timestamp);
     });
   });
 }
