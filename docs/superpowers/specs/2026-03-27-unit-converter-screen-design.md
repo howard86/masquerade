@@ -122,6 +122,21 @@ test/
     iphone_frame_test.dart          # unchanged
 ```
 
+## Cleanup Criteria
+
+The following existing code must be removed or replaced as part of this change:
+
+| File | Action | Reason |
+|------|--------|--------|
+| `lib/home_page.dart` | Delete | Fully absorbed into `unit_converter_page.dart` |
+| `test/widget_test.dart` | Delete or replace | Tests `MyHomePage` which no longer exists; replace with a smoke test for `MasqueradeTabScaffold` |
+| `lib/app.dart` | Refactor | Remove `MyHomePage` import and `home:` reference; replace with `CupertinoTabScaffold` |
+
+Additionally, any import of `home_page.dart` across the codebase must be removed. The implementation is considered complete only when:
+- No references to `MyHomePage` remain
+- No dead imports exist
+- All existing tests pass (or are explicitly replaced)
+
 ## Testing
 
 - `unit_parser_test.dart`: unit tests for each category, delegation to existing parsers, error cases, case-insensitive unit matching, ambiguous input handling
