@@ -8,6 +8,10 @@
 
 **Tech Stack:** Flutter/Dart, Cupertino widgets, `intl` (already a dependency), existing `TimestampParser`, `EncodingParser`, `CopyToClipboardUtil`.
 
+**Worktree:** `.worktrees/unit-converter-screen` (branch: `feature/unit-converter-screen`) — all work should be done here.
+
+**OpenSpec artifacts:** `openspec/changes/unit-converter-screen/` — proposal, design, specs (unit-conversion, tools-hub, unit-converter-screen), tasks.
+
 ---
 
 ### Task 1: UnitParser — data model (enum + result class)
