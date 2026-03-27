@@ -37,6 +37,13 @@ void main() {
       expect(result.isSuccess, isFalse);
       expect(result.errorMessage, 'Unknown unit');
     });
+
+    test('UnitParseResult.error factory creates error result with message', () {
+      final result = UnitParseResult.error('Something went wrong');
+      expect(result.isSuccess, isFalse);
+      expect(result.category, UnitCategory.unknown);
+      expect(result.errorMessage, 'Something went wrong');
+    });
   });
 
   group('UnitParser._parseUnitConversion (via parse)', () {
@@ -215,6 +222,15 @@ void main() {
       // "1714000000" contains only 0-9 chars (valid hex chars)
       // but should be treated as a timestamp, not encoding
       final result = UnitParser.parse('1714000000');
+      expect(result.category, UnitCategory.timestamp);
+    });
+
+    test('small integer routes to timestamp (not unit error)', () {
+      // Any pure integer is routed to TimestampParser first.
+      // Even "42" is a valid Unix timestamp (42s after epoch).
+      // This documents the routing decision: integers -> timestamp delegation.
+      final result = UnitParser.parse('42');
+      expect(result.isSuccess, isTrue);
       expect(result.category, UnitCategory.timestamp);
     });
   });

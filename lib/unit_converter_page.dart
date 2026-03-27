@@ -80,7 +80,7 @@ class _UnitConverterPageState extends State<UnitConverterPage> {
                       CupertinoTextField(
                         controller: _inputController,
                         placeholder:
-                            'Enter value with unit (e.g. 100km, 5GB, 98.6°F)',
+                            'Enter value with unit (e.g. 100km, 5GB, 98.6F, 1714000000)',
                         prefix: const Padding(
                           padding: EdgeInsets.only(left: 8.0),
                           child: Icon(
@@ -104,16 +104,11 @@ class _UnitConverterPageState extends State<UnitConverterPage> {
                         keyboardType: TextInputType.text,
                       ),
                       const SizedBox(height: 20),
-                      if (_result != null) ...[
-                        if (!_result!.isSuccess)
-                          _ErrorBanner(message: _result!.errorMessage ?? 'Invalid input'),
+                      if (_result != null)
                         if (_result!.isSuccess)
-                          AnimatedOpacity(
-                            opacity: 1.0,
-                            duration: const Duration(milliseconds: 300),
-                            child: _buildResultCard(),
-                          ),
-                      ],
+                          _buildResultCard()
+                        else
+                          _ErrorBanner(message: _result!.errorMessage ?? 'Invalid input'),
                     ],
                   ),
                 ),
@@ -170,39 +165,35 @@ class _ErrorBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedOpacity(
-      opacity: 1.0,
-      duration: const Duration(milliseconds: 300),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: CupertinoColors.systemRed.withOpacity(0.1),
-          border: Border.all(
-            color: CupertinoColors.systemRed.withOpacity(0.3),
-            width: 0.5,
-          ),
-          borderRadius: BorderRadius.circular(8),
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: CupertinoColors.systemRed.withOpacity(0.1),
+        border: Border.all(
+          color: CupertinoColors.systemRed.withOpacity(0.3),
+          width: 0.5,
         ),
-        child: Row(
-          children: [
-            const Icon(
-              CupertinoIcons.exclamationmark_circle_fill,
-              color: CupertinoColors.systemRed,
-              size: 20,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                message,
-                style: CupertinoTheme.of(context).textTheme.textStyle.copyWith(
-                  color: CupertinoColors.systemRed,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                ),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            CupertinoIcons.exclamationmark_circle_fill,
+            color: CupertinoColors.systemRed,
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: CupertinoTheme.of(context).textTheme.textStyle.copyWith(
+                color: CupertinoColors.systemRed,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

@@ -38,6 +38,12 @@ class UnitParseResult {
     isSuccess: false,
     category: UnitCategory.unknown,
   );
+
+  factory UnitParseResult.error(String message) => UnitParseResult(
+    isSuccess: false,
+    category: UnitCategory.unknown,
+    errorMessage: message,
+  );
 }
 
 class UnitParser {
