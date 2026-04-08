@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
-import 'home_page.dart';
-import 'widgets/iphone_frame.dart';
+import 'package:masquerade/tools_hub_page.dart';
+import 'package:masquerade/unit_converter_page.dart';
+import 'package:masquerade/widgets/iphone_frame.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -66,7 +67,62 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const ResponsiveLayout(child: MyHomePage(title: 'Masquerade')),
+      home: const ResponsiveLayout(child: _MasqueradeTabScaffold()),
+    );
+  }
+}
+
+class _MasqueradeTabScaffold extends StatefulWidget {
+  const _MasqueradeTabScaffold();
+
+  @override
+  State<_MasqueradeTabScaffold> createState() =>
+      _MasqueradeTabScaffoldState();
+}
+
+class _MasqueradeTabScaffoldState extends State<_MasqueradeTabScaffold> {
+  late final CupertinoTabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = CupertinoTabController();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoTabScaffold(
+      controller: _tabController,
+      tabBar: CupertinoTabBar(
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.house),
+            label: 'Tools',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.arrow_2_squarepath),
+            label: 'Converter',
+          ),
+        ],
+      ),
+      tabBuilder: (context, index) {
+        switch (index) {
+          case 0:
+            return ToolsHubPage(
+              onToolSelected: (i) => _tabController.index = i,
+            );
+          case 1:
+            return const UnitConverterPage();
+          default:
+            return const SizedBox.shrink();
+        }
+      },
     );
   }
 }
