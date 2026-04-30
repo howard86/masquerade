@@ -16,7 +16,7 @@ class TimestampDisplayCard extends StatelessWidget {
         border: Border.all(color: CupertinoColors.systemGrey4, width: 0.5),
         boxShadow: [
           BoxShadow(
-            color: CupertinoColors.systemGrey.withOpacity(0.1),
+            color: CupertinoColors.systemGrey.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
