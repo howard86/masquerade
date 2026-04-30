@@ -130,7 +130,7 @@ class _CupertinoNotificationOverlayState
           border: Border.all(color: CupertinoColors.systemGrey4, width: 0.5),
           boxShadow: [
             BoxShadow(
-              color: CupertinoColors.systemGrey.withOpacity(0.15),
+              color: CupertinoColors.systemGrey.withValues(alpha: 0.15),
               blurRadius: 20,
               offset: const Offset(0, 8),
             ),
@@ -141,7 +141,7 @@ class _CupertinoNotificationOverlayState
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: CupertinoColors.systemGreen.withOpacity(0.1),
+                color: CupertinoColors.systemGreen.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(

@@ -162,10 +162,12 @@ class _MyHomePageState extends State<MyHomePage> {
                           child: Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: CupertinoColors.systemRed.withOpacity(0.1),
+                              color: CupertinoColors.systemRed.withValues(
+                                alpha: 0.1,
+                              ),
                               border: Border.all(
-                                color: CupertinoColors.systemRed.withOpacity(
-                                  0.3,
+                                color: CupertinoColors.systemRed.withValues(
+                                  alpha: 0.3,
                                 ),
                                 width: 0.5,
                               ),
