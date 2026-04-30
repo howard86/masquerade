@@ -12,7 +12,7 @@ A Flutter utility-toolbox app — a digital toolbox for the small everyday conve
 
 ## Requirements
 
-- Flutter `3.35.5` (CI-pinned).
+- Flutter `3.41.8` (CI-pinned).
 - Platform toolchains for whichever target you're building (Xcode for iOS/macOS, Android SDK for `apk`, etc.).
 - Python 3 + `pip3` for the pre-commit hooks.
 

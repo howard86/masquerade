@@ -8,7 +8,7 @@ Masquerade is a Flutter utility-toolbox app. Current shipped tools (single-scree
 
 ## Stack
 
-- Flutter `3.35.5` (pinned in `.github/workflows/ci.yml`).
+- Flutter `3.41.8` (pinned in `.github/workflows/ci.yml`).
 - UI: Cupertino widgets only (`uses-material-design: false` in `pubspec.yaml`). Do not introduce `Material*` widgets, `Scaffold`, or `MaterialApp`.
 - `device_frame` is used by `lib/widgets/iphone_frame.dart` for the in-app preview wrapper.
 - `build_runner`, `json_serializable`, `json_annotation`, `mockito` are dev deps but **not currently used** — no codegen step is wired up. Do not add `*.g.dart` imports without also wiring the generator.
