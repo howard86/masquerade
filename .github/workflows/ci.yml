@@ -18,7 +18,7 @@ permissions:
 env:
   # Pin the Flutter channel and version
   FLUTTER_CHANNEL: stable
-  FLUTTER_VERSION: "3.35.5"
+  FLUTTER_VERSION: "3.41.8"
   # Skip Flutter analytics in CI
   CI: true
 
