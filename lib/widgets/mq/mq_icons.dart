@@ -1,9 +1,9 @@
 import 'package:flutter/cupertino.dart';
 
-/// Magic Box icon set. Maps semantic names to nearest [CupertinoIcons] glyph
+/// Masquerade icon set. Maps semantic names to nearest [CupertinoIcons] glyph
 /// so the spec's 30 line icons render natively without bundling SVG assets.
-class MBIcons {
-  const MBIcons._();
+class MqIcons {
+  const MqIcons._();
 
   static const IconData search = CupertinoIcons.search;
   static const IconData copy = CupertinoIcons.doc_on_doc;

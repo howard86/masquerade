@@ -1,51 +1,51 @@
 import 'package:flutter/widgets.dart';
 
-import '../../theme/mb_metrics.dart';
-import '../../theme/mb_theme.dart';
-import '../../theme/mb_typography.dart';
-import 'mb_icons.dart';
+import '../../theme/mq_metrics.dart';
+import '../../theme/mq_theme.dart';
+import '../../theme/mq_typography.dart';
+import 'mq_icons.dart';
 
-enum MBStatusKind { success, warning, danger, info, neutral }
+enum MqStatusKind { success, warning, danger, info, neutral }
 
-class MBStatus extends StatelessWidget {
-  const MBStatus({
+class MqStatus extends StatelessWidget {
+  const MqStatus({
     super.key,
     required this.label,
-    this.kind = MBStatusKind.success,
+    this.kind = MqStatusKind.success,
     this.showIcon = true,
   });
 
   final String label;
-  final MBStatusKind kind;
+  final MqStatusKind kind;
   final bool showIcon;
 
   @override
   Widget build(BuildContext context) {
-    final c = context.mb.colors;
+    final c = context.mq.colors;
     final ({Color bg, Color fg, IconData? icon}) style = switch (kind) {
-      MBStatusKind.success => (
+      MqStatusKind.success => (
         bg: c.successBg,
         fg: c.success,
-        icon: MBIcons.check,
+        icon: MqIcons.check,
       ),
-      MBStatusKind.warning => (
+      MqStatusKind.warning => (
         bg: c.warningBg,
         fg: c.warning,
-        icon: MBIcons.warn,
+        icon: MqIcons.warn,
       ),
-      MBStatusKind.danger => (bg: c.dangerBg, fg: c.danger, icon: MBIcons.warn),
-      MBStatusKind.info => (
+      MqStatusKind.danger => (bg: c.dangerBg, fg: c.danger, icon: MqIcons.warn),
+      MqStatusKind.info => (
         bg: c.accentBg,
         fg: c.accentInk,
-        icon: MBIcons.info,
+        icon: MqIcons.info,
       ),
-      MBStatusKind.neutral => (bg: c.surface2, fg: c.textSec, icon: null),
+      MqStatusKind.neutral => (bg: c.surface2, fg: c.textSec, icon: null),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
         color: style.bg,
-        borderRadius: BorderRadius.circular(MBRadius.pill),
+        borderRadius: BorderRadius.circular(MqRadius.pill),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -56,7 +56,7 @@ class MBStatus extends StatelessWidget {
           ],
           Text(
             label.toUpperCase(),
-            style: MBTextStyles.caption2.copyWith(
+            style: MqTextStyles.caption2.copyWith(
               color: style.fg,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.4,

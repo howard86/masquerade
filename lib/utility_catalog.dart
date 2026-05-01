@@ -7,17 +7,17 @@ import 'screens/detail/color_screen.dart';
 import 'screens/detail/json_screen.dart';
 import 'screens/detail/number_base_screen.dart';
 import 'screens/detail/timestamp_screen.dart';
-import 'theme/mb_colors.dart';
-import 'widgets/mb/mb_icons.dart';
+import 'theme/mq_colors.dart';
+import 'widgets/mq/mq_icons.dart';
 
-enum MBCategory { numeric, time, encoding, visual }
+enum MqCategory { numeric, time, encoding, visual }
 
-extension MBCategoryLabel on MBCategory {
+extension MqCategoryLabel on MqCategory {
   String get label => switch (this) {
-    MBCategory.numeric => 'Numeric',
-    MBCategory.time => 'Time',
-    MBCategory.encoding => 'Encoding',
-    MBCategory.visual => 'Visual',
+    MqCategory.numeric => 'Numeric',
+    MqCategory.time => 'Time',
+    MqCategory.encoding => 'Encoding',
+    MqCategory.visual => 'Visual',
   };
 }
 
@@ -36,7 +36,7 @@ class UtilityDescriptor {
   final String name;
   final IconData icon;
   final Color tint;
-  final MBCategory category;
+  final MqCategory category;
   final List<String> synonyms;
   final WidgetBuilder builder;
 }
@@ -49,54 +49,54 @@ class UtilityCatalog {
     UtilityDescriptor(
       id: 'number_base',
       name: 'Number Base',
-      icon: MBIcons.binary,
-      tint: MBColors.light().info,
-      category: MBCategory.numeric,
+      icon: MqIcons.binary,
+      tint: MqColors.light().info,
+      category: MqCategory.numeric,
       synonyms: <String>['hex', 'binary', 'octal', 'decimal', 'base'],
       builder: (BuildContext _) => const NumberBaseScreen(),
     ),
     UtilityDescriptor(
       id: 'timestamp',
       name: 'Timestamp',
-      icon: MBIcons.clock,
-      tint: MBColors.light().accent,
-      category: MBCategory.time,
+      icon: MqIcons.clock,
+      tint: MqColors.light().accent,
+      category: MqCategory.time,
       synonyms: <String>['epoch', 'unix', 'iso', 'date', 'time'],
       builder: (BuildContext _) => const TimestampScreen(),
     ),
     UtilityDescriptor(
       id: 'json',
       name: 'JSON',
-      icon: MBIcons.brackets,
+      icon: MqIcons.brackets,
       tint: const Color(0xFF8B5CF6),
-      category: MBCategory.encoding,
+      category: MqCategory.encoding,
       synonyms: <String>['pretty', 'minify', 'tree', 'parse'],
       builder: (BuildContext _) => const JSONScreen(),
     ),
     UtilityDescriptor(
       id: 'base64',
       name: 'Base64',
-      icon: MBIcons.textCase,
+      icon: MqIcons.textCase,
       tint: const Color(0xFF0EA5E9),
-      category: MBCategory.encoding,
+      category: MqCategory.encoding,
       synonyms: <String>['encode', 'decode', 'b64', 'url-safe'],
       builder: (BuildContext _) => const Base64Screen(),
     ),
     UtilityDescriptor(
       id: 'color',
       name: 'Color',
-      icon: MBIcons.drop,
+      icon: MqIcons.drop,
       tint: const Color(0xFFEC4899),
-      category: MBCategory.visual,
+      category: MqCategory.visual,
       synonyms: <String>['hex', 'rgb', 'hsl', 'oklch', 'contrast', 'wcag'],
       builder: (BuildContext _) => const ColorScreen(),
     ),
     UtilityDescriptor(
       id: 'bps',
       name: 'bps · % · decimal',
-      icon: MBIcons.pct,
+      icon: MqIcons.pct,
       tint: const Color(0xFFF59E0B),
-      category: MBCategory.numeric,
+      category: MqCategory.numeric,
       synonyms: <String>['basis points', 'percent', 'rate', 'finance'],
       builder: (BuildContext _) => const BpsScreen(),
     ),
@@ -105,6 +105,6 @@ class UtilityCatalog {
   static UtilityDescriptor byId(String id) =>
       all.firstWhere((UtilityDescriptor u) => u.id == id);
 
-  static List<UtilityDescriptor> byCategory(MBCategory category) =>
+  static List<UtilityDescriptor> byCategory(MqCategory category) =>
       all.where((UtilityDescriptor u) => u.category == category).toList();
 }

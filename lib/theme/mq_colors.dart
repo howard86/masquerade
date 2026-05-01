@@ -1,9 +1,9 @@
 import 'package:flutter/painting.dart';
 
-/// Magic Box color tokens. Cool greys + electric cyan accent.
+/// Masquerade color tokens. Cool greys + electric cyan accent.
 /// Mirrors `tokens.jsx` exactly. Both modes are first-class.
-class MBColors {
-  const MBColors({
+class MqColors {
+  const MqColors({
     required this.bg,
     required this.surface,
     required this.surface2,
@@ -35,7 +35,7 @@ class MBColors {
     required this.shadowLg,
   });
 
-  factory MBColors.light() => const MBColors(
+  factory MqColors.light() => const MqColors(
     bg: Color(0xFFF4F6F8),
     surface: Color(0xFFFFFFFF),
     surface2: Color(0xFFEDF0F3),
@@ -73,7 +73,7 @@ class MBColors {
     ],
   );
 
-  factory MBColors.dark() => const MBColors(
+  factory MqColors.dark() => const MqColors(
     bg: Color(0xFF0A0E14),
     surface: Color(0xFF121821),
     surface2: Color(0xFF1A222D),
@@ -145,7 +145,7 @@ class MBColors {
   final List<BoxShadow> shadow;
   final List<BoxShadow> shadowLg;
 
-  static MBColors lerp(MBColors a, MBColors b, double t) => MBColors(
+  static MqColors lerp(MqColors a, MqColors b, double t) => MqColors(
     bg: Color.lerp(a.bg, b.bg, t)!,
     surface: Color.lerp(a.surface, b.surface, t)!,
     surface2: Color.lerp(a.surface2, b.surface2, t)!,

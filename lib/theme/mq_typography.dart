@@ -1,9 +1,9 @@
 import 'package:flutter/painting.dart';
 
-/// Magic Box type scale. Mirrors `MB_TOKENS.type` exactly.
+/// Masquerade type scale. Mirrors `MQ_TOKENS.type` exactly.
 /// Sans = SF Pro stack. Mono = SF Mono stack with tabular numerals.
-class MBTextStyles {
-  const MBTextStyles._();
+class MqTextStyles {
+  const MqTextStyles._();
 
   static const String sansFamily = '.SF Pro Text';
   static const List<String> sansFallback = <String>[

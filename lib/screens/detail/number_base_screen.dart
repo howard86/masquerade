@@ -5,16 +5,16 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../state/history_controller.dart';
-import '../../theme/mb_metrics.dart';
-import '../../theme/mb_theme.dart';
-import '../../theme/mb_typography.dart';
+import '../../theme/mq_metrics.dart';
+import '../../theme/mq_theme.dart';
+import '../../theme/mq_typography.dart';
 import '../../utils/number_base_parser.dart';
-import '../../widgets/mb/mb_button.dart';
-import '../../widgets/mb/mb_icons.dart';
-import '../../widgets/mb/mb_input.dart';
-import '../../widgets/mb/mb_mono_cell.dart';
-import '../../widgets/mb/mb_section_header.dart';
-import '../../widgets/mb/mb_status.dart';
+import '../../widgets/mq/mq_button.dart';
+import '../../widgets/mq/mq_icons.dart';
+import '../../widgets/mq/mq_input.dart';
+import '../../widgets/mq/mq_mono_cell.dart';
+import '../../widgets/mq/mq_section_header.dart';
+import '../../widgets/mq/mq_status.dart';
 import 'detail_scaffold.dart';
 
 class NumberBaseScreen extends StatefulWidget {
@@ -87,27 +87,27 @@ class _NumberBaseScreenState extends State<NumberBaseScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.mb.colors;
-    return MBDetailScaffold(
+    final c = context.mq.colors;
+    return MqDetailScaffold(
       title: 'Number Base',
       subtitle: 'Auto-detect base. All forms shown live.',
       bottomBar: Row(
         children: <Widget>[
           Expanded(
-            child: MBButton(
+            child: MqButton(
               label: 'Paste',
-              icon: MBIcons.paste,
-              variant: MBButtonVariant.glass,
+              icon: MqIcons.paste,
+              variant: MqButtonVariant.glass,
               onPressed: _paste,
               full: true,
             ),
           ),
-          const SizedBox(width: MBSpacing.sm),
+          const SizedBox(width: MqSpacing.sm),
           Expanded(
-            child: MBButton(
+            child: MqButton(
               label: 'Clear',
-              icon: MBIcons.clear,
-              variant: MBButtonVariant.glass,
+              icon: MqIcons.clear,
+              variant: MqButtonVariant.glass,
               onPressed: _clear,
               full: true,
             ),
@@ -117,42 +117,42 @@ class _NumberBaseScreenState extends State<NumberBaseScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          MBInput(
+          MqInput(
             controller: _controller,
             label: 'Input',
             placeholder: '0xFF, 0b1010, 255, 0o377…',
             onChanged: _onChanged,
             keyboardType: TextInputType.text,
           ),
-          const SizedBox(height: MBSpacing.lg),
+          const SizedBox(height: MqSpacing.lg),
           if (_error != null)
-            MBMonoCell(label: 'Error', value: _error!, copyable: false)
+            MqMonoCell(label: 'Error', value: _error!, copyable: false)
           else if (_result != null) ...<Widget>[
-            const MBSectionHeader(label: 'Detected base'),
-            MBStatus(
+            const MqSectionHeader(label: 'Detected base'),
+            MqStatus(
               label: 'Base ${_result!.detectedBase}',
-              kind: MBStatusKind.info,
+              kind: MqStatusKind.info,
             ),
-            const SizedBox(height: MBSpacing.md),
-            const MBSectionHeader(label: 'All forms'),
-            MBMonoCell(
+            const SizedBox(height: MqSpacing.md),
+            const MqSectionHeader(label: 'All forms'),
+            MqMonoCell(
               label: 'Decimal',
               value: _result!.decimal,
               large: true,
               accent: true,
             ),
-            const SizedBox(height: MBSpacing.sm),
-            MBMonoCell(label: 'Hexadecimal', value: _result!.hex),
-            const SizedBox(height: MBSpacing.sm),
-            MBMonoCell(label: 'Octal', value: _result!.octal),
-            const SizedBox(height: MBSpacing.sm),
-            MBMonoCell(label: 'Binary', value: _result!.binary),
+            const SizedBox(height: MqSpacing.sm),
+            MqMonoCell(label: 'Hexadecimal', value: _result!.hex),
+            const SizedBox(height: MqSpacing.sm),
+            MqMonoCell(label: 'Octal', value: _result!.octal),
+            const SizedBox(height: MqSpacing.sm),
+            MqMonoCell(label: 'Binary', value: _result!.binary),
           ] else
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: MBSpacing.lg),
+              padding: const EdgeInsets.symmetric(vertical: MqSpacing.lg),
               child: Text(
                 'Enter a number to convert across bases.',
-                style: MBTextStyles.subhead.copyWith(color: c.textTer),
+                style: MqTextStyles.subhead.copyWith(color: c.textTer),
               ),
             ),
         ],

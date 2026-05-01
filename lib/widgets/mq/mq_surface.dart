@@ -1,17 +1,17 @@
 import 'package:flutter/widgets.dart';
 
-import '../../theme/mb_metrics.dart';
-import '../../theme/mb_theme.dart';
+import '../../theme/mq_metrics.dart';
+import '../../theme/mq_theme.dart';
 
-/// Magic Box card surface. Radius 18, 0.5px border, optional elevated shadow.
-class MBSurface extends StatelessWidget {
-  const MBSurface({
+/// Masquerade card surface. Radius 18, 0.5px border, optional elevated shadow.
+class MqSurface extends StatelessWidget {
+  const MqSurface({
     super.key,
     required this.child,
     this.padded = true,
     this.elevated = false,
     this.padding,
-    this.radius = MBRadius.lg,
+    this.radius = MqRadius.lg,
     this.background,
     this.borderColor,
   });
@@ -26,7 +26,7 @@ class MBSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.mb;
+    final tokens = context.mq;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: background ?? tokens.colors.surface,
@@ -40,7 +40,7 @@ class MBSurface extends StatelessWidget {
       child: Padding(
         padding:
             padding ??
-            (padded ? const EdgeInsets.all(MBSpacing.lg) : EdgeInsets.zero),
+            (padded ? const EdgeInsets.all(MqSpacing.lg) : EdgeInsets.zero),
         child: child,
       ),
     );

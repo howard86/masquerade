@@ -1,11 +1,11 @@
 import 'package:flutter/cupertino.dart';
 
-import '../../theme/mb_theme.dart';
-import '../../theme/mb_typography.dart';
+import '../../theme/mq_theme.dart';
+import '../../theme/mq_typography.dart';
 
-/// Cupertino sliding segmented control themed with Magic Box tokens.
-class MBSegmented<T extends Object> extends StatelessWidget {
-  const MBSegmented({
+/// Cupertino sliding segmented control themed with Masquerade tokens.
+class MqSegmented<T extends Object> extends StatelessWidget {
+  const MqSegmented({
     super.key,
     required this.options,
     required this.selected,
@@ -20,7 +20,7 @@ class MBSegmented<T extends Object> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.mb;
+    final tokens = context.mq;
     final c = tokens.colors;
 
     final Widget control = CupertinoSlidingSegmentedControl<T>(
@@ -36,7 +36,7 @@ class MBSegmented<T extends Object> extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
             child: Text(
               entry.value,
-              style: MBTextStyles.subhead.copyWith(
+              style: MqTextStyles.subhead.copyWith(
                 color: entry.key == selected ? c.textPri : c.textSec,
                 fontWeight: entry.key == selected
                     ? FontWeight.w600

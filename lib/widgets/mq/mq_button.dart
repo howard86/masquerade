@@ -1,20 +1,20 @@
 import 'package:flutter/cupertino.dart';
 
-import '../../theme/mb_theme.dart';
-import '../../theme/mb_typography.dart';
+import '../../theme/mq_theme.dart';
+import '../../theme/mq_typography.dart';
 
-enum MBButtonVariant { filled, tinted, plain, glass }
+enum MqButtonVariant { filled, tinted, plain, glass }
 
-enum MBButtonSize { sm, md, lg }
+enum MqButtonSize { sm, md, lg }
 
-class MBButton extends StatelessWidget {
-  const MBButton({
+class MqButton extends StatelessWidget {
+  const MqButton({
     super.key,
     required this.label,
     this.onPressed,
     this.icon,
-    this.variant = MBButtonVariant.filled,
-    this.size = MBButtonSize.md,
+    this.variant = MqButtonVariant.filled,
+    this.size = MqButtonSize.md,
     this.full = false,
     this.destructive = false,
     this.semanticsLabel,
@@ -23,38 +23,38 @@ class MBButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
   final IconData? icon;
-  final MBButtonVariant variant;
-  final MBButtonSize size;
+  final MqButtonVariant variant;
+  final MqButtonSize size;
   final bool full;
   final bool destructive;
   final String? semanticsLabel;
 
   double get _height => switch (size) {
-    MBButtonSize.sm => 32,
-    MBButtonSize.md => 44,
-    MBButtonSize.lg => 50,
+    MqButtonSize.sm => 32,
+    MqButtonSize.md => 44,
+    MqButtonSize.lg => 50,
   };
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.mb;
+    final tokens = context.mq;
     final c = tokens.colors;
     final Color tint = destructive ? c.danger : c.accent;
     final Color tintBg = destructive ? c.dangerBg : c.accentBg;
     final Color tintInk = destructive ? c.danger : c.accentInk;
 
     final ({Color bg, Color fg, Color? border}) style = switch (variant) {
-      MBButtonVariant.filled => (bg: tint, fg: c.textInverse, border: null),
-      MBButtonVariant.tinted => (bg: tintBg, fg: tintInk, border: null),
-      MBButtonVariant.plain => (
+      MqButtonVariant.filled => (bg: tint, fg: c.textInverse, border: null),
+      MqButtonVariant.tinted => (bg: tintBg, fg: tintInk, border: null),
+      MqButtonVariant.plain => (
         bg: const Color(0x00000000),
         fg: tint,
         border: null,
       ),
-      MBButtonVariant.glass => (bg: c.surface, fg: c.textPri, border: c.border),
+      MqButtonVariant.glass => (bg: c.surface, fg: c.textPri, border: c.border),
     };
 
-    final TextStyle textStyle = MBTextStyles.headline.copyWith(color: style.fg);
+    final TextStyle textStyle = MqTextStyles.headline.copyWith(color: style.fg);
 
     final Widget child = Row(
       mainAxisSize: MainAxisSize.min,
@@ -70,17 +70,17 @@ class MBButton extends StatelessWidget {
 
     final Widget button = CupertinoButton(
       padding: EdgeInsets.symmetric(
-        horizontal: size == MBButtonSize.sm ? 14 : 18,
+        horizontal: size == MqButtonSize.sm ? 14 : 18,
       ),
       borderRadius: BorderRadius.circular(_height / 2),
-      color: variant == MBButtonVariant.filled ? style.bg : null,
+      color: variant == MqButtonVariant.filled ? style.bg : null,
       pressedOpacity: 0.85,
       onPressed: onPressed,
       minimumSize: Size(0, _height),
       child: child,
     );
 
-    final Widget skinned = variant == MBButtonVariant.filled
+    final Widget skinned = variant == MqButtonVariant.filled
         ? button
         : Container(
             decoration: BoxDecoration(

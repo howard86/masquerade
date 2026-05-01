@@ -5,16 +5,16 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../state/history_controller.dart';
-import '../../theme/mb_metrics.dart';
-import '../../theme/mb_theme.dart';
-import '../../theme/mb_typography.dart';
+import '../../theme/mq_metrics.dart';
+import '../../theme/mq_theme.dart';
+import '../../theme/mq_typography.dart';
 import '../../utils/bps_parser.dart';
-import '../../widgets/mb/mb_button.dart';
-import '../../widgets/mb/mb_icons.dart';
-import '../../widgets/mb/mb_input.dart';
-import '../../widgets/mb/mb_mono_cell.dart';
-import '../../widgets/mb/mb_section_header.dart';
-import '../../widgets/mb/mb_status.dart';
+import '../../widgets/mq/mq_button.dart';
+import '../../widgets/mq/mq_icons.dart';
+import '../../widgets/mq/mq_input.dart';
+import '../../widgets/mq/mq_mono_cell.dart';
+import '../../widgets/mq/mq_section_header.dart';
+import '../../widgets/mq/mq_status.dart';
 import 'detail_scaffold.dart';
 
 class BpsScreen extends StatefulWidget {
@@ -85,27 +85,27 @@ class _BpsScreenState extends State<BpsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.mb.colors;
-    return MBDetailScaffold(
+    final c = context.mq.colors;
+    return MqDetailScaffold(
       title: 'bps · % · decimal',
       subtitle: 'Auto-detect. All three shown. Reference-only.',
       bottomBar: Row(
         children: <Widget>[
           Expanded(
-            child: MBButton(
+            child: MqButton(
               label: 'Paste',
-              icon: MBIcons.paste,
-              variant: MBButtonVariant.glass,
+              icon: MqIcons.paste,
+              variant: MqButtonVariant.glass,
               onPressed: _paste,
               full: true,
             ),
           ),
-          const SizedBox(width: MBSpacing.sm),
+          const SizedBox(width: MqSpacing.sm),
           Expanded(
-            child: MBButton(
+            child: MqButton(
               label: 'Clear',
-              icon: MBIcons.clear,
-              variant: MBButtonVariant.glass,
+              icon: MqIcons.clear,
+              variant: MqButtonVariant.glass,
               onPressed: _clear,
               full: true,
             ),
@@ -115,7 +115,7 @@ class _BpsScreenState extends State<BpsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          MBInput(
+          MqInput(
             controller: _controller,
             label: 'Input',
             placeholder: '25 bps · 0.25% · 0.0025',
@@ -125,44 +125,44 @@ class _BpsScreenState extends State<BpsScreen> {
               signed: true,
             ),
           ),
-          const SizedBox(height: MBSpacing.lg),
+          const SizedBox(height: MqSpacing.lg),
           if (_error != null)
-            MBMonoCell(label: 'Error', value: _error!, copyable: false)
+            MqMonoCell(label: 'Error', value: _error!, copyable: false)
           else if (_result != null) ...<Widget>[
-            const MBSectionHeader(label: 'Detected'),
-            MBStatus(label: _result!.detected.name, kind: MBStatusKind.info),
-            const SizedBox(height: MBSpacing.md),
-            const MBSectionHeader(label: 'All forms'),
-            MBMonoCell(
+            const MqSectionHeader(label: 'Detected'),
+            MqStatus(label: _result!.detected.name, kind: MqStatusKind.info),
+            const SizedBox(height: MqSpacing.md),
+            const MqSectionHeader(label: 'All forms'),
+            MqMonoCell(
               label: 'Basis points',
               value: _result!.bps.toStringAsFixed(2),
               accent: true,
               large: true,
             ),
-            const SizedBox(height: MBSpacing.sm),
-            MBMonoCell(
+            const SizedBox(height: MqSpacing.sm),
+            MqMonoCell(
               label: 'Percent',
               value: '${_result!.percent.toStringAsFixed(4)}%',
             ),
-            const SizedBox(height: MBSpacing.sm),
-            MBMonoCell(
+            const SizedBox(height: MqSpacing.sm),
+            MqMonoCell(
               label: 'Decimal',
               value: _result!.decimal.toStringAsFixed(6),
             ),
-            const SizedBox(height: MBSpacing.lg),
+            const SizedBox(height: MqSpacing.lg),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Text(
                 'Reference only. Not financial advice. Annualization is implementation-dependent.',
-                style: MBTextStyles.caption1.copyWith(color: c.textTer),
+                style: MqTextStyles.caption1.copyWith(color: c.textTer),
               ),
             ),
           ] else
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: MBSpacing.lg),
+              padding: const EdgeInsets.symmetric(vertical: MqSpacing.lg),
               child: Text(
                 'Enter a value with bps, % or decimal.',
-                style: MBTextStyles.subhead.copyWith(color: c.textTer),
+                style: MqTextStyles.subhead.copyWith(color: c.textTer),
               ),
             ),
         ],

@@ -2,21 +2,21 @@ import 'package:flutter/cupertino.dart';
 import 'package:intl/intl.dart';
 
 import '../state/history_controller.dart';
-import '../theme/mb_metrics.dart';
-import '../theme/mb_theme.dart';
-import '../theme/mb_typography.dart';
+import '../theme/mq_metrics.dart';
+import '../theme/mq_theme.dart';
+import '../theme/mq_typography.dart';
 import '../utility_catalog.dart';
-import '../widgets/mb/mb_button.dart';
-import '../widgets/mb/mb_icons.dart';
-import '../widgets/mb/mb_section_header.dart';
-import '../widgets/mb/mb_status.dart';
+import '../widgets/mq/mq_button.dart';
+import '../widgets/mq/mq_icons.dart';
+import '../widgets/mq/mq_section_header.dart';
+import '../widgets/mq/mq_status.dart';
 
 class HistoryScreen extends StatelessWidget {
   const HistoryScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final c = context.mb.colors;
+    final c = context.mq.colors;
     final HistoryController history = HistoryScope.of(context);
     final Map<String, List<HistoryEntry>> grouped = _groupByDay(
       history.entries,
@@ -31,25 +31,25 @@ class HistoryScreen extends StatelessWidget {
           children: <Widget>[
             Padding(
               padding: const EdgeInsets.fromLTRB(
-                MBSpacing.lg,
-                MBSpacing.md,
-                MBSpacing.lg,
-                MBSpacing.md,
+                MqSpacing.lg,
+                MqSpacing.md,
+                MqSpacing.lg,
+                MqSpacing.md,
               ),
               child: Row(
                 children: <Widget>[
                   Expanded(
                     child: Text(
                       'History',
-                      style: MBTextStyles.largeTitle.copyWith(color: c.textPri),
+                      style: MqTextStyles.largeTitle.copyWith(color: c.textPri),
                     ),
                   ),
                   if (history.entries.isNotEmpty)
-                    MBButton(
+                    MqButton(
                       label: 'Clear',
-                      icon: MBIcons.trash,
-                      variant: MBButtonVariant.glass,
-                      size: MBButtonSize.sm,
+                      icon: MqIcons.trash,
+                      variant: MqButtonVariant.glass,
+                      size: MqButtonSize.sm,
                       destructive: true,
                       onPressed: () => _confirmClear(context, history),
                     ),
@@ -61,23 +61,23 @@ class HistoryScreen extends StatelessWidget {
                   ? Center(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: MBSpacing.xl,
+                          horizontal: MqSpacing.xl,
                         ),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: <Widget>[
-                            Icon(MBIcons.history, size: 36, color: c.textTer),
-                            const SizedBox(height: MBSpacing.md),
+                            Icon(MqIcons.history, size: 36, color: c.textTer),
+                            const SizedBox(height: MqSpacing.md),
                             Text(
                               'Nothing yet',
-                              style: MBTextStyles.title3.copyWith(
+                              style: MqTextStyles.title3.copyWith(
                                 color: c.textPri,
                               ),
                             ),
-                            const SizedBox(height: MBSpacing.xs),
+                            const SizedBox(height: MqSpacing.xs),
                             Text(
                               'Your last 7 days of utility usage will appear here. On-device only.',
-                              style: MBTextStyles.subhead.copyWith(
+                              style: MqTextStyles.subhead.copyWith(
                                 color: c.textSec,
                               ),
                               textAlign: TextAlign.center,
@@ -88,27 +88,27 @@ class HistoryScreen extends StatelessWidget {
                     )
                   : ListView(
                       padding: const EdgeInsets.fromLTRB(
-                        MBSpacing.lg,
+                        MqSpacing.lg,
                         0,
-                        MBSpacing.lg,
+                        MqSpacing.lg,
                         120,
                       ),
                       children: <Widget>[
                         for (final MapEntry<String, List<HistoryEntry>> g
                             in grouped.entries) ...<Widget>[
-                          MBSectionHeader(
+                          MqSectionHeader(
                             label: g.key,
-                            trailing: MBStatus(
+                            trailing: MqStatus(
                               label: '${g.value.length}',
-                              kind: MBStatusKind.neutral,
+                              kind: MqStatusKind.neutral,
                               showIcon: false,
                             ),
                           ),
                           for (final HistoryEntry e in g.value) ...<Widget>[
                             _HistoryRow(entry: e),
-                            const SizedBox(height: MBSpacing.sm),
+                            const SizedBox(height: MqSpacing.sm),
                           ],
-                          const SizedBox(height: MBSpacing.md),
+                          const SizedBox(height: MqSpacing.md),
                         ],
                       ],
                     ),
@@ -177,7 +177,7 @@ class _HistoryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.mb;
+    final tokens = context.mq;
     final c = tokens.colors;
     UtilityDescriptor? u;
     try {
@@ -192,10 +192,10 @@ class _HistoryRow extends StatelessWidget {
         ? '(hidden)'
         : _truncate(entry.output);
     return Container(
-      padding: const EdgeInsets.all(MBSpacing.md),
+      padding: const EdgeInsets.all(MqSpacing.md),
       decoration: BoxDecoration(
         color: c.surface,
-        borderRadius: BorderRadius.circular(MBRadius.md - 2),
+        borderRadius: BorderRadius.circular(MqRadius.md - 2),
         border: Border.all(color: c.border, width: 0.5),
       ),
       child: Row(
@@ -205,23 +205,23 @@ class _HistoryRow extends StatelessWidget {
             height: 28,
             decoration: BoxDecoration(
               color: u?.tint ?? c.surface2,
-              borderRadius: BorderRadius.circular(MBRadius.xs),
+              borderRadius: BorderRadius.circular(MqRadius.xs),
             ),
             alignment: Alignment.center,
             child: Icon(
-              u?.icon ?? MBIcons.info,
+              u?.icon ?? MqIcons.info,
               size: 14,
               color: const Color(0xFFFFFFFF),
             ),
           ),
-          const SizedBox(width: MBSpacing.md),
+          const SizedBox(width: MqSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text(
                   u?.name ?? entry.utilityId,
-                  style: MBTextStyles.subhead.copyWith(
+                  style: MqTextStyles.subhead.copyWith(
                     color: c.textPri,
                     fontWeight: FontWeight.w600,
                   ),
@@ -229,10 +229,10 @@ class _HistoryRow extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   '$displayInput → $displayOutput',
-                  style: MBTextStyles.footnote.copyWith(
+                  style: MqTextStyles.footnote.copyWith(
                     color: c.textSec,
-                    fontFamily: MBTextStyles.monoFamily,
-                    fontFamilyFallback: MBTextStyles.monoFallback,
+                    fontFamily: MqTextStyles.monoFamily,
+                    fontFamilyFallback: MqTextStyles.monoFallback,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -242,10 +242,10 @@ class _HistoryRow extends StatelessWidget {
           ),
           Text(
             DateFormat('HH:mm').format(entry.timestamp),
-            style: MBTextStyles.caption1.copyWith(
+            style: MqTextStyles.caption1.copyWith(
               color: c.textTer,
-              fontFamily: MBTextStyles.monoFamily,
-              fontFamilyFallback: MBTextStyles.monoFallback,
+              fontFamily: MqTextStyles.monoFamily,
+              fontFamilyFallback: MqTextStyles.monoFallback,
             ),
           ),
         ],

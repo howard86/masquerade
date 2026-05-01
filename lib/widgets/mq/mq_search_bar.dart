@@ -1,12 +1,12 @@
 import 'package:flutter/cupertino.dart';
 
-import '../../theme/mb_metrics.dart';
-import '../../theme/mb_theme.dart';
-import '../../theme/mb_typography.dart';
-import 'mb_icons.dart';
+import '../../theme/mq_metrics.dart';
+import '../../theme/mq_theme.dart';
+import '../../theme/mq_typography.dart';
+import 'mq_icons.dart';
 
-class MBSearchBar extends StatelessWidget {
-  const MBSearchBar({
+class MqSearchBar extends StatelessWidget {
+  const MqSearchBar({
     super.key,
     required this.controller,
     this.placeholder = 'Search utilities',
@@ -25,26 +25,26 @@ class MBSearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.mb.colors;
+    final c = context.mq.colors;
     return Container(
       height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: MBSpacing.md),
+      padding: const EdgeInsets.symmetric(horizontal: MqSpacing.md),
       decoration: BoxDecoration(
         color: c.surface2,
-        borderRadius: BorderRadius.circular(MBRadius.sm),
+        borderRadius: BorderRadius.circular(MqRadius.sm),
         border: Border.all(color: c.border, width: 0.5),
       ),
       child: Row(
         children: <Widget>[
-          Icon(MBIcons.search, size: 16, color: c.textTer),
-          const SizedBox(width: MBSpacing.sm),
+          Icon(MqIcons.search, size: 16, color: c.textTer),
+          const SizedBox(width: MqSpacing.sm),
           Expanded(
             child: CupertinoTextField(
               controller: controller,
               autofocus: autofocus,
               placeholder: placeholder,
-              placeholderStyle: MBTextStyles.body.copyWith(color: c.textTer),
-              style: MBTextStyles.body.copyWith(color: c.textPri),
+              placeholderStyle: MqTextStyles.body.copyWith(color: c.textTer),
+              style: MqTextStyles.body.copyWith(color: c.textPri),
               cursorColor: c.accent,
               decoration: const BoxDecoration(),
               padding: EdgeInsets.zero,
@@ -55,10 +55,10 @@ class MBSearchBar extends StatelessWidget {
           if (showShortcutHint)
             Text(
               '⌘K',
-              style: MBTextStyles.footnote.copyWith(
+              style: MqTextStyles.footnote.copyWith(
                 color: c.textTer,
-                fontFamily: MBTextStyles.monoFamily,
-                fontFamilyFallback: MBTextStyles.monoFallback,
+                fontFamily: MqTextStyles.monoFamily,
+                fontFamilyFallback: MqTextStyles.monoFallback,
               ),
             ),
         ],

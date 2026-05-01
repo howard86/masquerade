@@ -2,32 +2,32 @@ import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Theme override: follow system, force light, or force dark.
-enum MBThemeMode { system, light, dark }
+enum MqThemeMode { system, light, dark }
 
 /// Persisted theme mode override.
 class ThemeController extends ChangeNotifier {
   ThemeController({
-    MBThemeMode initial = MBThemeMode.system,
+    MqThemeMode initial = MqThemeMode.system,
     SharedPreferences? prefs,
   }) : _mode = initial,
        _prefs = prefs;
 
   static const String _prefsKey = 'mb.theme.mode';
 
-  MBThemeMode _mode;
+  MqThemeMode _mode;
   SharedPreferences? _prefs;
 
-  MBThemeMode get mode => _mode;
+  MqThemeMode get mode => _mode;
 
   /// Hydrate from disk. Safe to call once at startup.
   static Future<ThemeController> load() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final String? raw = prefs.getString(_prefsKey);
-    final MBThemeMode mode = _decode(raw) ?? MBThemeMode.system;
+    final MqThemeMode mode = _decode(raw) ?? MqThemeMode.system;
     return ThemeController(initial: mode, prefs: prefs);
   }
 
-  Future<void> setMode(MBThemeMode next) async {
+  Future<void> setMode(MqThemeMode next) async {
     if (next == _mode) return;
     _mode = next;
     notifyListeners();
@@ -37,16 +37,16 @@ class ThemeController extends ChangeNotifier {
     await prefs.setString(_prefsKey, _encode(next));
   }
 
-  static String _encode(MBThemeMode m) => switch (m) {
-    MBThemeMode.system => 'system',
-    MBThemeMode.light => 'light',
-    MBThemeMode.dark => 'dark',
+  static String _encode(MqThemeMode m) => switch (m) {
+    MqThemeMode.system => 'system',
+    MqThemeMode.light => 'light',
+    MqThemeMode.dark => 'dark',
   };
 
-  static MBThemeMode? _decode(String? raw) => switch (raw) {
-    'system' => MBThemeMode.system,
-    'light' => MBThemeMode.light,
-    'dark' => MBThemeMode.dark,
+  static MqThemeMode? _decode(String? raw) => switch (raw) {
+    'system' => MqThemeMode.system,
+    'light' => MqThemeMode.light,
+    'dark' => MqThemeMode.dark,
     _ => null,
   };
 }

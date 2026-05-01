@@ -1,11 +1,11 @@
 import 'package:flutter/widgets.dart';
 import 'package:intl/intl.dart';
 
-import '../theme/mb_metrics.dart';
-import '../theme/mb_theme.dart';
-import '../theme/mb_typography.dart';
-import 'mb/mb_mono_cell.dart';
-import 'mb/mb_surface.dart';
+import '../theme/mq_metrics.dart';
+import '../theme/mq_theme.dart';
+import '../theme/mq_typography.dart';
+import 'mq/mq_mono_cell.dart';
+import 'mq/mq_surface.dart';
 
 /// Card displaying a timestamp in all common forms.
 ///
@@ -19,7 +19,7 @@ class TimestampDisplayCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.mb.colors;
+    final c = context.mq.colors;
     final String utc = DateFormat(
       'yyyy-MM-dd HH:mm:ss',
     ).format(timestamp.toUtc());
@@ -29,22 +29,22 @@ class TimestampDisplayCard extends StatelessWidget {
     final int secs = (timestamp.millisecondsSinceEpoch / 1000).round();
     final int ms = timestamp.millisecondsSinceEpoch;
 
-    return MBSurface(
+    return MqSurface(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
             'Date & Time',
-            style: MBTextStyles.title3.copyWith(color: c.textPri),
+            style: MqTextStyles.title3.copyWith(color: c.textPri),
           ),
-          const SizedBox(height: MBSpacing.md),
-          MBMonoCell(label: 'UTC Time:', value: utc),
-          const SizedBox(height: MBSpacing.sm),
-          MBMonoCell(label: 'Local Time:', value: local),
-          const SizedBox(height: MBSpacing.sm),
-          MBMonoCell(label: 'Unix Timestamp (seconds):', value: '$secs'),
-          const SizedBox(height: MBSpacing.sm),
-          MBMonoCell(label: 'Unix Timestamp (milliseconds):', value: '$ms'),
+          const SizedBox(height: MqSpacing.md),
+          MqMonoCell(label: 'UTC Time:', value: utc),
+          const SizedBox(height: MqSpacing.sm),
+          MqMonoCell(label: 'Local Time:', value: local),
+          const SizedBox(height: MqSpacing.sm),
+          MqMonoCell(label: 'Unix Timestamp (seconds):', value: '$secs'),
+          const SizedBox(height: MqSpacing.sm),
+          MqMonoCell(label: 'Unix Timestamp (milliseconds):', value: '$ms'),
         ],
       ),
     );

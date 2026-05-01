@@ -5,17 +5,17 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../state/history_controller.dart';
-import '../../theme/mb_metrics.dart';
-import '../../theme/mb_theme.dart';
-import '../../theme/mb_typography.dart';
+import '../../theme/mq_metrics.dart';
+import '../../theme/mq_theme.dart';
+import '../../theme/mq_typography.dart';
 import '../../utils/json_parser.dart';
-import '../../widgets/mb/mb_button.dart';
-import '../../widgets/mb/mb_icons.dart';
-import '../../widgets/mb/mb_input.dart';
-import '../../widgets/mb/mb_mono_cell.dart';
-import '../../widgets/mb/mb_section_header.dart';
-import '../../widgets/mb/mb_segmented.dart';
-import '../../widgets/mb/mb_status.dart';
+import '../../widgets/mq/mq_button.dart';
+import '../../widgets/mq/mq_icons.dart';
+import '../../widgets/mq/mq_input.dart';
+import '../../widgets/mq/mq_mono_cell.dart';
+import '../../widgets/mq/mq_section_header.dart';
+import '../../widgets/mq/mq_segmented.dart';
+import '../../widgets/mq/mq_status.dart';
 import 'detail_scaffold.dart';
 
 enum JSONMode { pretty, minify, tree }
@@ -108,27 +108,27 @@ class _JSONScreenState extends State<JSONScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.mb.colors;
-    return MBDetailScaffold(
+    final c = context.mq.colors;
+    return MqDetailScaffold(
       title: 'JSON',
       subtitle: 'Pretty / Minify / Tree. Errors point to line:column.',
       bottomBar: Row(
         children: <Widget>[
           Expanded(
-            child: MBButton(
+            child: MqButton(
               label: 'Paste',
-              icon: MBIcons.paste,
-              variant: MBButtonVariant.glass,
+              icon: MqIcons.paste,
+              variant: MqButtonVariant.glass,
               onPressed: _paste,
               full: true,
             ),
           ),
-          const SizedBox(width: MBSpacing.sm),
+          const SizedBox(width: MqSpacing.sm),
           Expanded(
-            child: MBButton(
+            child: MqButton(
               label: 'Clear',
-              icon: MBIcons.clear,
-              variant: MBButtonVariant.glass,
+              icon: MqIcons.clear,
+              variant: MqButtonVariant.glass,
               onPressed: _clear,
               full: true,
             ),
@@ -138,7 +138,7 @@ class _JSONScreenState extends State<JSONScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          MBInput(
+          MqInput(
             controller: _controller,
             label: 'Input',
             placeholder: '{"hello": "world"}',
@@ -147,8 +147,8 @@ class _JSONScreenState extends State<JSONScreen> {
             minLines: 4,
             maxLines: 10,
           ),
-          const SizedBox(height: MBSpacing.md),
-          MBSegmented<JSONMode>(
+          const SizedBox(height: MqSpacing.md),
+          MqSegmented<JSONMode>(
             options: const <JSONMode, String>{
               JSONMode.pretty: 'Pretty',
               JSONMode.minify: 'Minify',
@@ -157,31 +157,31 @@ class _JSONScreenState extends State<JSONScreen> {
             selected: _mode,
             onChanged: (JSONMode m) => setState(() => _mode = m),
           ),
-          const SizedBox(height: MBSpacing.lg),
+          const SizedBox(height: MqSpacing.lg),
           if (_result is JSONErr) ...<Widget>[
-            MBStatus(
+            MqStatus(
               label:
                   'Error · line ${(_result! as JSONErr).error.line} col ${(_result! as JSONErr).error.column}',
-              kind: MBStatusKind.danger,
+              kind: MqStatusKind.danger,
             ),
-            const SizedBox(height: MBSpacing.sm),
-            MBMonoCell(
+            const SizedBox(height: MqSpacing.sm),
+            MqMonoCell(
               label: 'Reason',
               value: (_result! as JSONErr).error.message,
               copyable: false,
             ),
           ] else if (_result is JSONOk) ...<Widget>[
-            const MBSectionHeader(label: 'Output'),
-            MBMonoCell(
+            const MqSectionHeader(label: 'Output'),
+            MqMonoCell(
               label: _mode.name.toUpperCase(),
               value: _formatOutput((_result! as JSONOk).value.value),
             ),
           ] else
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: MBSpacing.lg),
+              padding: const EdgeInsets.symmetric(vertical: MqSpacing.lg),
               child: Text(
                 'Paste JSON to format or validate.',
-                style: MBTextStyles.subhead.copyWith(color: c.textTer),
+                style: MqTextStyles.subhead.copyWith(color: c.textTer),
               ),
             ),
         ],

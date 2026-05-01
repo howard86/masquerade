@@ -1,15 +1,15 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
-import '../../theme/mb_metrics.dart';
-import '../../theme/mb_theme.dart';
-import '../../theme/mb_typography.dart';
+import '../../theme/mq_metrics.dart';
+import '../../theme/mq_theme.dart';
+import '../../theme/mq_typography.dart';
 import '../../utils/copy_util.dart';
-import 'mb_icons.dart';
+import 'mq_icons.dart';
 
-/// Magic Box mono output cell. Uppercase caption + mono value + optional copy.
-class MBMonoCell extends StatelessWidget {
-  const MBMonoCell({
+/// Masquerade mono output cell. Uppercase caption + mono value + optional copy.
+class MqMonoCell extends StatelessWidget {
+  const MqMonoCell({
     super.key,
     required this.label,
     required this.value,
@@ -30,21 +30,21 @@ class MBMonoCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.mb;
+    final tokens = context.mq;
     final c = tokens.colors;
 
     final TextStyle valueStyle =
-        (large ? MBTextStyles.monoLg : MBTextStyles.monoMd).copyWith(
+        (large ? MqTextStyles.monoLg : MqTextStyles.monoMd).copyWith(
           color: c.textPri,
         );
-    final TextStyle labelStyle = MBTextStyles.sectionLabel.copyWith(
+    final TextStyle labelStyle = MqTextStyles.sectionLabel.copyWith(
       color: accent ? c.accentInk : c.textSec,
     );
 
     return DecoratedBox(
       decoration: BoxDecoration(
         color: accent ? c.accentBg : c.surface2,
-        borderRadius: BorderRadius.circular(MBRadius.md - 2),
+        borderRadius: BorderRadius.circular(MqRadius.md - 2),
         border: Border.all(
           color: accent ? c.accent.withValues(alpha: 0.2) : c.border,
           width: 0.5,
@@ -52,7 +52,7 @@ class MBMonoCell extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(
-          horizontal: MBSpacing.md,
+          horizontal: MqSpacing.md,
           vertical: 10,
         ),
         child: Column(
@@ -70,10 +70,10 @@ class MBMonoCell extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 hint!,
-                style: MBTextStyles.caption1.copyWith(
+                style: MqTextStyles.caption1.copyWith(
                   color: c.textTer,
-                  fontFamily: MBTextStyles.monoFamily,
-                  fontFamilyFallback: MBTextStyles.monoFallback,
+                  fontFamily: MqTextStyles.monoFamily,
+                  fontFamilyFallback: MqTextStyles.monoFallback,
                 ),
               ),
             ],
@@ -107,7 +107,7 @@ class _CopyButtonState extends State<_CopyButton> {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.mb;
+    final tokens = context.mq;
     return Semantics(
       button: true,
       label: 'Copy ${widget.value}',
@@ -119,7 +119,7 @@ class _CopyButtonState extends State<_CopyButton> {
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 200),
             child: Icon(
-              _copied ? MBIcons.check : MBIcons.copy,
+              _copied ? MqIcons.check : MqIcons.copy,
               key: ValueKey<bool>(_copied),
               size: 14,
               color: _copied ? tokens.colors.success : widget.color,

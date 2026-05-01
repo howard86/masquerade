@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:masquerade/theme/mb_colors.dart';
+import 'package:masquerade/theme/mq_colors.dart';
 
 double _luminance(Color c) {
   double channel(int c8) {
@@ -26,24 +26,24 @@ double _contrast(Color a, Color b) {
 }
 
 void main() {
-  group('MBColors WCAG contrast', () {
+  group('MqColors WCAG contrast', () {
     test('light textPri on bg meets AAA (≥7)', () {
-      final MBColors c = MBColors.light();
+      final MqColors c = MqColors.light();
       expect(_contrast(c.textPri, c.bg), greaterThan(7.0));
     });
 
     test('dark textPri on bg meets AAA (≥7)', () {
-      final MBColors c = MBColors.dark();
+      final MqColors c = MqColors.dark();
       expect(_contrast(c.textPri, c.bg), greaterThan(7.0));
     });
 
     test('textSec on bg meets AA (≥4.5) light', () {
-      final MBColors c = MBColors.light();
+      final MqColors c = MqColors.light();
       expect(_contrast(c.textSec, c.bg), greaterThan(4.5));
     });
 
     test('textSec on bg meets AA (≥4.5) dark', () {
-      final MBColors c = MBColors.dark();
+      final MqColors c = MqColors.dark();
       expect(_contrast(c.textSec, c.bg), greaterThan(4.5));
     });
   });

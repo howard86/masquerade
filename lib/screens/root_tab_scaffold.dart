@@ -1,7 +1,7 @@
 import 'package:flutter/cupertino.dart';
 
-import '../theme/mb_theme.dart';
-import '../widgets/mb/mb_icons.dart';
+import '../theme/mq_theme.dart';
+import '../widgets/mq/mq_icons.dart';
 import 'history_screen.dart';
 import 'home_screen.dart';
 import 'search_screen.dart';
@@ -31,7 +31,7 @@ class _RootTabScaffoldState extends State<RootTabScaffold> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.mb.colors;
+    final c = context.mq.colors;
     return CupertinoTabScaffold(
       controller: _tabController,
       tabBar: CupertinoTabBar(
@@ -40,14 +40,14 @@ class _RootTabScaffoldState extends State<RootTabScaffold> {
         inactiveColor: c.textTer,
         border: Border(top: BorderSide(color: c.border, width: 0.5)),
         items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(icon: Icon(MBIcons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(MBIcons.search), label: 'Search'),
+          BottomNavigationBarItem(icon: Icon(MqIcons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(MqIcons.search), label: 'Search'),
           BottomNavigationBarItem(
-            icon: Icon(MBIcons.history),
+            icon: Icon(MqIcons.history),
             label: 'History',
           ),
           BottomNavigationBarItem(
-            icon: Icon(MBIcons.setting),
+            icon: Icon(MqIcons.setting),
             label: 'Settings',
           ),
         ],

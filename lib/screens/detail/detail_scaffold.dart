@@ -1,11 +1,11 @@
 import 'package:flutter/cupertino.dart';
 
-import '../../theme/mb_metrics.dart';
-import '../../theme/mb_theme.dart';
-import '../../theme/mb_typography.dart';
+import '../../theme/mq_metrics.dart';
+import '../../theme/mq_theme.dart';
+import '../../theme/mq_typography.dart';
 
-class MBDetailScaffold extends StatelessWidget {
-  const MBDetailScaffold({
+class MqDetailScaffold extends StatelessWidget {
+  const MqDetailScaffold({
     super.key,
     required this.title,
     required this.subtitle,
@@ -20,7 +20,7 @@ class MBDetailScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.mb.colors;
+    final c = context.mq.colors;
     return CupertinoPageScaffold(
       backgroundColor: c.bg,
       navigationBar: CupertinoNavigationBar(
@@ -28,7 +28,7 @@ class MBDetailScaffold extends StatelessWidget {
         border: Border(bottom: BorderSide(color: c.border, width: 0.5)),
         middle: Text(
           title,
-          style: MBTextStyles.headline.copyWith(color: c.textPri),
+          style: MqTextStyles.headline.copyWith(color: c.textPri),
         ),
       ),
       child: SafeArea(
@@ -38,24 +38,24 @@ class MBDetailScaffold extends StatelessWidget {
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(
-                  MBSpacing.lg,
-                  MBSpacing.lg,
-                  MBSpacing.lg,
-                  MBSpacing.lg,
+                  MqSpacing.lg,
+                  MqSpacing.lg,
+                  MqSpacing.lg,
+                  MqSpacing.lg,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
                     Text(
                       title,
-                      style: MBTextStyles.largeTitle.copyWith(color: c.textPri),
+                      style: MqTextStyles.largeTitle.copyWith(color: c.textPri),
                     ),
-                    const SizedBox(height: MBSpacing.xs),
+                    const SizedBox(height: MqSpacing.xs),
                     Text(
                       subtitle,
-                      style: MBTextStyles.subhead.copyWith(color: c.textSec),
+                      style: MqTextStyles.subhead.copyWith(color: c.textSec),
                     ),
-                    const SizedBox(height: MBSpacing.xl),
+                    const SizedBox(height: MqSpacing.xl),
                     child,
                   ],
                 ),
@@ -64,10 +64,10 @@ class MBDetailScaffold extends StatelessWidget {
             if (bottomBar != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(
-                  MBSpacing.lg,
-                  MBSpacing.sm,
-                  MBSpacing.lg,
-                  MBSpacing.md,
+                  MqSpacing.lg,
+                  MqSpacing.sm,
+                  MqSpacing.lg,
+                  MqSpacing.md,
                 ),
                 child: bottomBar,
               ),

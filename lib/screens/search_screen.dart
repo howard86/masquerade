@@ -1,11 +1,11 @@
 import 'package:flutter/cupertino.dart';
 
-import '../theme/mb_metrics.dart';
-import '../theme/mb_theme.dart';
-import '../theme/mb_typography.dart';
+import '../theme/mq_metrics.dart';
+import '../theme/mq_theme.dart';
+import '../theme/mq_typography.dart';
 import '../utility_catalog.dart';
-import '../widgets/mb/mb_search_bar.dart';
-import '../widgets/mb/mb_utility_tile.dart';
+import '../widgets/mq/mq_search_bar.dart';
+import '../widgets/mq/mq_utility_tile.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -42,7 +42,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.mb.colors;
+    final c = context.mq.colors;
     final List<UtilityDescriptor> results = _results();
     return CupertinoPageScaffold(
       backgroundColor: c.bg,
@@ -53,20 +53,20 @@ class _SearchScreenState extends State<SearchScreen> {
           children: <Widget>[
             Padding(
               padding: const EdgeInsets.fromLTRB(
-                MBSpacing.lg,
-                MBSpacing.md,
-                MBSpacing.lg,
-                MBSpacing.md,
+                MqSpacing.lg,
+                MqSpacing.md,
+                MqSpacing.lg,
+                MqSpacing.md,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
                     'Search',
-                    style: MBTextStyles.largeTitle.copyWith(color: c.textPri),
+                    style: MqTextStyles.largeTitle.copyWith(color: c.textPri),
                   ),
-                  const SizedBox(height: MBSpacing.md),
-                  MBSearchBar(
+                  const SizedBox(height: MqSpacing.md),
+                  MqSearchBar(
                     controller: _controller,
                     autofocus: true,
                     placeholder:
@@ -79,17 +79,17 @@ class _SearchScreenState extends State<SearchScreen> {
             Expanded(
               child: ListView.separated(
                 padding: const EdgeInsets.fromLTRB(
-                  MBSpacing.lg,
+                  MqSpacing.lg,
                   0,
-                  MBSpacing.lg,
+                  MqSpacing.lg,
                   120,
                 ),
                 itemCount: results.length,
                 separatorBuilder: (_, _) =>
-                    const SizedBox(height: MBSpacing.sm),
+                    const SizedBox(height: MqSpacing.sm),
                 itemBuilder: (BuildContext context, int i) {
                   final UtilityDescriptor u = results[i];
-                  return MBUtilityTile(
+                  return MqUtilityTile(
                     name: u.name,
                     icon: u.icon,
                     tint: u.tint,

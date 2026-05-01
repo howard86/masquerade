@@ -4,8 +4,8 @@ import 'screens/root_tab_scaffold.dart';
 import 'state/favorites_controller.dart';
 import 'state/history_controller.dart';
 import 'state/theme_controller.dart';
-import 'theme/mb_colors.dart';
-import 'theme/mb_theme.dart';
+import 'theme/mq_colors.dart';
+import 'theme/mq_theme.dart';
 import 'widgets/iphone_frame.dart';
 
 class MyApp extends StatefulWidget {
@@ -57,10 +57,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     }
   }
 
-  Brightness _resolveBrightness(MBThemeMode mode) => switch (mode) {
-    MBThemeMode.light => Brightness.light,
-    MBThemeMode.dark => Brightness.dark,
-    MBThemeMode.system => _platformBrightness,
+  Brightness _resolveBrightness(MqThemeMode mode) => switch (mode) {
+    MqThemeMode.light => Brightness.light,
+    MqThemeMode.dark => Brightness.dark,
+    MqThemeMode.system => _platformBrightness,
   };
 
   @override
@@ -75,18 +75,18 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             listenable: _theme,
             builder: (BuildContext context, _) {
               final Brightness brightness = _resolveBrightness(_theme.mode);
-              final MBColors colors = brightness == Brightness.dark
-                  ? MBColors.dark()
-                  : MBColors.light();
-              final MBTokens tokens = MBTokens(
+              final MqColors colors = brightness == Brightness.dark
+                  ? MqColors.dark()
+                  : MqColors.light();
+              final MqTokens tokens = MqTokens(
                 colors: colors,
                 brightness: brightness,
               );
               return CupertinoApp(
                 debugShowCheckedModeBanner: false,
-                title: 'Masquerade — Magic Box',
+                title: 'Masquerade',
                 theme: buildCupertinoTheme(brightness),
-                builder: (BuildContext context, Widget? child) => MBTheme(
+                builder: (BuildContext context, Widget? child) => MqTheme(
                   tokens: tokens,
                   child: ResponsiveLayout(
                     child: child ?? const SizedBox.shrink(),

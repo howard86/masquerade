@@ -6,16 +6,16 @@ import 'package:flutter/widgets.dart';
 import 'package:intl/intl.dart';
 
 import '../../state/history_controller.dart';
-import '../../theme/mb_metrics.dart';
-import '../../theme/mb_theme.dart';
-import '../../theme/mb_typography.dart';
+import '../../theme/mq_metrics.dart';
+import '../../theme/mq_theme.dart';
+import '../../theme/mq_typography.dart';
 import '../../utils/timestamp_parser.dart';
-import '../../widgets/mb/mb_button.dart';
-import '../../widgets/mb/mb_icons.dart';
-import '../../widgets/mb/mb_input.dart';
-import '../../widgets/mb/mb_mono_cell.dart';
-import '../../widgets/mb/mb_section_header.dart';
-import '../../widgets/mb/mb_status.dart';
+import '../../widgets/mq/mq_button.dart';
+import '../../widgets/mq/mq_icons.dart';
+import '../../widgets/mq/mq_input.dart';
+import '../../widgets/mq/mq_mono_cell.dart';
+import '../../widgets/mq/mq_section_header.dart';
+import '../../widgets/mq/mq_status.dart';
 import '../../widgets/timestamp_display_card.dart';
 import 'detail_scaffold.dart';
 
@@ -106,28 +106,28 @@ class _TimestampScreenState extends State<TimestampScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.mb.colors;
-    return MBDetailScaffold(
+    final c = context.mq.colors;
+    return MqDetailScaffold(
       title: 'Timestamp',
       subtitle:
           'Auto-detect ms vs s. Local TZ first; UTC + ISO + relative below.',
       bottomBar: Row(
         children: <Widget>[
           Expanded(
-            child: MBButton(
+            child: MqButton(
               label: 'Paste',
-              icon: MBIcons.paste,
-              variant: MBButtonVariant.glass,
+              icon: MqIcons.paste,
+              variant: MqButtonVariant.glass,
               onPressed: _paste,
               full: true,
             ),
           ),
-          const SizedBox(width: MBSpacing.sm),
+          const SizedBox(width: MqSpacing.sm),
           Expanded(
-            child: MBButton(
+            child: MqButton(
               label: 'Clear',
-              icon: MBIcons.clear,
-              variant: MBButtonVariant.glass,
+              icon: MqIcons.clear,
+              variant: MqButtonVariant.glass,
               onPressed: _clear,
               full: true,
             ),
@@ -137,7 +137,7 @@ class _TimestampScreenState extends State<TimestampScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          MBInput(
+          MqInput(
             controller: _controller,
             label: 'Input',
             placeholder: 'Enter timestamp (Unix, ISO 8601, Base64, or Hex)',
@@ -146,47 +146,47 @@ class _TimestampScreenState extends State<TimestampScreen> {
             minLines: 1,
             maxLines: 3,
           ),
-          const SizedBox(height: MBSpacing.lg),
+          const SizedBox(height: MqSpacing.lg),
           if (_error != null)
-            MBMonoCell(
+            MqMonoCell(
               label: 'Error',
               value: _error!,
               copyable: false,
               accent: false,
             )
           else if (_parsed != null) ...<Widget>[
-            const MBSectionHeader(label: 'Detected'),
+            const MqSectionHeader(label: 'Detected'),
             Row(
               children: <Widget>[
-                MBStatus(label: _formatLabel(_format), kind: MBStatusKind.info),
+                MqStatus(label: _formatLabel(_format), kind: MqStatusKind.info),
                 if (_ambiguous) ...<Widget>[
-                  const SizedBox(width: MBSpacing.sm),
-                  const MBStatus(
+                  const SizedBox(width: MqSpacing.sm),
+                  const MqStatus(
                     label: 'Ambiguous',
-                    kind: MBStatusKind.warning,
+                    kind: MqStatusKind.warning,
                   ),
                 ],
               ],
             ),
-            const SizedBox(height: MBSpacing.md),
+            const SizedBox(height: MqSpacing.md),
             TimestampDisplayCard(timestamp: _parsed!),
-            const SizedBox(height: MBSpacing.md),
-            MBMonoCell(
+            const SizedBox(height: MqSpacing.md),
+            MqMonoCell(
               label: 'ISO 8601',
               value: _parsed!.toUtc().toIso8601String(),
             ),
-            const SizedBox(height: MBSpacing.sm),
-            MBMonoCell(
+            const SizedBox(height: MqSpacing.sm),
+            MqMonoCell(
               label: 'Relative',
               value: _relative(_parsed!),
               copyable: false,
             ),
           ] else
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: MBSpacing.lg),
+              padding: const EdgeInsets.symmetric(vertical: MqSpacing.lg),
               child: Text(
                 'Enter a timestamp to see all forms.',
-                style: MBTextStyles.subhead.copyWith(color: c.textTer),
+                style: MqTextStyles.subhead.copyWith(color: c.textTer),
               ),
             ),
         ],

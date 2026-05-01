@@ -1,13 +1,13 @@
 import 'package:flutter/cupertino.dart';
 
-import '../../theme/mb_metrics.dart';
-import '../../theme/mb_theme.dart';
-import '../../theme/mb_typography.dart';
-import 'mb_icons.dart';
+import '../../theme/mq_metrics.dart';
+import '../../theme/mq_theme.dart';
+import '../../theme/mq_typography.dart';
+import 'mq_icons.dart';
 
-/// Magic Box recessed-well text input.
-class MBInput extends StatefulWidget {
-  const MBInput({
+/// Masquerade recessed-well text input.
+class MqInput extends StatefulWidget {
+  const MqInput({
     super.key,
     required this.controller,
     this.label,
@@ -41,10 +41,10 @@ class MBInput extends StatefulWidget {
   final String? semanticsLabel;
 
   @override
-  State<MBInput> createState() => _MBInputState();
+  State<MqInput> createState() => _MqInputState();
 }
 
-class _MBInputState extends State<MBInput> {
+class _MqInputState extends State<MqInput> {
   late final FocusNode _focus = FocusNode();
   bool _focused = false;
 
@@ -66,19 +66,19 @@ class _MBInputState extends State<MBInput> {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.mb;
+    final tokens = context.mq;
     final c = tokens.colors;
     final hasError = widget.error != null;
 
     final TextStyle textStyle =
-        (widget.mono ? MBTextStyles.monoMd : MBTextStyles.body).copyWith(
+        (widget.mono ? MqTextStyles.monoMd : MqTextStyles.body).copyWith(
           color: c.textPri,
         );
     final TextStyle placeholderStyle = textStyle.copyWith(color: c.textTer);
 
     final BoxDecoration decoration = BoxDecoration(
       color: c.surface2,
-      borderRadius: BorderRadius.circular(MBRadius.md - 2),
+      borderRadius: BorderRadius.circular(MqRadius.md - 2),
       border: Border.all(
         color: hasError
             ? c.danger
@@ -106,14 +106,14 @@ class _MBInputState extends State<MBInput> {
             padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
             child: Text(
               widget.label!.toUpperCase(),
-              style: MBTextStyles.sectionLabel.copyWith(color: c.textSec),
+              style: MqTextStyles.sectionLabel.copyWith(color: c.textSec),
             ),
           ),
         Container(
           decoration: decoration,
           padding: const EdgeInsets.symmetric(
-            horizontal: MBSpacing.md,
-            vertical: MBSpacing.md,
+            horizontal: MqSpacing.md,
+            vertical: MqSpacing.md,
           ),
           child: Row(
             crossAxisAlignment: widget.multiline
@@ -122,7 +122,7 @@ class _MBInputState extends State<MBInput> {
             children: <Widget>[
               if (widget.leading != null) ...<Widget>[
                 widget.leading!,
-                const SizedBox(width: MBSpacing.sm),
+                const SizedBox(width: MqSpacing.sm),
               ],
               Expanded(
                 child: Semantics(
@@ -149,7 +149,7 @@ class _MBInputState extends State<MBInput> {
                 ),
               ),
               if (widget.trailing != null) ...<Widget>[
-                const SizedBox(width: MBSpacing.sm),
+                const SizedBox(width: MqSpacing.sm),
                 widget.trailing!,
               ],
             ],
@@ -160,12 +160,12 @@ class _MBInputState extends State<MBInput> {
             padding: const EdgeInsets.fromLTRB(4, 6, 4, 0),
             child: Row(
               children: <Widget>[
-                Icon(MBIcons.warn, size: 13, color: c.danger),
+                Icon(MqIcons.warn, size: 13, color: c.danger),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     widget.error!,
-                    style: MBTextStyles.footnote.copyWith(color: c.danger),
+                    style: MqTextStyles.footnote.copyWith(color: c.danger),
                   ),
                 ),
               ],

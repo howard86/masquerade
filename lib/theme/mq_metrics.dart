@@ -1,8 +1,8 @@
 import 'package:flutter/animation.dart';
 
-/// Spacing scale (logical px). Mirrors `MB_TOKENS.spacing`.
-class MBSpacing {
-  const MBSpacing._();
+/// Spacing scale (logical px). Mirrors `MQ_TOKENS.spacing`.
+class MqSpacing {
+  const MqSpacing._();
   static const double xs = 4;
   static const double sm = 8;
   static const double md = 12;
@@ -12,9 +12,9 @@ class MBSpacing {
   static const double xxxl = 48;
 }
 
-/// Corner radius scale. Mirrors `MB_TOKENS.radius`.
-class MBRadius {
-  const MBRadius._();
+/// Corner radius scale. Mirrors `MQ_TOKENS.radius`.
+class MqRadius {
+  const MqRadius._();
   static const double xs = 6;
   static const double sm = 10;
   static const double md = 14;
@@ -24,9 +24,9 @@ class MBRadius {
   static const double pill = 9999;
 }
 
-/// Motion durations + curves. Mirrors `MB_TOKENS.motion`.
-class MBMotion {
-  const MBMotion._();
+/// Motion durations + curves. Mirrors `MQ_TOKENS.motion`.
+class MqMotion {
+  const MqMotion._();
   static const Duration fast = Duration(milliseconds: 120);
   static const Duration normal = Duration(milliseconds: 220);
   static const Duration slow = Duration(milliseconds: 380);

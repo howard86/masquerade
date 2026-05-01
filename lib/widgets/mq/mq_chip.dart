@@ -1,11 +1,11 @@
 import 'package:flutter/widgets.dart';
 
-import '../../theme/mb_metrics.dart';
-import '../../theme/mb_theme.dart';
-import '../../theme/mb_typography.dart';
+import '../../theme/mq_metrics.dart';
+import '../../theme/mq_theme.dart';
+import '../../theme/mq_typography.dart';
 
-class MBChip extends StatelessWidget {
-  const MBChip({
+class MqChip extends StatelessWidget {
+  const MqChip({
     super.key,
     required this.label,
     this.icon,
@@ -22,14 +22,14 @@ class MBChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.mb;
+    final tokens = context.mq;
     final c = tokens.colors;
     final TextStyle base =
-        (mono ? MBTextStyles.caption1 : MBTextStyles.caption1).copyWith(
-          fontFamily: mono ? MBTextStyles.monoFamily : MBTextStyles.sansFamily,
+        (mono ? MqTextStyles.caption1 : MqTextStyles.caption1).copyWith(
+          fontFamily: mono ? MqTextStyles.monoFamily : MqTextStyles.sansFamily,
           fontFamilyFallback: mono
-              ? MBTextStyles.monoFallback
-              : MBTextStyles.sansFallback,
+              ? MqTextStyles.monoFallback
+              : MqTextStyles.sansFallback,
           fontWeight: FontWeight.w500,
           color: accent ? c.accentInk : c.textPri,
         );
@@ -37,7 +37,7 @@ class MBChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: accent ? c.accentBg : c.surface2,
-        borderRadius: BorderRadius.circular(MBRadius.pill),
+        borderRadius: BorderRadius.circular(MqRadius.pill),
         border: Border.all(
           color: accent ? c.accent.withValues(alpha: 0.25) : c.border,
           width: 0.5,

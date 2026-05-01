@@ -1,7 +1,7 @@
 import 'package:flutter/cupertino.dart';
 
-import '../theme/mb_metrics.dart';
-import '../theme/mb_theme.dart';
+import '../theme/mq_metrics.dart';
+import '../theme/mq_theme.dart';
 
 /// Responsive wrapper that renders [child] inside a hand-rolled iPhone 16 Pro
 /// silhouette on screens larger than the device's logical size, and renders
@@ -22,15 +22,15 @@ class ResponsiveLayout extends StatelessWidget {
           return child;
         }
 
-        final double innerW = constraints.maxWidth - MBSpacing.lg * 2;
-        final double innerH = constraints.maxHeight - MBSpacing.lg * 2;
+        final double innerW = constraints.maxWidth - MqSpacing.lg * 2;
+        final double innerH = constraints.maxHeight - MqSpacing.lg * 2;
         final double fitH = innerH / IphoneFrame.logicalHeight;
         final double fitW = innerW / IphoneFrame.logicalWidth;
         final double scale = (fitH < fitW ? fitH : fitW).clamp(0.0, _maxScale);
 
         return Container(
-          padding: const EdgeInsets.all(MBSpacing.lg),
-          color: context.mb.colors.bg,
+          padding: const EdgeInsets.all(MqSpacing.lg),
+          color: context.mq.colors.bg,
           child: Center(
             child: SizedBox(
               width: IphoneFrame.logicalWidth * scale,

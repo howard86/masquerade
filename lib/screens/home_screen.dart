@@ -2,15 +2,15 @@ import 'package:flutter/cupertino.dart';
 
 import '../state/favorites_controller.dart';
 import '../state/history_controller.dart';
-import '../theme/mb_metrics.dart';
-import '../theme/mb_theme.dart';
-import '../theme/mb_typography.dart';
+import '../theme/mq_metrics.dart';
+import '../theme/mq_theme.dart';
+import '../theme/mq_typography.dart';
 import '../utility_catalog.dart';
-import '../widgets/mb/mb_chip.dart';
-import '../widgets/mb/mb_icons.dart';
-import '../widgets/mb/mb_search_bar.dart';
-import '../widgets/mb/mb_section_header.dart';
-import '../widgets/mb/mb_utility_tile.dart';
+import '../widgets/mq/mq_chip.dart';
+import '../widgets/mq/mq_icons.dart';
+import '../widgets/mq/mq_search_bar.dart';
+import '../widgets/mq/mq_section_header.dart';
+import '../widgets/mq/mq_utility_tile.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.onSearchTapped});
@@ -32,7 +32,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.mb;
+    final tokens = context.mq;
     final c = tokens.colors;
     final HistoryController history = HistoryScope.of(context);
     final FavoritesController favorites = FavoritesScope.of(context);
@@ -58,43 +58,43 @@ class _HomeScreenState extends State<HomeScreen> {
         bottom: false,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(
-            MBSpacing.lg,
-            MBSpacing.sm,
-            MBSpacing.lg,
+            MqSpacing.lg,
+            MqSpacing.sm,
+            MqSpacing.lg,
             96,
           ),
           children: <Widget>[
             Text(
-              'Magic Box',
-              style: MBTextStyles.title1.copyWith(color: c.textPri),
+              'Masquerade',
+              style: MqTextStyles.title1.copyWith(color: c.textPri),
             ),
             const SizedBox(height: 2),
             Row(
               children: <Widget>[
-                Icon(MBIcons.lock, size: 11, color: c.success),
+                Icon(MqIcons.lock, size: 11, color: c.success),
                 const SizedBox(width: 5),
                 Expanded(
                   child: Text(
                     'On-device · nothing leaves your phone',
-                    style: MBTextStyles.caption1.copyWith(color: c.textSec),
+                    style: MqTextStyles.caption1.copyWith(color: c.textSec),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: MBSpacing.md),
+            const SizedBox(height: MqSpacing.md),
             GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: widget.onSearchTapped,
               child: AbsorbPointer(
-                child: MBSearchBar(controller: _searchController),
+                child: MqSearchBar(controller: _searchController),
               ),
             ),
-            const SizedBox(height: MBSpacing.md),
+            const SizedBox(height: MqSpacing.md),
             if (recents.isNotEmpty) ...<Widget>[
-              MBSectionHeader(
+              MqSectionHeader(
                 label: 'Recents',
-                trailing: MBChip(label: '${recents.length}', mono: true),
+                trailing: MqChip(label: '${recents.length}', mono: true),
               ),
               SizedBox(
                 height: 48,
@@ -103,10 +103,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   itemCount: recents.length,
                   separatorBuilder: (_, _) =>
-                      const SizedBox(width: MBSpacing.sm),
+                      const SizedBox(width: MqSpacing.sm),
                   itemBuilder: (_, int i) => SizedBox(
                     width: 168,
-                    child: MBUtilityTile(
+                    child: MqUtilityTile(
                       name: recents[i].name,
                       icon: recents[i].icon,
                       tint: recents[i].tint,
@@ -115,17 +115,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: MBSpacing.md),
+              const SizedBox(height: MqSpacing.md),
             ],
             if (favs.isNotEmpty) ...<Widget>[
-              const MBSectionHeader(label: 'Favorites'),
+              const MqSectionHeader(label: 'Favorites'),
               _UtilityGrid(items: favs, favorites: favorites, onTap: _open),
-              const SizedBox(height: MBSpacing.md),
+              const SizedBox(height: MqSpacing.md),
             ],
-            for (final MBCategory cat in MBCategory.values) ...<Widget>[
-              MBSectionHeader(
+            for (final MqCategory cat in MqCategory.values) ...<Widget>[
+              MqSectionHeader(
                 label: cat.label,
-                trailing: MBChip(
+                trailing: MqChip(
                   label: '${UtilityCatalog.byCategory(cat).length}',
                   mono: true,
                 ),
@@ -135,7 +135,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 favorites: favorites,
                 onTap: _open,
               ),
-              const SizedBox(height: MBSpacing.md),
+              const SizedBox(height: MqSpacing.md),
             ],
           ],
         ),
@@ -168,7 +168,7 @@ class _UtilityGrid extends StatelessWidget {
       ),
       itemBuilder: (BuildContext context, int i) {
         final UtilityDescriptor u = items[i];
-        return MBUtilityTile(
+        return MqUtilityTile(
           name: u.name,
           icon: u.icon,
           tint: u.tint,

@@ -1,13 +1,13 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/widgets.dart';
 
-import '../../theme/mb_metrics.dart';
-import '../../theme/mb_theme.dart';
-import '../../theme/mb_typography.dart';
-import 'mb_icons.dart';
+import '../../theme/mq_metrics.dart';
+import '../../theme/mq_theme.dart';
+import '../../theme/mq_typography.dart';
+import 'mq_icons.dart';
 
-class MBUtilityTile extends StatelessWidget {
-  const MBUtilityTile({
+class MqUtilityTile extends StatelessWidget {
+  const MqUtilityTile({
     super.key,
     required this.name,
     required this.icon,
@@ -26,7 +26,7 @@ class MBUtilityTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.mb;
+    final tokens = context.mq;
     final c = tokens.colors;
 
     return Semantics(
@@ -39,7 +39,7 @@ class MBUtilityTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
             color: c.surface,
-            borderRadius: BorderRadius.circular(MBRadius.md),
+            borderRadius: BorderRadius.circular(MqRadius.md),
             border: Border.all(color: c.border, width: 0.5),
             boxShadow: c.shadow,
           ),
@@ -52,12 +52,12 @@ class MBUtilityTile extends StatelessWidget {
                     height: 28,
                     decoration: BoxDecoration(
                       color: tint,
-                      borderRadius: BorderRadius.circular(MBRadius.xs + 2),
+                      borderRadius: BorderRadius.circular(MqRadius.xs + 2),
                     ),
                     alignment: Alignment.center,
                     child: Icon(icon, size: 16, color: const Color(0xFFFFFFFF)),
                   ),
-                  const SizedBox(width: MBSpacing.sm + 2),
+                  const SizedBox(width: MqSpacing.sm + 2),
                   Expanded(
                     child: Padding(
                       padding: EdgeInsets.only(
@@ -65,7 +65,7 @@ class MBUtilityTile extends StatelessWidget {
                       ),
                       child: Text(
                         name,
-                        style: MBTextStyles.subhead.copyWith(
+                        style: MqTextStyles.subhead.copyWith(
                           color: c.textPri,
                           fontWeight: FontWeight.w600,
                         ),
@@ -86,7 +86,7 @@ class MBUtilityTile extends StatelessWidget {
                     child: Padding(
                       padding: const EdgeInsets.all(2),
                       child: Icon(
-                        favorite ? MBIcons.starFill : MBIcons.star,
+                        favorite ? MqIcons.starFill : MqIcons.star,
                         size: 12,
                         color: favorite ? c.warning : c.textTer,
                       ),

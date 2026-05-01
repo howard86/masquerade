@@ -1,8 +1,8 @@
 import 'dart:math' as math;
 import 'dart:ui' show Color;
 
-class MBColorValue {
-  const MBColorValue({
+class MqColorValue {
+  const MqColorValue({
     required this.r,
     required this.g,
     required this.b,
@@ -60,7 +60,7 @@ class MBColorValue {
     return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
   }
 
-  double contrastRatioAgainst(MBColorValue other) {
+  double contrastRatioAgainst(MqColorValue other) {
     final double l1 = relativeLuminance;
     final double l2 = other.relativeLuminance;
     final double light = math.max(l1, l2);
@@ -69,22 +69,22 @@ class MBColorValue {
   }
 }
 
-class MBColorParser {
-  const MBColorParser._();
+class MqColorParser {
+  const MqColorParser._();
 
-  static MBColorValue? parse(String input) {
+  static MqColorValue? parse(String input) {
     final String trimmed = input.trim();
     if (trimmed.isEmpty) return null;
-    final MBColorValue? hex = _parseHex(trimmed);
+    final MqColorValue? hex = _parseHex(trimmed);
     if (hex != null) return hex;
-    final MBColorValue? rgb = _parseRgb(trimmed);
+    final MqColorValue? rgb = _parseRgb(trimmed);
     if (rgb != null) return rgb;
-    final MBColorValue? hsl = _parseHsl(trimmed);
+    final MqColorValue? hsl = _parseHsl(trimmed);
     if (hsl != null) return hsl;
     return null;
   }
 
-  static MBColorValue? _parseHex(String input) {
+  static MqColorValue? _parseHex(String input) {
     String s = input;
     if (s.startsWith('#')) s = s.substring(1);
     if (!RegExp(r'^[0-9a-fA-F]+$').hasMatch(s)) return null;
@@ -94,14 +94,14 @@ class MBColorParser {
       s = s.split('').map((String ch) => '$ch$ch').join();
     }
     if (s.length == 6) {
-      return MBColorValue(
+      return MqColorValue(
         r: int.parse(s.substring(0, 2), radix: 16),
         g: int.parse(s.substring(2, 4), radix: 16),
         b: int.parse(s.substring(4, 6), radix: 16),
       );
     }
     if (s.length == 8) {
-      return MBColorValue(
+      return MqColorValue(
         r: int.parse(s.substring(0, 2), radix: 16),
         g: int.parse(s.substring(2, 4), radix: 16),
         b: int.parse(s.substring(4, 6), radix: 16),
@@ -111,7 +111,7 @@ class MBColorParser {
     return null;
   }
 
-  static MBColorValue? _parseRgb(String input) {
+  static MqColorValue? _parseRgb(String input) {
     final RegExp re = RegExp(r'^rgba?\(\s*([^)]+)\)$', caseSensitive: false);
     final RegExpMatch? m = re.firstMatch(input);
     if (m == null) return null;
@@ -126,7 +126,7 @@ class MBColorParser {
     if (parts.length >= 4) {
       a = double.tryParse(parts[3]) ?? 1.0;
     }
-    return MBColorValue(
+    return MqColorValue(
       r: r.clamp(0, 255),
       g: g.clamp(0, 255),
       b: b.clamp(0, 255),
@@ -134,7 +134,7 @@ class MBColorParser {
     );
   }
 
-  static MBColorValue? _parseHsl(String input) {
+  static MqColorValue? _parseHsl(String input) {
     final RegExp re = RegExp(r'^hsla?\(\s*([^)]+)\)$', caseSensitive: false);
     final RegExpMatch? m = re.firstMatch(input);
     if (m == null) return null;
@@ -156,7 +156,7 @@ class MBColorParser {
       s.clamp(0.0, 1.0),
       l.clamp(0.0, 1.0),
     );
-    return MBColorValue(r: rgb.r, g: rgb.g, b: rgb.b, a: a.clamp(0.0, 1.0));
+    return MqColorValue(r: rgb.r, g: rgb.g, b: rgb.b, a: a.clamp(0.0, 1.0));
   }
 }
 

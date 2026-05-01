@@ -6,16 +6,16 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../state/history_controller.dart';
-import '../../theme/mb_metrics.dart';
-import '../../theme/mb_theme.dart';
-import '../../theme/mb_typography.dart';
-import '../../widgets/mb/mb_button.dart';
-import '../../widgets/mb/mb_chip.dart';
-import '../../widgets/mb/mb_icons.dart';
-import '../../widgets/mb/mb_input.dart';
-import '../../widgets/mb/mb_mono_cell.dart';
-import '../../widgets/mb/mb_section_header.dart';
-import '../../widgets/mb/mb_segmented.dart';
+import '../../theme/mq_metrics.dart';
+import '../../theme/mq_theme.dart';
+import '../../theme/mq_typography.dart';
+import '../../widgets/mq/mq_button.dart';
+import '../../widgets/mq/mq_chip.dart';
+import '../../widgets/mq/mq_icons.dart';
+import '../../widgets/mq/mq_input.dart';
+import '../../widgets/mq/mq_mono_cell.dart';
+import '../../widgets/mq/mq_section_header.dart';
+import '../../widgets/mq/mq_segmented.dart';
 import 'detail_scaffold.dart';
 
 enum Base64Mode { encode, decode }
@@ -126,37 +126,37 @@ class _Base64ScreenState extends State<Base64Screen> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.mb.colors;
-    return MBDetailScaffold(
+    final c = context.mq.colors;
+    return MqDetailScaffold(
       title: 'Base64',
       subtitle: 'Encode/decode. Swap. URL-safe + strip-padding options.',
       bottomBar: Row(
         children: <Widget>[
           Expanded(
-            child: MBButton(
+            child: MqButton(
               label: 'Paste',
-              icon: MBIcons.paste,
-              variant: MBButtonVariant.glass,
+              icon: MqIcons.paste,
+              variant: MqButtonVariant.glass,
               onPressed: _paste,
               full: true,
             ),
           ),
-          const SizedBox(width: MBSpacing.sm),
+          const SizedBox(width: MqSpacing.sm),
           Expanded(
-            child: MBButton(
+            child: MqButton(
               label: 'Swap',
-              icon: MBIcons.swap,
-              variant: MBButtonVariant.glass,
+              icon: MqIcons.swap,
+              variant: MqButtonVariant.glass,
               onPressed: _output == null ? null : _swap,
               full: true,
             ),
           ),
-          const SizedBox(width: MBSpacing.sm),
+          const SizedBox(width: MqSpacing.sm),
           Expanded(
-            child: MBButton(
+            child: MqButton(
               label: 'Clear',
-              icon: MBIcons.clear,
-              variant: MBButtonVariant.glass,
+              icon: MqIcons.clear,
+              variant: MqButtonVariant.glass,
               onPressed: _clear,
               full: true,
             ),
@@ -166,7 +166,7 @@ class _Base64ScreenState extends State<Base64Screen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          MBSegmented<Base64Mode>(
+          MqSegmented<Base64Mode>(
             options: const <Base64Mode, String>{
               Base64Mode.encode: 'Encode',
               Base64Mode.decode: 'Decode',
@@ -177,8 +177,8 @@ class _Base64ScreenState extends State<Base64Screen> {
               _convert();
             },
           ),
-          const SizedBox(height: MBSpacing.md),
-          MBInput(
+          const SizedBox(height: MqSpacing.md),
+          MqInput(
             controller: _controller,
             label: 'Input',
             placeholder: _mode == Base64Mode.encode
@@ -189,10 +189,10 @@ class _Base64ScreenState extends State<Base64Screen> {
             minLines: 3,
             maxLines: 8,
           ),
-          const SizedBox(height: MBSpacing.md),
+          const SizedBox(height: MqSpacing.md),
           Row(
             children: <Widget>[
-              MBChip(
+              MqChip(
                 label: 'URL-safe',
                 accent: _urlSafe,
                 mono: false,
@@ -201,8 +201,8 @@ class _Base64ScreenState extends State<Base64Screen> {
                   _convert();
                 },
               ),
-              const SizedBox(width: MBSpacing.sm),
-              MBChip(
+              const SizedBox(width: MqSpacing.sm),
+              MqChip(
                 label: 'Strip padding',
                 accent: _stripPadding,
                 mono: false,
@@ -213,24 +213,24 @@ class _Base64ScreenState extends State<Base64Screen> {
               ),
             ],
           ),
-          const SizedBox(height: MBSpacing.lg),
+          const SizedBox(height: MqSpacing.lg),
           if (_error != null)
-            MBMonoCell(label: 'Error', value: _error!, copyable: false)
+            MqMonoCell(label: 'Error', value: _error!, copyable: false)
           else if (_output != null) ...<Widget>[
-            const MBSectionHeader(label: 'Output'),
-            MBMonoCell(
+            const MqSectionHeader(label: 'Output'),
+            MqMonoCell(
               label: _mode == Base64Mode.encode ? 'Base64' : 'Plain text',
               value: _output!,
               accent: true,
             ),
           ] else
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: MBSpacing.lg),
+              padding: const EdgeInsets.symmetric(vertical: MqSpacing.lg),
               child: Text(
                 _mode == Base64Mode.encode
                     ? 'Enter text to encode.'
                     : 'Paste a Base64 string to decode.',
-                style: MBTextStyles.subhead.copyWith(color: c.textTer),
+                style: MqTextStyles.subhead.copyWith(color: c.textTer),
               ),
             ),
         ],

@@ -1,11 +1,11 @@
 import 'package:flutter/widgets.dart';
 
-import '../../theme/mb_theme.dart';
-import '../../theme/mb_typography.dart';
+import '../../theme/mq_theme.dart';
+import '../../theme/mq_typography.dart';
 
 /// Uppercase section label, optional trailing slot.
-class MBSectionHeader extends StatelessWidget {
-  const MBSectionHeader({
+class MqSectionHeader extends StatelessWidget {
+  const MqSectionHeader({
     super.key,
     required this.label,
     this.trailing,
@@ -18,7 +18,7 @@ class MBSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.mb;
+    final tokens = context.mq;
     return Padding(
       padding: padding ?? const EdgeInsets.fromLTRB(4, 4, 4, 8),
       child: Row(
@@ -27,7 +27,7 @@ class MBSectionHeader extends StatelessWidget {
           Expanded(
             child: Text(
               label.toUpperCase(),
-              style: MBTextStyles.sectionLabel.copyWith(
+              style: MqTextStyles.sectionLabel.copyWith(
                 color: tokens.colors.textSec,
               ),
             ),
