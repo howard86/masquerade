@@ -85,7 +85,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   120,
                 ),
                 itemCount: results.length,
-                separatorBuilder: (_, __) =>
+                separatorBuilder: (_, _) =>
                     const SizedBox(height: MBSpacing.sm),
                 itemBuilder: (BuildContext context, int i) {
                   final UtilityDescriptor u = results[i];
