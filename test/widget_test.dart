@@ -1,9 +1,9 @@
-import 'package:device_frame/device_frame.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:masquerade/app.dart';
+import 'package:masquerade/widgets/iphone_frame.dart';
 
 void main() {
   setUp(() {
@@ -121,7 +121,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.byType(DeviceFrame),
+      find.byType(IphoneFrame),
       findsOneWidget,
       reason: 'Home should render inside the iPhone frame on large screens',
     );
@@ -130,7 +130,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.byType(DeviceFrame),
+      find.byType(IphoneFrame),
       findsOneWidget,
       reason: 'Pushed detail screen must stay inside the iPhone frame',
     );
