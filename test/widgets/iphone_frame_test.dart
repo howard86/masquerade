@@ -1,6 +1,17 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:masquerade/theme/mb_colors.dart';
+import 'package:masquerade/theme/mb_theme.dart';
 import 'package:masquerade/widgets/iphone_frame.dart';
+
+Widget _harness(Widget child) {
+  return CupertinoApp(
+    home: MBTheme(
+      tokens: MBTokens(colors: MBColors.light(), brightness: Brightness.light),
+      child: ResponsiveLayout(child: child),
+    ),
+  );
+}
 
 void main() {
   group('ResponsiveLayout', () {
@@ -10,9 +21,7 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1200, 1000));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(
-        const CupertinoApp(home: ResponsiveLayout(child: Text('Test Content'))),
-      );
+      await tester.pumpWidget(_harness(const Text('Test Content')));
 
       expect(find.text('Test Content'), findsOneWidget);
       expect(find.byType(IphoneFrame), findsOneWidget);
@@ -24,9 +33,7 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(300, 600));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(
-        const CupertinoApp(home: ResponsiveLayout(child: Text('Test Content'))),
-      );
+      await tester.pumpWidget(_harness(const Text('Test Content')));
 
       expect(find.text('Test Content'), findsOneWidget);
       expect(find.byType(IphoneFrame), findsNothing);
@@ -38,25 +45,17 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1200, 1000));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(
-        const CupertinoApp(home: ResponsiveLayout(child: Text('Test Content'))),
-      );
+      await tester.pumpWidget(_harness(const Text('Test Content')));
 
       expect(
         tester.getSize(find.byType(IphoneFrame)),
-        equals(const Size(393, 852)),
+        equals(const Size(IphoneFrame.logicalWidth, IphoneFrame.logicalHeight)),
       );
-      expect(
-        find.byKey(const ValueKey<String>('iphone_frame_dynamic_island')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey<String>('iphone_frame_home_indicator')),
-        findsOneWidget,
-      );
+      expect(find.byKey(IphoneFrame.dynamicIslandKey), findsOneWidget);
+      expect(find.byKey(IphoneFrame.homeIndicatorKey), findsOneWidget);
       expect(
         find.descendant(
-          of: find.byKey(const ValueKey<String>('iphone_frame_screen')),
+          of: find.byKey(IphoneFrame.screenKey),
           matching: find.text('Test Content'),
         ),
         findsOneWidget,
