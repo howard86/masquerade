@@ -6,9 +6,14 @@ A Flutter utility-toolbox app — a digital toolbox for the small everyday conve
 
 ## What's in the toolbox today
 
-- **Timestamp parsing** — paste a Unix timestamp (seconds or milliseconds) or an ISO 8601 string and read it back as the other formats. Tap any row to copy.
-- **Encoding detection** — paste a string and Masquerade detects whether it's Base64 or Hex, then shows the decoded text and the alternate encoding side by side.
+- **Timestamp** — paste a Unix timestamp (seconds or milliseconds) or an ISO 8601 string; read it back in every other format. Tap any row to copy.
+- **Base64** — encode/decode with URL-safe variant; auto-detects which way you meant.
+- **Number Base** — hex / binary / octal / decimal converter with grouped output.
+- **JSON** — pretty-print, minify, or browse as an interactive tree.
+- **Color** — HEX / RGB / HSL / OKLCH conversion with WCAG contrast scoring.
+- **bps** — basis points ↔ percent ↔ decimal.
 - **Live, debounced parsing** — results update as you type with a 200 ms debounce; unrecognized input surfaces an inline error banner instead of silent failure.
+- **Light / dark / system theme + searchable history** — theme choice and per-tool history persist via `shared_preferences`.
 
 ## Requirements
 

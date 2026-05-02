@@ -49,15 +49,6 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
-  # Testing and code quality
-  mockito: ^5.6.4
-  build_runner: ^2.15.0
-  json_serializable: ^6.13.1
-  json_annotation: ^4.9.0
-
-  # Pre-commit hooks (Python package, but useful for CI)
-  # Note: Install with: pip install pre-commit
-
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 

@@ -36,7 +36,7 @@ jobs:
         uses: commitizen-tools/commitizen-action@0.27.1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          commitizen_version: 4.9.1
+          commitizen_version: 4.13.9
           changelog_increment_filename: _changelog_fragment.md
           push: true
           commit: true

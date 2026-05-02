@@ -61,7 +61,7 @@ repos:
 
   # Commit message linting
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v4.9.1
+    rev: v4.13.9
     hooks:
       - id: commitizen
         stages: [commit-msg]
