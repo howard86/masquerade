@@ -146,7 +146,7 @@ class _BpsScreenState extends State<BpsScreen> {
             const MqSectionHeader(label: 'Detected'),
             MqStatus(label: _result!.detected.name, kind: MqStatusKind.info),
             const SizedBox(height: MqSpacing.md),
-            const MqSectionHeader(label: 'All forms'),
+            const MqSectionHeader(label: 'Output'),
             MqMonoCell(
               label: 'Basis points',
               value: _result!.bps.toStringAsFixed(2),
@@ -175,7 +175,7 @@ class _BpsScreenState extends State<BpsScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: MqSpacing.lg),
               child: Text(
-                'Enter a value with bps, % or decimal.',
+                'Paste a value with bps, % or decimal.',
                 style: MqTextStyles.subhead.copyWith(color: c.textTer),
               ),
             ),

@@ -169,7 +169,7 @@ class _TimestampScreenState extends State<TimestampScreen> {
               accent: false,
             )
           else if (_parsed != null) ...<Widget>[
-            const MqSectionHeader(label: 'Detected'),
+            const MqSectionHeader(label: 'Output'),
             Row(
               children: <Widget>[
                 MqStatus(label: _formatLabel(_format), kind: MqStatusKind.info),
@@ -199,7 +199,7 @@ class _TimestampScreenState extends State<TimestampScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: MqSpacing.lg),
               child: Text(
-                'Enter a timestamp to see all forms.',
+                'Paste a timestamp to see all forms.',
                 style: MqTextStyles.subhead.copyWith(color: c.textTer),
               ),
             ),

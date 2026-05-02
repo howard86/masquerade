@@ -166,7 +166,7 @@ class _ColorScreenState extends State<ColorScreen> {
               ),
             ),
             const SizedBox(height: MqSpacing.lg),
-            const MqSectionHeader(label: 'Forms'),
+            const MqSectionHeader(label: 'Output'),
             MqMonoCell(label: 'HEX', value: _value!.hex, accent: true),
             const SizedBox(height: MqSpacing.sm),
             MqMonoCell(label: 'RGB', value: _value!.rgb),
@@ -203,7 +203,7 @@ class _ColorScreenState extends State<ColorScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: MqSpacing.lg),
               child: Text(
-                'Enter a color to inspect.',
+                'Paste a color to inspect.',
                 style: MqTextStyles.subhead.copyWith(color: c.textTer),
               ),
             ),
@@ -229,7 +229,7 @@ class _ContrastRow extends StatelessWidget {
       padding: const EdgeInsets.all(MqSpacing.md),
       decoration: BoxDecoration(
         color: context.mq.colors.surface2,
-        borderRadius: BorderRadius.circular(MqRadius.md - 2),
+        borderRadius: BorderRadius.circular(MqRadius.md),
         border: Border.all(color: context.mq.colors.border, width: 0.5),
       ),
       child: Column(

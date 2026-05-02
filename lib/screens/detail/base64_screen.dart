@@ -245,7 +245,7 @@ class _Base64ScreenState extends State<Base64Screen> {
               padding: const EdgeInsets.symmetric(vertical: MqSpacing.lg),
               child: Text(
                 _mode == Base64Mode.encode
-                    ? 'Enter text to encode.'
+                    ? 'Paste plain text to encode.'
                     : 'Paste a Base64 string to decode.',
                 style: MqTextStyles.subhead.copyWith(color: c.textTer),
               ),

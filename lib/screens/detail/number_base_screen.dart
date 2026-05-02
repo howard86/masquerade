@@ -148,7 +148,7 @@ class _NumberBaseScreenState extends State<NumberBaseScreen> {
               kind: MqStatusKind.info,
             ),
             const SizedBox(height: MqSpacing.md),
-            const MqSectionHeader(label: 'All forms'),
+            const MqSectionHeader(label: 'Output'),
             MqMonoCell(
               label: 'Decimal',
               value: _result!.decimal,
@@ -165,7 +165,7 @@ class _NumberBaseScreenState extends State<NumberBaseScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: MqSpacing.lg),
               child: Text(
-                'Enter a number to convert across bases.',
+                'Paste a number to convert across bases.',
                 style: MqTextStyles.subhead.copyWith(color: c.textTer),
               ),
             ),
