@@ -1,3 +1,9 @@
+## v1.2.0 (2026-05-02)
+
+### Feat
+
+- **timestamp**: expand formats and add keyword picker UI
+
 ## v1.1.0 (2026-05-02)
 
 ### Feat
