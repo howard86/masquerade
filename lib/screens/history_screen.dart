@@ -91,7 +91,7 @@ class HistoryScreen extends StatelessWidget {
                         MqSpacing.lg,
                         0,
                         MqSpacing.lg,
-                        120,
+                        MqLayout.tabBarClearance,
                       ),
                       children: <Widget>[
                         for (final MapEntry<String, List<HistoryEntry>> g
@@ -195,7 +195,7 @@ class _HistoryRow extends StatelessWidget {
       padding: const EdgeInsets.all(MqSpacing.md),
       decoration: BoxDecoration(
         color: c.surface,
-        borderRadius: BorderRadius.circular(MqRadius.md - 2),
+        borderRadius: BorderRadius.circular(MqRadius.md),
         border: Border.all(color: c.border, width: 0.5),
       ),
       child: Row(
@@ -208,11 +208,7 @@ class _HistoryRow extends StatelessWidget {
               borderRadius: BorderRadius.circular(MqRadius.xs),
             ),
             alignment: Alignment.center,
-            child: Icon(
-              u?.icon ?? MqIcons.info,
-              size: 14,
-              color: const Color(0xFFFFFFFF),
-            ),
+            child: Icon(u?.icon ?? MqIcons.info, size: 14, color: c.onTint),
           ),
           const SizedBox(width: MqSpacing.md),
           Expanded(
@@ -253,6 +249,10 @@ class _HistoryRow extends StatelessWidget {
     );
   }
 
+  /// Visible length cap for the input/output preview line. Anything longer
+  /// gets a single ellipsis so the row stays one line at any device width.
+  static const int _truncateAt = 32;
+
   static String _truncate(String s) =>
-      s.length > 32 ? '${s.substring(0, 32)}…' : s;
+      s.length > _truncateAt ? '${s.substring(0, _truncateAt)}…' : s;
 }
