@@ -11,6 +11,9 @@ void main() {
   });
 
   Future<void> openTimestampScreen(WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(500, 1400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
     await tester.pumpWidget(const MyApp());
     await tester.pumpAndSettle();
     final Finder timestampTile = find.text('Timestamp');
@@ -26,22 +29,23 @@ void main() {
       (Widget widget) =>
           widget is CupertinoTextField &&
           widget.placeholder ==
-              'Enter timestamp (Unix, ISO 8601, Base64, or Hex)',
+              'Enter timestamp (Unix s/ms/µs/ns, ISO 8601, or keyword)',
     );
     expect(inputField, findsOneWidget);
 
     await tester.enterText(inputField, '1700000000');
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
-    expect(find.text('Date & Time'), findsOneWidget);
-    expect(find.text('UTC Time:'), findsOneWidget);
-    expect(find.text('Local Time:'), findsOneWidget);
-    expect(find.text('Unix Timestamp (seconds):'), findsOneWidget);
-    expect(find.text('Unix Timestamp (milliseconds):'), findsOneWidget);
+    expect(find.text('UTC'), findsOneWidget);
+    expect(find.text('Local'), findsOneWidget);
+    expect(find.text('Unix seconds'), findsOneWidget);
+    expect(find.text('Unix ms'), findsOneWidget);
+    expect(find.text('ISO 8601'), findsOneWidget);
+    expect(find.text('Relative'), findsOneWidget);
 
     await tester.enterText(inputField, '1700000000000');
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
-    expect(find.text('Date & Time'), findsOneWidget);
+    expect(find.text('UTC'), findsOneWidget);
 
     await tester.enterText(inputField, 'not a timestamp');
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
@@ -49,7 +53,7 @@ void main() {
 
     await tester.enterText(inputField, '');
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
-    expect(find.text('Date & Time'), findsNothing);
+    expect(find.text('UTC'), findsNothing);
     expect(find.textContaining('Invalid input format'), findsNothing);
   });
 
@@ -60,13 +64,15 @@ void main() {
       (Widget widget) =>
           widget is CupertinoTextField &&
           widget.placeholder ==
-              'Enter timestamp (Unix, ISO 8601, Base64, or Hex)',
+              'Enter timestamp (Unix s/ms/µs/ns, ISO 8601, or keyword)',
     );
     await tester.enterText(inputField, '1700000000');
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     final Finder copyButton = find.bySemanticsLabel(RegExp(r'^Copy '));
     expect(copyButton, findsWidgets);
+    await tester.ensureVisible(copyButton.first);
+    await tester.pumpAndSettle();
     await tester.tap(copyButton.first, warnIfMissed: false);
     await tester.pumpAndSettle();
 
