@@ -4,6 +4,7 @@ import '../theme/mq_metrics.dart';
 import '../theme/mq_theme.dart';
 import '../theme/mq_typography.dart';
 import '../utility_catalog.dart';
+import '../widgets/mq/mq_icons.dart';
 import '../widgets/mq/mq_search_bar.dart';
 import '../widgets/mq/mq_utility_tile.dart';
 
@@ -80,26 +81,62 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
             ),
             Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.fromLTRB(
-                  MqSpacing.lg,
-                  0,
-                  MqSpacing.lg,
-                  120,
-                ),
-                itemCount: results.length,
-                separatorBuilder: (_, _) =>
-                    const SizedBox(height: MqSpacing.sm),
-                itemBuilder: (BuildContext context, int i) {
-                  final UtilityDescriptor u = results[i];
-                  return MqUtilityTile(
-                    name: u.name,
-                    icon: u.icon,
-                    tint: u.tint,
-                    onTap: () => _open(context, u),
-                  );
-                },
-              ),
+              child: results.isEmpty && _query.trim().isNotEmpty
+                  ? _SearchEmptyState(query: _query.trim())
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(
+                        MqSpacing.lg,
+                        0,
+                        MqSpacing.lg,
+                        MqLayout.tabBarClearance,
+                      ),
+                      itemCount: results.length,
+                      separatorBuilder: (_, _) =>
+                          const SizedBox(height: MqSpacing.sm),
+                      itemBuilder: (BuildContext context, int i) {
+                        final UtilityDescriptor u = results[i];
+                        return MqUtilityTile(
+                          name: u.name,
+                          icon: u.icon,
+                          tint: u.tint,
+                          compact: true,
+                          onTap: () => _open(context, u),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SearchEmptyState extends StatelessWidget {
+  const _SearchEmptyState({required this.query});
+
+  final String query;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mq.colors;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: MqSpacing.xl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Icon(MqIcons.search, size: 36, color: c.textTer),
+            const SizedBox(height: MqSpacing.md),
+            Text(
+              'No matches',
+              style: MqTextStyles.title3.copyWith(color: c.textPri),
+            ),
+            const SizedBox(height: MqSpacing.xs),
+            Text(
+              'Nothing matches "$query". Try a different keyword or check the synonyms list.',
+              style: MqTextStyles.subhead.copyWith(color: c.textSec),
+              textAlign: TextAlign.center,
             ),
           ],
         ),
