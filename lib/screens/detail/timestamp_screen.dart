@@ -75,7 +75,7 @@ class _TimestampScreenState extends State<TimestampScreen> {
     final int? n = int.tryParse(input);
     if (n != null && n > 1_000_000_000 && n < 1_000_000_000_000) {
       // Range where seconds + ms interpretations both land in plausible dates.
-      ambiguous = false;
+      ambiguous = true;
     }
     setState(() {
       _parsed = result.timestamp;
