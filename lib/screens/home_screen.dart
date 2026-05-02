@@ -85,7 +85,7 @@ class _HomeScreenState extends State<HomeScreen> {
             MqSpacing.lg,
             MqSpacing.sm,
             MqSpacing.lg,
-            96,
+            MqLayout.tabBarClearance,
           ),
           children: <Widget>[
             Text(
