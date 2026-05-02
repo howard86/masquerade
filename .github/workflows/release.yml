@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  workflow_run:
+    workflows: ["Flutter CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: Bump version and changelog
+    runs-on: ubuntu-latest
+    # Only run when CI passed on main, and skip the bump commit itself
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      !startsWith(github.event.workflow_run.head_commit.message, 'bump:')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_branch }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create bump and changelog
+        id: cz
+        uses: commitizen-tools/commitizen-action@0.27.1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          commitizen_version: 4.9.1
+          changelog_increment_filename: _changelog_fragment.md
+          push: true
+          commit: true
+          changelog: true
+          check_consistency: true
+
+      - name: Create GitHub Release
+        if: steps.cz.outputs.version != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.cz.outputs.version }}
+          name: v${{ steps.cz.outputs.version }}
+          body_path: _changelog_fragment.md
+          draft: false
+          prerelease: false
