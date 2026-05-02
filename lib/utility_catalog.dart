@@ -5,11 +5,13 @@ import 'package:flutter/widgets.dart';
 
 import 'screens/detail/base64_screen.dart';
 import 'screens/detail/bps_screen.dart';
+import 'screens/detail/bytes_screen.dart';
 import 'screens/detail/color_screen.dart';
 import 'screens/detail/json_screen.dart';
 import 'screens/detail/number_base_screen.dart';
 import 'screens/detail/timestamp_screen.dart';
 import 'utils/bps_parser.dart';
+import 'utils/bytes_parser.dart';
 import 'utils/color_parser.dart';
 import 'utils/encoding_parser.dart';
 import 'utils/json_parser.dart';
@@ -112,6 +114,17 @@ class UtilityCatalog {
           BpsScreen(initialInput: initialInput),
       detect: _detectBps,
     ),
+    UtilityDescriptor(
+      id: 'bytes',
+      name: 'Bytes',
+      description: 'Byte array ↔ text (UTF-8)',
+      icon: MqIcons.bytes,
+      tint: const Color(0xFF22C55E),
+      synonyms: <String>['buffer', 'bytes', 'array', 'utf8', 'utf-8', 'decode'],
+      builder: (BuildContext _, {String? initialInput}) =>
+          BytesScreen(initialInput: initialInput),
+      detect: _detectBytes,
+    ),
   ];
 
   static UtilityDescriptor byId(String id) =>
@@ -199,4 +212,19 @@ bool _detectBps(String input) {
   if (hasSuffix) return true;
   final double? n = double.tryParse(t);
   return n != null && n.abs() <= 1.0;
+}
+
+bool _detectBytes(String input) {
+  final String t = input.trim();
+  if (t.isEmpty) return false;
+  // Cheap reject before allocating tokens/Uint8List: must start with a digit
+  // or `[`, anything else can't be an integer list.
+  final int first = t.codeUnitAt(0);
+  final bool startsOk =
+      first == 0x5B /* [ */ || (first >= 0x30 && first <= 0x39) /* 0-9 */;
+  if (!startsOk) return false;
+  final BytesParseResult r = BytesParser.parse(t);
+  if (r is! BytesParseOk) return false;
+  // Single tokens stay with Number Base / Timestamp.
+  return r.bytes.length >= 2;
 }

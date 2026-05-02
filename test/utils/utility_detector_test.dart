@@ -18,8 +18,26 @@ void main() {
       expect(ids('{"a":1}'), <String>['json']);
     });
 
-    test('JSON array only suggests JSON', () {
-      expect(ids('[1, 2, 3]'), <String>['json']);
+    test('JSON array of small ints co-fires JSON + Bytes', () {
+      // Bracketed integer list parses as JSON and as a byte array.
+      expect(ids('[1, 2, 3]'), <String>['json', 'bytes']);
+    });
+
+    test('space-separated bytes only suggests Bytes', () {
+      expect(ids('72 101 108 108 111'), <String>['bytes']);
+    });
+
+    test('bracketed byte list co-fires JSON + Bytes', () {
+      expect(ids('[72, 101, 108, 108, 111]'), <String>['json', 'bytes']);
+    });
+
+    test('single integer does not suggest Bytes', () {
+      // Single tokens stay with Number Base / Timestamp.
+      expect(ids('72'), isNot(contains('bytes')));
+    });
+
+    test('out-of-range list does not suggest Bytes', () {
+      expect(ids('256 1 2'), isNot(contains('bytes')));
     });
 
     test('hex color with # only suggests Color', () {
