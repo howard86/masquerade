@@ -9,7 +9,6 @@ import 'screens/detail/color_screen.dart';
 import 'screens/detail/json_screen.dart';
 import 'screens/detail/number_base_screen.dart';
 import 'screens/detail/timestamp_screen.dart';
-import 'theme/mq_colors.dart';
 import 'utils/bps_parser.dart';
 import 'utils/color_parser.dart';
 import 'utils/encoding_parser.dart';
@@ -52,7 +51,7 @@ class UtilityCatalog {
       name: 'Number Base',
       description: 'Hex · binary · octal · decimal',
       icon: MqIcons.binary,
-      tint: MqColors.light().info,
+      tint: const Color(0xFF3B6DD6),
       synonyms: <String>['hex', 'binary', 'octal', 'decimal', 'base'],
       builder: (BuildContext _, {String? initialInput}) =>
           NumberBaseScreen(initialInput: initialInput),
@@ -63,7 +62,7 @@ class UtilityCatalog {
       name: 'Timestamp',
       description: 'Unix s/ms · ISO 8601',
       icon: MqIcons.clock,
-      tint: MqColors.light().accent,
+      tint: const Color(0xFF00B8C4),
       synonyms: <String>['epoch', 'unix', 'iso', 'date', 'time'],
       builder: (BuildContext _, {String? initialInput}) =>
           TimestampScreen(initialInput: initialInput),
