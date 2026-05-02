@@ -232,7 +232,9 @@ class _BytesScreenState extends State<BytesScreen> {
   List<Widget> _buildOutput() {
     if (_mode == BytesMode.encode) {
       if (_outSpace == null) {
-        return const <Widget>[MqEmptyHint('Type text to encode as bytes.')];
+        return const <Widget>[
+          MqEmptyHint(label: 'Type text to encode as bytes.'),
+        ];
       }
       return <Widget>[
         const MqSectionHeader(label: 'Output'),
@@ -250,7 +252,7 @@ class _BytesScreenState extends State<BytesScreen> {
         ];
       }
       return const <Widget>[
-        MqEmptyHint('Paste integers (0–255) to decode as UTF-8.'),
+        MqEmptyHint(label: 'Paste integers (0–255) to decode as UTF-8.'),
       ];
     }
     return <Widget>[

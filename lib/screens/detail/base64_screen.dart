@@ -240,7 +240,7 @@ class _Base64ScreenState extends State<Base64Screen> {
             ),
           ] else
             MqEmptyHint(
-              _mode == Base64Mode.encode
+              label: _mode == Base64Mode.encode
                   ? 'Paste plain text to encode.'
                   : 'Paste a Base64 string to decode.',
             ),

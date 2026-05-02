@@ -160,7 +160,7 @@ class _NumberBaseScreenState extends State<NumberBaseScreen> {
             const SizedBox(height: MqSpacing.sm),
             MqMonoCell(label: 'Binary', value: _result!.binary),
           ] else
-            const MqEmptyHint('Paste a number to convert across bases.'),
+            const MqEmptyHint(label: 'Paste a number to convert across bases.'),
         ],
       ),
     );

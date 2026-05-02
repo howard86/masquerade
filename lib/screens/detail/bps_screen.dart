@@ -173,7 +173,7 @@ class _BpsScreenState extends State<BpsScreen> {
               ),
             ),
           ] else
-            const MqEmptyHint('Paste a value with bps, % or decimal.'),
+            const MqEmptyHint(label: 'Paste a value with bps, % or decimal.'),
         ],
       ),
     );

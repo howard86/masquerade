@@ -189,7 +189,7 @@ class _JSONScreenState extends State<JSONScreen> {
               value: _formatOutput((_result! as JSONOk).value.value),
             ),
           ] else
-            const MqEmptyHint('Paste JSON to format or validate.'),
+            const MqEmptyHint(label: 'Paste JSON to format or validate.'),
         ],
       ),
     );

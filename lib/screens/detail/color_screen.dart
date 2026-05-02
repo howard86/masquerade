@@ -201,7 +201,7 @@ class _ColorScreenState extends State<ColorScreen> {
               ],
             ),
           ] else
-            const MqEmptyHint('Paste a color to inspect.'),
+            const MqEmptyHint(label: 'Paste a color to inspect.'),
         ],
       ),
     );

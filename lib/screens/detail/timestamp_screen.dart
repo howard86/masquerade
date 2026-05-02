@@ -10,6 +10,7 @@ import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utils/timestamp_parser.dart';
 import '../../widgets/mq/mq_button.dart';
+import '../../widgets/mq/mq_empty_hint.dart';
 import '../../widgets/mq/mq_icons.dart';
 import '../../widgets/mq/mq_input.dart';
 import '../../widgets/mq/mq_mono_cell.dart';
@@ -125,7 +126,6 @@ class _TimestampScreenState extends State<TimestampScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.mq.colors;
     return MqDetailScaffold(
       title: 'Timestamp',
       subtitle:
@@ -197,13 +197,7 @@ class _TimestampScreenState extends State<TimestampScreen> {
             const SizedBox(height: MqSpacing.md),
             ..._outputRows(_parsed!),
           ] else
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: MqSpacing.lg),
-              child: Text(
-                'Paste a timestamp to see all forms.',
-                style: MqTextStyles.subhead.copyWith(color: c.textTer),
-              ),
-            ),
+            const MqEmptyHint(label: 'Paste a timestamp to see all forms.'),
         ],
       ),
     );
