@@ -14,6 +14,7 @@ class MqColors {
     required this.textSec,
     required this.textTer,
     required this.textInverse,
+    required this.onTint,
     required this.accent,
     required this.accentInk,
     required this.accentBg,
@@ -46,6 +47,7 @@ class MqColors {
     textSec: Color(0xFF475569),
     textTer: Color(0xFF94A3B8),
     textInverse: Color(0xFFFFFFFF),
+    onTint: Color(0xFFFFFFFF),
     accent: Color(0xFF00B8C4),
     accentInk: Color(0xFF006B72),
     accentBg: Color(0x1A00B8C4),
@@ -84,6 +86,7 @@ class MqColors {
     textSec: Color(0xFF94A3B8),
     textTer: Color(0xFF64748B),
     textInverse: Color(0xFF0A0E14),
+    onTint: Color(0xFFFFFFFF),
     accent: Color(0xFF22D3EE),
     accentInk: Color(0xFF67E8F5),
     accentBg: Color(0x2422D3EE),
@@ -125,6 +128,11 @@ class MqColors {
   final Color textSec;
   final Color textTer;
   final Color textInverse;
+
+  /// Foreground for high-saturation tinted surfaces (utility tile icons,
+  /// history-row badges). Always white in both modes — the tints are brand
+  /// colors picked for white-on-color contrast, not theme background.
+  final Color onTint;
   final Color accent;
   final Color accentInk;
   final Color accentBg;
@@ -156,6 +164,7 @@ class MqColors {
     textSec: Color.lerp(a.textSec, b.textSec, t)!,
     textTer: Color.lerp(a.textTer, b.textTer, t)!,
     textInverse: Color.lerp(a.textInverse, b.textInverse, t)!,
+    onTint: Color.lerp(a.onTint, b.onTint, t)!,
     accent: Color.lerp(a.accent, b.accent, t)!,
     accentInk: Color.lerp(a.accentInk, b.accentInk, t)!,
     accentBg: Color.lerp(a.accentBg, b.accentBg, t)!,

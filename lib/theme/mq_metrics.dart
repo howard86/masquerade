@@ -24,6 +24,16 @@ class MqRadius {
   static const double pill = 9999;
 }
 
+/// Layout constants that depend on chrome (tab bar, nav bar). Logical px.
+class MqLayout {
+  const MqLayout._();
+
+  /// Bottom padding for scrollable tab content so the last item clears the
+  /// translucent CupertinoTabBar (49pt nominal height + safe-area inset +
+  /// breathing room). Used by every screen mounted inside RootTabScaffold.
+  static const double tabBarClearance = 96;
+}
+
 /// Motion durations + curves. Mirrors `MQ_TOKENS.motion`.
 class MqMotion {
   const MqMotion._();
