@@ -1,7 +1,6 @@
 import 'package:flutter/cupertino.dart';
 
 import 'screens/root_tab_scaffold.dart';
-import 'state/favorites_controller.dart';
 import 'state/history_controller.dart';
 import 'state/theme_controller.dart';
 import 'theme/mq_colors.dart';
@@ -9,16 +8,10 @@ import 'theme/mq_theme.dart';
 import 'widgets/iphone_frame.dart';
 
 class MyApp extends StatefulWidget {
-  const MyApp({
-    super.key,
-    this.themeController,
-    this.historyController,
-    this.favoritesController,
-  });
+  const MyApp({super.key, this.themeController, this.historyController});
 
   final ThemeController? themeController;
   final HistoryController? historyController;
-  final FavoritesController? favoritesController;
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -27,7 +20,6 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   late final ThemeController _theme;
   late final HistoryController _history;
-  late final FavoritesController _favorites;
 
   Brightness _platformBrightness = Brightness.light;
 
@@ -36,7 +28,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     super.initState();
     _theme = widget.themeController ?? ThemeController();
     _history = widget.historyController ?? HistoryController();
-    _favorites = widget.favoritesController ?? FavoritesController();
     _platformBrightness =
         WidgetsBinding.instance.platformDispatcher.platformBrightness;
     WidgetsBinding.instance.addObserver(this);
@@ -69,33 +60,30 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       controller: _theme,
       child: HistoryScope(
         controller: _history,
-        child: FavoritesScope(
-          controller: _favorites,
-          child: ListenableBuilder(
-            listenable: _theme,
-            builder: (BuildContext context, _) {
-              final Brightness brightness = _resolveBrightness(_theme.mode);
-              final MqColors colors = brightness == Brightness.dark
-                  ? MqColors.dark()
-                  : MqColors.light();
-              final MqTokens tokens = MqTokens(
-                colors: colors,
-                brightness: brightness,
-              );
-              return CupertinoApp(
-                debugShowCheckedModeBanner: false,
-                title: 'Masquerade',
-                theme: buildCupertinoTheme(brightness),
-                builder: (BuildContext context, Widget? child) => MqTheme(
-                  tokens: tokens,
-                  child: ResponsiveLayout(
-                    child: child ?? const SizedBox.shrink(),
-                  ),
+        child: ListenableBuilder(
+          listenable: _theme,
+          builder: (BuildContext context, _) {
+            final Brightness brightness = _resolveBrightness(_theme.mode);
+            final MqColors colors = brightness == Brightness.dark
+                ? MqColors.dark()
+                : MqColors.light();
+            final MqTokens tokens = MqTokens(
+              colors: colors,
+              brightness: brightness,
+            );
+            return CupertinoApp(
+              debugShowCheckedModeBanner: false,
+              title: 'Masquerade',
+              theme: buildCupertinoTheme(brightness),
+              builder: (BuildContext context, Widget? child) => MqTheme(
+                tokens: tokens,
+                child: ResponsiveLayout(
+                  child: child ?? const SizedBox.shrink(),
                 ),
-                home: const RootTabScaffold(),
-              );
-            },
-          ),
+              ),
+              home: const RootTabScaffold(),
+            );
+          },
         ),
       ),
     );
