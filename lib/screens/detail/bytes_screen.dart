@@ -7,10 +7,9 @@ import 'package:flutter/widgets.dart';
 
 import '../../state/history_controller.dart';
 import '../../theme/mq_metrics.dart';
-import '../../theme/mq_theme.dart';
-import '../../theme/mq_typography.dart';
 import '../../utils/bytes_parser.dart';
 import '../../widgets/mq/mq_button.dart';
+import '../../widgets/mq/mq_empty_hint.dart';
 import '../../widgets/mq/mq_icons.dart';
 import '../../widgets/mq/mq_input.dart';
 import '../../widgets/mq/mq_mono_cell.dart';
@@ -233,7 +232,7 @@ class _BytesScreenState extends State<BytesScreen> {
   List<Widget> _buildOutput() {
     if (_mode == BytesMode.encode) {
       if (_outSpace == null) {
-        return const <Widget>[_HintText('Type text to encode as bytes.')];
+        return const <Widget>[MqEmptyHint('Type text to encode as bytes.')];
       }
       return <Widget>[
         const MqSectionHeader(label: 'Output'),
@@ -251,7 +250,7 @@ class _BytesScreenState extends State<BytesScreen> {
         ];
       }
       return const <Widget>[
-        _HintText('Paste integers (0–255) to decode as UTF-8.'),
+        MqEmptyHint('Paste integers (0–255) to decode as UTF-8.'),
       ];
     }
     return <Widget>[
@@ -265,19 +264,5 @@ class _BytesScreenState extends State<BytesScreen> {
       const SizedBox(height: MqSpacing.sm),
       MqMonoCell(label: 'Hex', value: _decodedHex!),
     ];
-  }
-}
-
-class _HintText extends StatelessWidget {
-  const _HintText(this.text);
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.mq.colors;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: MqSpacing.lg),
-      child: Text(text, style: MqTextStyles.subhead.copyWith(color: c.textTer)),
-    );
   }
 }

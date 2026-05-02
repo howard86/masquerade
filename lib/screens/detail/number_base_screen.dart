@@ -6,10 +6,9 @@ import 'package:flutter/widgets.dart';
 
 import '../../state/history_controller.dart';
 import '../../theme/mq_metrics.dart';
-import '../../theme/mq_theme.dart';
-import '../../theme/mq_typography.dart';
 import '../../utils/number_base_parser.dart';
 import '../../widgets/mq/mq_button.dart';
+import '../../widgets/mq/mq_empty_hint.dart';
 import '../../widgets/mq/mq_icons.dart';
 import '../../widgets/mq/mq_input.dart';
 import '../../widgets/mq/mq_mono_cell.dart';
@@ -101,7 +100,6 @@ class _NumberBaseScreenState extends State<NumberBaseScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.mq.colors;
     return MqDetailScaffold(
       title: 'Number Base',
       subtitle: 'Auto-detect base. All forms shown live.',
@@ -162,13 +160,7 @@ class _NumberBaseScreenState extends State<NumberBaseScreen> {
             const SizedBox(height: MqSpacing.sm),
             MqMonoCell(label: 'Binary', value: _result!.binary),
           ] else
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: MqSpacing.lg),
-              child: Text(
-                'Paste a number to convert across bases.',
-                style: MqTextStyles.subhead.copyWith(color: c.textTer),
-              ),
-            ),
+            const MqEmptyHint('Paste a number to convert across bases.'),
         ],
       ),
     );

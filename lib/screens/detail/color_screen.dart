@@ -10,6 +10,7 @@ import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utils/color_parser.dart';
 import '../../widgets/mq/mq_button.dart';
+import '../../widgets/mq/mq_empty_hint.dart';
 import '../../widgets/mq/mq_icons.dart';
 import '../../widgets/mq/mq_input.dart';
 import '../../widgets/mq/mq_mono_cell.dart';
@@ -200,13 +201,7 @@ class _ColorScreenState extends State<ColorScreen> {
               ],
             ),
           ] else
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: MqSpacing.lg),
-              child: Text(
-                'Paste a color to inspect.',
-                style: MqTextStyles.subhead.copyWith(color: c.textTer),
-              ),
-            ),
+            const MqEmptyHint('Paste a color to inspect.'),
         ],
       ),
     );

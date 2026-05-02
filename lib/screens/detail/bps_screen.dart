@@ -10,6 +10,7 @@ import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utils/bps_parser.dart';
 import '../../widgets/mq/mq_button.dart';
+import '../../widgets/mq/mq_empty_hint.dart';
 import '../../widgets/mq/mq_icons.dart';
 import '../../widgets/mq/mq_input.dart';
 import '../../widgets/mq/mq_mono_cell.dart';
@@ -172,13 +173,7 @@ class _BpsScreenState extends State<BpsScreen> {
               ),
             ),
           ] else
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: MqSpacing.lg),
-              child: Text(
-                'Paste a value with bps, % or decimal.',
-                style: MqTextStyles.subhead.copyWith(color: c.textTer),
-              ),
-            ),
+            const MqEmptyHint('Paste a value with bps, % or decimal.'),
         ],
       ),
     );
