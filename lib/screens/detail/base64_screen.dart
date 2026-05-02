@@ -21,7 +21,9 @@ import 'detail_scaffold.dart';
 enum Base64Mode { encode, decode }
 
 class Base64Screen extends StatefulWidget {
-  const Base64Screen({super.key});
+  const Base64Screen({super.key, this.initialInput});
+
+  final String? initialInput;
 
   @override
   State<Base64Screen> createState() => _Base64ScreenState();
@@ -35,6 +37,21 @@ class _Base64ScreenState extends State<Base64Screen> {
   bool _stripPadding = false;
   String? _output;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final String? seed = widget.initialInput;
+    if (seed != null && seed.isNotEmpty) {
+      _controller.text = seed;
+      // Seed enters Decode mode since hero detector only suggests Base64 for
+      // encoded-looking inputs.
+      _mode = Base64Mode.decode;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _convert();
+      });
+    }
+  }
 
   @override
   void dispose() {

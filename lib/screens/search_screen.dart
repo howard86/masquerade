@@ -35,9 +35,12 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   void _open(BuildContext context, UtilityDescriptor u) {
-    Navigator.of(
-      context,
-    ).push(CupertinoPageRoute<void>(builder: u.builder, title: u.name));
+    Navigator.of(context).push(
+      CupertinoPageRoute<void>(
+        builder: (BuildContext ctx) => u.builder(ctx),
+        title: u.name,
+      ),
+    );
   }
 
   @override

@@ -18,16 +18,16 @@ import '../../widgets/mq/mq_status.dart';
 import 'detail_scaffold.dart';
 
 class ColorScreen extends StatefulWidget {
-  const ColorScreen({super.key});
+  const ColorScreen({super.key, this.initialInput});
+
+  final String? initialInput;
 
   @override
   State<ColorScreen> createState() => _ColorScreenState();
 }
 
 class _ColorScreenState extends State<ColorScreen> {
-  final TextEditingController _controller = TextEditingController(
-    text: '#00B8C4',
-  );
+  final TextEditingController _controller = TextEditingController();
   Timer? _debounce;
   MqColorValue? _value;
   String? _error;
@@ -35,6 +35,8 @@ class _ColorScreenState extends State<ColorScreen> {
   @override
   void initState() {
     super.initState();
+    final String? seed = widget.initialInput;
+    _controller.text = (seed != null && seed.isNotEmpty) ? seed : '#00B8C4';
     _value = MqColorParser.parse(_controller.text);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _value != null) {

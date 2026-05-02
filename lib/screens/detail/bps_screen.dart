@@ -18,7 +18,9 @@ import '../../widgets/mq/mq_status.dart';
 import 'detail_scaffold.dart';
 
 class BpsScreen extends StatefulWidget {
-  const BpsScreen({super.key});
+  const BpsScreen({super.key, this.initialInput});
+
+  final String? initialInput;
 
   @override
   State<BpsScreen> createState() => _BpsScreenState();
@@ -29,6 +31,18 @@ class _BpsScreenState extends State<BpsScreen> {
   Timer? _debounce;
   BpsResult? _result;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final String? seed = widget.initialInput;
+    if (seed != null && seed.isNotEmpty) {
+      _controller.text = seed;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _parse();
+      });
+    }
+  }
 
   @override
   void dispose() {

@@ -18,7 +18,9 @@ import '../../widgets/mq/mq_status.dart';
 import 'detail_scaffold.dart';
 
 class NumberBaseScreen extends StatefulWidget {
-  const NumberBaseScreen({super.key});
+  const NumberBaseScreen({super.key, this.initialInput});
+
+  final String? initialInput;
 
   @override
   State<NumberBaseScreen> createState() => _NumberBaseScreenState();
@@ -29,6 +31,18 @@ class _NumberBaseScreenState extends State<NumberBaseScreen> {
   Timer? _debounce;
   NumberBaseResult? _result;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final String? seed = widget.initialInput;
+    if (seed != null && seed.isNotEmpty) {
+      _controller.text = seed;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _parse();
+      });
+    }
+  }
 
   @override
   void dispose() {

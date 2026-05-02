@@ -1,56 +1,80 @@
-import 'package:flutter/cupertino.dart';
+import 'dart:async';
 
-import '../state/favorites_controller.dart';
-import '../state/history_controller.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
+
 import '../theme/mq_metrics.dart';
 import '../theme/mq_theme.dart';
 import '../theme/mq_typography.dart';
 import '../utility_catalog.dart';
+import '../widgets/mq/mq_button.dart';
 import '../widgets/mq/mq_chip.dart';
 import '../widgets/mq/mq_icons.dart';
-import '../widgets/mq/mq_search_bar.dart';
+import '../widgets/mq/mq_input.dart';
 import '../widgets/mq/mq_section_header.dart';
 import '../widgets/mq/mq_utility_tile.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.onSearchTapped});
-
-  final VoidCallback onSearchTapped;
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _heroController = TextEditingController();
+  Timer? _debounce;
+  List<UtilityDescriptor> _matches = const <UtilityDescriptor>[];
 
-  void _open(BuildContext context, UtilityDescriptor u) {
-    Navigator.of(
-      context,
-    ).push(CupertinoPageRoute<void>(builder: u.builder, title: u.name));
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _heroController.dispose();
+    super.dispose();
+  }
+
+  void _onHeroChanged(String _) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 200), _recomputeMatches);
+  }
+
+  void _recomputeMatches() {
+    if (!mounted) return;
+    setState(() {
+      _matches = UtilityCatalog.detectAll(_heroController.text);
+    });
+  }
+
+  Future<void> _paste() async {
+    final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
+    final String? text = data?.text;
+    if (text == null || text.isEmpty) return;
+    _heroController.text = text;
+    _recomputeMatches();
+  }
+
+  void _clear() {
+    _debounce?.cancel();
+    _heroController.clear();
+    setState(() => _matches = const <UtilityDescriptor>[]);
+  }
+
+  void _open(UtilityDescriptor u, {bool seedFromHero = false}) {
+    final String? seed = seedFromHero && _heroController.text.isNotEmpty
+        ? _heroController.text
+        : null;
+    Navigator.of(context).push(
+      CupertinoPageRoute<void>(
+        builder: (BuildContext ctx) => u.builder(ctx, initialInput: seed),
+        title: u.name,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.mq;
-    final c = tokens.colors;
-    final HistoryController history = HistoryScope.of(context);
-    final FavoritesController favorites = FavoritesScope.of(context);
-
-    final Set<String> seen = <String>{};
-    final List<UtilityDescriptor> recents = <UtilityDescriptor>[];
-    for (final HistoryEntry e in history.entries.take(20)) {
-      if (!seen.add(e.utilityId)) continue;
-      final UtilityDescriptor? match = UtilityCatalog.all
-          .where((UtilityDescriptor u) => u.id == e.utilityId)
-          .firstOrNull;
-      if (match != null) recents.add(match);
-      if (recents.length >= 5) break;
-    }
-
-    final List<UtilityDescriptor> favs = UtilityCatalog.all
-        .where((UtilityDescriptor u) => favorites.isFavorite(u.id))
-        .toList();
+    final c = context.mq.colors;
+    final bool hasInput = _heroController.text.trim().isNotEmpty;
 
     return CupertinoPageScaffold(
       backgroundColor: c.bg,
@@ -82,61 +106,26 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: MqSpacing.md),
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: widget.onSearchTapped,
-              child: AbsorbPointer(
-                child: MqSearchBar(controller: _searchController),
-              ),
+            const SizedBox(height: MqSpacing.lg),
+            _HeroPasteCard(
+              controller: _heroController,
+              onChanged: _onHeroChanged,
+              onPaste: _paste,
+              onClear: hasInput ? _clear : null,
             ),
-            const SizedBox(height: MqSpacing.md),
-            if (recents.isNotEmpty) ...<Widget>[
-              MqSectionHeader(
-                label: 'Recents',
-                trailing: MqChip(label: '${recents.length}', mono: true),
-              ),
-              SizedBox(
-                height: 48,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  itemCount: recents.length,
-                  separatorBuilder: (_, _) =>
-                      const SizedBox(width: MqSpacing.sm),
-                  itemBuilder: (_, int i) => SizedBox(
-                    width: 168,
-                    child: MqUtilityTile(
-                      name: recents[i].name,
-                      icon: recents[i].icon,
-                      tint: recents[i].tint,
-                      onTap: () => _open(context, recents[i]),
-                    ),
-                  ),
-                ),
-              ),
+            if (_matches.isNotEmpty) ...<Widget>[
               const SizedBox(height: MqSpacing.md),
-            ],
-            if (favs.isNotEmpty) ...<Widget>[
-              const MqSectionHeader(label: 'Favorites'),
-              _UtilityGrid(items: favs, favorites: favorites, onTap: _open),
-              const SizedBox(height: MqSpacing.md),
-            ],
-            for (final MqCategory cat in MqCategory.values) ...<Widget>[
-              MqSectionHeader(
-                label: cat.label,
-                trailing: MqChip(
-                  label: '${UtilityCatalog.byCategory(cat).length}',
-                  mono: true,
-                ),
+              _SuggestionRow(
+                matches: _matches,
+                onTap: (UtilityDescriptor u) => _open(u, seedFromHero: true),
               ),
-              _UtilityGrid(
-                items: UtilityCatalog.byCategory(cat),
-                favorites: favorites,
-                onTap: _open,
-              ),
-              const SizedBox(height: MqSpacing.md),
             ],
+            const SizedBox(height: MqSpacing.lg),
+            const MqSectionHeader(label: 'All tools'),
+            _ToolGrid(
+              items: UtilityCatalog.all,
+              onTap: (UtilityDescriptor u) => _open(u),
+            ),
           ],
         ),
       ),
@@ -144,15 +133,105 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class _UtilityGrid extends StatelessWidget {
-  const _UtilityGrid({
-    required this.items,
-    required this.favorites,
-    required this.onTap,
+class _HeroPasteCard extends StatelessWidget {
+  const _HeroPasteCard({
+    required this.controller,
+    required this.onChanged,
+    required this.onPaste,
+    required this.onClear,
   });
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onPaste;
+  final VoidCallback? onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        MqInput(
+          controller: controller,
+          label: 'Paste anything',
+          placeholder: 'Timestamp, JSON, hex, base64, color…',
+          onChanged: onChanged,
+          multiline: true,
+          minLines: 2,
+          maxLines: 5,
+        ),
+        const SizedBox(height: MqSpacing.sm),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: MqButton(
+                label: 'Paste',
+                icon: MqIcons.paste,
+                variant: MqButtonVariant.glass,
+                onPressed: onPaste,
+                full: true,
+              ),
+            ),
+            if (onClear != null) ...<Widget>[
+              const SizedBox(width: MqSpacing.sm),
+              Expanded(
+                child: MqButton(
+                  label: 'Clear',
+                  icon: MqIcons.clear,
+                  variant: MqButtonVariant.glass,
+                  onPressed: onClear,
+                  full: true,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _SuggestionRow extends StatelessWidget {
+  const _SuggestionRow({required this.matches, required this.onTap});
+
+  final List<UtilityDescriptor> matches;
+  final void Function(UtilityDescriptor) onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mq.colors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          'Open in',
+          style: MqTextStyles.sectionLabel.copyWith(color: c.textSec),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: MqSpacing.sm,
+          runSpacing: MqSpacing.sm,
+          children: <Widget>[
+            for (final UtilityDescriptor u in matches)
+              MqChip(
+                label: u.name,
+                icon: u.icon,
+                accent: true,
+                mono: false,
+                onTap: () => onTap(u),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ToolGrid extends StatelessWidget {
+  const _ToolGrid({required this.items, required this.onTap});
+
   final List<UtilityDescriptor> items;
-  final FavoritesController favorites;
-  final void Function(BuildContext, UtilityDescriptor) onTap;
+  final void Function(UtilityDescriptor) onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -162,9 +241,9 @@ class _UtilityGrid extends StatelessWidget {
       itemCount: items.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        mainAxisSpacing: 6,
-        crossAxisSpacing: 6,
-        childAspectRatio: 4.0,
+        mainAxisSpacing: MqSpacing.sm,
+        crossAxisSpacing: MqSpacing.sm,
+        childAspectRatio: 1.0,
       ),
       itemBuilder: (BuildContext context, int i) {
         final UtilityDescriptor u = items[i];
@@ -172,9 +251,8 @@ class _UtilityGrid extends StatelessWidget {
           name: u.name,
           icon: u.icon,
           tint: u.tint,
-          favorite: favorites.isFavorite(u.id),
-          onTap: () => onTap(context, u),
-          onToggleFavorite: () => favorites.toggle(u.id),
+          description: u.description,
+          onTap: () => onTap(u),
         );
       },
     );

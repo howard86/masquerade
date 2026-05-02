@@ -20,7 +20,9 @@ import '../../widgets/timestamp_display_card.dart';
 import 'detail_scaffold.dart';
 
 class TimestampScreen extends StatefulWidget {
-  const TimestampScreen({super.key});
+  const TimestampScreen({super.key, this.initialInput});
+
+  final String? initialInput;
 
   @override
   State<TimestampScreen> createState() => _TimestampScreenState();
@@ -33,6 +35,18 @@ class _TimestampScreenState extends State<TimestampScreen> {
   TimestampFormat _format = TimestampFormat.unknown;
   String? _error;
   bool _ambiguous = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final String? seed = widget.initialInput;
+    if (seed != null && seed.isNotEmpty) {
+      _controller.text = seed;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _parse();
+      });
+    }
+  }
 
   @override
   void dispose() {

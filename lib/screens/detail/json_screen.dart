@@ -21,7 +21,9 @@ import 'detail_scaffold.dart';
 enum JSONMode { pretty, minify, tree }
 
 class JSONScreen extends StatefulWidget {
-  const JSONScreen({super.key});
+  const JSONScreen({super.key, this.initialInput});
+
+  final String? initialInput;
 
   @override
   State<JSONScreen> createState() => _JSONScreenState();
@@ -32,6 +34,18 @@ class _JSONScreenState extends State<JSONScreen> {
   Timer? _debounce;
   JSONMode _mode = JSONMode.pretty;
   JSONParseResult? _result;
+
+  @override
+  void initState() {
+    super.initState();
+    final String? seed = widget.initialInput;
+    if (seed != null && seed.isNotEmpty) {
+      _controller.text = seed;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _parse();
+      });
+    }
+  }
 
   @override
   void dispose() {

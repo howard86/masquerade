@@ -55,7 +55,7 @@ class _RootTabScaffoldState extends State<RootTabScaffold> {
       tabBuilder: (BuildContext context, int index) {
         return CupertinoTabView(
           builder: (BuildContext context) => switch (index) {
-            0 => HomeScreen(onSearchTapped: () => _tabController.index = 1),
+            0 => const HomeScreen(),
             1 => const SearchScreen(),
             2 => const HistoryScreen(),
             _ => const SettingsScreen(),
