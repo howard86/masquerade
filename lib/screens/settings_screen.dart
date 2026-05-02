@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../state/history_controller.dart';
 import '../state/theme_controller.dart';
@@ -11,6 +12,10 @@ import '../widgets/mq/mq_section_header.dart';
 import '../widgets/mq/mq_segmented.dart';
 import '../widgets/mq/mq_status.dart';
 import '../widgets/mq/mq_surface.dart';
+
+/// Cached once at first access — `PackageInfo.fromPlatform()` does a
+/// platform-channel hop, so we don't re-fire it on every Settings rebuild.
+final Future<PackageInfo> _packageInfoFuture = PackageInfo.fromPlatform();
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -30,7 +35,7 @@ class SettingsScreen extends StatelessWidget {
             MqSpacing.lg,
             MqSpacing.md,
             MqSpacing.lg,
-            120,
+            MqLayout.tabBarClearance,
           ),
           children: <Widget>[
             Text(
@@ -133,13 +138,20 @@ class SettingsScreen extends StatelessWidget {
                         style: MqTextStyles.headline.copyWith(color: c.textPri),
                       ),
                       const Spacer(),
-                      Text(
-                        'v1.0.0',
-                        style: MqTextStyles.subhead.copyWith(
-                          color: c.textTer,
-                          fontFamily: MqTextStyles.monoFamily,
-                          fontFamilyFallback: MqTextStyles.monoFallback,
-                        ),
+                      FutureBuilder<PackageInfo>(
+                        future: _packageInfoFuture,
+                        builder:
+                            (
+                              BuildContext _,
+                              AsyncSnapshot<PackageInfo> snap,
+                            ) => Text(
+                              snap.hasData ? 'v${snap.data!.version}' : 'v…',
+                              style: MqTextStyles.subhead.copyWith(
+                                color: c.textTer,
+                                fontFamily: MqTextStyles.monoFamily,
+                                fontFamilyFallback: MqTextStyles.monoFallback,
+                              ),
+                            ),
                       ),
                     ],
                   ),
