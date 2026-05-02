@@ -1,7 +1,17 @@
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/widgets.dart';
 import 'package:intl/intl.dart';
-import 'package:masquerade/widgets/timestamp_row.dart';
 
+import '../theme/mq_metrics.dart';
+import '../theme/mq_theme.dart';
+import '../theme/mq_typography.dart';
+import 'mq/mq_mono_cell.dart';
+import 'mq/mq_surface.dart';
+
+/// Card displaying a timestamp in all common forms.
+///
+/// Label strings ("Date & Time", "UTC Time:", "Local Time:",
+/// "Unix Timestamp (seconds):", "Unix Timestamp (milliseconds):") are pinned
+/// by `test/widget_test.dart` and must not change.
 class TimestampDisplayCard extends StatelessWidget {
   const TimestampDisplayCard({super.key, required this.timestamp});
 
@@ -9,57 +19,33 @@ class TimestampDisplayCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: CupertinoColors.systemBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: CupertinoColors.systemGrey4, width: 0.5),
-        boxShadow: [
-          BoxShadow(
-            color: CupertinoColors.systemGrey.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+    final c = context.mq.colors;
+    final String utc = DateFormat(
+      'yyyy-MM-dd HH:mm:ss',
+    ).format(timestamp.toUtc());
+    final String local = DateFormat(
+      'yyyy-MM-dd HH:mm:ss',
+    ).format(timestamp.toLocal());
+    final int secs = (timestamp.millisecondsSinceEpoch / 1000).round();
+    final int ms = timestamp.millisecondsSinceEpoch;
+
+    return MqSurface(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            'Date & Time',
+            style: MqTextStyles.title3.copyWith(color: c.textPri),
           ),
+          const SizedBox(height: MqSpacing.md),
+          MqMonoCell(label: 'UTC Time:', value: utc),
+          const SizedBox(height: MqSpacing.sm),
+          MqMonoCell(label: 'Local Time:', value: local),
+          const SizedBox(height: MqSpacing.sm),
+          MqMonoCell(label: 'Unix Timestamp (seconds):', value: '$secs'),
+          const SizedBox(height: MqSpacing.sm),
+          MqMonoCell(label: 'Unix Timestamp (milliseconds):', value: '$ms'),
         ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Date & Time',
-              style: CupertinoTheme.of(context).textTheme.navTitleTextStyle
-                  .copyWith(fontSize: 20, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 16),
-            TimestampRow(
-              label: 'UTC Time:',
-              value: DateFormat(
-                'yyyy-MM-dd HH:mm:ss',
-              ).format(timestamp.toUtc()),
-            ),
-            const SizedBox(height: 12),
-            TimestampRow(
-              label: 'Local Time:',
-              value: DateFormat(
-                'yyyy-MM-dd HH:mm:ss',
-              ).format(timestamp.toLocal()),
-            ),
-            const SizedBox(height: 12),
-            TimestampRow(
-              label: 'Unix Timestamp (seconds):',
-              value: (timestamp.millisecondsSinceEpoch / 1000)
-                  .round()
-                  .toString(),
-            ),
-            const SizedBox(height: 12),
-            TimestampRow(
-              label: 'Unix Timestamp (milliseconds):',
-              value: timestamp.millisecondsSinceEpoch.toString(),
-            ),
-          ],
-        ),
       ),
     );
   }

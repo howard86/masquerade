@@ -1,10 +1,14 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
-/// A stateful widget that handles the animated copy icon using AnimatedCrossFade
+import '../theme/mq_metrics.dart';
+import '../theme/mq_theme.dart';
+import '../theme/mq_typography.dart';
+import '../widgets/mq/mq_icons.dart';
+
+/// Animated copy → check icon. Used inline next to mono values.
 class AnimatedCopyIcon extends StatefulWidget {
   const AnimatedCopyIcon({super.key, required this.onCopy});
-
   final VoidCallback onCopy;
 
   @override
@@ -12,97 +16,61 @@ class AnimatedCopyIcon extends StatefulWidget {
 }
 
 class _AnimatedCopyIconState extends State<AnimatedCopyIcon> {
-  bool _isCopied = false;
+  bool _copied = false;
 
-  void _handleCopy() {
-    // Show tick icon temporarily
-    setState(() {
-      _isCopied = true;
+  void _handle() {
+    setState(() => _copied = true);
+    Future<void>.delayed(const Duration(seconds: 1), () {
+      if (mounted) setState(() => _copied = false);
     });
-
-    // Revert back to copy icon after 1 second
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted) {
-        setState(() {
-          _isCopied = false;
-        });
-      }
-    });
-
-    // Call the parent's copy handler
     widget.onCopy();
   }
 
   @override
   Widget build(BuildContext context) {
+    final c = context.mq.colors;
     return GestureDetector(
-      onTap: _handleCopy,
+      onTap: _handle,
       child: AnimatedCrossFade(
         duration: const Duration(milliseconds: 250),
-        crossFadeState: _isCopied
+        crossFadeState: _copied
             ? CrossFadeState.showSecond
             : CrossFadeState.showFirst,
-        firstChild: const Icon(
-          CupertinoIcons.doc_on_doc,
-          size: 16,
-          color: CupertinoColors.systemGrey,
-        ),
+        firstChild: Icon(MqIcons.copy, size: 16, color: c.textSec),
         firstCurve: Curves.easeInOut,
-        secondChild: const Icon(
-          CupertinoIcons.check_mark,
-          size: 16,
-          color: CupertinoColors.systemGreen,
-        ),
+        secondChild: Icon(MqIcons.check, size: 16, color: c.success),
         secondCurve: Curves.easeInOut,
       ),
     );
   }
 }
 
-/// A Cupertino-styled notification overlay with slide animation
-class _CupertinoNotificationOverlay extends StatefulWidget {
-  const _CupertinoNotificationOverlay({
-    required this.value,
-    required this.onDismiss,
-    this.autoDismissDelay = const Duration(seconds: 3),
-  });
-
+class _CopyToast extends StatefulWidget {
+  const _CopyToast({required this.value, required this.onDismiss});
   final String value;
   final VoidCallback onDismiss;
-  final Duration autoDismissDelay;
 
   @override
-  State<_CupertinoNotificationOverlay> createState() =>
-      _CupertinoNotificationOverlayState();
+  State<_CopyToast> createState() => _CopyToastState();
 }
 
-class _CupertinoNotificationOverlayState
-    extends State<_CupertinoNotificationOverlay>
+class _CopyToastState extends State<_CopyToast>
     with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<Offset> _slideAnimation;
+  late final AnimationController _controller = AnimationController(
+    duration: const Duration(milliseconds: 300),
+    vsync: this,
+  );
+  late final Animation<Offset> _slide = Tween<Offset>(
+    begin: const Offset(0, 1),
+    end: Offset.zero,
+  ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 1), // Start from bottom
-      end: Offset.zero, // End at normal position
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
-
-    // Start the slide-in animation
     _controller.forward();
-
-    // Auto-dismiss after the specified delay
-    Future.delayed(widget.autoDismissDelay, () {
-      if (mounted) {
-        _dismiss();
-      }
+    Future<void>.delayed(const Duration(seconds: 3), () {
+      if (mounted) _dismiss();
     });
   }
 
@@ -112,87 +80,74 @@ class _CupertinoNotificationOverlayState
     super.dispose();
   }
 
-  void _dismiss() async {
-    // Slide out animation
+  Future<void> _dismiss() async {
     await _controller.reverse();
     widget.onDismiss();
   }
 
   @override
   Widget build(BuildContext context) {
+    final c = context.mq.colors;
     return SlideTransition(
-      position: _slideAnimation,
+      position: _slide,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(
+          horizontal: MqSpacing.md,
+          vertical: 14,
+        ),
         decoration: BoxDecoration(
-          color: CupertinoColors.systemBackground,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: CupertinoColors.systemGrey4, width: 0.5),
-          boxShadow: [
-            BoxShadow(
-              color: CupertinoColors.systemGrey.withValues(alpha: 0.15),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
+          color: c.surface,
+          borderRadius: BorderRadius.circular(MqRadius.lg),
+          border: Border.all(color: c.border, width: 0.5),
+          boxShadow: c.shadowLg,
         ),
         child: Row(
-          children: [
+          children: <Widget>[
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: CupertinoColors.systemGreen.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
+                color: c.successBg,
+                borderRadius: BorderRadius.circular(MqRadius.sm),
               ),
-              child: const Icon(
-                CupertinoIcons.check_mark,
-                color: CupertinoColors.systemGreen,
-                size: 18,
-              ),
+              child: Icon(MqIcons.check, color: c.success, size: 18),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: MqSpacing.md),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
-                children: [
+                children: <Widget>[
                   Text(
                     'Copied to clipboard',
-                    style: CupertinoTheme.of(context).textTheme.textStyle
-                        .copyWith(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 15,
-                          color: CupertinoColors.label,
-                        ),
+                    style: MqTextStyles.subhead.copyWith(
+                      color: c.textPri,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     widget.value,
-                    style: CupertinoTheme.of(context).textTheme.textStyle
-                        .copyWith(
-                          fontSize: 13,
-                          color: CupertinoColors.secondaryLabel,
-                        ),
+                    style: MqTextStyles.footnote.copyWith(
+                      color: c.textSec,
+                      fontFamily: MqTextStyles.monoFamily,
+                      fontFamilyFallback: MqTextStyles.monoFallback,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: MqSpacing.sm),
             GestureDetector(
               onTap: _dismiss,
               child: Container(
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: CupertinoColors.systemGrey6,
-                  borderRadius: BorderRadius.circular(8),
+                  color: c.surface2,
+                  borderRadius: BorderRadius.circular(MqRadius.xs + 2),
                 ),
-                child: const Icon(
-                  CupertinoIcons.xmark,
-                  color: CupertinoColors.systemGrey,
-                  size: 14,
-                ),
+                child: Icon(MqIcons.xmark, color: c.textSec, size: 14),
               ),
             ),
           ],
@@ -202,47 +157,36 @@ class _CupertinoNotificationOverlayState
   }
 }
 
-/// A utility class for handling copy to clipboard functionality with notifications
 class CopyToClipboardUtil {
-  // Static variable to track the current notification overlay
-  static OverlayEntry? _currentNotification;
+  static OverlayEntry? _current;
 
-  /// Copies text to clipboard and shows a notification
   static void copyToClipboard(BuildContext context, String value) {
     Clipboard.setData(ClipboardData(text: value));
     _showCopyNotification(context, value);
   }
 
-  /// Shows a copy notification overlay
   static void _showCopyNotification(BuildContext context, String value) {
-    // Remove any existing notification first
-    if (_currentNotification != null) {
-      _currentNotification!.remove();
-      _currentNotification = null;
-    }
+    _current?.remove();
+    _current = null;
 
-    // Create an overlay entry for the notification
-    final overlay = Overlay.of(context);
-    late OverlayEntry overlayEntry;
-
-    overlayEntry = OverlayEntry(
-      builder: (context) => Positioned(
-        bottom: MediaQuery.of(context).padding.bottom + 20,
+    final OverlayState? overlay = Overlay.maybeOf(context);
+    if (overlay == null) return;
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (BuildContext ctx) => Positioned(
+        bottom: MediaQuery.of(ctx).padding.bottom + 20,
         left: 20,
         right: 20,
-        child: _CupertinoNotificationOverlay(
+        child: _CopyToast(
           value: value,
           onDismiss: () {
-            overlayEntry.remove();
-            _currentNotification = null;
+            if (_current == entry) _current = null;
+            entry.remove();
           },
-          autoDismissDelay: const Duration(seconds: 3),
         ),
       ),
     );
-
-    // Store the overlay entry and insert it
-    _currentNotification = overlayEntry;
-    overlay.insert(overlayEntry);
+    _current = entry;
+    overlay.insert(entry);
   }
 }
