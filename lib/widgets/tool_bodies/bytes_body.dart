@@ -45,9 +45,7 @@ class _BytesBodyState extends State<BytesBody> {
   String? _decodedHex;
   String? _error;
 
-  late final HistoryRecorder _recorder;
-  bool _recorderInited = false;
-  bool _nextWriteIsPaste = false;
+  HistoryRecorder? _recorder;
 
   @override
   void initState() {
@@ -56,7 +54,6 @@ class _BytesBodyState extends State<BytesBody> {
     if (seed != null && seed.isNotEmpty) {
       _controller.text = seed;
       _mode = BytesMode.decode;
-      _nextWriteIsPaste = widget.seedSource == SeedSource.paste;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _convert();
       });
@@ -66,19 +63,21 @@ class _BytesBodyState extends State<BytesBody> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_recorderInited) {
+    if (_recorder == null) {
       _recorder = HistoryRecorder(
         controller: HistoryScope.of(context),
         utilityId: 'bytes',
       );
-      _recorderInited = true;
+      if (widget.seedSource == SeedSource.paste) {
+        _recorder!.markPaste();
+      }
     }
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
-    if (_recorderInited) _recorder.dispose();
+    _recorder?.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -112,7 +111,7 @@ class _BytesBodyState extends State<BytesBody> {
         _outBrackets = BytesParser.format(bytes, BytesFormat.brackets);
         _outHex = BytesParser.format(bytes, BytesFormat.hex);
       });
-      _record(input, _outSpace!);
+      _recorder?.record(input, _outSpace!);
       return;
     }
 
@@ -137,16 +136,7 @@ class _BytesBodyState extends State<BytesBody> {
           _decodedHex = hex;
           _error = error;
         });
-        _record(input, text ?? hex);
-    }
-  }
-
-  void _record(String input, String output) {
-    if (_nextWriteIsPaste) {
-      _recorder.recordPaste(input, output);
-      _nextWriteIsPaste = false;
-    } else {
-      _recorder.recordTyping(input, output);
+        _recorder?.record(input, text ?? hex);
     }
   }
 
@@ -154,7 +144,7 @@ class _BytesBodyState extends State<BytesBody> {
     final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
     if (data?.text == null) return;
     _controller.text = data!.text!;
-    _nextWriteIsPaste = true;
+    _recorder?.markPaste();
     _convert();
   }
 
@@ -175,7 +165,7 @@ class _BytesBodyState extends State<BytesBody> {
       _mode = _mode == BytesMode.encode ? BytesMode.decode : BytesMode.encode;
       _controller.text = payload;
     });
-    _nextWriteIsPaste = true;
+    _recorder?.markPaste();
     _convert();
   }
 
@@ -203,7 +193,7 @@ class _BytesBodyState extends State<BytesBody> {
               ? 'Plain text'
               : '[72, 101, 108, 108, 111] or 72 101 108 108 111',
           onChanged: _onChanged,
-          onPaste: (_) => _nextWriteIsPaste = true,
+          onPaste: (_) => _recorder?.markPaste(),
           multiline: true,
           minLines: 3,
           maxLines: 8,

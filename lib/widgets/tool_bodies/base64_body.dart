@@ -43,9 +43,7 @@ class _Base64BodyState extends State<Base64Body> {
   String? _output;
   String? _error;
 
-  late final HistoryRecorder _recorder;
-  bool _recorderInited = false;
-  bool _nextWriteIsPaste = false;
+  HistoryRecorder? _recorder;
 
   @override
   void initState() {
@@ -53,10 +51,9 @@ class _Base64BodyState extends State<Base64Body> {
     final String? seed = widget.initialInput;
     if (seed != null && seed.isNotEmpty) {
       _controller.text = seed;
-      // Seed enters Decode mode since hero detector only suggests Base64 for
-      // encoded-looking inputs.
+      // Hero detector only suggests Base64 for encoded-looking inputs, so
+      // a seed always enters Decode mode.
       _mode = Base64Mode.decode;
-      _nextWriteIsPaste = widget.seedSource == SeedSource.paste;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _convert();
       });
@@ -66,19 +63,21 @@ class _Base64BodyState extends State<Base64Body> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_recorderInited) {
+    if (_recorder == null) {
       _recorder = HistoryRecorder(
         controller: HistoryScope.of(context),
         utilityId: 'base64',
       );
-      _recorderInited = true;
+      if (widget.seedSource == SeedSource.paste) {
+        _recorder!.markPaste();
+      }
     }
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
-    if (_recorderInited) _recorder.dispose();
+    _recorder?.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -116,7 +115,7 @@ class _Base64BodyState extends State<Base64Body> {
         _output = result;
         _error = null;
       });
-      _record(input, result);
+      _recorder?.record(input, result);
     } on FormatException catch (e) {
       setState(() {
         _output = null;
@@ -130,20 +129,11 @@ class _Base64BodyState extends State<Base64Body> {
     }
   }
 
-  void _record(String input, String output) {
-    if (_nextWriteIsPaste) {
-      _recorder.recordPaste(input, output);
-      _nextWriteIsPaste = false;
-    } else {
-      _recorder.recordTyping(input, output);
-    }
-  }
-
   Future<void> _paste() async {
     final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
     if (data?.text == null) return;
     _controller.text = data!.text!;
-    _nextWriteIsPaste = true;
+    _recorder?.markPaste();
     _convert();
   }
 
@@ -164,7 +154,7 @@ class _Base64BodyState extends State<Base64Body> {
           : Base64Mode.encode;
       _controller.text = out;
     });
-    _nextWriteIsPaste = true;
+    _recorder?.markPaste();
     _convert();
   }
 
@@ -192,7 +182,7 @@ class _Base64BodyState extends State<Base64Body> {
               ? 'Plain text'
               : 'Encoded string',
           onChanged: _onChanged,
-          onPaste: (_) => _nextWriteIsPaste = true,
+          onPaste: (_) => _recorder?.markPaste(),
           multiline: true,
           minLines: 3,
           maxLines: 8,

@@ -36,17 +36,10 @@ class MqInput extends StatefulWidget {
   final Widget? trailing;
   final ValueChanged<String>? onChanged;
 
-  /// Fires after a likely paste event — defined as a single onChanged tick
-  /// whose text grew by ≥ 4 characters. Catches system Paste menu, ⌘V, the
-  /// iOS magnifying-glass paste, and multi-word dictation commits without
-  /// intercepting [PasteTextIntent] (which routes inconsistently between
-  /// the magnifier menu and ⌘V on Cupertino 3.41.8).
-  ///
-  /// The heuristic leans toward false positives (dictation, fast typers,
-  /// autocomplete completions) — those still record history immediately
-  /// instead of waiting for the typing-debounce window, which is a benign
-  /// UX trade-off versus the alternative of a clipboard read on every
-  /// keystroke (and the iOS "Pasted from app" banner that triggers).
+  /// Fires when the controller's text grew by ≥4 characters in one tick.
+  /// Catches Paste menu, ⌘V, magnifier paste, and multi-word dictation;
+  /// false-positives (dictation, fast typing) record paste-immediate
+  /// instead of waiting for the typing-debounce, which is benign.
   final ValueChanged<String>? onPaste;
 
   final bool autofocus;
@@ -93,9 +86,9 @@ class _MqInputState extends State<MqInput> {
     super.dispose();
   }
 
-  // Fires for both user keystrokes and programmatic controller mutations,
-  // so tests that swap text via `tester.enterText` or via setting
-  // `controller.text` directly both reach the paste-detection path.
+  // Fires for every controller change, including programmatic
+  // `controller.text = ...` writes — body-side paste/swap handlers rely on
+  // this to surface their mutations through the paste heuristic.
   void _onControllerChanged() {
     final String newText = widget.controller.text;
     if (newText == _prevText) return;

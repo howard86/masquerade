@@ -39,9 +39,7 @@ class _BpsBodyState extends State<BpsBody> {
   BpsResult? _result;
   String? _error;
 
-  late final HistoryRecorder _recorder;
-  bool _recorderInited = false;
-  bool _nextWriteIsPaste = false;
+  HistoryRecorder? _recorder;
 
   @override
   void initState() {
@@ -49,7 +47,6 @@ class _BpsBodyState extends State<BpsBody> {
     final String? seed = widget.initialInput;
     if (seed != null && seed.isNotEmpty) {
       _controller.text = seed;
-      _nextWriteIsPaste = widget.seedSource == SeedSource.paste;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _parse();
       });
@@ -59,19 +56,21 @@ class _BpsBodyState extends State<BpsBody> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_recorderInited) {
+    if (_recorder == null) {
       _recorder = HistoryRecorder(
         controller: HistoryScope.of(context),
         utilityId: 'bps',
       );
-      _recorderInited = true;
+      if (widget.seedSource == SeedSource.paste) {
+        _recorder!.markPaste();
+      }
     }
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
-    if (_recorderInited) _recorder.dispose();
+    _recorder?.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -96,16 +95,7 @@ class _BpsBodyState extends State<BpsBody> {
       _error = parsed == null ? 'Could not parse as bps, % or decimal.' : null;
     });
     if (parsed != null) {
-      _record(input, '${parsed.bps.toStringAsFixed(2)} bps');
-    }
-  }
-
-  void _record(String input, String output) {
-    if (_nextWriteIsPaste) {
-      _recorder.recordPaste(input, output);
-      _nextWriteIsPaste = false;
-    } else {
-      _recorder.recordTyping(input, output);
+      _recorder?.record(input, '${parsed.bps.toStringAsFixed(2)} bps');
     }
   }
 
@@ -113,7 +103,7 @@ class _BpsBodyState extends State<BpsBody> {
     final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
     if (data?.text == null) return;
     _controller.text = data!.text!;
-    _nextWriteIsPaste = true;
+    _recorder?.markPaste();
     _parse();
   }
 
@@ -136,7 +126,7 @@ class _BpsBodyState extends State<BpsBody> {
           label: 'Input',
           placeholder: '25 bps · 0.25% · 0.0025',
           onChanged: _onChanged,
-          onPaste: (_) => _nextWriteIsPaste = true,
+          onPaste: (_) => _recorder?.markPaste(),
           keyboardType: const TextInputType.numberWithOptions(
             decimal: true,
             signed: true,

@@ -43,9 +43,7 @@ class _TimestampBodyState extends State<TimestampBody> {
   bool _ambiguous = false;
   bool _naive = false;
 
-  late final HistoryRecorder _recorder;
-  bool _recorderInited = false;
-  bool _nextWriteIsPaste = false;
+  HistoryRecorder? _recorder;
 
   @override
   void initState() {
@@ -53,7 +51,6 @@ class _TimestampBodyState extends State<TimestampBody> {
     final String? seed = widget.initialInput;
     if (seed != null && seed.isNotEmpty) {
       _controller.text = seed;
-      _nextWriteIsPaste = widget.seedSource == SeedSource.paste;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _parse();
       });
@@ -63,19 +60,21 @@ class _TimestampBodyState extends State<TimestampBody> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_recorderInited) {
+    if (_recorder == null) {
       _recorder = HistoryRecorder(
         controller: HistoryScope.of(context),
         utilityId: 'timestamp',
       );
-      _recorderInited = true;
+      if (widget.seedSource == SeedSource.paste) {
+        _recorder!.markPaste();
+      }
     }
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
-    if (_recorderInited) _recorder.dispose();
+    _recorder?.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -111,23 +110,14 @@ class _TimestampBodyState extends State<TimestampBody> {
                 '  or this/last/next + second/minute/hour/day/week/month/year';
     });
     if (result.isSuccess) {
-      _record(input, result.timestamp!.toIso8601String());
-    }
-  }
-
-  void _record(String input, String output) {
-    if (_nextWriteIsPaste) {
-      _recorder.recordPaste(input, output);
-      _nextWriteIsPaste = false;
-    } else {
-      _recorder.recordTyping(input, output);
+      _recorder?.record(input, result.timestamp!.toIso8601String());
     }
   }
 
   void _applyKeyword(String keyword) {
     _debounce?.cancel();
     _controller.text = keyword;
-    _nextWriteIsPaste = true;
+    _recorder?.markPaste();
     _parse();
   }
 
@@ -135,7 +125,7 @@ class _TimestampBodyState extends State<TimestampBody> {
     final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
     if (data?.text == null) return;
     _controller.text = data!.text!;
-    _nextWriteIsPaste = true;
+    _recorder?.markPaste();
     _parse();
   }
 
@@ -161,7 +151,7 @@ class _TimestampBodyState extends State<TimestampBody> {
           placeholder:
               'Enter timestamp (Unix s/ms/µs/ns, ISO 8601, or keyword)',
           onChanged: _onChanged,
-          onPaste: (_) => _nextWriteIsPaste = true,
+          onPaste: (_) => _recorder?.markPaste(),
           multiline: true,
           minLines: 1,
           maxLines: 3,

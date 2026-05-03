@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/mq_metrics.dart';
@@ -28,7 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _debounce;
   List<UtilityDescriptor> _matches = const <UtilityDescriptor>[];
 
-  String? _expandedToolId;
+  UtilityDescriptor? _expanded;
   String? _expandedSeed;
   SeedSource _expandedSeedSource = SeedSource.none;
 
@@ -46,9 +47,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _recomputeMatches() {
     if (!mounted) return;
-    setState(() {
-      _matches = UtilityCatalog.detectAll(_heroController.text);
-    });
+    final List<UtilityDescriptor> next = UtilityCatalog.detectAll(
+      _heroController.text,
+    );
+    if (listEquals(next, _matches)) return;
+    setState(() => _matches = next);
   }
 
   Future<void> _paste() async {
@@ -78,12 +81,12 @@ class _HomeScreenState extends State<HomeScreen> {
     SeedSource source = SeedSource.none,
   }) {
     setState(() {
-      if (_expandedToolId == u.id) {
-        _expandedToolId = null;
+      if (_expanded == u) {
+        _expanded = null;
         _expandedSeed = null;
         _expandedSeedSource = SeedSource.none;
       } else {
-        _expandedToolId = u.id;
+        _expanded = u;
         _expandedSeed = (seed != null && seed.isNotEmpty) ? seed : null;
         _expandedSeedSource = source;
       }
@@ -95,7 +98,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBody(BuildContext context, UtilityDescriptor u) {
-    final bool isThis = _expandedToolId == u.id;
+    final bool isThis = _expanded == u;
     return u.builder(
       context,
       initialInput: isThis ? _expandedSeed : null,
@@ -152,24 +155,19 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: MqSpacing.md),
               _SuggestionRow(
                 matches: _matches,
-                expandedToolId: _expandedToolId,
+                expanded: _expanded,
                 onTap: _openFromChip,
               ),
             ],
             const SizedBox(height: MqSpacing.lg),
             const MqSectionHeader(label: 'All tools'),
             const SizedBox(height: MqSpacing.sm),
-            // When a tool is expanded, hide the rest — the user is focused on
-            // one tool at a time and unselected chips are redundant noise.
-            // Tap the selected chip again to collapse and bring everything
-            // back.
-            if (_expandedToolId != null)
+            if (_expanded != null)
               InlineToolCard(
-                descriptor: UtilityCatalog.byId(_expandedToolId!),
+                descriptor: _expanded!,
                 expanded: true,
-                onToggle: () => _toggle(UtilityCatalog.byId(_expandedToolId!)),
-                bodyBuilder: (BuildContext ctx) =>
-                    _buildBody(ctx, UtilityCatalog.byId(_expandedToolId!)),
+                onToggle: () => _toggle(_expanded!),
+                bodyBuilder: (BuildContext ctx) => _buildBody(ctx, _expanded!),
               )
             else
               Wrap(
@@ -268,12 +266,12 @@ class _HeroPasteCard extends StatelessWidget {
 class _SuggestionRow extends StatelessWidget {
   const _SuggestionRow({
     required this.matches,
-    required this.expandedToolId,
+    required this.expanded,
     required this.onTap,
   });
 
   final List<UtilityDescriptor> matches;
-  final String? expandedToolId;
+  final UtilityDescriptor? expanded;
   final void Function(UtilityDescriptor) onTap;
 
   @override
@@ -295,7 +293,7 @@ class _SuggestionRow extends StatelessWidget {
               MqChip(
                 label: u.name,
                 icon: u.icon,
-                accent: u.id == expandedToolId,
+                accent: u == expanded,
                 mono: false,
                 onTap: () => onTap(u),
               ),

@@ -25,12 +25,6 @@ import 'seed_source.dart';
 
 enum QrMode { generate, scan }
 
-/// Routes a "Open in" tap from a scan result into another tool. The host
-/// screen (Home/Search) implements this as an expand-and-seed of the target
-/// inline card. Optional only because not every host needs cross-tool
-/// routing — when null, the chips render but tapping is a no-op.
-typedef QrSwitchToolCallback = void Function(UtilityDescriptor u, String input);
-
 class QrCodeBody extends StatefulWidget {
   const QrCodeBody({
     super.key,
@@ -55,8 +49,7 @@ class _QrCodeBodyState extends State<QrCodeBody> {
   String? _scanResult;
   bool _exporting = false;
 
-  late final HistoryRecorder _recorder;
-  bool _recorderInited = false;
+  HistoryRecorder? _recorder;
 
   @override
   void initState() {
@@ -70,19 +63,16 @@ class _QrCodeBodyState extends State<QrCodeBody> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_recorderInited) {
-      _recorder = HistoryRecorder(
-        controller: HistoryScope.of(context),
-        utilityId: 'qr_code',
-      );
-      _recorderInited = true;
-    }
+    _recorder ??= HistoryRecorder(
+      controller: HistoryScope.of(context),
+      utilityId: 'qr_code',
+    );
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
-    if (_recorderInited) _recorder.dispose();
+    _recorder?.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -146,7 +136,7 @@ class _QrCodeBodyState extends State<QrCodeBody> {
     final String? result = await pushQrScanner(context);
     if (!mounted || result == null || result.isEmpty) return;
     setState(() => _scanResult = result);
-    _recorder.recordPaste('(camera scan)', result);
+    _recorder?.recordPaste('(camera scan)', result);
   }
 
   void _openInTool(UtilityDescriptor u, String input) {

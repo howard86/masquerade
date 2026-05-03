@@ -4,12 +4,11 @@ import '../state/history_controller.dart';
 
 /// Records history entries with paste-vs-typing semantics.
 ///
-/// Paste-source events fire immediately. Typing-source events are coalesced
-/// behind an idle timer (default 5s) that resets on every keystroke; only the
-/// most recent `(input, output)` pair survives and is recorded once the user
-/// stops typing. A paste mid-typing replaces the pending draft — the typing
-/// draft is dropped, not added separately. `dispose` cancels the pending
-/// timer and drops the draft (collapse should not retroactively log).
+/// Paste-source events fire immediately. Typing-source events coalesce
+/// behind an idle timer (default 5s); only the most recent `(input, output)`
+/// pair survives and is recorded once the user stops typing. A paste
+/// mid-typing replaces the pending draft. `dispose` drops the draft —
+/// collapse should not retroactively log.
 class HistoryRecorder {
   HistoryRecorder({
     required this.controller,
@@ -24,6 +23,25 @@ class HistoryRecorder {
   Timer? _timer;
   String? _pendingInput;
   String? _pendingOutput;
+  bool _nextIsPaste = false;
+
+  /// Marks the next [record] call as paste-source. Idempotent. The flag is
+  /// consumed by the next `record`; subsequent `record` calls fall back to
+  /// the typing-debounce.
+  void markPaste() {
+    _nextIsPaste = true;
+  }
+
+  /// Records an entry. Routes to [recordPaste] when [markPaste] was called
+  /// since the last record, otherwise to [recordTyping].
+  void record(String input, String output) {
+    if (_nextIsPaste) {
+      _nextIsPaste = false;
+      recordPaste(input, output);
+    } else {
+      recordTyping(input, output);
+    }
+  }
 
   void recordPaste(String input, String output) {
     _timer?.cancel();
@@ -66,5 +84,6 @@ class HistoryRecorder {
     _timer = null;
     _pendingInput = null;
     _pendingOutput = null;
+    _nextIsPaste = false;
   }
 }

@@ -19,14 +19,16 @@ import 'widgets/tool_bodies/qr_code_body.dart';
 import 'widgets/tool_bodies/seed_source.dart';
 import 'widgets/tool_bodies/timestamp_body.dart';
 
+/// Routes a cross-tool "Open in X" tap from inside a tool body (currently
+/// only QR's scan-result chips) back to the host screen, which expands the
+/// target tool's inline card seeded with [input].
+typedef QrSwitchToolCallback = void Function(UtilityDescriptor u, String input);
+
 /// Builds an embeddable tool body for inline rendering inside an
-/// [InlineToolCard]. Receives the optional seed input and how it arrived
+/// `InlineToolCard`. Receives the optional seed input and how it arrived
 /// ([SeedSource]) so the body can decide whether to record history
-/// immediately (paste) or behind a typing-debounce.
-///
-/// Tools whose body needs cross-tool routing (currently only QR's
-/// "Open in" chips) take an extra parameter on their concrete widget;
-/// the catalog wraps that with a closure passed by the host screen.
+/// immediately (paste) or behind a typing-debounce. [onSwitchTool] is
+/// honoured only by QR; other builders ignore it.
 typedef UtilityBuilder =
     Widget Function(
       BuildContext context, {

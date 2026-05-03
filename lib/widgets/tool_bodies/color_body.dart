@@ -39,10 +39,7 @@ class _ColorBodyState extends State<ColorBody> {
   MqColorValue? _value;
   String? _error;
 
-  late final HistoryRecorder _recorder;
-  bool _recorderInited = false;
-  bool _nextWriteIsPaste = false;
-  bool _seedRecorded = false;
+  HistoryRecorder? _recorder;
 
   @override
   void initState() {
@@ -50,25 +47,28 @@ class _ColorBodyState extends State<ColorBody> {
     final String? seed = widget.initialInput;
     _controller.text = (seed != null && seed.isNotEmpty) ? seed : '#00B8C4';
     _value = MqColorParser.parse(_controller.text);
-    // Cold default seed (#00B8C4) and explicit seeds both treated as paste.
-    _nextWriteIsPaste = widget.seedSource == SeedSource.paste || seed == null;
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_recorderInited) {
+    if (_recorder == null) {
       _recorder = HistoryRecorder(
         controller: HistoryScope.of(context),
         utilityId: 'color',
       );
-      _recorderInited = true;
-      if (!_seedRecorded && _value != null) {
-        _seedRecorded = true;
-        // Defer to post-frame: notifying HistoryController during build
-        // would trip the "setState during build" assertion via HistoryScope.
+      if (widget.seedSource == SeedSource.paste) {
+        _recorder!.markPaste();
+      }
+      // Auto-record only when the host actually handed us a seed. The cold
+      // default (#00B8C4) is just placeholder UI — recording it on every
+      // open would spam history with duplicate entries.
+      final String? seed = widget.initialInput;
+      if (seed != null && seed.isNotEmpty && _value != null) {
+        // Notifying HistoryController during build would trip the
+        // "setState during build" assertion via HistoryScope, so defer.
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _record(_controller.text, _value!.hex);
+          if (mounted) _recorder?.record(_controller.text, _value!.hex);
         });
       }
     }
@@ -77,7 +77,7 @@ class _ColorBodyState extends State<ColorBody> {
   @override
   void dispose() {
     _debounce?.cancel();
-    if (_recorderInited) _recorder.dispose();
+    _recorder?.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -104,16 +104,7 @@ class _ColorBodyState extends State<ColorBody> {
           : null;
     });
     if (parsed != null) {
-      _record(input, parsed.hex);
-    }
-  }
-
-  void _record(String input, String output) {
-    if (_nextWriteIsPaste) {
-      _recorder.recordPaste(input, output);
-      _nextWriteIsPaste = false;
-    } else {
-      _recorder.recordTyping(input, output);
+      _recorder?.record(input, parsed.hex);
     }
   }
 
@@ -121,7 +112,7 @@ class _ColorBodyState extends State<ColorBody> {
     final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
     if (data?.text == null) return;
     _controller.text = data!.text!;
-    _nextWriteIsPaste = true;
+    _recorder?.markPaste();
     _parse();
   }
 
@@ -152,7 +143,7 @@ class _ColorBodyState extends State<ColorBody> {
           label: 'Color',
           placeholder: '#00B8C4, rgb(0,184,196), hsl(184,100%,38%)',
           onChanged: _onChanged,
-          onPaste: (_) => _nextWriteIsPaste = true,
+          onPaste: (_) => _recorder?.markPaste(),
         ),
         const SizedBox(height: MqSpacing.lg),
         if (_error != null)
