@@ -84,11 +84,16 @@ class _QrCodeScreenState extends State<QrCodeScreen> {
     setState(() => _exporting = true);
     try {
       final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
-      final ByteData? png = await image.toByteData(
-        format: ui.ImageByteFormat.png,
-      );
-      if (png == null) return;
-      final Uint8List bytes = png.buffer.asUint8List();
+      final Uint8List? bytes;
+      try {
+        final ByteData? png = await image.toByteData(
+          format: ui.ImageByteFormat.png,
+        );
+        bytes = png?.buffer.asUint8List();
+      } finally {
+        image.dispose();
+      }
+      if (bytes == null) return;
       final String fileName =
           'masquerade_qr_${DateTime.now().millisecondsSinceEpoch}.png';
       await SharePlus.instance.share(
