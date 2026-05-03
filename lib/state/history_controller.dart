@@ -83,6 +83,16 @@ class HistoryController extends ChangeNotifier {
   }
 
   Future<void> add(HistoryEntry entry) async {
+    // Dedupe: skip when the most recent entry is for the same tool with the
+    // same input. These tools are deterministic — same input yields same
+    // output — so consecutive adds carry no new information. Mode flips
+    // (e.g. base64 encode↔decode, bytes encode↔decode) swap the input
+    // string, which keeps subsequent adds distinct.
+    if (_entries.isNotEmpty &&
+        _entries.first.utilityId == entry.utilityId &&
+        _entries.first.input == entry.input) {
+      return;
+    }
     _entries.insert(0, entry);
     if (_entries.length > _maxEntries) {
       _entries = _entries.sublist(0, _maxEntries);
