@@ -135,6 +135,7 @@ class _NumberBaseBodyState extends State<NumberBaseBody> {
           label: 'Input',
           placeholder: '0xFF, 0b1010, 255, 0o377…',
           onChanged: _onChanged,
+          onPaste: (_) => _nextWriteIsPaste = true,
           keyboardType: TextInputType.text,
         ),
         const SizedBox(height: MqSpacing.lg),

@@ -192,6 +192,7 @@ class _Base64BodyState extends State<Base64Body> {
               ? 'Plain text'
               : 'Encoded string',
           onChanged: _onChanged,
+          onPaste: (_) => _nextWriteIsPaste = true,
           multiline: true,
           minLines: 3,
           maxLines: 8,

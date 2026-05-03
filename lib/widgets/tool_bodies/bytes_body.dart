@@ -203,6 +203,7 @@ class _BytesBodyState extends State<BytesBody> {
               ? 'Plain text'
               : '[72, 101, 108, 108, 111] or 72 101 108 108 111',
           onChanged: _onChanged,
+          onPaste: (_) => _nextWriteIsPaste = true,
           multiline: true,
           minLines: 3,
           maxLines: 8,

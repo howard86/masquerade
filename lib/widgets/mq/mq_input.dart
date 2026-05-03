@@ -36,9 +36,17 @@ class MqInput extends StatefulWidget {
   final Widget? trailing;
   final ValueChanged<String>? onChanged;
 
-  /// Fires when text is committed via a paste action (system Paste menu, ⌘V,
-  /// or programmatic [PasteTextIntent]). Reserved API; wired in a follow-up
-  /// commit. Existing call sites can ignore.
+  /// Fires after a likely paste event — defined as a single onChanged tick
+  /// whose text grew by ≥ 4 characters. Catches system Paste menu, ⌘V, the
+  /// iOS magnifying-glass paste, and multi-word dictation commits without
+  /// intercepting [PasteTextIntent] (which routes inconsistently between
+  /// the magnifier menu and ⌘V on Cupertino 3.41.8).
+  ///
+  /// The heuristic leans toward false positives (dictation, fast typers,
+  /// autocomplete completions) — those still record history immediately
+  /// instead of waiting for the typing-debounce window, which is a benign
+  /// UX trade-off versus the alternative of a clipboard read on every
+  /// keystroke (and the iOS "Pasted from app" banner that triggers).
   final ValueChanged<String>? onPaste;
 
   final bool autofocus;
@@ -54,10 +62,13 @@ class MqInput extends StatefulWidget {
 class _MqInputState extends State<MqInput> {
   late final FocusNode _focus = FocusNode();
   bool _focused = false;
+  String _prevText = '';
 
   @override
   void initState() {
     super.initState();
+    _prevText = widget.controller.text;
+    widget.controller.addListener(_onControllerChanged);
     _focus.addListener(() {
       if (_focus.hasFocus != _focused) {
         setState(() => _focused = _focus.hasFocus);
@@ -66,9 +77,34 @@ class _MqInputState extends State<MqInput> {
   }
 
   @override
+  void didUpdateWidget(MqInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_onControllerChanged);
+      widget.controller.addListener(_onControllerChanged);
+      _prevText = widget.controller.text;
+    }
+  }
+
+  @override
   void dispose() {
+    widget.controller.removeListener(_onControllerChanged);
     _focus.dispose();
     super.dispose();
+  }
+
+  // Fires for both user keystrokes and programmatic controller mutations,
+  // so tests that swap text via `tester.enterText` or via setting
+  // `controller.text` directly both reach the paste-detection path.
+  void _onControllerChanged() {
+    final String newText = widget.controller.text;
+    if (newText == _prevText) return;
+    final int delta = newText.length - _prevText.length;
+    _prevText = newText;
+    final ValueChanged<String>? onPaste = widget.onPaste;
+    if (onPaste != null && delta >= 4) {
+      onPaste(newText);
+    }
   }
 
   @override

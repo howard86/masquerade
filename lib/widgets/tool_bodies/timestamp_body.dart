@@ -161,6 +161,7 @@ class _TimestampBodyState extends State<TimestampBody> {
           placeholder:
               'Enter timestamp (Unix s/ms/µs/ns, ISO 8601, or keyword)',
           onChanged: _onChanged,
+          onPaste: (_) => _nextWriteIsPaste = true,
           multiline: true,
           minLines: 1,
           maxLines: 3,

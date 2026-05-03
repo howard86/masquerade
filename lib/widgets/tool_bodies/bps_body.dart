@@ -136,6 +136,7 @@ class _BpsBodyState extends State<BpsBody> {
           label: 'Input',
           placeholder: '25 bps · 0.25% · 0.0025',
           onChanged: _onChanged,
+          onPaste: (_) => _nextWriteIsPaste = true,
           keyboardType: const TextInputType.numberWithOptions(
             decimal: true,
             signed: true,

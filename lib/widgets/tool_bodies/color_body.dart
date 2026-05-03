@@ -152,6 +152,7 @@ class _ColorBodyState extends State<ColorBody> {
           label: 'Color',
           placeholder: '#00B8C4, rgb(0,184,196), hsl(184,100%,38%)',
           onChanged: _onChanged,
+          onPaste: (_) => _nextWriteIsPaste = true,
         ),
         const SizedBox(height: MqSpacing.lg),
         if (_error != null)

@@ -156,6 +156,7 @@ class _JSONBodyState extends State<JSONBody> {
           label: 'Input',
           placeholder: '{"hello": "world"}',
           onChanged: _onChanged,
+          onPaste: (_) => _nextWriteIsPaste = true,
           multiline: true,
           minLines: 4,
           maxLines: 10,
