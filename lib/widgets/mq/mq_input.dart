@@ -18,6 +18,7 @@ class MqInput extends StatefulWidget {
     this.leading,
     this.trailing,
     this.onChanged,
+    this.onPaste,
     this.autofocus = false,
     this.minLines,
     this.maxLines,
@@ -34,6 +35,12 @@ class MqInput extends StatefulWidget {
   final Widget? leading;
   final Widget? trailing;
   final ValueChanged<String>? onChanged;
+
+  /// Fires when text is committed via a paste action (system Paste menu, ⌘V,
+  /// or programmatic [PasteTextIntent]). Reserved API; wired in a follow-up
+  /// commit. Existing call sites can ignore.
+  final ValueChanged<String>? onPaste;
+
   final bool autofocus;
   final int? minLines;
   final int? maxLines;
