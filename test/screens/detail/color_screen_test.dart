@@ -33,7 +33,7 @@ void main() {
   ) async {
     await pumpHomeAndOpen(tester, 'Color');
 
-    await tester.enterText(find.byType(EditableText), 'rgb(255, 0, 0)');
+    await tester.enterText(find.byType(EditableText).last, 'rgb(255, 0, 0)');
     await tester.pumpAndSettle(kDebouncePump);
 
     expect(_outputCell('#FF0000'), findsOneWidget);
@@ -45,7 +45,7 @@ void main() {
   ) async {
     await pumpHomeAndOpen(tester, 'Color');
 
-    await tester.enterText(find.byType(EditableText), '#FFFFFF');
+    await tester.enterText(find.byType(EditableText).last, '#FFFFFF');
     await tester.pumpAndSettle(kDebouncePump);
 
     // White vs black is 21:1, so both contrast tiles render the AA badge.
@@ -57,7 +57,7 @@ void main() {
   ) async {
     await pumpHomeAndOpen(tester, 'Color');
 
-    await tester.enterText(find.byType(EditableText), 'not a color');
+    await tester.enterText(find.byType(EditableText).last, 'not a color');
     await tester.pumpAndSettle(kDebouncePump);
 
     expect(find.textContaining('Could not parse color'), findsOneWidget);

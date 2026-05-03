@@ -17,7 +17,10 @@ void main() {
 
       expect(find.byType(QrImageView), findsNothing);
 
-      await tester.enterText(find.byType(EditableText), 'https://example.com');
+      await tester.enterText(
+        find.byType(EditableText).last,
+        'https://example.com',
+      );
       await tester.pumpAndSettle();
 
       expect(find.byType(QrImageView), findsOneWidget);

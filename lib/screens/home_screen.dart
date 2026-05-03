@@ -7,12 +7,21 @@ import '../theme/mq_metrics.dart';
 import '../theme/mq_theme.dart';
 import '../theme/mq_typography.dart';
 import '../utility_catalog.dart';
+import '../widgets/mq/inline_tool_card.dart';
 import '../widgets/mq/mq_button.dart';
 import '../widgets/mq/mq_chip.dart';
 import '../widgets/mq/mq_icons.dart';
 import '../widgets/mq/mq_input.dart';
 import '../widgets/mq/mq_section_header.dart';
-import '../widgets/mq/mq_utility_tile.dart';
+import '../widgets/tool_bodies/base64_body.dart';
+import '../widgets/tool_bodies/bps_body.dart';
+import '../widgets/tool_bodies/bytes_body.dart';
+import '../widgets/tool_bodies/color_body.dart';
+import '../widgets/tool_bodies/json_body.dart';
+import '../widgets/tool_bodies/number_base_body.dart';
+import '../widgets/tool_bodies/qr_code_body.dart';
+import '../widgets/tool_bodies/seed_source.dart';
+import '../widgets/tool_bodies/timestamp_body.dart';
 import 'detail/qr_scanner_route.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -26,6 +35,10 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _heroController = TextEditingController();
   Timer? _debounce;
   List<UtilityDescriptor> _matches = const <UtilityDescriptor>[];
+
+  String? _expandedToolId;
+  String? _expandedSeed;
+  SeedSource _expandedSeedSource = SeedSource.none;
 
   @override
   void dispose() {
@@ -67,11 +80,56 @@ class _HomeScreenState extends State<HomeScreen> {
     _recomputeMatches();
   }
 
-  void _open(UtilityDescriptor u, {bool seedFromHero = false}) {
-    final String? seed = seedFromHero && _heroController.text.isNotEmpty
-        ? _heroController.text
-        : null;
-    u.push(context, initialInput: seed);
+  void _toggle(
+    UtilityDescriptor u, {
+    String? seed,
+    SeedSource source = SeedSource.none,
+  }) {
+    setState(() {
+      if (_expandedToolId == u.id) {
+        _expandedToolId = null;
+        _expandedSeed = null;
+        _expandedSeedSource = SeedSource.none;
+      } else {
+        _expandedToolId = u.id;
+        _expandedSeed = (seed != null && seed.isNotEmpty) ? seed : null;
+        _expandedSeedSource = source;
+      }
+    });
+  }
+
+  void _openFromChip(UtilityDescriptor u) {
+    _toggle(u, seed: _heroController.text, source: SeedSource.paste);
+  }
+
+  Widget _buildBody(BuildContext context, UtilityDescriptor u) {
+    final bool isThis = _expandedToolId == u.id;
+    final String? seed = isThis ? _expandedSeed : null;
+    final SeedSource source = isThis ? _expandedSeedSource : SeedSource.none;
+    switch (u.id) {
+      case 'number_base':
+        return NumberBaseBody(initialInput: seed, seedSource: source);
+      case 'timestamp':
+        return TimestampBody(initialInput: seed, seedSource: source);
+      case 'json':
+        return JSONBody(initialInput: seed, seedSource: source);
+      case 'base64':
+        return Base64Body(initialInput: seed, seedSource: source);
+      case 'color':
+        return ColorBody(initialInput: seed, seedSource: source);
+      case 'bps':
+        return BpsBody(initialInput: seed, seedSource: source);
+      case 'bytes':
+        return BytesBody(initialInput: seed, seedSource: source);
+      case 'qr_code':
+        return QrCodeBody(
+          initialInput: seed,
+          seedSource: source,
+          onSwitchTool: (UtilityDescriptor target, String input) =>
+              _toggle(target, seed: input, source: SeedSource.paste),
+        );
+    }
+    throw StateError('No body registered for tool id "${u.id}"');
   }
 
   @override
@@ -84,52 +142,68 @@ class _HomeScreenState extends State<HomeScreen> {
       child: SafeArea(
         bottom: false,
         child: ListView(
+          // Cards span edge-to-edge so the body interior has the same width
+          // an MqDetailScaffold child gets at the same surface size — this
+          // matters for the 3-button bottom bar inside Base64/Bytes/QR.
           padding: const EdgeInsets.fromLTRB(
-            MqSpacing.lg,
+            0,
             MqSpacing.sm,
-            MqSpacing.lg,
+            0,
             MqLayout.tabBarClearance,
           ),
           children: <Widget>[
-            Text(
-              'Masquerade',
-              style: MqTextStyles.title1.copyWith(color: c.textPri),
-            ),
-            const SizedBox(height: 2),
-            Row(
-              children: <Widget>[
-                Icon(MqIcons.lock, size: 11, color: c.success),
-                const SizedBox(width: 5),
-                Expanded(
-                  child: Text(
-                    'On-device · nothing leaves your phone',
-                    style: MqTextStyles.caption1.copyWith(color: c.textSec),
-                    overflow: TextOverflow.ellipsis,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: MqSpacing.lg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  Text(
+                    'Masquerade',
+                    style: MqTextStyles.title1.copyWith(color: c.textPri),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: MqSpacing.lg),
-            _HeroPasteCard(
-              controller: _heroController,
-              onChanged: _onHeroChanged,
-              onPaste: _paste,
-              onClear: hasInput ? _clear : null,
-              onScan: _scanToHero,
-            ),
-            if (_matches.isNotEmpty) ...<Widget>[
-              const SizedBox(height: MqSpacing.md),
-              _SuggestionRow(
-                matches: _matches,
-                onTap: (UtilityDescriptor u) => _open(u, seedFromHero: true),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: <Widget>[
+                      Icon(MqIcons.lock, size: 11, color: c.success),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          'On-device · nothing leaves your phone',
+                          style: MqTextStyles.caption1.copyWith(
+                            color: c.textSec,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: MqSpacing.lg),
+                  _HeroPasteCard(
+                    controller: _heroController,
+                    onChanged: _onHeroChanged,
+                    onPaste: _paste,
+                    onClear: hasInput ? _clear : null,
+                    onScan: _scanToHero,
+                  ),
+                  if (_matches.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: MqSpacing.md),
+                    _SuggestionRow(matches: _matches, onTap: _openFromChip),
+                  ],
+                  const SizedBox(height: MqSpacing.lg),
+                  const MqSectionHeader(label: 'All tools'),
+                  const SizedBox(height: MqSpacing.sm),
+                ],
               ),
-            ],
-            const SizedBox(height: MqSpacing.lg),
-            const MqSectionHeader(label: 'All tools'),
-            _ToolGrid(
-              items: UtilityCatalog.all,
-              onTap: (UtilityDescriptor u) => _open(u),
             ),
+            for (final UtilityDescriptor u in UtilityCatalog.all) ...<Widget>[
+              InlineToolCard(
+                descriptor: u,
+                expanded: _expandedToolId == u.id,
+                onToggle: () => _toggle(u),
+                bodyBuilder: (BuildContext ctx) => _buildBody(ctx, u),
+              ),
+              const SizedBox(height: MqSpacing.sm),
+            ],
           ],
         ),
       ),
@@ -242,38 +316,6 @@ class _SuggestionRow extends StatelessWidget {
           ],
         ),
       ],
-    );
-  }
-}
-
-class _ToolGrid extends StatelessWidget {
-  const _ToolGrid({required this.items, required this.onTap});
-
-  final List<UtilityDescriptor> items;
-  final void Function(UtilityDescriptor) onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: items.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: MqSpacing.sm,
-        crossAxisSpacing: MqSpacing.sm,
-        childAspectRatio: 1.0,
-      ),
-      itemBuilder: (BuildContext context, int i) {
-        final UtilityDescriptor u = items[i];
-        return MqUtilityTile(
-          name: u.name,
-          icon: u.icon,
-          tint: u.tint,
-          description: u.description,
-          onTap: () => onTap(u),
-        );
-      },
     );
   }
 }

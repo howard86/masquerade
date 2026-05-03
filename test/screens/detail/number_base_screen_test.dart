@@ -19,7 +19,7 @@ void main() {
   ) async {
     await pumpHomeAndOpen(tester, 'Number Base');
 
-    await tester.enterText(find.byType(EditableText), '255');
+    await tester.enterText(find.byType(EditableText).last, '255');
     await tester.pumpAndSettle(kDebouncePump);
 
     expect(find.text('BASE 10'), findsOneWidget);
@@ -34,7 +34,7 @@ void main() {
   ) async {
     await pumpHomeAndOpen(tester, 'Number Base');
 
-    await tester.enterText(find.byType(EditableText), '0xFF');
+    await tester.enterText(find.byType(EditableText).last, '0xFF');
     await tester.pumpAndSettle(kDebouncePump);
 
     expect(find.text('BASE 16'), findsOneWidget);
@@ -46,7 +46,7 @@ void main() {
   ) async {
     await pumpHomeAndOpen(tester, 'Number Base');
 
-    await tester.enterText(find.byType(EditableText), '0b1010');
+    await tester.enterText(find.byType(EditableText).last, '0b1010');
     await tester.pumpAndSettle(kDebouncePump);
 
     expect(find.text('BASE 2'), findsOneWidget);
@@ -58,7 +58,7 @@ void main() {
   ) async {
     await pumpHomeAndOpen(tester, 'Number Base');
 
-    await tester.enterText(find.byType(EditableText), 'xyz!');
+    await tester.enterText(find.byType(EditableText).last, 'xyz!');
     await tester.pumpAndSettle(kDebouncePump);
 
     expect(

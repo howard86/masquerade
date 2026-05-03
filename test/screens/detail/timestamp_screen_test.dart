@@ -26,7 +26,7 @@ void main() {
     (WidgetTester tester) async {
       await openTimestamp(tester);
 
-      final Finder input = find.byType(EditableText);
+      final Finder input = find.byType(EditableText).last;
       await tester.enterText(input, '1700000000');
       await tester.pumpAndSettle(const Duration(milliseconds: 300));
 
@@ -39,7 +39,7 @@ void main() {
   ) async {
     await openTimestamp(tester);
 
-    final Finder input = find.byType(EditableText);
+    final Finder input = find.byType(EditableText).last;
     await tester.enterText(input, '1700000000000');
     await tester.pumpAndSettle(const Duration(milliseconds: 300));
 
@@ -51,7 +51,7 @@ void main() {
   ) async {
     await openTimestamp(tester);
 
-    final Finder input = find.byType(EditableText);
+    final Finder input = find.byType(EditableText).last;
     await tester.enterText(input, '1700000000000000');
     await tester.pumpAndSettle(const Duration(milliseconds: 300));
 
@@ -65,7 +65,7 @@ void main() {
   ) async {
     await openTimestamp(tester);
 
-    final Finder input = find.byType(EditableText);
+    final Finder input = find.byType(EditableText).last;
     await tester.enterText(input, '1700000000000000000');
     await tester.pumpAndSettle(const Duration(milliseconds: 300));
 
@@ -77,7 +77,7 @@ void main() {
   ) async {
     await openTimestamp(tester);
 
-    final Finder input = find.byType(EditableText);
+    final Finder input = find.byType(EditableText).last;
     await tester.enterText(input, '2023-11-14T22:13:20');
     await tester.pumpAndSettle(const Duration(milliseconds: 300));
 
@@ -89,7 +89,7 @@ void main() {
   ) async {
     await openTimestamp(tester);
 
-    final Finder input = find.byType(EditableText);
+    final Finder input = find.byType(EditableText).last;
     await tester.enterText(input, '2023-11-14T22:13:20Z');
     await tester.pumpAndSettle(const Duration(milliseconds: 300));
 
@@ -140,7 +140,7 @@ void main() {
 
     // Input auto-updates immediately (before Done).
     EditableText liveInput = tester.widget<EditableText>(
-      find.byType(EditableText),
+      find.byType(EditableText).last,
     );
     expect(liveInput.controller.text, 'last hour');
 
@@ -153,7 +153,7 @@ void main() {
     await tester.pumpAndSettle(const Duration(milliseconds: 300));
 
     // Input updates again after second pick.
-    liveInput = tester.widget<EditableText>(find.byType(EditableText));
+    liveInput = tester.widget<EditableText>(find.byType(EditableText).last);
     expect(liveInput.controller.text, 'last day');
 
     await tester.tap(find.text('Done'));
@@ -165,7 +165,7 @@ void main() {
   testWidgets('typing now resolves as Keyword', (WidgetTester tester) async {
     await openTimestamp(tester);
 
-    final Finder input = find.byType(EditableText);
+    final Finder input = find.byType(EditableText).last;
     await tester.enterText(input, 'now');
     await tester.pumpAndSettle(const Duration(milliseconds: 300));
 

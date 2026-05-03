@@ -14,7 +14,7 @@ void main() {
   ) async {
     await pumpHomeAndOpen(tester, 'Base64');
 
-    await tester.enterText(find.byType(EditableText), 'hello');
+    await tester.enterText(find.byType(EditableText).last, 'hello');
     await tester.pumpAndSettle(kDebouncePump);
 
     expect(find.text('aGVsbG8='), findsOneWidget);
@@ -28,7 +28,7 @@ void main() {
     await tester.tap(find.text('Decode'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(EditableText), 'aGVsbG8=');
+    await tester.enterText(find.byType(EditableText).last, 'aGVsbG8=');
     await tester.pumpAndSettle(kDebouncePump);
 
     expect(find.text('hello'), findsOneWidget);
@@ -40,7 +40,7 @@ void main() {
     await pumpHomeAndOpen(tester, 'Base64');
 
     // ">>>" → bytes 0x3E×3 → standard "Pj4+", URL-safe "Pj4-".
-    await tester.enterText(find.byType(EditableText), '>>>');
+    await tester.enterText(find.byType(EditableText).last, '>>>');
     await tester.pumpAndSettle(kDebouncePump);
     expect(find.text('Pj4+'), findsOneWidget);
 
@@ -55,7 +55,7 @@ void main() {
     await pumpHomeAndOpen(tester, 'Base64');
 
     // "h" → bytes [0x68] → "aA==", stripped "aA".
-    await tester.enterText(find.byType(EditableText), 'h');
+    await tester.enterText(find.byType(EditableText).last, 'h');
     await tester.pumpAndSettle(kDebouncePump);
     expect(find.text('aA=='), findsOneWidget);
 
@@ -72,7 +72,7 @@ void main() {
     await tester.tap(find.text('Decode'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(EditableText), 'not@valid');
+    await tester.enterText(find.byType(EditableText).last, 'not@valid');
     await tester.pumpAndSettle(kDebouncePump);
 
     expect(find.textContaining('Invalid base64'), findsOneWidget);
