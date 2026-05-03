@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
@@ -40,7 +39,6 @@ class _QrCodeScreenState extends State<QrCodeScreen> {
   Timer? _debounce;
   QrMode _mode = QrMode.generate;
   String? _scanResult;
-  File? _lastExport;
   bool _exporting = false;
 
   @override
@@ -56,7 +54,6 @@ class _QrCodeScreenState extends State<QrCodeScreen> {
   void dispose() {
     _debounce?.cancel();
     _controller.dispose();
-    _lastExport?.delete().ignore();
     super.dispose();
   }
 
@@ -92,34 +89,21 @@ class _QrCodeScreenState extends State<QrCodeScreen> {
       );
       if (png == null) return;
       final Uint8List bytes = png.buffer.asUint8List();
-      await _deletePriorExport();
       final String fileName =
           'masquerade_qr_${DateTime.now().millisecondsSinceEpoch}.png';
-      final File file = File('${Directory.systemTemp.path}/$fileName');
-      await file.writeAsBytes(bytes, flush: true);
-      _lastExport = file;
       await SharePlus.instance.share(
         ShareParams(
-          files: <XFile>[XFile(file.path, mimeType: 'image/png')],
+          files: <XFile>[XFile.fromData(bytes, mimeType: 'image/png')],
+          fileNameOverrides: <String>[fileName],
           subject: 'QR code',
+          downloadFallbackEnabled: true,
         ),
       );
     } catch (_) {
-      // Share failures are surfaced by the OS share sheet; swallow here so the
-      // pending Future does not bubble to the framework error overlay.
+      // Best-effort export; swallow render and share failures so the pending
+      // Future does not bubble to the framework error overlay. User can retry.
     } finally {
       if (mounted) setState(() => _exporting = false);
-    }
-  }
-
-  Future<void> _deletePriorExport() async {
-    final File? prior = _lastExport;
-    if (prior == null) return;
-    _lastExport = null;
-    try {
-      await prior.delete();
-    } catch (_) {
-      // Best-effort cleanup; ignore IO errors.
     }
   }
 
