@@ -160,7 +160,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   if (_matches.isNotEmpty) ...<Widget>[
                     const SizedBox(height: MqSpacing.md),
-                    _SuggestionRow(matches: _matches, onTap: _openFromChip),
+                    _SuggestionRow(
+                      matches: _matches,
+                      expandedToolId: _expandedToolId,
+                      onTap: _openFromChip,
+                    ),
                   ],
                   const SizedBox(height: MqSpacing.lg),
                   const MqSectionHeader(label: 'All tools'),
@@ -258,9 +262,14 @@ class _HeroPasteCard extends StatelessWidget {
 }
 
 class _SuggestionRow extends StatelessWidget {
-  const _SuggestionRow({required this.matches, required this.onTap});
+  const _SuggestionRow({
+    required this.matches,
+    required this.expandedToolId,
+    required this.onTap,
+  });
 
   final List<UtilityDescriptor> matches;
+  final String? expandedToolId;
   final void Function(UtilityDescriptor) onTap;
 
   @override
@@ -282,7 +291,7 @@ class _SuggestionRow extends StatelessWidget {
               MqChip(
                 label: u.name,
                 icon: u.icon,
-                accent: true,
+                accent: u.id == expandedToolId,
                 mono: false,
                 onTap: () => onTap(u),
               ),

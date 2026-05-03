@@ -109,6 +109,89 @@ void main() {
     },
   );
 
+  testWidgets('Multi-format hero input surfaces multiple chips', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(500, 1100));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+
+    final Finder hero = await findHeroInput(tester);
+    // 1700000000 detects as both Timestamp (>=1e8) and Number Base (decimal).
+    await tester.enterText(hero, '1700000000');
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    // Both chips render under "Open in" label (tile copies of the names
+    // also appear elsewhere — `findsAtLeastNWidgets(2)` covers chip + tile).
+    expect(find.text('Open in'), findsOneWidget);
+    expect(find.text('Timestamp'), findsAtLeastNWidgets(2));
+    expect(find.text('Number Base'), findsAtLeastNWidgets(2));
+  });
+
+  testWidgets('Tapping the same chip twice toggles its card off', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(480, 1050));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+
+    final Finder hero = await findHeroInput(tester);
+    await tester.enterText(hero, '{"a":1}');
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    // First tap on JSON chip expands JSON's body — the segmented control's
+    // 'Pretty' label is body-only, not present in any tile/chip.
+    await tester.tap(find.text('JSON').first, warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(find.text('Pretty'), findsOneWidget);
+
+    // Second tap on the same chip collapses it.
+    await tester.tap(find.text('JSON').first, warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(find.text('Pretty'), findsNothing);
+  });
+
+  testWidgets(
+    'Expanded card and output rows persist across hero text changes',
+    (WidgetTester tester) async {
+      await tester.binding.setSurfaceSize(const Size(480, 1050));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(const MyApp());
+      await tester.pumpAndSettle();
+
+      final Finder hero = await findHeroInput(tester);
+      await tester.enterText(hero, '{"a":1}');
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+      // Open the JSON card via its chip, seeding it with the hero text.
+      await tester.tap(find.text('JSON').first, warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(find.text('Pretty'), findsOneWidget);
+
+      // Clear the hero input. The chip row goes away …
+      await tester.enterText(hero, '');
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      expect(find.text('Open in'), findsNothing);
+
+      // … but the JSON card body and the seeded controller's text remain.
+      expect(find.text('Pretty'), findsOneWidget);
+      final Finder jsonInput = find.byWidgetPredicate(
+        (Widget w) =>
+            w is CupertinoTextField && w.placeholder == '{"hello": "world"}',
+      );
+      expect(jsonInput, findsOneWidget);
+      expect(
+        (tester.widget(jsonInput) as CupertinoTextField).controller!.text,
+        '{"a":1}',
+      );
+    },
+  );
+
   testWidgets('Clearing hero input hides chips', (WidgetTester tester) async {
     await tester.binding.setSurfaceSize(const Size(500, 1100));
     addTearDown(() => tester.binding.setSurfaceSize(null));
