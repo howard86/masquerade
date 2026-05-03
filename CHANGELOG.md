@@ -1,3 +1,14 @@
+## v1.3.0 (2026-05-03)
+
+### Feat
+
+- **bytes**: add Bytes utility tool
+
+### Refactor
+
+- **mq**: align MqEmptyHint API and migrate timestamp screen
+- **mq**: extract MqEmptyHint, dedupe across detail screens
+
 ## v1.2.0 (2026-05-02)
 
 ### Feat
