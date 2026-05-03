@@ -4,7 +4,6 @@ import 'package:masquerade/theme/mq_colors.dart';
 import 'package:masquerade/theme/mq_theme.dart';
 import 'package:masquerade/utility_catalog.dart';
 import 'package:masquerade/widgets/mq/inline_tool_card.dart';
-import 'package:masquerade/widgets/mq/mq_icons.dart';
 
 void main() {
   group('InlineToolCard', () {
@@ -50,35 +49,33 @@ void main() {
       expect(find.text('BODY'), findsOneWidget);
     });
 
-    testWidgets('chevron flips between collapsed and expanded states', (
+    testWidgets('chip icon color flips between collapsed and expanded', (
       WidgetTester tester,
     ) async {
+      final MqColors light = MqColors.light();
+
       await tester.pumpWidget(host(expanded: false, onToggle: () {}));
-      Icon chevron = tester.widget<Icon>(
-        find.descendant(
-          of: find.byType(InlineToolCard),
-          matching: find.byWidgetPredicate(
-            (Widget w) =>
-                w is Icon &&
-                (w.icon == MqIcons.chevR || w.icon == MqIcons.chevD),
-          ),
-        ),
+      Icon icon = tester.widget<Icon>(
+        find
+            .descendant(
+              of: find.byType(InlineToolCard),
+              matching: find.byType(Icon),
+            )
+            .first,
       );
-      expect(chevron.icon, MqIcons.chevR);
+      expect(icon.color, light.textPri);
 
       await tester.pumpWidget(host(expanded: true, onToggle: () {}));
       await tester.pumpAndSettle();
-      chevron = tester.widget<Icon>(
-        find.descendant(
-          of: find.byType(InlineToolCard),
-          matching: find.byWidgetPredicate(
-            (Widget w) =>
-                w is Icon &&
-                (w.icon == MqIcons.chevR || w.icon == MqIcons.chevD),
-          ),
-        ),
+      icon = tester.widget<Icon>(
+        find
+            .descendant(
+              of: find.byType(InlineToolCard),
+              matching: find.byType(Icon),
+            )
+            .first,
       );
-      expect(chevron.icon, MqIcons.chevD);
+      expect(icon.color, light.accentInk);
     });
   });
 }

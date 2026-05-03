@@ -115,72 +115,76 @@ class _HomeScreenState extends State<HomeScreen> {
       child: SafeArea(
         bottom: false,
         child: ListView(
-          // Cards span edge-to-edge so the body interior has the same width
-          // an MqDetailScaffold child gets at the same surface size — this
-          // matters for the 3-button bottom bar inside Base64/Bytes/QR.
           padding: const EdgeInsets.fromLTRB(
-            0,
+            MqSpacing.lg,
             MqSpacing.sm,
-            0,
+            MqSpacing.lg,
             MqLayout.tabBarClearance,
           ),
           children: <Widget>[
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: MqSpacing.lg),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+            Text(
+              'Masquerade',
+              style: MqTextStyles.title1.copyWith(color: c.textPri),
+            ),
+            const SizedBox(height: 2),
+            Row(
+              children: <Widget>[
+                Icon(MqIcons.lock, size: 11, color: c.success),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    'On-device · nothing leaves your phone',
+                    style: MqTextStyles.caption1.copyWith(color: c.textSec),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: MqSpacing.lg),
+            _HeroPasteCard(
+              controller: _heroController,
+              onChanged: _onHeroChanged,
+              onPaste: _paste,
+              onClear: hasInput ? _clear : null,
+              onScan: _scanToHero,
+            ),
+            if (_matches.isNotEmpty) ...<Widget>[
+              const SizedBox(height: MqSpacing.md),
+              _SuggestionRow(
+                matches: _matches,
+                expandedToolId: _expandedToolId,
+                onTap: _openFromChip,
+              ),
+            ],
+            const SizedBox(height: MqSpacing.lg),
+            const MqSectionHeader(label: 'All tools'),
+            const SizedBox(height: MqSpacing.sm),
+            // When a tool is expanded, hide the rest — the user is focused on
+            // one tool at a time and unselected chips are redundant noise.
+            // Tap the selected chip again to collapse and bring everything
+            // back.
+            if (_expandedToolId != null)
+              InlineToolCard(
+                descriptor: UtilityCatalog.byId(_expandedToolId!),
+                expanded: true,
+                onToggle: () => _toggle(UtilityCatalog.byId(_expandedToolId!)),
+                bodyBuilder: (BuildContext ctx) =>
+                    _buildBody(ctx, UtilityCatalog.byId(_expandedToolId!)),
+              )
+            else
+              Wrap(
+                spacing: MqSpacing.sm,
+                runSpacing: MqSpacing.sm,
                 children: <Widget>[
-                  Text(
-                    'Masquerade',
-                    style: MqTextStyles.title1.copyWith(color: c.textPri),
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: <Widget>[
-                      Icon(MqIcons.lock, size: 11, color: c.success),
-                      const SizedBox(width: 5),
-                      Expanded(
-                        child: Text(
-                          'On-device · nothing leaves your phone',
-                          style: MqTextStyles.caption1.copyWith(
-                            color: c.textSec,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: MqSpacing.lg),
-                  _HeroPasteCard(
-                    controller: _heroController,
-                    onChanged: _onHeroChanged,
-                    onPaste: _paste,
-                    onClear: hasInput ? _clear : null,
-                    onScan: _scanToHero,
-                  ),
-                  if (_matches.isNotEmpty) ...<Widget>[
-                    const SizedBox(height: MqSpacing.md),
-                    _SuggestionRow(
-                      matches: _matches,
-                      expandedToolId: _expandedToolId,
-                      onTap: _openFromChip,
+                  for (final UtilityDescriptor u in UtilityCatalog.all)
+                    InlineToolCard(
+                      descriptor: u,
+                      expanded: false,
+                      onToggle: () => _toggle(u),
+                      bodyBuilder: (BuildContext ctx) => _buildBody(ctx, u),
                     ),
-                  ],
-                  const SizedBox(height: MqSpacing.lg),
-                  const MqSectionHeader(label: 'All tools'),
-                  const SizedBox(height: MqSpacing.sm),
                 ],
               ),
-            ),
-            for (final UtilityDescriptor u in UtilityCatalog.all) ...<Widget>[
-              InlineToolCard(
-                descriptor: u,
-                expanded: _expandedToolId == u.id,
-                onToggle: () => _toggle(u),
-                bodyBuilder: (BuildContext ctx) => _buildBody(ctx, u),
-              ),
-              const SizedBox(height: MqSpacing.sm),
-            ],
           ],
         ),
       ),
