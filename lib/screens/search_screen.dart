@@ -4,9 +4,18 @@ import '../theme/mq_metrics.dart';
 import '../theme/mq_theme.dart';
 import '../theme/mq_typography.dart';
 import '../utility_catalog.dart';
+import '../widgets/mq/inline_tool_card.dart';
 import '../widgets/mq/mq_icons.dart';
 import '../widgets/mq/mq_search_bar.dart';
-import '../widgets/mq/mq_utility_tile.dart';
+import '../widgets/tool_bodies/base64_body.dart';
+import '../widgets/tool_bodies/bps_body.dart';
+import '../widgets/tool_bodies/bytes_body.dart';
+import '../widgets/tool_bodies/color_body.dart';
+import '../widgets/tool_bodies/json_body.dart';
+import '../widgets/tool_bodies/number_base_body.dart';
+import '../widgets/tool_bodies/qr_code_body.dart';
+import '../widgets/tool_bodies/seed_source.dart';
+import '../widgets/tool_bodies/timestamp_body.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -18,6 +27,10 @@ class SearchScreen extends StatefulWidget {
 class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController _controller = TextEditingController();
   String _query = '';
+
+  String? _expandedToolId;
+  String? _expandedSeed;
+  SeedSource _expandedSeedSource = SeedSource.none;
 
   @override
   void dispose() {
@@ -35,8 +48,52 @@ class _SearchScreenState extends State<SearchScreen> {
     }).toList();
   }
 
-  void _open(BuildContext context, UtilityDescriptor u) {
-    u.push(context);
+  void _toggle(
+    UtilityDescriptor u, {
+    String? seed,
+    SeedSource source = SeedSource.none,
+  }) {
+    setState(() {
+      if (_expandedToolId == u.id) {
+        _expandedToolId = null;
+        _expandedSeed = null;
+        _expandedSeedSource = SeedSource.none;
+      } else {
+        _expandedToolId = u.id;
+        _expandedSeed = (seed != null && seed.isNotEmpty) ? seed : null;
+        _expandedSeedSource = source;
+      }
+    });
+  }
+
+  Widget _buildBody(BuildContext context, UtilityDescriptor u) {
+    final bool isThis = _expandedToolId == u.id;
+    final String? seed = isThis ? _expandedSeed : null;
+    final SeedSource source = isThis ? _expandedSeedSource : SeedSource.none;
+    switch (u.id) {
+      case 'number_base':
+        return NumberBaseBody(initialInput: seed, seedSource: source);
+      case 'timestamp':
+        return TimestampBody(initialInput: seed, seedSource: source);
+      case 'json':
+        return JSONBody(initialInput: seed, seedSource: source);
+      case 'base64':
+        return Base64Body(initialInput: seed, seedSource: source);
+      case 'color':
+        return ColorBody(initialInput: seed, seedSource: source);
+      case 'bps':
+        return BpsBody(initialInput: seed, seedSource: source);
+      case 'bytes':
+        return BytesBody(initialInput: seed, seedSource: source);
+      case 'qr_code':
+        return QrCodeBody(
+          initialInput: seed,
+          seedSource: source,
+          onSwitchTool: (UtilityDescriptor target, String input) =>
+              _toggle(target, seed: input, source: SeedSource.paste),
+        );
+    }
+    throw StateError('No body registered for tool id "${u.id}"');
   }
 
   @override
@@ -70,7 +127,19 @@ class _SearchScreenState extends State<SearchScreen> {
                     autofocus: true,
                     placeholder:
                         'Search utilities (try "epoch", "hex", "color")',
-                    onChanged: (String v) => setState(() => _query = v),
+                    onChanged: (String v) {
+                      setState(() {
+                        _query = v;
+                        // Collapse on query change so a previously-expanded
+                        // card from outside the new result set goes away.
+                        if (_expandedToolId != null &&
+                            !UtilityCatalog.all.any(
+                              (u) => u.id == _expandedToolId,
+                            )) {
+                          _expandedToolId = null;
+                        }
+                      });
+                    },
                   ),
                 ],
               ),
@@ -80,9 +149,9 @@ class _SearchScreenState extends State<SearchScreen> {
                   ? _SearchEmptyState(query: _query.trim())
                   : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(
-                        MqSpacing.lg,
                         0,
-                        MqSpacing.lg,
+                        0,
+                        0,
                         MqLayout.tabBarClearance,
                       ),
                       itemCount: results.length,
@@ -90,12 +159,11 @@ class _SearchScreenState extends State<SearchScreen> {
                           const SizedBox(height: MqSpacing.sm),
                       itemBuilder: (BuildContext context, int i) {
                         final UtilityDescriptor u = results[i];
-                        return MqUtilityTile(
-                          name: u.name,
-                          icon: u.icon,
-                          tint: u.tint,
-                          compact: true,
-                          onTap: () => _open(context, u),
+                        return InlineToolCard(
+                          descriptor: u,
+                          expanded: _expandedToolId == u.id,
+                          onToggle: () => _toggle(u),
+                          bodyBuilder: (BuildContext ctx) => _buildBody(ctx, u),
                         );
                       },
                     ),
