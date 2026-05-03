@@ -41,4 +41,9 @@ class MqIcons {
   static const IconData chevD = CupertinoIcons.chevron_down;
   static const IconData xmark = CupertinoIcons.xmark;
   static const IconData home = CupertinoIcons.house;
+  static const IconData qrCode = CupertinoIcons.qrcode;
+  static const IconData qrCodeScan = CupertinoIcons.qrcode_viewfinder;
+  static const IconData share = CupertinoIcons.share;
+  static const IconData flash = CupertinoIcons.bolt;
+  static const IconData flashFill = CupertinoIcons.bolt_fill;
 }

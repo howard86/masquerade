@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/widgets.dart';
 
 import 'screens/detail/base64_screen.dart';
 import 'screens/detail/bps_screen.dart';
@@ -9,6 +8,7 @@ import 'screens/detail/bytes_screen.dart';
 import 'screens/detail/color_screen.dart';
 import 'screens/detail/json_screen.dart';
 import 'screens/detail/number_base_screen.dart';
+import 'screens/detail/qr_code_screen.dart';
 import 'screens/detail/timestamp_screen.dart';
 import 'utils/bps_parser.dart';
 import 'utils/bytes_parser.dart';
@@ -125,6 +125,17 @@ class UtilityCatalog {
           BytesScreen(initialInput: initialInput),
       detect: _detectBytes,
     ),
+    UtilityDescriptor(
+      id: 'qr_code',
+      name: 'QR Code',
+      description: 'Scan · generate QR',
+      icon: MqIcons.qrCode,
+      tint: const Color(0xFF111827),
+      synonyms: <String>['qr', 'barcode', 'scan', 'generate'],
+      builder: (BuildContext _, {String? initialInput}) =>
+          QrCodeScreen(initialInput: initialInput),
+      detect: _detectQrCode,
+    ),
   ];
 
   static UtilityDescriptor byId(String id) =>
@@ -136,6 +147,17 @@ class UtilityCatalog {
     if (input.trim().isEmpty) return const <UtilityDescriptor>[];
     return all.where((UtilityDescriptor u) => u.detect(input)).toList();
   }
+}
+
+extension UtilityDescriptorPush on UtilityDescriptor {
+  Future<void> push(BuildContext context, {String? initialInput}) =>
+      Navigator.of(context).push<void>(
+        CupertinoPageRoute<void>(
+          builder: (BuildContext ctx) =>
+              builder(ctx, initialInput: initialInput),
+          title: name,
+        ),
+      );
 }
 
 bool _detectJson(String input) {
@@ -213,6 +235,9 @@ bool _detectBps(String input) {
   final double? n = double.tryParse(t);
   return n != null && n.abs() <= 1.0;
 }
+
+// QR has no input shape — entry is via grid tile or the home scan button.
+bool _detectQrCode(String _) => false;
 
 bool _detectBytes(String input) {
   final String t = input.trim();

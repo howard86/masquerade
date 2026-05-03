@@ -13,6 +13,7 @@ import '../widgets/mq/mq_icons.dart';
 import '../widgets/mq/mq_input.dart';
 import '../widgets/mq/mq_section_header.dart';
 import '../widgets/mq/mq_utility_tile.dart';
+import 'detail/qr_scanner_route.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -59,16 +60,18 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _matches = const <UtilityDescriptor>[]);
   }
 
+  Future<void> _scanToHero() async {
+    final String? result = await pushQrScanner(context);
+    if (!mounted || result == null || result.isEmpty) return;
+    _heroController.text = result;
+    _recomputeMatches();
+  }
+
   void _open(UtilityDescriptor u, {bool seedFromHero = false}) {
     final String? seed = seedFromHero && _heroController.text.isNotEmpty
         ? _heroController.text
         : null;
-    Navigator.of(context).push(
-      CupertinoPageRoute<void>(
-        builder: (BuildContext ctx) => u.builder(ctx, initialInput: seed),
-        title: u.name,
-      ),
-    );
+    u.push(context, initialInput: seed);
   }
 
   @override
@@ -112,6 +115,7 @@ class _HomeScreenState extends State<HomeScreen> {
               onChanged: _onHeroChanged,
               onPaste: _paste,
               onClear: hasInput ? _clear : null,
+              onScan: _scanToHero,
             ),
             if (_matches.isNotEmpty) ...<Widget>[
               const SizedBox(height: MqSpacing.md),
@@ -139,15 +143,18 @@ class _HeroPasteCard extends StatelessWidget {
     required this.onChanged,
     required this.onPaste,
     required this.onClear,
+    required this.onScan,
   });
 
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
   final VoidCallback onPaste;
   final VoidCallback? onClear;
+  final VoidCallback onScan;
 
   @override
   Widget build(BuildContext context) {
+    final c = context.mq.colors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -159,6 +166,18 @@ class _HeroPasteCard extends StatelessWidget {
           multiline: true,
           minLines: 2,
           maxLines: 5,
+          trailing: Semantics(
+            button: true,
+            label: 'Scan QR code',
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onScan,
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(MqIcons.qrCodeScan, size: 22, color: c.textSec),
+              ),
+            ),
+          ),
         ),
         const SizedBox(height: MqSpacing.sm),
         Row(
