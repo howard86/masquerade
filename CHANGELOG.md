@@ -1,3 +1,14 @@
+## v1.4.0 (2026-05-03)
+
+### Feat
+
+- **qr**: add QR code reader and generator
+
+### Fix
+
+- **qr**: dispose ui.Image after PNG encode to free native memory
+- **qr**: share works on web by dropping dart:io File temp-write
+
 ## v1.3.0 (2026-05-03)
 
 ### Feat
