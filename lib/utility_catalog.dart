@@ -2,14 +2,6 @@ import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
 
-import 'screens/detail/base64_screen.dart';
-import 'screens/detail/bps_screen.dart';
-import 'screens/detail/bytes_screen.dart';
-import 'screens/detail/color_screen.dart';
-import 'screens/detail/json_screen.dart';
-import 'screens/detail/number_base_screen.dart';
-import 'screens/detail/qr_code_screen.dart';
-import 'screens/detail/timestamp_screen.dart';
 import 'utils/bps_parser.dart';
 import 'utils/bytes_parser.dart';
 import 'utils/color_parser.dart';
@@ -17,9 +9,31 @@ import 'utils/encoding_parser.dart';
 import 'utils/json_parser.dart';
 import 'utils/number_base_parser.dart';
 import 'widgets/mq/mq_icons.dart';
+import 'widgets/tool_bodies/base64_body.dart';
+import 'widgets/tool_bodies/bps_body.dart';
+import 'widgets/tool_bodies/bytes_body.dart';
+import 'widgets/tool_bodies/color_body.dart';
+import 'widgets/tool_bodies/json_body.dart';
+import 'widgets/tool_bodies/number_base_body.dart';
+import 'widgets/tool_bodies/qr_code_body.dart';
+import 'widgets/tool_bodies/seed_source.dart';
+import 'widgets/tool_bodies/timestamp_body.dart';
 
+/// Builds an embeddable tool body for inline rendering inside an
+/// [InlineToolCard]. Receives the optional seed input and how it arrived
+/// ([SeedSource]) so the body can decide whether to record history
+/// immediately (paste) or behind a typing-debounce.
+///
+/// Tools whose body needs cross-tool routing (currently only QR's
+/// "Open in" chips) take an extra parameter on their concrete widget;
+/// the catalog wraps that with a closure passed by the host screen.
 typedef UtilityBuilder =
-    Widget Function(BuildContext context, {String? initialInput});
+    Widget Function(
+      BuildContext context, {
+      String? initialInput,
+      SeedSource seedSource,
+      QrSwitchToolCallback? onSwitchTool,
+    });
 
 class UtilityDescriptor {
   const UtilityDescriptor({
@@ -55,8 +69,16 @@ class UtilityCatalog {
       icon: MqIcons.binary,
       tint: const Color(0xFF3B6DD6),
       synonyms: <String>['hex', 'binary', 'octal', 'decimal', 'base'],
-      builder: (BuildContext _, {String? initialInput}) =>
-          NumberBaseScreen(initialInput: initialInput),
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            SeedSource seedSource = SeedSource.none,
+            QrSwitchToolCallback? onSwitchTool,
+          }) => NumberBaseBody(
+            initialInput: initialInput,
+            seedSource: seedSource,
+          ),
       detect: _detectNumberBase,
     ),
     UtilityDescriptor(
@@ -66,8 +88,14 @@ class UtilityCatalog {
       icon: MqIcons.clock,
       tint: const Color(0xFF00B8C4),
       synonyms: <String>['epoch', 'unix', 'iso', 'date', 'time'],
-      builder: (BuildContext _, {String? initialInput}) =>
-          TimestampScreen(initialInput: initialInput),
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            SeedSource seedSource = SeedSource.none,
+            QrSwitchToolCallback? onSwitchTool,
+          }) =>
+              TimestampBody(initialInput: initialInput, seedSource: seedSource),
       detect: _detectTimestamp,
     ),
     UtilityDescriptor(
@@ -77,8 +105,13 @@ class UtilityCatalog {
       icon: MqIcons.brackets,
       tint: const Color(0xFF8B5CF6),
       synonyms: <String>['pretty', 'minify', 'tree', 'parse'],
-      builder: (BuildContext _, {String? initialInput}) =>
-          JSONScreen(initialInput: initialInput),
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            SeedSource seedSource = SeedSource.none,
+            QrSwitchToolCallback? onSwitchTool,
+          }) => JSONBody(initialInput: initialInput, seedSource: seedSource),
       detect: _detectJson,
     ),
     UtilityDescriptor(
@@ -88,8 +121,13 @@ class UtilityCatalog {
       icon: MqIcons.textCase,
       tint: const Color(0xFF0EA5E9),
       synonyms: <String>['encode', 'decode', 'b64', 'url-safe'],
-      builder: (BuildContext _, {String? initialInput}) =>
-          Base64Screen(initialInput: initialInput),
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            SeedSource seedSource = SeedSource.none,
+            QrSwitchToolCallback? onSwitchTool,
+          }) => Base64Body(initialInput: initialInput, seedSource: seedSource),
       detect: _detectBase64,
     ),
     UtilityDescriptor(
@@ -99,8 +137,13 @@ class UtilityCatalog {
       icon: MqIcons.drop,
       tint: const Color(0xFFEC4899),
       synonyms: <String>['hex', 'rgb', 'hsl', 'oklch', 'contrast', 'wcag'],
-      builder: (BuildContext _, {String? initialInput}) =>
-          ColorScreen(initialInput: initialInput),
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            SeedSource seedSource = SeedSource.none,
+            QrSwitchToolCallback? onSwitchTool,
+          }) => ColorBody(initialInput: initialInput, seedSource: seedSource),
       detect: _detectColor,
     ),
     UtilityDescriptor(
@@ -110,8 +153,13 @@ class UtilityCatalog {
       icon: MqIcons.pct,
       tint: const Color(0xFFF59E0B),
       synonyms: <String>['basis points', 'percent', 'rate', 'finance'],
-      builder: (BuildContext _, {String? initialInput}) =>
-          BpsScreen(initialInput: initialInput),
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            SeedSource seedSource = SeedSource.none,
+            QrSwitchToolCallback? onSwitchTool,
+          }) => BpsBody(initialInput: initialInput, seedSource: seedSource),
       detect: _detectBps,
     ),
     UtilityDescriptor(
@@ -121,8 +169,13 @@ class UtilityCatalog {
       icon: MqIcons.bytes,
       tint: const Color(0xFF22C55E),
       synonyms: <String>['buffer', 'bytes', 'array', 'utf8', 'utf-8', 'decode'],
-      builder: (BuildContext _, {String? initialInput}) =>
-          BytesScreen(initialInput: initialInput),
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            SeedSource seedSource = SeedSource.none,
+            QrSwitchToolCallback? onSwitchTool,
+          }) => BytesBody(initialInput: initialInput, seedSource: seedSource),
       detect: _detectBytes,
     ),
     UtilityDescriptor(
@@ -132,8 +185,17 @@ class UtilityCatalog {
       icon: MqIcons.qrCode,
       tint: const Color(0xFF6366F1),
       synonyms: <String>['qr', 'barcode', 'scan', 'generate'],
-      builder: (BuildContext _, {String? initialInput}) =>
-          QrCodeScreen(initialInput: initialInput),
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            SeedSource seedSource = SeedSource.none,
+            QrSwitchToolCallback? onSwitchTool,
+          }) => QrCodeBody(
+            initialInput: initialInput,
+            seedSource: seedSource,
+            onSwitchTool: onSwitchTool,
+          ),
       detect: _detectQrCode,
     ),
   ];
@@ -147,17 +209,6 @@ class UtilityCatalog {
     if (input.trim().isEmpty) return const <UtilityDescriptor>[];
     return all.where((UtilityDescriptor u) => u.detect(input)).toList();
   }
-}
-
-extension UtilityDescriptorPush on UtilityDescriptor {
-  Future<void> push(BuildContext context, {String? initialInput}) =>
-      Navigator.of(context).push<void>(
-        CupertinoPageRoute<void>(
-          builder: (BuildContext ctx) =>
-              builder(ctx, initialInput: initialInput),
-          title: name,
-        ),
-      );
 }
 
 bool _detectJson(String input) {

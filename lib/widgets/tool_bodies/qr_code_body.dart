@@ -25,10 +25,10 @@ import 'seed_source.dart';
 
 enum QrMode { generate, scan }
 
-/// Optional callback for routing a "Open in" tap from a scan result into
-/// another tool. When null, the body falls back to the legacy
-/// `UtilityDescriptor.push` extension. Wired by Home/Search to the inline
-/// toggle in subsequent commits.
+/// Routes a "Open in" tap from a scan result into another tool. The host
+/// screen (Home/Search) implements this as an expand-and-seed of the target
+/// inline card. Optional only because not every host needs cross-tool
+/// routing — when null, the chips render but tapping is a no-op.
 typedef QrSwitchToolCallback = void Function(UtilityDescriptor u, String input);
 
 class QrCodeBody extends StatefulWidget {
@@ -150,12 +150,7 @@ class _QrCodeBodyState extends State<QrCodeBody> {
   }
 
   void _openInTool(UtilityDescriptor u, String input) {
-    final QrSwitchToolCallback? cb = widget.onSwitchTool;
-    if (cb != null) {
-      cb(u, input);
-    } else {
-      u.push(context, initialInput: input);
-    }
+    widget.onSwitchTool?.call(u, input);
   }
 
   @override

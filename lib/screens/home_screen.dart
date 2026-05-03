@@ -13,15 +13,7 @@ import '../widgets/mq/mq_chip.dart';
 import '../widgets/mq/mq_icons.dart';
 import '../widgets/mq/mq_input.dart';
 import '../widgets/mq/mq_section_header.dart';
-import '../widgets/tool_bodies/base64_body.dart';
-import '../widgets/tool_bodies/bps_body.dart';
-import '../widgets/tool_bodies/bytes_body.dart';
-import '../widgets/tool_bodies/color_body.dart';
-import '../widgets/tool_bodies/json_body.dart';
-import '../widgets/tool_bodies/number_base_body.dart';
-import '../widgets/tool_bodies/qr_code_body.dart';
 import '../widgets/tool_bodies/seed_source.dart';
-import '../widgets/tool_bodies/timestamp_body.dart';
 import 'detail/qr_scanner_route.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -104,32 +96,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildBody(BuildContext context, UtilityDescriptor u) {
     final bool isThis = _expandedToolId == u.id;
-    final String? seed = isThis ? _expandedSeed : null;
-    final SeedSource source = isThis ? _expandedSeedSource : SeedSource.none;
-    switch (u.id) {
-      case 'number_base':
-        return NumberBaseBody(initialInput: seed, seedSource: source);
-      case 'timestamp':
-        return TimestampBody(initialInput: seed, seedSource: source);
-      case 'json':
-        return JSONBody(initialInput: seed, seedSource: source);
-      case 'base64':
-        return Base64Body(initialInput: seed, seedSource: source);
-      case 'color':
-        return ColorBody(initialInput: seed, seedSource: source);
-      case 'bps':
-        return BpsBody(initialInput: seed, seedSource: source);
-      case 'bytes':
-        return BytesBody(initialInput: seed, seedSource: source);
-      case 'qr_code':
-        return QrCodeBody(
-          initialInput: seed,
-          seedSource: source,
-          onSwitchTool: (UtilityDescriptor target, String input) =>
-              _toggle(target, seed: input, source: SeedSource.paste),
-        );
-    }
-    throw StateError('No body registered for tool id "${u.id}"');
+    return u.builder(
+      context,
+      initialInput: isThis ? _expandedSeed : null,
+      seedSource: isThis ? _expandedSeedSource : SeedSource.none,
+      onSwitchTool: (UtilityDescriptor target, String input) =>
+          _toggle(target, seed: input, source: SeedSource.paste),
+    );
   }
 
   @override
