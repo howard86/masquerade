@@ -6,10 +6,9 @@ import 'package:flutter/widgets.dart';
 
 import '../../state/history_controller.dart';
 import '../../theme/mq_metrics.dart';
-import '../../theme/mq_theme.dart';
-import '../../theme/mq_typography.dart';
 import '../../utils/json_parser.dart';
 import '../../widgets/mq/mq_button.dart';
+import '../../widgets/mq/mq_empty_hint.dart';
 import '../../widgets/mq/mq_icons.dart';
 import '../../widgets/mq/mq_input.dart';
 import '../../widgets/mq/mq_mono_cell.dart';
@@ -122,7 +121,6 @@ class _JSONScreenState extends State<JSONScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.mq.colors;
     return MqDetailScaffold(
       title: 'JSON',
       subtitle: 'Pretty / Minify / Tree. Errors point to line:column.',
@@ -191,13 +189,7 @@ class _JSONScreenState extends State<JSONScreen> {
               value: _formatOutput((_result! as JSONOk).value.value),
             ),
           ] else
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: MqSpacing.lg),
-              child: Text(
-                'Paste JSON to format or validate.',
-                style: MqTextStyles.subhead.copyWith(color: c.textTer),
-              ),
-            ),
+            const MqEmptyHint(label: 'Paste JSON to format or validate.'),
         ],
       ),
     );

@@ -7,10 +7,9 @@ import 'package:flutter/widgets.dart';
 
 import '../../state/history_controller.dart';
 import '../../theme/mq_metrics.dart';
-import '../../theme/mq_theme.dart';
-import '../../theme/mq_typography.dart';
 import '../../widgets/mq/mq_button.dart';
 import '../../widgets/mq/mq_chip.dart';
+import '../../widgets/mq/mq_empty_hint.dart';
 import '../../widgets/mq/mq_icons.dart';
 import '../../widgets/mq/mq_input.dart';
 import '../../widgets/mq/mq_mono_cell.dart';
@@ -143,7 +142,6 @@ class _Base64ScreenState extends State<Base64Screen> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.mq.colors;
     return MqDetailScaffold(
       title: 'Base64',
       subtitle: 'Encode/decode. Swap. URL-safe + strip-padding options.',
@@ -241,14 +239,10 @@ class _Base64ScreenState extends State<Base64Screen> {
               accent: true,
             ),
           ] else
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: MqSpacing.lg),
-              child: Text(
-                _mode == Base64Mode.encode
-                    ? 'Paste plain text to encode.'
-                    : 'Paste a Base64 string to decode.',
-                style: MqTextStyles.subhead.copyWith(color: c.textTer),
-              ),
+            MqEmptyHint(
+              label: _mode == Base64Mode.encode
+                  ? 'Paste plain text to encode.'
+                  : 'Paste a Base64 string to decode.',
             ),
         ],
       ),
