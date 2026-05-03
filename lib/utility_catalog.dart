@@ -130,7 +130,7 @@ class UtilityCatalog {
       name: 'QR Code',
       description: 'Scan · generate QR',
       icon: MqIcons.qrCode,
-      tint: const Color(0xFF111827),
+      tint: const Color(0xFF6366F1),
       synonyms: <String>['qr', 'barcode', 'scan', 'generate'],
       builder: (BuildContext _, {String? initialInput}) =>
           QrCodeScreen(initialInput: initialInput),
