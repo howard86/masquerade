@@ -142,20 +142,17 @@ void main() {
     await tester.pumpWidget(const MyApp());
     await tester.pumpAndSettle();
 
-    final Finder hero = await findHeroInput(tester);
-    await tester.enterText(hero, '{"a":1}');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // Use Base64 — no hero input → no auto-expand interference. Grid chip
+    // tap expands; header tap on the expanded card collapses.
+    expect(find.text('Encode'), findsNothing);
 
-    // First tap on JSON chip expands JSON's body — the segmented control's
-    // 'Pretty' label is body-only, not present in any tile/chip.
-    await tester.tap(find.text('JSON').first, warnIfMissed: false);
+    await tester.tap(find.text('Base64'));
     await tester.pumpAndSettle();
-    expect(find.text('Pretty'), findsOneWidget);
+    expect(find.text('Encode'), findsOneWidget);
 
-    // Second tap on the same chip collapses it.
-    await tester.tap(find.text('JSON').first, warnIfMissed: false);
+    await tester.tap(find.text('Base64'));
     await tester.pumpAndSettle();
-    expect(find.text('Pretty'), findsNothing);
+    expect(find.text('Encode'), findsNothing);
   });
 
   testWidgets(
