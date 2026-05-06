@@ -8,6 +8,7 @@ import '../../state/history_controller.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
+import '../../utility_catalog.dart';
 import '../../utils/history_recorder.dart';
 import '../../utils/timestamp_parser.dart';
 import '../mq/mq_button.dart';
@@ -18,6 +19,7 @@ import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_status.dart';
 import '../mq/mq_surface.dart';
+import 'open_in_footer.dart';
 import 'seed_source.dart';
 
 class TimestampBody extends StatefulWidget {
@@ -25,10 +27,12 @@ class TimestampBody extends StatefulWidget {
     super.key,
     this.initialInput,
     this.seedSource = SeedSource.none,
+    this.onSwitchTool,
   });
 
   final String? initialInput;
   final SeedSource seedSource;
+  final OpenInToolCallback? onSwitchTool;
 
   @override
   State<TimestampBody> createState() => _TimestampBodyState();
@@ -183,6 +187,11 @@ class _TimestampBodyState extends State<TimestampBody> {
           ),
           const SizedBox(height: MqSpacing.md),
           ..._outputRows(_parsed!),
+          OpenInFooter(
+            output: _parsed?.toUtc().toIso8601String(),
+            excludeUtilityId: 'timestamp',
+            onSwitchTool: widget.onSwitchTool,
+          ),
         ] else
           const MqEmptyHint(label: 'Paste a timestamp to see all forms.'),
         const SizedBox(height: MqSpacing.lg),

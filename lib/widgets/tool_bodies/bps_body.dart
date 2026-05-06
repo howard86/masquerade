@@ -8,6 +8,7 @@ import '../../state/history_controller.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
+import '../../utility_catalog.dart';
 import '../../utils/bps_parser.dart';
 import '../../utils/history_recorder.dart';
 import '../mq/mq_button.dart';
@@ -17,6 +18,7 @@ import '../mq/mq_input.dart';
 import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_status.dart';
+import 'open_in_footer.dart';
 import 'seed_source.dart';
 
 class BpsBody extends StatefulWidget {
@@ -24,10 +26,12 @@ class BpsBody extends StatefulWidget {
     super.key,
     this.initialInput,
     this.seedSource = SeedSource.none,
+    this.onSwitchTool,
   });
 
   final String? initialInput;
   final SeedSource seedSource;
+  final OpenInToolCallback? onSwitchTool;
 
   @override
   State<BpsBody> createState() => _BpsBodyState();
@@ -163,6 +167,11 @@ class _BpsBodyState extends State<BpsBody> {
               'Reference only. Not financial advice. Annualization is implementation-dependent.',
               style: MqTextStyles.caption1.copyWith(color: c.textTer),
             ),
+          ),
+          OpenInFooter(
+            output: _result?.bps.toStringAsFixed(2),
+            excludeUtilityId: 'bps',
+            onSwitchTool: widget.onSwitchTool,
           ),
         ] else
           const MqEmptyHint(label: 'Paste a value with bps, % or decimal.'),

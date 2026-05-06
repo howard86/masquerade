@@ -14,13 +14,13 @@ import '../../theme/mq_theme.dart';
 import '../../utility_catalog.dart';
 import '../../utils/history_recorder.dart';
 import '../mq/mq_button.dart';
-import '../mq/mq_chip.dart';
 import '../mq/mq_empty_hint.dart';
 import '../mq/mq_icons.dart';
 import '../mq/mq_input.dart';
 import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_segmented.dart';
+import 'open_in_footer.dart';
 import 'seed_source.dart';
 
 enum QrMode { generate, scan }
@@ -35,7 +35,7 @@ class QrCodeBody extends StatefulWidget {
 
   final String? initialInput;
   final SeedSource seedSource;
-  final QrSwitchToolCallback? onSwitchTool;
+  final OpenInToolCallback? onSwitchTool;
 
   @override
   State<QrCodeBody> createState() => _QrCodeBodyState();
@@ -139,10 +139,6 @@ class _QrCodeBodyState extends State<QrCodeBody> {
     _recorder?.recordPaste('(camera scan)', result);
   }
 
-  void _openInTool(UtilityDescriptor u, String input) {
-    widget.onSwitchTool?.call(u, input);
-  }
-
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -230,7 +226,7 @@ class _QrCodeBodyState extends State<QrCodeBody> {
       const SizedBox(height: MqSpacing.lg),
       if (text.trim().isEmpty)
         const MqEmptyHint(label: 'Type text or a URL to render its QR code.')
-      else
+      else ...<Widget>[
         Center(
           child: RepaintBoundary(
             key: _qrBoundaryKey,
@@ -263,6 +259,12 @@ class _QrCodeBodyState extends State<QrCodeBody> {
             ),
           ),
         ),
+        OpenInFooter(
+          output: text,
+          excludeUtilityId: 'qr_code',
+          onSwitchTool: widget.onSwitchTool,
+        ),
+      ],
     ];
   }
 
@@ -273,28 +275,14 @@ class _QrCodeBodyState extends State<QrCodeBody> {
         MqEmptyHint(label: 'Tap Scan QR to open the camera.'),
       ];
     }
-    final List<UtilityDescriptor> detected = UtilityCatalog.detectAll(scan);
     return <Widget>[
       const MqSectionHeader(label: 'Result'),
       MqMonoCell(label: 'Scanned', value: scan, accent: true),
-      if (detected.isNotEmpty) ...<Widget>[
-        const SizedBox(height: MqSpacing.md),
-        const MqSectionHeader(label: 'Open in'),
-        Wrap(
-          spacing: MqSpacing.sm,
-          runSpacing: MqSpacing.sm,
-          children: <Widget>[
-            for (final UtilityDescriptor u in detected)
-              MqChip(
-                label: u.name,
-                icon: u.icon,
-                accent: true,
-                mono: false,
-                onTap: () => _openInTool(u, scan),
-              ),
-          ],
-        ),
-      ],
+      OpenInFooter(
+        output: scan,
+        excludeUtilityId: 'qr_code',
+        onSwitchTool: widget.onSwitchTool,
+      ),
     ];
   }
 }

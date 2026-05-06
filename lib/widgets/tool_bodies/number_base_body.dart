@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 
 import '../../state/history_controller.dart';
 import '../../theme/mq_metrics.dart';
+import '../../utility_catalog.dart';
 import '../../utils/history_recorder.dart';
 import '../../utils/number_base_parser.dart';
 import '../mq/mq_button.dart';
@@ -15,6 +16,7 @@ import '../mq/mq_input.dart';
 import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_status.dart';
+import 'open_in_footer.dart';
 import 'seed_source.dart';
 
 class NumberBaseBody extends StatefulWidget {
@@ -22,10 +24,12 @@ class NumberBaseBody extends StatefulWidget {
     super.key,
     this.initialInput,
     this.seedSource = SeedSource.none,
+    this.onSwitchTool,
   });
 
   final String? initialInput;
   final SeedSource seedSource;
+  final OpenInToolCallback? onSwitchTool;
 
   @override
   State<NumberBaseBody> createState() => _NumberBaseBodyState();
@@ -151,6 +155,11 @@ class _NumberBaseBodyState extends State<NumberBaseBody> {
           MqMonoCell(label: 'Octal', value: _result!.octal),
           const SizedBox(height: MqSpacing.sm),
           MqMonoCell(label: 'Binary', value: _result!.binary),
+          OpenInFooter(
+            output: _result?.decimal,
+            excludeUtilityId: 'number_base',
+            onSwitchTool: widget.onSwitchTool,
+          ),
         ] else
           const MqEmptyHint(label: 'Paste a number to convert across bases.'),
         const SizedBox(height: MqSpacing.lg),

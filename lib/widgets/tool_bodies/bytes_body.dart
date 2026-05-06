@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 
 import '../../state/history_controller.dart';
 import '../../theme/mq_metrics.dart';
+import '../../utility_catalog.dart';
 import '../../utils/bytes_parser.dart';
 import '../../utils/history_recorder.dart';
 import '../mq/mq_button.dart';
@@ -16,6 +17,7 @@ import '../mq/mq_input.dart';
 import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_segmented.dart';
+import 'open_in_footer.dart';
 import 'seed_source.dart';
 
 enum BytesMode { encode, decode }
@@ -25,10 +27,12 @@ class BytesBody extends StatefulWidget {
     super.key,
     this.initialInput,
     this.seedSource = SeedSource.none,
+    this.onSwitchTool,
   });
 
   final String? initialInput;
   final SeedSource seedSource;
+  final OpenInToolCallback? onSwitchTool;
 
   @override
   State<BytesBody> createState() => _BytesBodyState();
@@ -252,6 +256,11 @@ class _BytesBodyState extends State<BytesBody> {
         MqMonoCell(label: 'Brackets', value: _outBrackets!),
         const SizedBox(height: MqSpacing.sm),
         MqMonoCell(label: 'Hex', value: _outHex!),
+        OpenInFooter(
+          output: _outSpace,
+          excludeUtilityId: 'bytes',
+          onSwitchTool: widget.onSwitchTool,
+        ),
       ];
     }
     if (_decodedHex == null) {
@@ -274,6 +283,11 @@ class _BytesBodyState extends State<BytesBody> {
       ),
       const SizedBox(height: MqSpacing.sm),
       MqMonoCell(label: 'Hex', value: _decodedHex!),
+      OpenInFooter(
+        output: _decodedText,
+        excludeUtilityId: 'bytes',
+        onSwitchTool: widget.onSwitchTool,
+      ),
     ];
   }
 }

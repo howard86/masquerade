@@ -19,22 +19,22 @@ import 'widgets/tool_bodies/qr_code_body.dart';
 import 'widgets/tool_bodies/seed_source.dart';
 import 'widgets/tool_bodies/timestamp_body.dart';
 
-/// Routes a cross-tool "Open in X" tap from inside a tool body (currently
-/// only QR's scan-result chips) back to the host screen, which expands the
-/// target tool's inline card seeded with [input].
-typedef QrSwitchToolCallback = void Function(UtilityDescriptor u, String input);
+/// Routes a cross-tool "Open in X" tap from any tool body's footer back to
+/// the host screen, which expands the target tool's inline card seeded with
+/// [input]. Fired by `OpenInFooter` and the QR scan-result chips.
+typedef OpenInToolCallback = void Function(UtilityDescriptor u, String input);
 
 /// Builds an embeddable tool body for inline rendering inside an
 /// `InlineToolCard`. Receives the optional seed input and how it arrived
 /// ([SeedSource]) so the body can decide whether to record history
-/// immediately (paste) or behind a typing-debounce. [onSwitchTool] is
-/// honoured only by QR; other builders ignore it.
+/// immediately (paste) or behind a typing-debounce. [onSwitchTool] lets a
+/// body pipe its current output into another tool without leaving Home.
 typedef UtilityBuilder =
     Widget Function(
       BuildContext context, {
       String? initialInput,
       SeedSource seedSource,
-      QrSwitchToolCallback? onSwitchTool,
+      OpenInToolCallback? onSwitchTool,
     });
 
 class UtilityDescriptor {
@@ -76,10 +76,11 @@ class UtilityCatalog {
             BuildContext _, {
             String? initialInput,
             SeedSource seedSource = SeedSource.none,
-            QrSwitchToolCallback? onSwitchTool,
+            OpenInToolCallback? onSwitchTool,
           }) => NumberBaseBody(
             initialInput: initialInput,
             seedSource: seedSource,
+            onSwitchTool: onSwitchTool,
           ),
       detect: _detectNumberBase,
     ),
@@ -95,9 +96,12 @@ class UtilityCatalog {
             BuildContext _, {
             String? initialInput,
             SeedSource seedSource = SeedSource.none,
-            QrSwitchToolCallback? onSwitchTool,
-          }) =>
-              TimestampBody(initialInput: initialInput, seedSource: seedSource),
+            OpenInToolCallback? onSwitchTool,
+          }) => TimestampBody(
+            initialInput: initialInput,
+            seedSource: seedSource,
+            onSwitchTool: onSwitchTool,
+          ),
       detect: _detectTimestamp,
     ),
     UtilityDescriptor(
@@ -112,8 +116,12 @@ class UtilityCatalog {
             BuildContext _, {
             String? initialInput,
             SeedSource seedSource = SeedSource.none,
-            QrSwitchToolCallback? onSwitchTool,
-          }) => JSONBody(initialInput: initialInput, seedSource: seedSource),
+            OpenInToolCallback? onSwitchTool,
+          }) => JSONBody(
+            initialInput: initialInput,
+            seedSource: seedSource,
+            onSwitchTool: onSwitchTool,
+          ),
       detect: _detectJson,
     ),
     UtilityDescriptor(
@@ -128,8 +136,12 @@ class UtilityCatalog {
             BuildContext _, {
             String? initialInput,
             SeedSource seedSource = SeedSource.none,
-            QrSwitchToolCallback? onSwitchTool,
-          }) => Base64Body(initialInput: initialInput, seedSource: seedSource),
+            OpenInToolCallback? onSwitchTool,
+          }) => Base64Body(
+            initialInput: initialInput,
+            seedSource: seedSource,
+            onSwitchTool: onSwitchTool,
+          ),
       detect: _detectBase64,
     ),
     UtilityDescriptor(
@@ -144,8 +156,12 @@ class UtilityCatalog {
             BuildContext _, {
             String? initialInput,
             SeedSource seedSource = SeedSource.none,
-            QrSwitchToolCallback? onSwitchTool,
-          }) => ColorBody(initialInput: initialInput, seedSource: seedSource),
+            OpenInToolCallback? onSwitchTool,
+          }) => ColorBody(
+            initialInput: initialInput,
+            seedSource: seedSource,
+            onSwitchTool: onSwitchTool,
+          ),
       detect: _detectColor,
     ),
     UtilityDescriptor(
@@ -160,8 +176,12 @@ class UtilityCatalog {
             BuildContext _, {
             String? initialInput,
             SeedSource seedSource = SeedSource.none,
-            QrSwitchToolCallback? onSwitchTool,
-          }) => BpsBody(initialInput: initialInput, seedSource: seedSource),
+            OpenInToolCallback? onSwitchTool,
+          }) => BpsBody(
+            initialInput: initialInput,
+            seedSource: seedSource,
+            onSwitchTool: onSwitchTool,
+          ),
       detect: _detectBps,
     ),
     UtilityDescriptor(
@@ -176,8 +196,12 @@ class UtilityCatalog {
             BuildContext _, {
             String? initialInput,
             SeedSource seedSource = SeedSource.none,
-            QrSwitchToolCallback? onSwitchTool,
-          }) => BytesBody(initialInput: initialInput, seedSource: seedSource),
+            OpenInToolCallback? onSwitchTool,
+          }) => BytesBody(
+            initialInput: initialInput,
+            seedSource: seedSource,
+            onSwitchTool: onSwitchTool,
+          ),
       detect: _detectBytes,
     ),
     UtilityDescriptor(
@@ -192,7 +216,7 @@ class UtilityCatalog {
             BuildContext _, {
             String? initialInput,
             SeedSource seedSource = SeedSource.none,
-            QrSwitchToolCallback? onSwitchTool,
+            OpenInToolCallback? onSwitchTool,
           }) => QrCodeBody(
             initialInput: initialInput,
             seedSource: seedSource,

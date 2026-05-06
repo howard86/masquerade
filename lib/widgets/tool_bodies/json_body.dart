@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 
 import '../../state/history_controller.dart';
 import '../../theme/mq_metrics.dart';
+import '../../utility_catalog.dart';
 import '../../utils/history_recorder.dart';
 import '../../utils/json_parser.dart';
 import '../mq/mq_button.dart';
@@ -16,6 +17,7 @@ import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_segmented.dart';
 import '../mq/mq_status.dart';
+import 'open_in_footer.dart';
 import 'seed_source.dart';
 
 enum JSONMode { pretty, minify, tree }
@@ -25,10 +27,12 @@ class JSONBody extends StatefulWidget {
     super.key,
     this.initialInput,
     this.seedSource = SeedSource.none,
+    this.onSwitchTool,
   });
 
   final String? initialInput;
   final SeedSource seedSource;
+  final OpenInToolCallback? onSwitchTool;
 
   @override
   State<JSONBody> createState() => _JSONBodyState();
@@ -179,6 +183,11 @@ class _JSONBodyState extends State<JSONBody> {
           MqMonoCell(
             label: _mode.name.toUpperCase(),
             value: _formatOutput((_result! as JSONOk).value.value),
+          ),
+          OpenInFooter(
+            output: JSONParser.minify((_result! as JSONOk).value.value),
+            excludeUtilityId: 'json',
+            onSwitchTool: widget.onSwitchTool,
           ),
         ] else
           const MqEmptyHint(label: 'Paste JSON to format or validate.'),

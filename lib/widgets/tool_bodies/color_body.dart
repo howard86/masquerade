@@ -8,6 +8,7 @@ import '../../state/history_controller.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
+import '../../utility_catalog.dart';
 import '../../utils/color_parser.dart';
 import '../../utils/history_recorder.dart';
 import '../mq/mq_button.dart';
@@ -17,6 +18,7 @@ import '../mq/mq_input.dart';
 import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_status.dart';
+import 'open_in_footer.dart';
 import 'seed_source.dart';
 
 class ColorBody extends StatefulWidget {
@@ -24,10 +26,12 @@ class ColorBody extends StatefulWidget {
     super.key,
     this.initialInput,
     this.seedSource = SeedSource.none,
+    this.onSwitchTool,
   });
 
   final String? initialInput;
   final SeedSource seedSource;
+  final OpenInToolCallback? onSwitchTool;
 
   @override
   State<ColorBody> createState() => _ColorBodyState();
@@ -190,6 +194,11 @@ class _ColorBodyState extends State<ColorBody> {
                 ),
               ),
             ],
+          ),
+          OpenInFooter(
+            output: _value?.hex,
+            excludeUtilityId: 'color',
+            onSwitchTool: widget.onSwitchTool,
           ),
         ] else
           const MqEmptyHint(label: 'Paste a color to inspect.'),

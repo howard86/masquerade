@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 
 import '../../state/history_controller.dart';
 import '../../theme/mq_metrics.dart';
+import '../../utility_catalog.dart';
 import '../../utils/history_recorder.dart';
 import '../mq/mq_button.dart';
 import '../mq/mq_chip.dart';
@@ -16,6 +17,7 @@ import '../mq/mq_input.dart';
 import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_segmented.dart';
+import 'open_in_footer.dart';
 import 'seed_source.dart';
 
 enum Base64Mode { encode, decode }
@@ -25,10 +27,12 @@ class Base64Body extends StatefulWidget {
     super.key,
     this.initialInput,
     this.seedSource = SeedSource.none,
+    this.onSwitchTool,
   });
 
   final String? initialInput;
   final SeedSource seedSource;
+  final OpenInToolCallback? onSwitchTool;
 
   @override
   State<Base64Body> createState() => _Base64BodyState();
@@ -220,6 +224,11 @@ class _Base64BodyState extends State<Base64Body> {
             label: _mode == Base64Mode.encode ? 'Base64' : 'Plain text',
             value: _output!,
             accent: true,
+          ),
+          OpenInFooter(
+            output: _output,
+            excludeUtilityId: 'base64',
+            onSwitchTool: widget.onSwitchTool,
           ),
         ] else
           MqEmptyHint(
