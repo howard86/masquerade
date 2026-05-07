@@ -16,7 +16,7 @@ void main() {
   ) async {
     await pumpHomeAndOpen(tester, 'bps · % · decimal');
 
-    await tester.enterText(find.byType(EditableText), '100bps');
+    await tester.enterText(find.byType(EditableText).last, '100bps');
     await tester.pumpAndSettle(kDebouncePump);
 
     expect(find.text(BpsForm.bps.name.toUpperCase()), findsOneWidget);
@@ -30,7 +30,7 @@ void main() {
   ) async {
     await pumpHomeAndOpen(tester, 'bps · % · decimal');
 
-    await tester.enterText(find.byType(EditableText), '0.5%');
+    await tester.enterText(find.byType(EditableText).last, '0.5%');
     await tester.pumpAndSettle(kDebouncePump);
 
     expect(find.text(BpsForm.percent.name.toUpperCase()), findsOneWidget);
@@ -44,7 +44,7 @@ void main() {
   ) async {
     await pumpHomeAndOpen(tester, 'bps · % · decimal');
 
-    await tester.enterText(find.byType(EditableText), '0.025');
+    await tester.enterText(find.byType(EditableText).last, '0.025');
     await tester.pumpAndSettle(kDebouncePump);
 
     expect(find.text(BpsForm.decimal.name.toUpperCase()), findsOneWidget);
@@ -58,7 +58,7 @@ void main() {
   ) async {
     await pumpHomeAndOpen(tester, 'bps · % · decimal');
 
-    await tester.enterText(find.byType(EditableText), 'not a rate');
+    await tester.enterText(find.byType(EditableText).last, 'not a rate');
     await tester.pumpAndSettle(kDebouncePump);
 
     expect(

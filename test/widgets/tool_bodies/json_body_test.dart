@@ -14,7 +14,7 @@ void main() {
   ) async {
     await pumpHomeAndOpen(tester, 'JSON');
 
-    await tester.enterText(find.byType(EditableText), '{"a":1}');
+    await tester.enterText(find.byType(EditableText).last, '{"a":1}');
     await tester.pumpAndSettle(kDebouncePump);
 
     expect(find.text('PRETTY'), findsOneWidget);
@@ -26,7 +26,7 @@ void main() {
   ) async {
     await pumpHomeAndOpen(tester, 'JSON');
 
-    await tester.enterText(find.byType(EditableText), '{ "a" : 1 }');
+    await tester.enterText(find.byType(EditableText).last, '{ "a" : 1 }');
     await tester.pumpAndSettle(kDebouncePump);
 
     await tester.tap(find.text('Minify'));
@@ -41,7 +41,7 @@ void main() {
   ) async {
     await pumpHomeAndOpen(tester, 'JSON');
 
-    await tester.enterText(find.byType(EditableText), '{"a":1}');
+    await tester.enterText(find.byType(EditableText).last, '{"a":1}');
     await tester.pumpAndSettle(kDebouncePump);
 
     await tester.tap(find.text('Tree'));
@@ -56,7 +56,7 @@ void main() {
   ) async {
     await pumpHomeAndOpen(tester, 'JSON');
 
-    await tester.enterText(find.byType(EditableText), '{');
+    await tester.enterText(find.byType(EditableText).last, '{');
     await tester.pumpAndSettle(kDebouncePump);
 
     expect(find.textContaining('ERROR · LINE 1 COL'), findsOneWidget);

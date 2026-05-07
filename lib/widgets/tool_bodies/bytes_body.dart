@@ -7,28 +7,38 @@ import 'package:flutter/widgets.dart';
 
 import '../../state/history_controller.dart';
 import '../../theme/mq_metrics.dart';
+import '../../utility_catalog.dart';
 import '../../utils/bytes_parser.dart';
-import '../../widgets/mq/mq_button.dart';
-import '../../widgets/mq/mq_empty_hint.dart';
-import '../../widgets/mq/mq_icons.dart';
-import '../../widgets/mq/mq_input.dart';
-import '../../widgets/mq/mq_mono_cell.dart';
-import '../../widgets/mq/mq_section_header.dart';
-import '../../widgets/mq/mq_segmented.dart';
-import 'detail_scaffold.dart';
+import '../../utils/history_recorder.dart';
+import '../mq/mq_button.dart';
+import '../mq/mq_empty_hint.dart';
+import '../mq/mq_icons.dart';
+import '../mq/mq_input.dart';
+import '../mq/mq_mono_cell.dart';
+import '../mq/mq_section_header.dart';
+import '../mq/mq_segmented.dart';
+import 'open_in_footer.dart';
+import 'seed_source.dart';
 
 enum BytesMode { encode, decode }
 
-class BytesScreen extends StatefulWidget {
-  const BytesScreen({super.key, this.initialInput});
+class BytesBody extends StatefulWidget {
+  const BytesBody({
+    super.key,
+    this.initialInput,
+    this.seedSource = SeedSource.none,
+    this.onSwitchTool,
+  });
 
   final String? initialInput;
+  final SeedSource seedSource;
+  final OpenInToolCallback? onSwitchTool;
 
   @override
-  State<BytesScreen> createState() => _BytesScreenState();
+  State<BytesBody> createState() => _BytesBodyState();
 }
 
-class _BytesScreenState extends State<BytesScreen> {
+class _BytesBodyState extends State<BytesBody> {
   final TextEditingController _controller = TextEditingController();
   Timer? _debounce;
   BytesMode _mode = BytesMode.decode;
@@ -38,7 +48,8 @@ class _BytesScreenState extends State<BytesScreen> {
   String? _decodedText;
   String? _decodedHex;
   String? _error;
-  String? _lastLoggedInput;
+
+  HistoryRecorder? _recorder;
 
   @override
   void initState() {
@@ -54,8 +65,23 @@ class _BytesScreenState extends State<BytesScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_recorder == null) {
+      _recorder = HistoryRecorder(
+        controller: HistoryScope.of(context),
+        utilityId: 'bytes',
+      );
+      if (widget.seedSource == SeedSource.paste) {
+        _recorder!.markPaste();
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _debounce?.cancel();
+    _recorder?.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -89,7 +115,7 @@ class _BytesScreenState extends State<BytesScreen> {
         _outBrackets = BytesParser.format(bytes, BytesFormat.brackets);
         _outHex = BytesParser.format(bytes, BytesFormat.hex);
       });
-      _logHistory(input, _outSpace!);
+      _recorder?.record(input, _outSpace!);
       return;
     }
 
@@ -114,27 +140,15 @@ class _BytesScreenState extends State<BytesScreen> {
           _decodedHex = hex;
           _error = error;
         });
-        _logHistory(input, text ?? hex);
+        _recorder?.record(input, text ?? hex);
     }
-  }
-
-  void _logHistory(String input, String output) {
-    if (input == _lastLoggedInput) return;
-    _lastLoggedInput = input;
-    HistoryScope.of(context).add(
-      HistoryEntry(
-        utilityId: 'bytes',
-        input: input,
-        output: output,
-        timestamp: DateTime.now(),
-      ),
-    );
   }
 
   Future<void> _paste() async {
     final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
     if (data?.text == null) return;
     _controller.text = data!.text!;
+    _recorder?.markPaste();
     _convert();
   }
 
@@ -155,77 +169,76 @@ class _BytesScreenState extends State<BytesScreen> {
       _mode = _mode == BytesMode.encode ? BytesMode.decode : BytesMode.encode;
       _controller.text = payload;
     });
+    _recorder?.markPaste();
     _convert();
   }
 
   @override
   Widget build(BuildContext context) {
-    return MqDetailScaffold(
-      title: 'Bytes',
-      subtitle: 'Byte array ↔ text (UTF-8). Brackets optional on decode.',
-      bottomBar: Row(
-        children: <Widget>[
-          Expanded(
-            child: MqButton(
-              label: 'Paste',
-              icon: MqIcons.paste,
-              variant: MqButtonVariant.glass,
-              onPressed: _paste,
-              full: true,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        MqSegmented<BytesMode>(
+          options: const <BytesMode, String>{
+            BytesMode.encode: 'Encode',
+            BytesMode.decode: 'Decode',
+          },
+          selected: _mode,
+          onChanged: (BytesMode m) {
+            setState(() => _mode = m);
+            _convert();
+          },
+        ),
+        const SizedBox(height: MqSpacing.md),
+        MqInput(
+          controller: _controller,
+          label: 'Input',
+          placeholder: _mode == BytesMode.encode
+              ? 'Plain text'
+              : '[72, 101, 108, 108, 111] or 72 101 108 108 111',
+          onChanged: _onChanged,
+          onPaste: (_) => _recorder?.markPaste(),
+          multiline: true,
+          minLines: 3,
+          maxLines: 8,
+        ),
+        const SizedBox(height: MqSpacing.lg),
+        ..._buildOutput(),
+        const SizedBox(height: MqSpacing.lg),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: MqButton(
+                label: 'Paste',
+                icon: MqIcons.paste,
+                variant: MqButtonVariant.glass,
+                onPressed: _paste,
+                full: true,
+              ),
             ),
-          ),
-          const SizedBox(width: MqSpacing.sm),
-          Expanded(
-            child: MqButton(
-              label: 'Swap',
-              icon: MqIcons.swap,
-              variant: MqButtonVariant.glass,
-              onPressed: _swapPayload == null ? null : _swap,
-              full: true,
+            const SizedBox(width: MqSpacing.sm),
+            Expanded(
+              child: MqButton(
+                label: 'Swap',
+                icon: MqIcons.swap,
+                variant: MqButtonVariant.glass,
+                onPressed: _swapPayload == null ? null : _swap,
+                full: true,
+              ),
             ),
-          ),
-          const SizedBox(width: MqSpacing.sm),
-          Expanded(
-            child: MqButton(
-              label: 'Clear',
-              icon: MqIcons.clear,
-              variant: MqButtonVariant.glass,
-              onPressed: _clear,
-              full: true,
+            const SizedBox(width: MqSpacing.sm),
+            Expanded(
+              child: MqButton(
+                label: 'Clear',
+                icon: MqIcons.clear,
+                variant: MqButtonVariant.glass,
+                onPressed: _clear,
+                full: true,
+              ),
             ),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          MqSegmented<BytesMode>(
-            options: const <BytesMode, String>{
-              BytesMode.encode: 'Encode',
-              BytesMode.decode: 'Decode',
-            },
-            selected: _mode,
-            onChanged: (BytesMode m) {
-              setState(() => _mode = m);
-              _convert();
-            },
-          ),
-          const SizedBox(height: MqSpacing.md),
-          MqInput(
-            controller: _controller,
-            label: 'Input',
-            placeholder: _mode == BytesMode.encode
-                ? 'Plain text'
-                : '[72, 101, 108, 108, 111] or 72 101 108 108 111',
-            onChanged: _onChanged,
-            multiline: true,
-            minLines: 3,
-            maxLines: 8,
-          ),
-          const SizedBox(height: MqSpacing.lg),
-          ..._buildOutput(),
-        ],
-      ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -243,6 +256,11 @@ class _BytesScreenState extends State<BytesScreen> {
         MqMonoCell(label: 'Brackets', value: _outBrackets!),
         const SizedBox(height: MqSpacing.sm),
         MqMonoCell(label: 'Hex', value: _outHex!),
+        OpenInFooter(
+          output: _outSpace,
+          excludeUtilityId: 'bytes',
+          onSwitchTool: widget.onSwitchTool,
+        ),
       ];
     }
     if (_decodedHex == null) {
@@ -265,6 +283,11 @@ class _BytesScreenState extends State<BytesScreen> {
       ),
       const SizedBox(height: MqSpacing.sm),
       MqMonoCell(label: 'Hex', value: _decodedHex!),
+      OpenInFooter(
+        output: _decodedText,
+        excludeUtilityId: 'bytes',
+        onSwitchTool: widget.onSwitchTool,
+      ),
     ];
   }
 }

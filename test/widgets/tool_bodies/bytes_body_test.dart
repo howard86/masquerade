@@ -14,7 +14,10 @@ void main() {
   ) async {
     await pumpHomeAndOpen(tester, 'Bytes');
 
-    await tester.enterText(find.byType(EditableText), '72 101 108 108 111');
+    await tester.enterText(
+      find.byType(EditableText).last,
+      '72 101 108 108 111',
+    );
     await tester.pumpAndSettle(kDebouncePump);
 
     expect(find.text('Hello'), findsOneWidget);
@@ -26,7 +29,7 @@ void main() {
   ) async {
     await pumpHomeAndOpen(tester, 'Bytes');
 
-    await tester.enterText(find.byType(EditableText), '[72, 105]');
+    await tester.enterText(find.byType(EditableText).last, '[72, 105]');
     await tester.pumpAndSettle(kDebouncePump);
 
     expect(find.text('Hi'), findsOneWidget);
@@ -41,7 +44,7 @@ void main() {
     await tester.tap(find.text('Encode'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(EditableText), 'Hi');
+    await tester.enterText(find.byType(EditableText).last, 'Hi');
     await tester.pumpAndSettle(kDebouncePump);
 
     expect(find.text('72 105'), findsOneWidget);
@@ -54,7 +57,7 @@ void main() {
   ) async {
     await pumpHomeAndOpen(tester, 'Bytes');
 
-    await tester.enterText(find.byType(EditableText), '300 1 2');
+    await tester.enterText(find.byType(EditableText).last, '300 1 2');
     await tester.pumpAndSettle(kDebouncePump);
 
     expect(find.textContaining('out of range'), findsOneWidget);
@@ -66,7 +69,7 @@ void main() {
     await pumpHomeAndOpen(tester, 'Bytes');
 
     // 0xC8 0xC8 are valid byte values but not a valid UTF-8 sequence.
-    await tester.enterText(find.byType(EditableText), '200 200');
+    await tester.enterText(find.byType(EditableText).last, '200 200');
     await tester.pumpAndSettle(kDebouncePump);
 
     expect(find.textContaining('Invalid UTF-8'), findsOneWidget);

@@ -4,7 +4,6 @@ import '../theme/mq_theme.dart';
 import '../widgets/mq/mq_icons.dart';
 import 'history_screen.dart';
 import 'home_screen.dart';
-import 'search_screen.dart';
 import 'settings_screen.dart';
 
 class RootTabScaffold extends StatefulWidget {
@@ -41,7 +40,6 @@ class _RootTabScaffoldState extends State<RootTabScaffold> {
         border: Border(top: BorderSide(color: c.border, width: 0.5)),
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(icon: Icon(MqIcons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(MqIcons.search), label: 'Search'),
           BottomNavigationBarItem(
             icon: Icon(MqIcons.history),
             label: 'History',
@@ -56,8 +54,7 @@ class _RootTabScaffoldState extends State<RootTabScaffold> {
         return CupertinoTabView(
           builder: (BuildContext context) => switch (index) {
             0 => const HomeScreen(),
-            1 => const SearchScreen(),
-            2 => const HistoryScreen(),
+            1 => const HistoryScreen(),
             _ => const SettingsScreen(),
           },
         );

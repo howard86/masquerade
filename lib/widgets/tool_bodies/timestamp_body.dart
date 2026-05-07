@@ -8,27 +8,37 @@ import '../../state/history_controller.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
+import '../../utility_catalog.dart';
+import '../../utils/history_recorder.dart';
 import '../../utils/timestamp_parser.dart';
-import '../../widgets/mq/mq_button.dart';
-import '../../widgets/mq/mq_empty_hint.dart';
-import '../../widgets/mq/mq_icons.dart';
-import '../../widgets/mq/mq_input.dart';
-import '../../widgets/mq/mq_mono_cell.dart';
-import '../../widgets/mq/mq_section_header.dart';
-import '../../widgets/mq/mq_status.dart';
-import '../../widgets/mq/mq_surface.dart';
-import 'detail_scaffold.dart';
+import '../mq/mq_button.dart';
+import '../mq/mq_empty_hint.dart';
+import '../mq/mq_icons.dart';
+import '../mq/mq_input.dart';
+import '../mq/mq_mono_cell.dart';
+import '../mq/mq_section_header.dart';
+import '../mq/mq_status.dart';
+import '../mq/mq_surface.dart';
+import 'open_in_footer.dart';
+import 'seed_source.dart';
 
-class TimestampScreen extends StatefulWidget {
-  const TimestampScreen({super.key, this.initialInput});
+class TimestampBody extends StatefulWidget {
+  const TimestampBody({
+    super.key,
+    this.initialInput,
+    this.seedSource = SeedSource.none,
+    this.onSwitchTool,
+  });
 
   final String? initialInput;
+  final SeedSource seedSource;
+  final OpenInToolCallback? onSwitchTool;
 
   @override
-  State<TimestampScreen> createState() => _TimestampScreenState();
+  State<TimestampBody> createState() => _TimestampBodyState();
 }
 
-class _TimestampScreenState extends State<TimestampScreen> {
+class _TimestampBodyState extends State<TimestampBody> {
   final TextEditingController _controller = TextEditingController();
   Timer? _debounce;
   DateTime? _parsed;
@@ -36,7 +46,8 @@ class _TimestampScreenState extends State<TimestampScreen> {
   String? _error;
   bool _ambiguous = false;
   bool _naive = false;
-  String? _lastHistoryInput;
+
+  HistoryRecorder? _recorder;
 
   @override
   void initState() {
@@ -51,8 +62,23 @@ class _TimestampScreenState extends State<TimestampScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_recorder == null) {
+      _recorder = HistoryRecorder(
+        controller: HistoryScope.of(context),
+        utilityId: 'timestamp',
+      );
+      if (widget.seedSource == SeedSource.paste) {
+        _recorder!.markPaste();
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _debounce?.cancel();
+    _recorder?.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -87,22 +113,15 @@ class _TimestampScreenState extends State<TimestampScreen> {
                 '• Keywords: now, today, yesterday, tomorrow,\n'
                 '  or this/last/next + second/minute/hour/day/week/month/year';
     });
-    if (result.isSuccess && input != _lastHistoryInput) {
-      _lastHistoryInput = input;
-      HistoryScope.of(context).add(
-        HistoryEntry(
-          utilityId: 'timestamp',
-          input: input,
-          output: result.timestamp!.toIso8601String(),
-          timestamp: DateTime.now(),
-        ),
-      );
+    if (result.isSuccess) {
+      _recorder?.record(input, result.timestamp!.toIso8601String());
     }
   }
 
   void _applyKeyword(String keyword) {
     _debounce?.cancel();
     _controller.text = keyword;
+    _recorder?.markPaste();
     _parse();
   }
 
@@ -110,6 +129,7 @@ class _TimestampScreenState extends State<TimestampScreen> {
     final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
     if (data?.text == null) return;
     _controller.text = data!.text!;
+    _recorder?.markPaste();
     _parse();
   }
 
@@ -126,80 +146,79 @@ class _TimestampScreenState extends State<TimestampScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return MqDetailScaffold(
-      title: 'Timestamp',
-      subtitle:
-          'Auto-detect ms vs s. Local TZ first; UTC + ISO + relative below.',
-      bottomBar: Row(
-        children: <Widget>[
-          Expanded(
-            child: MqButton(
-              label: 'Paste',
-              icon: MqIcons.paste,
-              variant: MqButtonVariant.glass,
-              onPressed: _paste,
-              full: true,
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        MqInput(
+          controller: _controller,
+          label: 'Input',
+          placeholder:
+              'Enter timestamp (Unix s/ms/µs/ns, ISO 8601, or keyword)',
+          onChanged: _onChanged,
+          onPaste: (_) => _recorder?.markPaste(),
+          multiline: true,
+          minLines: 1,
+          maxLines: 3,
+          trailing: _KeywordPickerButton(onPick: _applyKeyword),
+        ),
+        const SizedBox(height: MqSpacing.lg),
+        if (_error != null)
+          MqMonoCell(
+            label: 'Error',
+            value: _error!,
+            copyable: false,
+            accent: false,
+          )
+        else if (_parsed != null) ...<Widget>[
+          const MqSectionHeader(label: 'Output'),
+          Wrap(
+            spacing: MqSpacing.sm,
+            runSpacing: MqSpacing.xs,
+            children: <Widget>[
+              MqStatus(label: _formatLabel(_format), kind: MqStatusKind.info),
+              if (_ambiguous)
+                const MqStatus(label: 'Ambiguous', kind: MqStatusKind.warning),
+              if (_naive)
+                const MqStatus(
+                  label: 'Local TZ assumed',
+                  kind: MqStatusKind.warning,
+                ),
+            ],
           ),
-          const SizedBox(width: MqSpacing.sm),
-          Expanded(
-            child: MqButton(
-              label: 'Clear',
-              icon: MqIcons.clear,
-              variant: MqButtonVariant.glass,
-              onPressed: _clear,
-              full: true,
-            ),
+          const SizedBox(height: MqSpacing.md),
+          ..._outputRows(_parsed!),
+          OpenInFooter(
+            output: _parsed?.toUtc().toIso8601String(),
+            excludeUtilityId: 'timestamp',
+            onSwitchTool: widget.onSwitchTool,
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          MqInput(
-            controller: _controller,
-            label: 'Input',
-            placeholder:
-                'Enter timestamp (Unix s/ms/µs/ns, ISO 8601, or keyword)',
-            onChanged: _onChanged,
-            multiline: true,
-            minLines: 1,
-            maxLines: 3,
-            trailing: _KeywordPickerButton(onPick: _applyKeyword),
-          ),
-          const SizedBox(height: MqSpacing.lg),
-          if (_error != null)
-            MqMonoCell(
-              label: 'Error',
-              value: _error!,
-              copyable: false,
-              accent: false,
-            )
-          else if (_parsed != null) ...<Widget>[
-            const MqSectionHeader(label: 'Output'),
-            Wrap(
-              spacing: MqSpacing.sm,
-              runSpacing: MqSpacing.xs,
-              children: <Widget>[
-                MqStatus(label: _formatLabel(_format), kind: MqStatusKind.info),
-                if (_ambiguous)
-                  const MqStatus(
-                    label: 'Ambiguous',
-                    kind: MqStatusKind.warning,
-                  ),
-                if (_naive)
-                  const MqStatus(
-                    label: 'Local TZ assumed',
-                    kind: MqStatusKind.warning,
-                  ),
-              ],
+        ] else
+          const MqEmptyHint(label: 'Paste a timestamp to see all forms.'),
+        const SizedBox(height: MqSpacing.lg),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: MqButton(
+                label: 'Paste',
+                icon: MqIcons.paste,
+                variant: MqButtonVariant.glass,
+                onPressed: _paste,
+                full: true,
+              ),
             ),
-            const SizedBox(height: MqSpacing.md),
-            ..._outputRows(_parsed!),
-          ] else
-            const MqEmptyHint(label: 'Paste a timestamp to see all forms.'),
-        ],
-      ),
+            const SizedBox(width: MqSpacing.sm),
+            Expanded(
+              child: MqButton(
+                label: 'Clear',
+                icon: MqIcons.clear,
+                variant: MqButtonVariant.glass,
+                onPressed: _clear,
+                full: true,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 

@@ -7,39 +7,49 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../screens/detail/qr_scanner_route.dart';
 import '../../state/history_controller.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../utility_catalog.dart';
-import '../../widgets/mq/mq_button.dart';
-import '../../widgets/mq/mq_chip.dart';
-import '../../widgets/mq/mq_empty_hint.dart';
-import '../../widgets/mq/mq_icons.dart';
-import '../../widgets/mq/mq_input.dart';
-import '../../widgets/mq/mq_mono_cell.dart';
-import '../../widgets/mq/mq_section_header.dart';
-import '../../widgets/mq/mq_segmented.dart';
-import 'detail_scaffold.dart';
-import 'qr_scanner_route.dart';
+import '../../utils/history_recorder.dart';
+import '../mq/mq_button.dart';
+import '../mq/mq_empty_hint.dart';
+import '../mq/mq_icons.dart';
+import '../mq/mq_input.dart';
+import '../mq/mq_mono_cell.dart';
+import '../mq/mq_section_header.dart';
+import '../mq/mq_segmented.dart';
+import 'open_in_footer.dart';
+import 'seed_source.dart';
 
 enum QrMode { generate, scan }
 
-class QrCodeScreen extends StatefulWidget {
-  const QrCodeScreen({super.key, this.initialInput});
+class QrCodeBody extends StatefulWidget {
+  const QrCodeBody({
+    super.key,
+    this.initialInput,
+    this.seedSource = SeedSource.none,
+    this.onSwitchTool,
+  });
 
   final String? initialInput;
+  final SeedSource seedSource;
+  final OpenInToolCallback? onSwitchTool;
 
   @override
-  State<QrCodeScreen> createState() => _QrCodeScreenState();
+  State<QrCodeBody> createState() => _QrCodeBodyState();
 }
 
-class _QrCodeScreenState extends State<QrCodeScreen> {
+class _QrCodeBodyState extends State<QrCodeBody> {
   final TextEditingController _controller = TextEditingController();
   final GlobalKey _qrBoundaryKey = GlobalKey();
   Timer? _debounce;
   QrMode _mode = QrMode.generate;
   String? _scanResult;
   bool _exporting = false;
+
+  HistoryRecorder? _recorder;
 
   @override
   void initState() {
@@ -51,8 +61,18 @@ class _QrCodeScreenState extends State<QrCodeScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _recorder ??= HistoryRecorder(
+      controller: HistoryScope.of(context),
+      utilityId: 'qr_code',
+    );
+  }
+
+  @override
   void dispose() {
     _debounce?.cancel();
+    _recorder?.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -116,41 +136,31 @@ class _QrCodeScreenState extends State<QrCodeScreen> {
     final String? result = await pushQrScanner(context);
     if (!mounted || result == null || result.isEmpty) return;
     setState(() => _scanResult = result);
-    HistoryScope.of(context).add(
-      HistoryEntry(
-        utilityId: 'qr_code',
-        input: '(camera scan)',
-        output: result,
-        timestamp: DateTime.now(),
-      ),
-    );
+    _recorder?.recordPaste('(camera scan)', result);
   }
 
   @override
   Widget build(BuildContext context) {
-    return MqDetailScaffold(
-      title: 'QR Code',
-      subtitle: 'Generate QR from text · scan QR with camera.',
-      bottomBar: _buildBottomBar(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          MqSegmented<QrMode>(
-            options: const <QrMode, String>{
-              QrMode.generate: 'Generate',
-              QrMode.scan: 'Scan',
-            },
-            selected: _mode,
-            onChanged: (QrMode m) => setState(() {
-              _mode = m;
-              if (m == QrMode.scan) _scanResult = null;
-            }),
-          ),
-          const SizedBox(height: MqSpacing.md),
-          if (_mode == QrMode.generate) ..._buildGenerate(context),
-          if (_mode == QrMode.scan) ..._buildScan(context),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        MqSegmented<QrMode>(
+          options: const <QrMode, String>{
+            QrMode.generate: 'Generate',
+            QrMode.scan: 'Scan',
+          },
+          selected: _mode,
+          onChanged: (QrMode m) => setState(() {
+            _mode = m;
+            if (m == QrMode.scan) _scanResult = null;
+          }),
+        ),
+        const SizedBox(height: MqSpacing.md),
+        if (_mode == QrMode.generate) ..._buildGenerate(context),
+        if (_mode == QrMode.scan) ..._buildScan(context),
+        const SizedBox(height: MqSpacing.lg),
+        _buildBottomBar(),
+      ],
     );
   }
 
@@ -216,7 +226,7 @@ class _QrCodeScreenState extends State<QrCodeScreen> {
       const SizedBox(height: MqSpacing.lg),
       if (text.trim().isEmpty)
         const MqEmptyHint(label: 'Type text or a URL to render its QR code.')
-      else
+      else ...<Widget>[
         Center(
           child: RepaintBoundary(
             key: _qrBoundaryKey,
@@ -249,6 +259,12 @@ class _QrCodeScreenState extends State<QrCodeScreen> {
             ),
           ),
         ),
+        OpenInFooter(
+          output: text,
+          excludeUtilityId: 'qr_code',
+          onSwitchTool: widget.onSwitchTool,
+        ),
+      ],
     ];
   }
 
@@ -259,28 +275,14 @@ class _QrCodeScreenState extends State<QrCodeScreen> {
         MqEmptyHint(label: 'Tap Scan QR to open the camera.'),
       ];
     }
-    final List<UtilityDescriptor> detected = UtilityCatalog.detectAll(scan);
     return <Widget>[
       const MqSectionHeader(label: 'Result'),
       MqMonoCell(label: 'Scanned', value: scan, accent: true),
-      if (detected.isNotEmpty) ...<Widget>[
-        const SizedBox(height: MqSpacing.md),
-        const MqSectionHeader(label: 'Open in'),
-        Wrap(
-          spacing: MqSpacing.sm,
-          runSpacing: MqSpacing.sm,
-          children: <Widget>[
-            for (final UtilityDescriptor u in detected)
-              MqChip(
-                label: u.name,
-                icon: u.icon,
-                accent: true,
-                mono: false,
-                onTap: () => u.push(context, initialInput: scan),
-              ),
-          ],
-        ),
-      ],
+      OpenInFooter(
+        output: scan,
+        excludeUtilityId: 'qr_code',
+        onSwitchTool: widget.onSwitchTool,
+      ),
     ];
   }
 }

@@ -18,6 +18,7 @@ class MqInput extends StatefulWidget {
     this.leading,
     this.trailing,
     this.onChanged,
+    this.onPaste,
     this.autofocus = false,
     this.minLines,
     this.maxLines,
@@ -34,6 +35,13 @@ class MqInput extends StatefulWidget {
   final Widget? leading;
   final Widget? trailing;
   final ValueChanged<String>? onChanged;
+
+  /// Fires when the controller's text grew by ≥4 characters in one tick.
+  /// Catches Paste menu, ⌘V, magnifier paste, and multi-word dictation;
+  /// false-positives (dictation, fast typing) record paste-immediate
+  /// instead of waiting for the typing-debounce, which is benign.
+  final ValueChanged<String>? onPaste;
+
   final bool autofocus;
   final int? minLines;
   final int? maxLines;
@@ -47,10 +55,13 @@ class MqInput extends StatefulWidget {
 class _MqInputState extends State<MqInput> {
   late final FocusNode _focus = FocusNode();
   bool _focused = false;
+  String _prevText = '';
 
   @override
   void initState() {
     super.initState();
+    _prevText = widget.controller.text;
+    widget.controller.addListener(_onControllerChanged);
     _focus.addListener(() {
       if (_focus.hasFocus != _focused) {
         setState(() => _focused = _focus.hasFocus);
@@ -59,9 +70,34 @@ class _MqInputState extends State<MqInput> {
   }
 
   @override
+  void didUpdateWidget(MqInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_onControllerChanged);
+      widget.controller.addListener(_onControllerChanged);
+      _prevText = widget.controller.text;
+    }
+  }
+
+  @override
   void dispose() {
+    widget.controller.removeListener(_onControllerChanged);
     _focus.dispose();
     super.dispose();
+  }
+
+  // Fires for every controller change, including programmatic
+  // `controller.text = ...` writes — body-side paste/swap handlers rely on
+  // this to surface their mutations through the paste heuristic.
+  void _onControllerChanged() {
+    final String newText = widget.controller.text;
+    if (newText == _prevText) return;
+    final int delta = newText.length - _prevText.length;
+    _prevText = newText;
+    final ValueChanged<String>? onPaste = widget.onPaste;
+    if (onPaste != null && delta >= 4) {
+      onPaste(newText);
+    }
   }
 
   @override

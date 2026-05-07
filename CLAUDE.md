@@ -13,7 +13,7 @@ Masquerade is a Flutter utility-toolbox app. iOS-first (`CupertinoApp`). Tab sca
 - Color (HEX/RGB/HSL/OKLCH, WCAG contrast)
 - bps (basis points ↔ % ↔ decimal)
 
-Add new tools by registering in `UtilityCatalog` plus a detail screen. Search and home tabs read the catalog directly — there is no manual wiring elsewhere.
+Add new tools by registering in `UtilityCatalog` plus an embeddable body widget under `lib/widgets/tool_bodies/<tool>_body.dart`. Home reads the catalog directly and renders each entry as an `InlineToolCard` — there is no manual wiring elsewhere.
 
 ## Stack
 
@@ -30,14 +30,15 @@ lib/
   app.dart             CupertinoApp root + global controllers
   utility_catalog.dart catalog of every shipped tool + detection predicates
   screens/
-    root_tab_scaffold.dart     4-tab Cupertino tab bar
-    home_screen.dart, search_screen.dart, history_screen.dart, settings_screen.dart
-    detail/<tool>_screen.dart  one screen per tool
+    root_tab_scaffold.dart     3-tab Cupertino tab bar (Home, History, Settings)
+    home_screen.dart, history_screen.dart, settings_screen.dart
+    detail/qr_scanner_route.dart  full-screen modal camera (only remaining detail route)
   state/               ChangeNotifier controllers (theme_controller, history_controller); persisted via shared_preferences
   theme/               MqColors / MqTypography / MqMetrics / MqTheme InheritedWidget
   utils/               pure parsers (static `parse()`) + copy_util
   widgets/
-    mq/                design-system widgets (MqButton, MqInput, MqSurface, ...) — prefer these over raw Cupertino
+    mq/                design-system widgets (MqButton, MqInput, MqSurface, InlineToolCard, ...) — prefer these over raw Cupertino
+    tool_bodies/       one StatefulWidget per tool, embedded inline by Home
     iphone_frame.dart  hand-rolled preview wrapper
 test/                  mirrors lib/ structure
 ```
@@ -84,4 +85,4 @@ Hooks (in `.pre-commit-config.yaml`):
 - Worktrees live at `.worktrees/<branch-name>` (gitignored). Run `git worktree list` before assuming working-tree state.
 - The `PostToolUse` hook in `.claude/settings.json` runs `dart format` on edited `*.dart` files. If a format error surfaces in the transcript, fix the syntax — don't silence it.
 - Prefer `widgets/mq/*` (`MqButton`, `MqInput`, `MqSurface`, `MqMonoCell`, ...) over raw Cupertino primitives — they carry theme + spacing tokens. Read colors via `MqTheme.of(context)`, not hardcoded `CupertinoColors`.
-- Tool registration is centralized: adding a tool means editing `lib/utility_catalog.dart` AND adding a detail screen under `lib/screens/detail/`. Search and home tabs auto-pick it up.
+- Tool registration is centralized: adding a tool means editing `lib/utility_catalog.dart` AND adding a body widget under `lib/widgets/tool_bodies/<tool>_body.dart`. Home auto-picks it up via `UtilityCatalog.all`.
