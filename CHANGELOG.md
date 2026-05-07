@@ -1,3 +1,24 @@
+## v1.5.0 (2026-05-07)
+
+### Feat
+
+- **home**: auto-expand single match, recents row, grid preview, long-press copy
+- **mq**: InlineToolCard header morph + MqRecentsRow
+- **tools**: add OpenInFooter for cross-tool output piping
+- **home**: rows act as chips; selecting one hides the rest
+- **home**: chip toggle + persistent body; remove Search tab
+- **input**: heuristic paste detection on MqInput via controller listener
+- **search**: inline tool cards replace per-result push navigation
+- **home**: inline tool cards replace per-tile push navigation
+- **history**: dedupe consecutive same-tool same-input adds
+- **ui**: add InlineToolCard, HistoryRecorder, SeedSource scaffolding
+
+### Refactor
+
+- consolidate recorder glue, fix layering, type-safe expanded id
+- **catalog**: builder returns body widget; delete *_screen wrappers
+- **tools**: extract embeddable bodies, wire HistoryRecorder
+
 ## v1.4.0 (2026-05-03)
 
 ### Feat
