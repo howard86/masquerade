@@ -6,18 +6,10 @@ import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
 import 'mq_icons.dart';
 
-/// A tool selector that renders chip-styled when collapsed and reveals the
-/// tool body inline when [expanded].
-///
-/// Visual model: collapsed = pill chip carrying the descriptor icon, name,
-/// and optional last-input [previewText]. Expanded = full-width banner with
-/// a leading chevron + trailing close X; the body unfurls beneath via
-/// [AnimatedSize]. The whole header is a single tap target that fires
-/// [onToggle]; a fresh tap while expanded collapses the card.
-///
-/// Body lifetime is gated by [expanded]: the [bodyBuilder] only runs while
-/// the card is open. Pass [bodyKey] to force a body remount (e.g. when the
-/// host wants to reseed it from a new paste).
+/// Tool selector that morphs between a pill chip (collapsed) and a banner
+/// (expanded). Body unfurls beneath via [AnimatedSize] on the editorial
+/// reveal/dismiss curves — no overshoot. Header text uses Plex Serif at the
+/// expanded size for the "tool name as title" feel.
 class InlineToolCard extends StatelessWidget {
   const InlineToolCard({
     super.key,
@@ -34,39 +26,27 @@ class InlineToolCard extends StatelessWidget {
   final bool expanded;
   final VoidCallback onToggle;
   final WidgetBuilder bodyBuilder;
-
-  /// Forces the body subtree to rebuild as a fresh widget when changed.
-  /// Host uses this to reseed a body when the active tool's seed shifts.
   final Key? bodyKey;
-
-  /// Optional last-input preview shown beneath the descriptor name when the
-  /// card is collapsed. Truncate at the call site (~24 chars). Hidden when
-  /// the card is expanded.
   final String? previewText;
-
-  /// Masks [previewText] with bullets when the source history entry was
-  /// flagged sensitive.
   final bool previewSensitive;
 
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
-    final Color chipBg = expanded ? c.accentBg : c.surface2;
-    final Color chipBorder = expanded
-        ? c.accent.withValues(alpha: 0.25)
-        : c.border;
-    final Color textColor = expanded ? c.accentInk : c.textPri;
+    final Color chipBg = expanded ? c.accentBg : const Color(0x00000000);
+    final Color chipBorder = expanded ? c.accent : c.border;
+    final Color textColor = expanded ? c.accent : c.textPri;
 
     final Widget header = AnimatedContainer(
       duration: MqMotion.normal,
-      curve: MqMotion.standard,
+      curve: expanded ? MqMotion.reveal : MqMotion.dismiss,
       padding: expanded
           ? const EdgeInsets.fromLTRB(12, 10, 12, 10)
           : const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: chipBg,
         borderRadius: BorderRadius.circular(
-          expanded ? MqRadius.md : MqRadius.pill,
+          expanded ? MqRadius.sm : MqRadius.pill,
         ),
         border: Border.all(color: chipBorder, width: 0.5),
       ),
@@ -105,9 +85,6 @@ class InlineToolCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          // Pill collapses to its intrinsic width; banner stretches to fill
-          // the parent. `Align` lets the AnimatedContainer pick its own width
-          // without forcing the whole column to shrink-wrap.
           Align(
             alignment: Alignment.centerLeft,
             child: expanded
@@ -117,13 +94,11 @@ class InlineToolCard extends StatelessWidget {
           ClipRect(
             child: AnimatedSize(
               duration: MqMotion.normal,
-              curve: MqMotion.standard,
+              curve: expanded ? MqMotion.reveal : MqMotion.dismiss,
               alignment: Alignment.topCenter,
               child: expanded
                   ? Padding(
                       padding: const EdgeInsets.fromLTRB(0, MqSpacing.md, 0, 0),
-                      // The outer HomeScreen ListView handles scroll; the body
-                      // never wraps its own scroller.
                       child: Builder(key: bodyKey, builder: bodyBuilder),
                     )
                   : const SizedBox.shrink(),
@@ -206,12 +181,14 @@ class _ExpandedHeaderRow extends StatelessWidget {
       children: <Widget>[
         Icon(MqIcons.chevL, size: 16, color: color),
         const SizedBox(width: 6),
-        Icon(descriptor.icon, size: 14, color: color),
-        const SizedBox(width: 6),
+        Icon(descriptor.icon, size: 16, color: color),
+        const SizedBox(width: 8),
         Expanded(
           child: Text(
             descriptor.name,
-            style: MqTextStyles.subhead.copyWith(
+            style: MqTextStyles.title3.copyWith(
+              fontFamily: MqTextStyles.serifFamily,
+              fontFamilyFallback: MqTextStyles.serifFallback,
               color: color,
               fontWeight: FontWeight.w600,
             ),

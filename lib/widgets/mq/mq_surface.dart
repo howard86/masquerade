@@ -3,22 +3,26 @@ import 'package:flutter/widgets.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 
-/// Masquerade card surface. Radius 18, 0.5px border, optional elevated shadow.
+/// Masquerade card surface. Hairline border, no shadow by default. Pass
+/// `floating: true` for modal/toast surfaces that need a drop shadow.
 class MqSurface extends StatelessWidget {
   const MqSurface({
     super.key,
     required this.child,
     this.padded = true,
-    this.elevated = false,
+    this.floating = false,
     this.padding,
-    this.radius = MqRadius.lg,
+    this.radius = MqRadius.md,
     this.background,
     this.borderColor,
   });
 
   final Widget child;
   final bool padded;
-  final bool elevated;
+
+  /// True for floating surfaces (modals, toasts) that earn a drop shadow.
+  /// Cards default to flat hairline-only.
+  final bool floating;
   final EdgeInsetsGeometry? padding;
   final double radius;
   final Color? background;
@@ -35,7 +39,7 @@ class MqSurface extends StatelessWidget {
           color: borderColor ?? tokens.colors.border,
           width: 0.5,
         ),
-        boxShadow: elevated ? tokens.colors.shadowLg : tokens.colors.shadow,
+        boxShadow: floating ? tokens.colors.shadowLg : null,
       ),
       child: Padding(
         padding:

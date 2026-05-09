@@ -1,13 +1,12 @@
 import 'package:flutter/widgets.dart';
 
 import '../../theme/mq_metrics.dart';
+import '../../theme/mq_theme.dart';
 import '../../utility_catalog.dart';
 import 'mq_chip.dart';
 import 'mq_section_header.dart';
 
-/// Horizontal "Recents" chip row above the home grid. Sourced from the most
-/// recent distinct utility ids in [HistoryController.entries] (newest-first,
-/// capped by the caller). Empty list collapses to nothing.
+/// Editorial "Recents" row — hairline divider above + chip list.
 class MqRecentsRow extends StatelessWidget {
   const MqRecentsRow({
     super.key,
@@ -23,10 +22,19 @@ class MqRecentsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (recents.isEmpty) return const SizedBox.shrink();
+    final c = context.mq.colors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        const MqSectionHeader(label: 'Recents'),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: c.border, width: 0.5)),
+          ),
+          child: const Padding(
+            padding: EdgeInsets.only(top: MqSpacing.sm),
+            child: MqSectionHeader(label: 'Recents'),
+          ),
+        ),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 4),

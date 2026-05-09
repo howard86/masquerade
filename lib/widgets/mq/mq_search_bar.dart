@@ -5,6 +5,7 @@ import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import 'mq_icons.dart';
 
+/// Editorial search input — underline-only treatment matching MqInput.
 class MqSearchBar extends StatelessWidget {
   const MqSearchBar({
     super.key,
@@ -27,12 +28,10 @@ class MqSearchBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.mq.colors;
     return Container(
-      height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: MqSpacing.md),
+      height: 40,
+      padding: const EdgeInsets.symmetric(vertical: MqSpacing.sm),
       decoration: BoxDecoration(
-        color: c.surface2,
-        borderRadius: BorderRadius.circular(MqRadius.sm),
-        border: Border.all(color: c.border, width: 0.5),
+        border: Border(bottom: BorderSide(color: c.border, width: 0.5)),
       ),
       child: Row(
         children: <Widget>[

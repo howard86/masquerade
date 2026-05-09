@@ -3,7 +3,8 @@ import 'package:flutter/cupertino.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 
-/// Cupertino sliding segmented control themed with Masquerade tokens.
+/// Cupertino sliding segmented control with editorial tokens — hairline track,
+/// surface thumb on bg, accent label for the selected segment.
 class MqSegmented<T extends Object> extends StatelessWidget {
   const MqSegmented({
     super.key,
@@ -37,7 +38,7 @@ class MqSegmented<T extends Object> extends StatelessWidget {
             child: Text(
               entry.value,
               style: MqTextStyles.subhead.copyWith(
-                color: entry.key == selected ? c.textPri : c.textSec,
+                color: entry.key == selected ? c.accent : c.textSec,
                 fontWeight: entry.key == selected
                     ? FontWeight.w600
                     : FontWeight.w500,

@@ -34,17 +34,20 @@ class MqLayout {
   static const double tabBarClearance = 96;
 }
 
-/// Motion durations + curves. Mirrors `MQ_TOKENS.motion`.
+/// Editorial reading-pace motion. Asymmetric reveal/dismiss — no overshoot.
 class MqMotion {
   const MqMotion._();
-  static const Duration fast = Duration(milliseconds: 120);
-  static const Duration normal = Duration(milliseconds: 220);
-  static const Duration slow = Duration(milliseconds: 380);
-  static const Duration spring = Duration(milliseconds: 420);
+  static const Duration fast = Duration(milliseconds: 180);
+  static const Duration normal = Duration(milliseconds: 240);
+  static const Duration slow = Duration(milliseconds: 320);
 
-  /// Standard ease — cubic-bezier(.2,.7,.3,1).
-  static const Curve standard = Cubic(0.2, 0.7, 0.3, 1.0);
+  /// Reveal curve — slight ease-out, used for expand/in transitions.
+  static const Curve reveal = Cubic(0.2, 0.6, 0.2, 1.0);
 
-  /// Spring overshoot — cubic-bezier(.34,1.56,.64,1).
-  static const Curve springCurve = Cubic(0.34, 1.56, 0.64, 1.0);
+  /// Dismiss curve — symmetric ease, used for collapse/out transitions.
+  static const Curve dismiss = Cubic(0.4, 0.0, 0.6, 1.0);
+
+  /// Linear cascade between hero text lines (60ms steps).
+  static const Curve stagger = Curves.linear;
+  static const Duration staggerStep = Duration(milliseconds: 60);
 }

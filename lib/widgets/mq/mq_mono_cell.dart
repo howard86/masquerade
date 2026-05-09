@@ -8,6 +8,8 @@ import '../../utils/copy_util.dart';
 import 'mq_icons.dart';
 
 /// Masquerade mono output cell. Uppercase caption + mono value + optional copy.
+/// Default surface is `monoBg` (= surface3) so code reads on the cream/espresso
+/// recess. Accent variant tints with the editorial accent color.
 class MqMonoCell extends StatelessWidget {
   const MqMonoCell({
     super.key,
@@ -35,20 +37,17 @@ class MqMonoCell extends StatelessWidget {
 
     final TextStyle valueStyle =
         (large ? MqTextStyles.monoLg : MqTextStyles.monoMd).copyWith(
-          color: c.textPri,
+          color: c.monoText,
         );
     final TextStyle labelStyle = MqTextStyles.sectionLabel.copyWith(
-      color: accent ? c.accentInk : c.textSec,
+      color: accent ? c.accent : c.textSec,
     );
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: accent ? c.accentBg : c.surface2,
-        borderRadius: BorderRadius.circular(MqRadius.md - 2),
-        border: Border.all(
-          color: accent ? c.accent.withValues(alpha: 0.2) : c.border,
-          width: 0.5,
-        ),
+        color: accent ? c.accentBg : c.monoBg,
+        borderRadius: BorderRadius.circular(MqRadius.sm),
+        border: Border.all(color: accent ? c.accent : c.border, width: 0.5),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(

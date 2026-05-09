@@ -75,7 +75,7 @@ void main() {
             )
             .first,
       );
-      expect(icon.color, light.accentInk);
+      expect(icon.color, light.accent);
     });
   });
 }

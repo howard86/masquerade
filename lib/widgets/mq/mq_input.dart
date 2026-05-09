@@ -5,7 +5,8 @@ import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import 'mq_icons.dart';
 
-/// Masquerade recessed-well text input.
+/// Masquerade underline-only text input. No fill — the bottom rule carries
+/// state (resting border, focused accent, error danger).
 class MqInput extends StatefulWidget {
   const MqInput({
     super.key,
@@ -37,9 +38,6 @@ class MqInput extends StatefulWidget {
   final ValueChanged<String>? onChanged;
 
   /// Fires when the controller's text grew by ≥4 characters in one tick.
-  /// Catches Paste menu, ⌘V, magnifier paste, and multi-word dictation;
-  /// false-positives (dictation, fast typing) record paste-immediate
-  /// instead of waiting for the typing-debounce, which is benign.
   final ValueChanged<String>? onPaste;
 
   final bool autofocus;
@@ -86,9 +84,6 @@ class _MqInputState extends State<MqInput> {
     super.dispose();
   }
 
-  // Fires for every controller change, including programmatic
-  // `controller.text = ...` writes — body-side paste/swap handlers rely on
-  // this to surface their mutations through the paste heuristic.
   void _onControllerChanged() {
     final String newText = widget.controller.text;
     if (newText == _prevText) return;
@@ -112,26 +107,17 @@ class _MqInputState extends State<MqInput> {
         );
     final TextStyle placeholderStyle = textStyle.copyWith(color: c.textTer);
 
+    final Color underlineColor = hasError
+        ? c.danger
+        : _focused
+        ? c.accent
+        : c.border;
+    final double underlineWidth = hasError || _focused ? 1.5 : 0.5;
+
     final BoxDecoration decoration = BoxDecoration(
-      color: c.surface2,
-      borderRadius: BorderRadius.circular(MqRadius.md - 2),
-      border: Border.all(
-        color: hasError
-            ? c.danger
-            : _focused
-            ? c.accent
-            : c.border,
-        width: hasError || _focused ? 1.5 : 0.5,
+      border: Border(
+        bottom: BorderSide(color: underlineColor, width: underlineWidth),
       ),
-      boxShadow: _focused && !hasError
-          ? <BoxShadow>[
-              BoxShadow(
-                color: c.accent.withValues(alpha: 0.13),
-                blurRadius: 0,
-                spreadRadius: 4,
-              ),
-            ]
-          : null,
     );
 
     return Column(
@@ -139,7 +125,7 @@ class _MqInputState extends State<MqInput> {
       children: <Widget>[
         if (widget.label != null)
           Padding(
-            padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
+            padding: const EdgeInsets.fromLTRB(0, 0, 0, 6),
             child: Text(
               widget.label!.toUpperCase(),
               style: MqTextStyles.sectionLabel.copyWith(color: c.textSec),
@@ -148,8 +134,8 @@ class _MqInputState extends State<MqInput> {
         Container(
           decoration: decoration,
           padding: const EdgeInsets.symmetric(
-            horizontal: MqSpacing.md,
-            vertical: MqSpacing.md,
+            horizontal: 0,
+            vertical: MqSpacing.sm,
           ),
           child: Row(
             crossAxisAlignment: widget.multiline
@@ -193,7 +179,7 @@ class _MqInputState extends State<MqInput> {
         ),
         if (hasError)
           Padding(
-            padding: const EdgeInsets.fromLTRB(4, 6, 4, 0),
+            padding: const EdgeInsets.fromLTRB(0, 6, 0, 0),
             child: Row(
               children: <Widget>[
                 Icon(MqIcons.warn, size: 13, color: c.danger),
