@@ -1,3 +1,10 @@
+## v1.6.0 (2026-05-09)
+
+### Feat
+
+- **cron**: add Cron tool body and register in catalog
+- **cron**: add POSIX 5-field and natural-language parsers
+
 ## v1.5.0 (2026-05-07)
 
 ### Feat
