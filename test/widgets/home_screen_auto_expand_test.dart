@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:masquerade/app.dart';
+import 'package:masquerade/widgets/mq/mq_icons.dart';
 
 void main() {
   setUp(() {
@@ -25,7 +26,7 @@ void main() {
   /// icon that no collapsed chip uses; tapping it (any tap inside the
   /// header bubbles to the outer `_toggle` GestureDetector) collapses the
   /// active card.
-  final Finder expandedHeaderHit = find.byIcon(CupertinoIcons.chevron_left);
+  final Finder expandedHeaderHit = find.byIcon(MqIcons.chevL);
 
   testWidgets('single-match input auto-expands without chip tap', (
     WidgetTester tester,

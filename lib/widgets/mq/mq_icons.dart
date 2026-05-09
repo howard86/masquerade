@@ -1,49 +1,49 @@
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter_lucide/flutter_lucide.dart';
 
-/// Masquerade icon set. Maps semantic names to nearest [CupertinoIcons] glyph
-/// so the spec's 30 line icons render natively without bundling SVG assets.
+/// Masquerade icon set. Maps semantic names to Lucide glyphs (1.5px stroke,
+/// editorial line aesthetic) bundled via the `flutter_lucide` package.
 class MqIcons {
   const MqIcons._();
 
-  static const IconData search = CupertinoIcons.search;
-  static const IconData copy = CupertinoIcons.doc_on_doc;
-  static const IconData paste = CupertinoIcons.doc_on_clipboard;
-  static const IconData swap = CupertinoIcons.arrow_up_arrow_down_circle;
-  static const IconData clear = CupertinoIcons.clear_circled_solid;
-  static const IconData star = CupertinoIcons.star;
-  static const IconData starFill = CupertinoIcons.star_fill;
-  static const IconData check = CupertinoIcons.check_mark;
-  static const IconData warn = CupertinoIcons.exclamationmark_triangle_fill;
-  static const IconData info = CupertinoIcons.info_circle;
-  static const IconData chevR = CupertinoIcons.chevron_right;
-  static const IconData lock = CupertinoIcons.lock_fill;
-  static const IconData hash = CupertinoIcons.number;
-  static const IconData clock = CupertinoIcons.time;
-  static const IconData brackets =
-      CupertinoIcons.chevron_left_slash_chevron_right;
-  static const IconData link = CupertinoIcons.link;
-  static const IconData drop = CupertinoIcons.drop_fill;
-  static const IconData binary = CupertinoIcons.textformat_123;
-  static const IconData pct = CupertinoIcons.percent;
-  static const IconData shield = CupertinoIcons.shield_lefthalf_fill;
-  static const IconData globe = CupertinoIcons.globe;
-  static const IconData cron = CupertinoIcons.timer;
-  static const IconData regex = CupertinoIcons.textformat_alt;
-  static const IconData uuid = CupertinoIcons.barcode;
-  static const IconData textCase = CupertinoIcons.textformat;
-  static const IconData bytes = CupertinoIcons.square_stack_3d_down_right_fill;
-  static const IconData trash = CupertinoIcons.trash;
-  static const IconData plus = CupertinoIcons.add;
-  static const IconData history = CupertinoIcons.clock;
-  static const IconData keyboard = CupertinoIcons.keyboard;
-  static const IconData setting = CupertinoIcons.gear;
-  static const IconData chevL = CupertinoIcons.chevron_left;
-  static const IconData chevD = CupertinoIcons.chevron_down;
-  static const IconData xmark = CupertinoIcons.xmark;
-  static const IconData home = CupertinoIcons.house;
-  static const IconData qrCode = CupertinoIcons.qrcode;
-  static const IconData qrCodeScan = CupertinoIcons.qrcode_viewfinder;
-  static const IconData share = CupertinoIcons.share;
-  static const IconData flash = CupertinoIcons.bolt;
-  static const IconData flashFill = CupertinoIcons.bolt_fill;
+  static const IconData search = LucideIcons.search;
+  static const IconData copy = LucideIcons.copy;
+  static const IconData paste = LucideIcons.clipboard;
+  static const IconData swap = LucideIcons.arrow_up_down;
+  static const IconData clear = LucideIcons.circle_x;
+  static const IconData star = LucideIcons.star;
+  static const IconData starFill = LucideIcons.star;
+  static const IconData check = LucideIcons.check;
+  static const IconData warn = LucideIcons.triangle_alert;
+  static const IconData info = LucideIcons.info;
+  static const IconData chevR = LucideIcons.chevron_right;
+  static const IconData lock = LucideIcons.lock;
+  static const IconData hash = LucideIcons.hash;
+  static const IconData clock = LucideIcons.clock;
+  static const IconData brackets = LucideIcons.code_xml;
+  static const IconData link = LucideIcons.link;
+  static const IconData drop = LucideIcons.droplet;
+  static const IconData binary = LucideIcons.binary;
+  static const IconData pct = LucideIcons.percent;
+  static const IconData shield = LucideIcons.shield_half;
+  static const IconData globe = LucideIcons.globe;
+  static const IconData cron = LucideIcons.timer;
+  static const IconData regex = LucideIcons.regex;
+  static const IconData uuid = LucideIcons.barcode;
+  static const IconData textCase = LucideIcons.case_sensitive;
+  static const IconData bytes = LucideIcons.layers;
+  static const IconData trash = LucideIcons.trash;
+  static const IconData plus = LucideIcons.plus;
+  static const IconData history = LucideIcons.history;
+  static const IconData keyboard = LucideIcons.keyboard;
+  static const IconData setting = LucideIcons.settings;
+  static const IconData chevL = LucideIcons.chevron_left;
+  static const IconData chevD = LucideIcons.chevron_down;
+  static const IconData xmark = LucideIcons.x;
+  static const IconData home = LucideIcons.house;
+  static const IconData qrCode = LucideIcons.qr_code;
+  static const IconData qrCodeScan = LucideIcons.scan_qr_code;
+  static const IconData share = LucideIcons.share_2;
+  static const IconData flash = LucideIcons.zap;
+  static const IconData flashFill = LucideIcons.zap;
 }

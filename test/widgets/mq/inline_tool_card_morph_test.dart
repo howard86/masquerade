@@ -5,6 +5,7 @@ import 'package:masquerade/theme/mq_colors.dart';
 import 'package:masquerade/theme/mq_theme.dart';
 import 'package:masquerade/utility_catalog.dart';
 import 'package:masquerade/widgets/mq/inline_tool_card.dart';
+import 'package:masquerade/widgets/mq/mq_icons.dart';
 
 Widget _harness({
   required bool expanded,
@@ -39,8 +40,8 @@ void main() {
       await tester.pumpWidget(_harness(expanded: true));
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(CupertinoIcons.chevron_left), findsOneWidget);
-      expect(find.byIcon(CupertinoIcons.xmark), findsOneWidget);
+      expect(find.byIcon(MqIcons.chevL), findsOneWidget);
+      expect(find.byIcon(MqIcons.xmark), findsOneWidget);
     });
 
     testWidgets('collapsed hides chevron and close icons', (
@@ -49,8 +50,8 @@ void main() {
       await tester.pumpWidget(_harness(expanded: false));
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(CupertinoIcons.chevron_left), findsNothing);
-      expect(find.byIcon(CupertinoIcons.xmark), findsNothing);
+      expect(find.byIcon(MqIcons.chevL), findsNothing);
+      expect(find.byIcon(MqIcons.xmark), findsNothing);
     });
 
     testWidgets('preview text renders only when collapsed and non-null', (
