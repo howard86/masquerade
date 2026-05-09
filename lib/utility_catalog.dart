@@ -5,6 +5,8 @@ import 'package:flutter/cupertino.dart';
 import 'utils/bps_parser.dart';
 import 'utils/bytes_parser.dart';
 import 'utils/color_parser.dart';
+import 'utils/cron_nl_parser.dart';
+import 'utils/cron_parser.dart';
 import 'utils/encoding_parser.dart';
 import 'utils/json_parser.dart';
 import 'utils/number_base_parser.dart';
@@ -13,6 +15,7 @@ import 'widgets/tool_bodies/base64_body.dart';
 import 'widgets/tool_bodies/bps_body.dart';
 import 'widgets/tool_bodies/bytes_body.dart';
 import 'widgets/tool_bodies/color_body.dart';
+import 'widgets/tool_bodies/cron_body.dart';
 import 'widgets/tool_bodies/json_body.dart';
 import 'widgets/tool_bodies/number_base_body.dart';
 import 'widgets/tool_bodies/qr_code_body.dart';
@@ -103,6 +106,26 @@ class UtilityCatalog {
             onSwitchTool: onSwitchTool,
           ),
       detect: _detectTimestamp,
+    ),
+    UtilityDescriptor(
+      id: 'cron',
+      name: 'Cron',
+      description: 'Cron schedules and natural language',
+      icon: MqIcons.cron,
+      tint: const Color(0xFFD946EF),
+      synonyms: <String>['cron', 'schedule', 'crontab'],
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            SeedSource seedSource = SeedSource.none,
+            OpenInToolCallback? onSwitchTool,
+          }) => CronBody(
+            initialInput: initialInput,
+            seedSource: seedSource,
+            onSwitchTool: onSwitchTool,
+          ),
+      detect: _detectCron,
     ),
     UtilityDescriptor(
       id: 'json',
@@ -277,6 +300,13 @@ bool _detectTimestamp(String input) {
 
 bool _detectNumberBase(String input) =>
     NumberBaseParser.parse(input.trim()) != null;
+
+bool _detectCron(String input) {
+  final String t = input.trim();
+  if (t.isEmpty) return false;
+  if (CronParser.parseSyntax(t).isSuccess) return true;
+  return CronNlParser.parse(t).isSuccess;
+}
 
 bool _detectBase64(String input) {
   final String t = input.trim();
