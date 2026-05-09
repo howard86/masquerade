@@ -56,6 +56,35 @@ void main() {
       expect(ids('1700000000'), <String>['number_base', 'timestamp']);
     });
 
+    test('5-field cron only suggests Cron', () {
+      expect(ids('0 9 * * 1'), <String>['cron']);
+    });
+
+    test('cron macro only suggests Cron', () {
+      expect(ids('@daily'), <String>['cron']);
+    });
+
+    test('NL phrase only suggests Cron', () {
+      expect(ids('every monday at 9am'), <String>['cron']);
+    });
+
+    test('NL macro phrase only suggests Cron', () {
+      expect(ids('hourly'), <String>['cron']);
+    });
+
+    test('weekdays alone only suggests Cron', () {
+      expect(ids('weekdays'), <String>['cron']);
+    });
+
+    test('non-grammar English does not suggest Cron', () {
+      expect(ids('every dog has its day'), isEmpty);
+      expect(ids('penguins ride bicycles'), isEmpty);
+    });
+
+    test('star expression only suggests Cron', () {
+      expect(ids('* * * * *'), <String>['cron']);
+    });
+
     test('unix milliseconds suggests Timestamp + Number Base', () {
       expect(ids('1700000000000'), <String>['number_base', 'timestamp']);
     });
