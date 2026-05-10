@@ -1,14 +1,20 @@
 import 'package:flutter/cupertino.dart';
 
 import 'mq_colors.dart';
+import 'mq_density.dart';
 import 'mq_typography.dart';
 
 /// Bundle of Masquerade tokens for a single mode. Resolved via [MqTheme.of].
 @immutable
 class MqTokens {
-  const MqTokens({required this.colors, required this.brightness});
+  const MqTokens({
+    required this.colors,
+    required this.brightness,
+    this.density = MqDensity.kComfortable,
+  });
   final MqColors colors;
   final Brightness brightness;
+  final MqDensity density;
 
   bool get isDark => brightness == Brightness.dark;
 }
@@ -42,7 +48,8 @@ class MqTheme extends InheritedWidget {
   @override
   bool updateShouldNotify(MqTheme oldWidget) =>
       tokens.colors != oldWidget.tokens.colors ||
-      tokens.brightness != oldWidget.tokens.brightness;
+      tokens.brightness != oldWidget.tokens.brightness ||
+      tokens.density != oldWidget.tokens.density;
 }
 
 extension MqThemeContext on BuildContext {
@@ -74,7 +81,7 @@ CupertinoThemeData buildCupertinoTheme(Brightness brightness) {
   return CupertinoThemeData(
     brightness: brightness,
     primaryColor: c.accent,
-    primaryContrastingColor: c.textInverse,
+    primaryContrastingColor: c.onTint,
     scaffoldBackgroundColor: c.bg,
     barBackgroundColor: c.surface,
     textTheme: textTheme,

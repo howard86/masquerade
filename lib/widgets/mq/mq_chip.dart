@@ -24,30 +24,26 @@ class MqChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = context.mq;
     final c = tokens.colors;
-    final TextStyle base =
-        (mono ? MqTextStyles.caption1 : MqTextStyles.caption1).copyWith(
-          fontFamily: mono ? MqTextStyles.monoFamily : MqTextStyles.sansFamily,
-          fontFamilyFallback: mono
-              ? MqTextStyles.monoFallback
-              : MqTextStyles.sansFallback,
-          fontWeight: FontWeight.w500,
-          color: accent ? c.accentInk : c.textPri,
-        );
+    final TextStyle base = MqTextStyles.caption1.copyWith(
+      fontFamily: mono ? MqTextStyles.monoFamily : MqTextStyles.sansFamily,
+      fontFamilyFallback: mono
+          ? MqTextStyles.monoFallback
+          : MqTextStyles.sansFallback,
+      fontWeight: FontWeight.w500,
+      color: accent ? c.accent : c.textPri,
+    );
     final Widget chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: accent ? c.accentBg : c.surface2,
+        color: accent ? c.accentBg : const Color(0x00000000),
         borderRadius: BorderRadius.circular(MqRadius.pill),
-        border: Border.all(
-          color: accent ? c.accent.withValues(alpha: 0.25) : c.border,
-          width: 0.5,
-        ),
+        border: Border.all(color: accent ? c.accent : c.border, width: 0.5),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           if (icon != null) ...<Widget>[
-            Icon(icon, size: 12, color: accent ? c.accentInk : c.textSec),
+            Icon(icon, size: 12, color: accent ? c.accent : c.textSec),
             const SizedBox(width: 6),
           ],
           Text(label, style: base),

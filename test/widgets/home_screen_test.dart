@@ -3,209 +3,195 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:masquerade/app.dart';
+import 'package:masquerade/screens/detail/tool_detail_route.dart';
+import 'package:masquerade/utility_catalog.dart';
+import 'package:masquerade/widgets/mq/tool_grid_card.dart';
+
+import '_helpers.dart';
 
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
   });
 
-  Future<Finder> findHeroInput(WidgetTester tester) async {
+  Future<Finder> findHero(WidgetTester tester) async {
     final Finder input = find.byWidgetPredicate(
       (Widget w) =>
           w is CupertinoTextField &&
-          w.placeholder == 'Timestamp, JSON, hex, base64, color…',
+          w.placeholder == 'Paste timestamp, JSON, hex, base64, color…',
     );
-    expect(input, findsOneWidget, reason: 'Hero paste input must be on home');
+    expect(input, findsOneWidget, reason: 'Hero composer must be on home');
     return input;
   }
 
-  testWidgets('Home renders all 6 tool tiles by default', (
+  ToolGridCard cardFor(WidgetTester tester, String utilityId) {
+    return tester
+        .widgetList<ToolGridCard>(find.byType(ToolGridCard))
+        .firstWhere((ToolGridCard c) => c.descriptor.id == utilityId);
+  }
+
+  testWidgets('renders all 9 catalog tools as grid cards', (
     WidgetTester tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(500, 1100));
+    await tester.binding.setSurfaceSize(kHomeSurfaceSize);
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await tester.pumpWidget(const MyApp());
     await tester.pumpAndSettle();
 
-    // Each tool name is shown on its tile (flat grid, no categories).
-    expect(find.text('Timestamp'), findsWidgets);
-    expect(find.text('Number Base'), findsWidgets);
-    expect(find.text('JSON'), findsWidgets);
-    expect(find.text('Base64'), findsWidgets);
-    expect(find.text('Color'), findsWidgets);
-    expect(find.text('bps · % · decimal'), findsWidgets);
-
-    // No chips when input empty.
-    expect(find.text('Open in'), findsNothing);
+    final Iterable<ToolGridCard> cards = tester.widgetList<ToolGridCard>(
+      find.byType(ToolGridCard),
+    );
+    expect(cards.length, UtilityCatalog.all.length);
+    expect(
+      cards.map((ToolGridCard c) => c.descriptor.id).toSet(),
+      UtilityCatalog.all.map((UtilityDescriptor u) => u.id).toSet(),
+    );
   });
 
-  testWidgets('Typing JSON in hero surfaces JSON chip and seeds detail', (
+  testWidgets('idle hero shows paste + scan icons, no Clear button', (
     WidgetTester tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(500, 1100));
+    await tester.binding.setSurfaceSize(kHomeSurfaceSize);
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await tester.pumpWidget(const MyApp());
     await tester.pumpAndSettle();
 
-    final Finder hero = await findHeroInput(tester);
+    expect(find.bySemanticsLabel('Paste'), findsAtLeastNWidgets(1));
+    expect(find.bySemanticsLabel('Scan QR'), findsAtLeastNWidgets(1));
+    // The MqButton variant exposes its label as text; absent in idle.
+    expect(find.text('Clear'), findsNothing);
+  });
+
+  testWidgets('hero content reveals Paste/Clear button row', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(kHomeSurfaceSize);
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+
+    final Finder hero = await findHero(tester);
+    await tester.enterText(hero, '#ff5733');
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    expect(find.text('Clear'), findsOneWidget);
+    expect(find.text('Paste'), findsOneWidget);
+  });
+
+  testWidgets('typing JSON marks JSON card as matched', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(kHomeSurfaceSize);
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+
+    final Finder hero = await findHero(tester);
     await tester.enterText(hero, '{"hello":"world"}');
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
-    expect(find.text('Open in'), findsOneWidget);
-    // JSON chip — name "JSON" appears as both a chip and the grid tile.
-    // Tap the chip (last instance is the tile, first should be chip).
-    final Finder jsonText = find.text('JSON');
-    expect(jsonText, findsAtLeastNWidgets(2));
-
-    // Find chip via location — chip is above the tile, so first match works.
-    await tester.tap(jsonText.first, warnIfMissed: false);
-    await tester.pumpAndSettle();
-
-    // JSON detail screen: input pre-filled, output rendered.
-    final Finder jsonInput = find.byWidgetPredicate(
-      (Widget w) =>
-          w is CupertinoTextField && w.placeholder == '{"hello": "world"}',
-    );
-    expect(jsonInput, findsOneWidget);
-    expect(
-      (tester.widget(jsonInput) as CupertinoTextField).controller!.text,
-      '{"hello":"world"}',
-    );
+    expect(cardFor(tester, 'json').matched, isTrue);
+    expect(cardFor(tester, 'timestamp').matched, isFalse);
   });
 
-  testWidgets('Tapping a chip expands it inline and hides every other chip', (
+  testWidgets('multi-format input matches multiple cards', (
     WidgetTester tester,
   ) async {
-    // Match `kDetailSurfaceSize` (480x1050) used by detail-screen tests so
-    // ResponsiveLayout skips the iPhone-frame wrap (which would constrain
-    // content width to 393 and overflow the inline card's 3-button bar).
-    await tester.binding.setSurfaceSize(const Size(480, 1050));
+    await tester.binding.setSurfaceSize(kHomeSurfaceSize);
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await tester.pumpWidget(const MyApp());
     await tester.pumpAndSettle();
 
-    // Collapsed → all 8 tool chips listed; Base64 segmented body absent.
-    expect(find.text('Encode'), findsNothing);
-    expect(find.text('JSON'), findsOneWidget);
-
-    // Tap the Base64 chip.
-    await tester.tap(find.text('Base64'));
-    await tester.pumpAndSettle();
-
-    // Body widgets visible inline (segmented control + Paste/Swap/Clear bar).
-    expect(find.text('Encode'), findsOneWidget);
-    expect(find.text('Decode'), findsOneWidget);
-    // No CupertinoNavigationBar pushed — inline expansion, not navigation.
-    expect(find.byType(CupertinoNavigationBar), findsNothing);
-    // Every non-selected chip is hidden — only Base64 stays in the tree.
-    expect(find.text('JSON'), findsNothing);
-    expect(find.text('Color'), findsNothing);
-
-    // Tap Base64 again to collapse — the full chip list returns.
-    await tester.tap(find.text('Base64'));
-    await tester.pumpAndSettle();
-    expect(find.text('Encode'), findsNothing);
-    expect(find.text('JSON'), findsOneWidget);
-    expect(find.text('Color'), findsOneWidget);
-  });
-
-  testWidgets('Multi-format hero input surfaces multiple chips', (
-    WidgetTester tester,
-  ) async {
-    await tester.binding.setSurfaceSize(const Size(500, 1100));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-
-    await tester.pumpWidget(const MyApp());
-    await tester.pumpAndSettle();
-
-    final Finder hero = await findHeroInput(tester);
-    // 1700000000 detects as both Timestamp (>=1e8) and Number Base (decimal).
+    final Finder hero = await findHero(tester);
     await tester.enterText(hero, '1700000000');
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
-    // Both chips render under "Open in" label (tile copies of the names
-    // also appear elsewhere — `findsAtLeastNWidgets(2)` covers chip + tile).
-    expect(find.text('Open in'), findsOneWidget);
-    expect(find.text('Timestamp'), findsAtLeastNWidgets(2));
-    expect(find.text('Number Base'), findsAtLeastNWidgets(2));
+    expect(cardFor(tester, 'timestamp').matched, isTrue);
+    expect(cardFor(tester, 'number_base').matched, isTrue);
   });
 
-  testWidgets('Tapping the same chip twice toggles its card off', (
+  testWidgets('clearing hero drops match highlights', (
     WidgetTester tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(480, 1050));
+    await tester.binding.setSurfaceSize(kHomeSurfaceSize);
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await tester.pumpWidget(const MyApp());
     await tester.pumpAndSettle();
 
-    // Use Base64 — no hero input → no auto-expand interference. Grid chip
-    // tap expands; header tap on the expanded card collapses.
-    expect(find.text('Encode'), findsNothing);
-
-    await tester.tap(find.text('Base64'));
-    await tester.pumpAndSettle();
-    expect(find.text('Encode'), findsOneWidget);
-
-    await tester.tap(find.text('Base64'));
-    await tester.pumpAndSettle();
-    expect(find.text('Encode'), findsNothing);
-  });
-
-  testWidgets(
-    'Expanded card and output rows persist across hero text changes',
-    (WidgetTester tester) async {
-      await tester.binding.setSurfaceSize(const Size(480, 1050));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-
-      await tester.pumpWidget(const MyApp());
-      await tester.pumpAndSettle();
-
-      final Finder hero = await findHeroInput(tester);
-      await tester.enterText(hero, '{"a":1}');
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
-
-      // Open the JSON card via its chip, seeding it with the hero text.
-      await tester.tap(find.text('JSON').first, warnIfMissed: false);
-      await tester.pumpAndSettle();
-      expect(find.text('Pretty'), findsOneWidget);
-
-      // Clear the hero input. The chip row goes away …
-      await tester.enterText(hero, '');
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
-      expect(find.text('Open in'), findsNothing);
-
-      // … but the JSON card body and the seeded controller's text remain.
-      expect(find.text('Pretty'), findsOneWidget);
-      final Finder jsonInput = find.byWidgetPredicate(
-        (Widget w) =>
-            w is CupertinoTextField && w.placeholder == '{"hello": "world"}',
-      );
-      expect(jsonInput, findsOneWidget);
-      expect(
-        (tester.widget(jsonInput) as CupertinoTextField).controller!.text,
-        '{"a":1}',
-      );
-    },
-  );
-
-  testWidgets('Clearing hero input hides chips', (WidgetTester tester) async {
-    await tester.binding.setSurfaceSize(const Size(500, 1100));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-
-    await tester.pumpWidget(const MyApp());
-    await tester.pumpAndSettle();
-
-    final Finder hero = await findHeroInput(tester);
+    final Finder hero = await findHero(tester);
     await tester.enterText(hero, '#ff5733');
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
-    expect(find.text('Open in'), findsOneWidget);
+    expect(cardFor(tester, 'color').matched, isTrue);
 
-    await tester.enterText(hero, '');
+    await tester.tap(find.text('Clear'));
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
-    expect(find.text('Open in'), findsNothing);
+    expect(cardFor(tester, 'color').matched, isFalse);
+  });
+
+  testWidgets('tap on a tool card pushes ToolDetailRoute seeded with hero', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(kHomeSurfaceSize);
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+
+    final Finder hero = await findHero(tester);
+    await tester.enterText(hero, '{"hello":"world"}');
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    await tester.tap(
+      find.byWidgetPredicate(
+        (Widget w) => w is ToolGridCard && w.descriptor.id == 'json',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ToolDetailRoute), findsOneWidget);
+    final ToolDetailRoute route = tester.widget(find.byType(ToolDetailRoute));
+    expect(route.descriptor.id, 'json');
+    expect(route.seed, '{"hello":"world"}');
+  });
+
+  testWidgets('grid sorts matched first, then recents, then remainder', (
+    WidgetTester tester,
+  ) async {
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'mb.history.entries': encodeHistoryEntries(<Map<String, Object>>[
+        historyEntry(utilityId: 'base64', ts: now),
+        historyEntry(utilityId: 'json', ts: now - 1000),
+      ]),
+    });
+
+    await pumpHomeWithLoadedHistory(tester);
+
+    final Finder hero = find.byWidgetPredicate(
+      (Widget w) =>
+          w is CupertinoTextField &&
+          w.placeholder == 'Paste timestamp, JSON, hex, base64, color…',
+    );
+    // Color match (hero is a hex) → Color card jumps to first.
+    await tester.enterText(hero, '#abcdef');
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    final List<String> ids = tester
+        .widgetList<ToolGridCard>(find.byType(ToolGridCard))
+        .map((ToolGridCard c) => c.descriptor.id)
+        .toList();
+    final int colorIdx = ids.indexOf('color');
+    final int base64Idx = ids.indexOf('base64');
+    final int jsonIdx = ids.indexOf('json');
+    final int cronIdx = ids.indexOf('cron');
+    expect(colorIdx, 0, reason: 'matched goes first');
+    expect(base64Idx < cronIdx, isTrue, reason: 'recent above remainder');
+    expect(jsonIdx < cronIdx, isTrue, reason: 'recent above remainder');
   });
 }

@@ -1,7 +1,8 @@
 import 'package:flutter/painting.dart';
 
-/// Masquerade color tokens. Cool greys + electric cyan accent.
-/// Mirrors `tokens.jsx` exactly. Both modes are first-class.
+/// Masquerade editorial palette. Warm cream + oxblood (light), espresso +
+/// lamplight gold (dark). Mono syntax fields reference status tokens so a
+/// code cell renders with the same vocabulary as a status badge.
 class MqColors {
   const MqColors({
     required this.bg,
@@ -37,84 +38,88 @@ class MqColors {
   });
 
   factory MqColors.light() => const MqColors(
-    bg: Color(0xFFF4F6F8),
-    surface: Color(0xFFFFFFFF),
-    surface2: Color(0xFFEDF0F3),
-    surface3: Color(0xFFE2E6EB),
-    border: Color(0x140F172A),
-    borderStrong: Color(0x240F172A),
-    textPri: Color(0xFF0B1220),
-    textSec: Color(0xFF475569),
-    textTer: Color(0xFF94A3B8),
-    textInverse: Color(0xFFFFFFFF),
-    onTint: Color(0xFFFFFFFF),
-    accent: Color(0xFF00B8C4),
-    accentInk: Color(0xFF006B72),
-    accentBg: Color(0x1A00B8C4),
-    success: Color(0xFF0E9F6E),
-    successBg: Color(0x1A0E9F6E),
-    warning: Color(0xFFC2750B),
-    warningBg: Color(0x1AC2750B),
-    danger: Color(0xFFD63B3B),
-    dangerBg: Color(0x1AD63B3B),
-    info: Color(0xFF3B6DD6),
-    monoBg: Color(0xFFF1F4F7),
-    monoText: Color(0xFF0B1220),
-    monoComment: Color(0xFF94A3B8),
-    monoString: Color(0xFF0E7C66),
-    monoNumber: Color(0xFFA04400),
-    monoKey: Color(0xFF1F4FB8),
-    monoPunc: Color(0xFF475569),
+    bg: Color(0xFFFAF7F2),
+    surface: Color(0xFFFFFDF8),
+    surface2: Color(0xFFF5F1E8),
+    surface3: Color(0xFFF1ECE2),
+    border: Color(0x1F1B1813),
+    borderStrong: Color(0x3D1B1813),
+    textPri: Color(0xFF1B1813),
+    textSec: Color(0xFF5C544A),
+    textTer: Color(0xFF9A8F82),
+    textInverse: Color(0xFFFFFDF8),
+    onTint: Color(0xFFFFFDF8),
+    accent: Color(0xFF8B2635),
+    accentInk: Color(0xFF5E1923),
+    accentBg: Color(0x1A8B2635),
+    success: Color(0xFF2D5F3F),
+    successBg: Color(0x1F2D5F3F),
+    warning: Color(0xFFB07A1F),
+    warningBg: Color(0x1FB07A1F),
+    danger: Color(0xFF6E1F1F),
+    dangerBg: Color(0x1F6E1F1F),
+    info: Color(0xFF2D4A7A),
+    monoBg: Color(0xFFF1ECE2),
+    monoText: Color(0xFF1B1813),
+    monoComment: Color(0xFF5C544A),
+    monoString: Color(0xFF2D5F3F),
+    monoNumber: Color(0xFFB07A1F),
+    monoKey: Color(0xFF2D4A7A),
+    monoPunc: Color(0xFF5C544A),
     shadow: <BoxShadow>[
-      BoxShadow(color: Color(0x0A0F172A), blurRadius: 2, offset: Offset(0, 1)),
-      BoxShadow(color: Color(0x0A0F172A), blurRadius: 12, offset: Offset(0, 4)),
+      BoxShadow(color: Color(0x141B1813), blurRadius: 12, offset: Offset(0, 4)),
+      BoxShadow(color: Color(0x0A1B1813), blurRadius: 2, offset: Offset(0, 1)),
     ],
     shadowLg: <BoxShadow>[
-      BoxShadow(color: Color(0x1A0F172A), blurRadius: 24, offset: Offset(0, 8)),
-      BoxShadow(color: Color(0x0F0F172A), blurRadius: 6, offset: Offset(0, 2)),
+      BoxShadow(
+        color: Color(0x241B1813),
+        blurRadius: 28,
+        offset: Offset(0, 10),
+      ),
+      BoxShadow(color: Color(0x141B1813), blurRadius: 6, offset: Offset(0, 2)),
     ],
   );
 
   factory MqColors.dark() => const MqColors(
-    bg: Color(0xFF0A0E14),
-    surface: Color(0xFF121821),
-    surface2: Color(0xFF1A222D),
-    surface3: Color(0xFF232C39),
-    border: Color(0x1F94A3B8),
-    borderStrong: Color(0x3894A3B8),
-    textPri: Color(0xFFE6EDF5),
-    textSec: Color(0xFF94A3B8),
-    textTer: Color(0xFF64748B),
-    textInverse: Color(0xFF0A0E14),
-    onTint: Color(0xFFFFFFFF),
-    accent: Color(0xFF22D3EE),
-    accentInk: Color(0xFF67E8F5),
-    accentBg: Color(0x2422D3EE),
-    success: Color(0xFF34D399),
-    successBg: Color(0x2434D399),
-    warning: Color(0xFFF59E0B),
-    warningBg: Color(0x24F59E0B),
-    danger: Color(0xFFF87171),
-    dangerBg: Color(0x24F87171),
-    info: Color(0xFF60A5FA),
-    monoBg: Color(0xFF0E141B),
-    monoText: Color(0xFFE6EDF5),
-    monoComment: Color(0xFF64748B),
-    monoString: Color(0xFF5EEAD4),
-    monoNumber: Color(0xFFFCA15A),
-    monoKey: Color(0xFF7DA8FF),
-    monoPunc: Color(0xFF94A3B8),
+    bg: Color(0xFF14110D),
+    surface: Color(0xFF1C1814),
+    surface2: Color(0xFF241F19),
+    surface3: Color(0xFF2B241B),
+    border: Color(0x24F2EBDC),
+    borderStrong: Color(0x47F2EBDC),
+    textPri: Color(0xFFF2EBDC),
+    textSec: Color(0xFFA89B86),
+    textTer: Color(0xFF6E6354),
+    textInverse: Color(0xFF14110D),
+    onTint: Color(0xFF14110D),
+    accent: Color(0xFFE0B872),
+    accentInk: Color(0xFFF0D9A6),
+    accentBg: Color(0x24E0B872),
+    success: Color(0xFF7CB893),
+    successBg: Color(0x247CB893),
+    warning: Color(0xFFE0B872),
+    warningBg: Color(0x24E0B872),
+    danger: Color(0xFFE08A8A),
+    dangerBg: Color(0x24E08A8A),
+    info: Color(0xFF8FB3E8),
+    monoBg: Color(0xFF2B241B),
+    monoText: Color(0xFFF2EBDC),
+    monoComment: Color(0xFFA89B86),
+    monoString: Color(0xFF7CB893),
+    monoNumber: Color(0xFFE0B872),
+    monoKey: Color(0xFF8FB3E8),
+    monoPunc: Color(0xFFA89B86),
     shadow: <BoxShadow>[
-      BoxShadow(color: Color(0x66000000), blurRadius: 2, offset: Offset(0, 1)),
-      BoxShadow(color: Color(0x4D000000), blurRadius: 12, offset: Offset(0, 4)),
+      BoxShadow(color: Color(0x66000000), blurRadius: 12, offset: Offset(0, 4)),
+      BoxShadow(color: Color(0x33000000), blurRadius: 2, offset: Offset(0, 1)),
     ],
     shadowLg: <BoxShadow>[
       BoxShadow(
-        color: Color(0x80000000),
+        color: Color(0x99000000),
         blurRadius: 32,
         offset: Offset(0, 12),
       ),
-      BoxShadow(color: Color(0x4D000000), blurRadius: 6, offset: Offset(0, 2)),
+      BoxShadow(color: Color(0x66000000), blurRadius: 6, offset: Offset(0, 2)),
     ],
   );
 
@@ -129,9 +134,10 @@ class MqColors {
   final Color textTer;
   final Color textInverse;
 
-  /// Foreground for high-saturation tinted surfaces (utility tile icons,
-  /// history-row badges). Always white in both modes — the tints are brand
-  /// colors picked for white-on-color contrast, not theme background.
+  /// Foreground for filled accent surfaces (primary buttons, status pills with
+  /// solid fills). Resolves to the page background tone in each mode so an
+  /// oxblood/gold fill carries cream/espresso ink — the editorial inverse,
+  /// not stark white.
   final Color onTint;
   final Color accent;
   final Color accentInk;
@@ -150,6 +156,9 @@ class MqColors {
   final Color monoNumber;
   final Color monoKey;
   final Color monoPunc;
+
+  /// Reserved for floating modal/toast surfaces only. Cards use a hairline
+  /// border instead.
   final List<BoxShadow> shadow;
   final List<BoxShadow> shadowLg;
 

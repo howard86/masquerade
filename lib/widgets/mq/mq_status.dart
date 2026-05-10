@@ -7,6 +7,9 @@ import 'mq_icons.dart';
 
 enum MqStatusKind { success, warning, danger, info, neutral }
 
+/// Editorial status pill — tinted bg + matching ink. Always pairs with a
+/// glyph + label to stay readable when the warning hue overlaps the gold
+/// accent in dark mode.
 class MqStatus extends StatelessWidget {
   const MqStatus({
     super.key,
@@ -34,11 +37,7 @@ class MqStatus extends StatelessWidget {
         icon: MqIcons.warn,
       ),
       MqStatusKind.danger => (bg: c.dangerBg, fg: c.danger, icon: MqIcons.warn),
-      MqStatusKind.info => (
-        bg: c.accentBg,
-        fg: c.accentInk,
-        icon: MqIcons.info,
-      ),
+      MqStatusKind.info => (bg: c.accentBg, fg: c.accent, icon: MqIcons.info),
       MqStatusKind.neutral => (bg: c.surface2, fg: c.textSec, icon: null),
     };
     return Container(

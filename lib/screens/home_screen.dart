@@ -5,25 +5,20 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../state/history_controller.dart';
+import '../theme/mq_density.dart';
 import '../theme/mq_metrics.dart';
 import '../theme/mq_theme.dart';
-import '../theme/mq_typography.dart';
 import '../utility_catalog.dart';
 import '../utils/copy_util.dart';
-import '../widgets/mq/inline_tool_card.dart';
-import '../widgets/mq/mq_button.dart';
-import '../widgets/mq/mq_chip.dart';
-import '../widgets/mq/mq_icons.dart';
-import '../widgets/mq/mq_input.dart';
-import '../widgets/mq/mq_recents_row.dart';
-import '../widgets/mq/mq_section_header.dart';
-import '../widgets/tool_bodies/seed_source.dart';
+import '../widgets/mq/compact_paste_bar.dart';
+import '../widgets/mq/section_rule.dart';
+import '../widgets/mq/tool_grid_card.dart';
 import 'detail/qr_scanner_route.dart';
+import 'detail/tool_detail_route.dart';
 
-/// Home tab — hero paste card on top, then (when hero detects something) a
-/// suggestion row + auto-expand of the single best match, otherwise the
-/// recents row + grid of all tool chips. Selecting a chip unfurls its body
-/// inline; the rest of the grid hides until the user collapses.
+/// Home tab — compact paste bar (two-stage hero), hairline section rule, and
+/// a 2-column tool grid sorted matched → recently-used → idle. Tapping a card
+/// pushes a [ToolDetailRoute] seeded with the hero text.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -32,171 +27,101 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final TextEditingController _heroController = TextEditingController();
+  final TextEditingController _hero = TextEditingController();
+  final FocusNode _heroFocus = FocusNode();
   Timer? _debounce;
   List<UtilityDescriptor> _matches = const <UtilityDescriptor>[];
 
-  UtilityDescriptor? _expanded;
-  String? _expandedSeed;
-  SeedSource _expandedSeedSource = SeedSource.none;
-
-  /// Set the moment the user takes a manual expansion action (chip tap,
-  /// header tap, recents tap, cross-tool switch). Disables auto-expand for
-  /// the rest of the session, until the hero is cleared. Prevents the
-  /// auto-rule from snapping the user to a different tool after they made
-  /// an explicit pick.
-  bool _userOverrodeAuto = false;
+  @override
+  void initState() {
+    super.initState();
+    _hero.addListener(_onHeroChange);
+    _heroFocus.addListener(_onFocusChange);
+  }
 
   @override
   void dispose() {
     _debounce?.cancel();
-    _heroController.dispose();
+    _hero.removeListener(_onHeroChange);
+    _heroFocus.removeListener(_onFocusChange);
+    _hero.dispose();
+    _heroFocus.dispose();
     super.dispose();
   }
 
-  void _onHeroChanged(String _) {
+  void _onFocusChange() {
+    if (mounted) setState(() {});
+  }
+
+  void _onHeroChange() {
+    if (!mounted) return;
+    setState(() {});
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 200), _recomputeMatches);
   }
 
   void _recomputeMatches() {
     if (!mounted) return;
-    final String heroText = _heroController.text;
-    final List<UtilityDescriptor> next = UtilityCatalog.detectAll(heroText);
-    final bool sameMatches = listEquals(next, _matches);
-
-    final bool wantAutoExpand =
-        !_userOverrodeAuto && next.length == 1 && _expanded != next.single;
-    final bool wantReseed =
-        _expanded != null &&
-        next.contains(_expanded) &&
-        heroText.isNotEmpty &&
-        heroText != _expandedSeed;
-
-    if (sameMatches && !wantAutoExpand && !wantReseed) return;
-
-    setState(() {
-      _matches = next;
-      if (wantAutoExpand) {
-        _expanded = next.single;
-        _expandedSeed = heroText.isNotEmpty ? heroText : null;
-        _expandedSeedSource = SeedSource.paste;
-      } else if (wantReseed) {
-        _expandedSeed = heroText;
-        _expandedSeedSource = SeedSource.paste;
-      }
-    });
+    final List<UtilityDescriptor> next = UtilityCatalog.detectAll(_hero.text);
+    if (listEquals(next, _matches)) return;
+    setState(() => _matches = next);
   }
 
   Future<void> _paste() async {
     final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
     final String? text = data?.text;
     if (text == null || text.isEmpty) return;
-    _heroController.text = text;
+    _hero.text = text;
     _recomputeMatches();
   }
 
   void _clear() {
     _debounce?.cancel();
-    _heroController.clear();
-    setState(() {
-      _matches = const <UtilityDescriptor>[];
-      _expanded = null;
-      _expandedSeed = null;
-      _expandedSeedSource = SeedSource.none;
-      _userOverrodeAuto = false;
-    });
+    _hero.clear();
+    setState(() => _matches = const <UtilityDescriptor>[]);
   }
 
-  Future<void> _scanToHero() async {
+  Future<void> _scan() async {
     final String? result = await pushQrScanner(context);
     if (!mounted || result == null || result.isEmpty) return;
-    _heroController.text = result;
+    _hero.text = result;
     _recomputeMatches();
   }
 
-  /// Toggles [u] open or closed. Always counts as a manual override.
-  void _toggle(UtilityDescriptor u) {
-    setState(() {
-      _userOverrodeAuto = true;
-      if (_expanded == u) {
-        _expanded = null;
-        _expandedSeed = null;
-        _expandedSeedSource = SeedSource.none;
-      } else {
-        _expanded = u;
-        _expandedSeed = null;
-        _expandedSeedSource = SeedSource.none;
-      }
-    });
+  void _open(UtilityDescriptor u) {
+    final String text = _hero.text;
+    ToolDetailRoute.push(context, u, seed: text.isNotEmpty ? text : null);
   }
 
-  /// Opens [u] from a hero-detection chip; carries the hero text as seed.
-  void _openFromChip(UtilityDescriptor u) {
-    setState(() {
-      _userOverrodeAuto = true;
-      _expanded = u;
-      final String hero = _heroController.text;
-      _expandedSeed = hero.isNotEmpty ? hero : null;
-      _expandedSeedSource = hero.isNotEmpty
-          ? SeedSource.paste
-          : SeedSource.none;
-    });
-  }
-
-  /// Cross-tool pipe: a body fires this to expand [target] seeded with
-  /// [input]. Counts as a manual override.
-  void _switchTool(UtilityDescriptor target, String input) {
-    setState(() {
-      _userOverrodeAuto = true;
-      _expanded = target;
-      _expandedSeed = input.isNotEmpty ? input : null;
-      _expandedSeedSource = input.isNotEmpty
-          ? SeedSource.paste
-          : SeedSource.none;
-    });
-  }
-
-  Widget _buildBody(BuildContext context, UtilityDescriptor u) {
-    final bool isThis = _expanded == u;
-    return u.builder(
-      context,
-      initialInput: isThis ? _expandedSeed : null,
-      seedSource: isThis ? _expandedSeedSource : SeedSource.none,
-      onSwitchTool: _switchTool,
-    );
-  }
-
-  Key? _bodyKeyFor(UtilityDescriptor u) {
-    if (_expanded != u) return null;
-    // Seed is the only thing that drives a body remount; descriptor identity
-    // is already pinned by the surrounding `if (_expanded != null)` branch
-    // and SeedSource doesn't affect parse output.
-    return ValueKey<String>(_expandedSeed ?? '');
+  void _longPressCopy(BuildContext ctx, HistoryEntry entry) {
+    if (entry.sensitive) return;
+    HapticFeedback.mediumImpact();
+    CopyToClipboardUtil.copyToClipboard(ctx, entry.output);
   }
 
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
-    final bool hasInput = _heroController.text.trim().isNotEmpty;
-
     final HistoryController history = HistoryScope.of(context);
     final bool retentionOff = history.retention == Duration.zero;
+
+    // Dart's LinkedHashMap preserves insertion order, so the keys ARE the
+    // recency-ordered list of recently-used tool ids.
     final Map<String, HistoryEntry> lastByTool = <String, HistoryEntry>{};
     if (!retentionOff) {
       for (final HistoryEntry e in history.entries) {
         lastByTool.putIfAbsent(e.utilityId, () => e);
       }
     }
-    final List<UtilityDescriptor> recents = <UtilityDescriptor>[];
-    for (final String id in lastByTool.keys) {
-      // Tolerate stale ids from removed tools.
-      final UtilityDescriptor? u = UtilityCatalog.all
-          .where((UtilityDescriptor d) => d.id == id)
-          .firstOrNull;
-      if (u != null) recents.add(u);
-      if (recents.length >= 5) break;
-    }
+
+    final Set<String> matchedIds = _matches
+        .map((UtilityDescriptor u) => u.id)
+        .toSet();
+    final List<UtilityDescriptor> sorted = _sortCatalog(
+      matchedIds,
+      lastByTool.keys,
+    );
+    final MqDensity d = context.density;
 
     return CupertinoPageScaffold(
       backgroundColor: c.bg,
@@ -205,238 +130,73 @@ class _HomeScreenState extends State<HomeScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(
             MqSpacing.lg,
-            MqSpacing.sm,
+            MqSpacing.md,
             MqSpacing.lg,
             MqLayout.tabBarClearance,
           ),
           children: <Widget>[
-            Text(
-              'Masquerade',
-              style: MqTextStyles.title1.copyWith(color: c.textPri),
-            ),
-            const SizedBox(height: 2),
-            Row(
-              children: <Widget>[
-                Icon(MqIcons.lock, size: 11, color: c.success),
-                const SizedBox(width: 5),
-                Expanded(
-                  child: Text(
-                    'On-device · nothing leaves your phone',
-                    style: MqTextStyles.caption1.copyWith(color: c.textSec),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: MqSpacing.lg),
-            _HeroPasteCard(
-              controller: _heroController,
-              onChanged: _onHeroChanged,
+            CompactPasteBar(
+              controller: _hero,
+              focusNode: _heroFocus,
               onPaste: _paste,
-              onClear: hasInput ? _clear : null,
-              onScan: _scanToHero,
+              onClear: _clear,
+              onScan: _scan,
             ),
-            if (_matches.isNotEmpty) ...<Widget>[
-              const SizedBox(height: MqSpacing.md),
-              _SuggestionRow(
-                matches: _matches,
-                expanded: _expanded,
-                onTap: _openFromChip,
+            const SectionRule(),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: d.cardGap,
+                crossAxisSpacing: d.cardGap,
+                childAspectRatio: d.isCompact ? 1.9 : 1.6,
               ),
-            ],
-            if (_expanded == null && recents.isNotEmpty) ...<Widget>[
-              const SizedBox(height: MqSpacing.lg),
-              MqRecentsRow(
-                recents: recents,
-                expanded: _expanded,
-                onTap: _openFromChip,
-              ),
-            ],
-            const SizedBox(height: MqSpacing.lg),
-            const MqSectionHeader(label: 'All tools'),
-            const SizedBox(height: MqSpacing.sm),
-            if (_expanded != null)
-              InlineToolCard(
-                descriptor: _expanded!,
-                expanded: true,
-                onToggle: () => _toggle(_expanded!),
-                bodyKey: _bodyKeyFor(_expanded!),
-                bodyBuilder: (BuildContext ctx) => _buildBody(ctx, _expanded!),
-              )
-            else
-              Wrap(
-                spacing: MqSpacing.sm,
-                runSpacing: MqSpacing.sm,
-                children: <Widget>[
-                  for (final UtilityDescriptor u in UtilityCatalog.all)
-                    _GridChipTile(
-                      descriptor: u,
-                      lastEntry: lastByTool[u.id],
-                      onTap: () => _toggle(u),
-                    ),
-                ],
-              ),
+              itemCount: sorted.length,
+              itemBuilder: (BuildContext _, int i) {
+                final UtilityDescriptor u = sorted[i];
+                final HistoryEntry? entry = lastByTool[u.id];
+                return ToolGridCard(
+                  descriptor: u,
+                  matched: matchedIds.contains(u.id),
+                  lastEntry: entry,
+                  onTap: () => _open(u),
+                  onLongPress: entry == null
+                      ? null
+                      : () => _longPressCopy(context, entry),
+                );
+              },
+            ),
           ],
         ),
       ),
     );
   }
-}
 
-class _GridChipTile extends StatelessWidget {
-  const _GridChipTile({
-    required this.descriptor,
-    required this.lastEntry,
-    required this.onTap,
-  });
-
-  final UtilityDescriptor descriptor;
-  final HistoryEntry? lastEntry;
-  final VoidCallback onTap;
-
-  static const int _previewMax = 24;
-
-  static String? _truncate(String? s) {
-    if (s == null) return null;
-    if (s.length <= _previewMax) return s;
-    return '${s.substring(0, _previewMax)}…';
-  }
-
-  void _longPressCopy(BuildContext context) {
-    final HistoryEntry? e = lastEntry;
-    if (e == null || e.sensitive) return;
-    HapticFeedback.mediumImpact();
-    CopyToClipboardUtil.copyToClipboard(context, e.output);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final HistoryEntry? e = lastEntry;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onLongPress: e == null ? null : () => _longPressCopy(context),
-      child: InlineToolCard(
-        descriptor: descriptor,
-        expanded: false,
-        onToggle: onTap,
-        bodyBuilder: (BuildContext _) => const SizedBox.shrink(),
-        previewText: _truncate(e?.input),
-        previewSensitive: e?.sensitive ?? false,
-      ),
-    );
-  }
-}
-
-class _HeroPasteCard extends StatelessWidget {
-  const _HeroPasteCard({
-    required this.controller,
-    required this.onChanged,
-    required this.onPaste,
-    required this.onClear,
-    required this.onScan,
-  });
-
-  final TextEditingController controller;
-  final ValueChanged<String> onChanged;
-  final VoidCallback onPaste;
-  final VoidCallback? onClear;
-  final VoidCallback onScan;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.mq.colors;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        MqInput(
-          controller: controller,
-          label: 'Paste anything',
-          placeholder: 'Timestamp, JSON, hex, base64, color…',
-          onChanged: onChanged,
-          multiline: true,
-          minLines: 2,
-          maxLines: 5,
-          trailing: Semantics(
-            button: true,
-            label: 'Scan QR code',
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: onScan,
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Icon(MqIcons.qrCodeScan, size: 22, color: c.textSec),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: MqSpacing.sm),
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: MqButton(
-                label: 'Paste',
-                icon: MqIcons.paste,
-                variant: MqButtonVariant.glass,
-                onPressed: onPaste,
-                full: true,
-              ),
-            ),
-            if (onClear != null) ...<Widget>[
-              const SizedBox(width: MqSpacing.sm),
-              Expanded(
-                child: MqButton(
-                  label: 'Clear',
-                  icon: MqIcons.clear,
-                  variant: MqButtonVariant.glass,
-                  onPressed: onClear,
-                  full: true,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _SuggestionRow extends StatelessWidget {
-  const _SuggestionRow({
-    required this.matches,
-    required this.expanded,
-    required this.onTap,
-  });
-
-  final List<UtilityDescriptor> matches;
-  final UtilityDescriptor? expanded;
-  final void Function(UtilityDescriptor) onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.mq.colors;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Text(
-          'Open in',
-          style: MqTextStyles.sectionLabel.copyWith(color: c.textSec),
-        ),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: MqSpacing.sm,
-          runSpacing: MqSpacing.sm,
-          children: <Widget>[
-            for (final UtilityDescriptor u in matches)
-              MqChip(
-                label: u.name,
-                icon: u.icon,
-                accent: u == expanded,
-                mono: false,
-                onTap: () => onTap(u),
-              ),
-          ],
-        ),
-      ],
-    );
+  /// Sort priority: matched (catalog order) → recently-used (recency order)
+  /// → remainder (catalog order).
+  List<UtilityDescriptor> _sortCatalog(
+    Set<String> matchedIds,
+    Iterable<String> recentIds,
+  ) {
+    final List<UtilityDescriptor> matched = <UtilityDescriptor>[];
+    final List<UtilityDescriptor> rest = <UtilityDescriptor>[];
+    final Map<String, UtilityDescriptor> remaining =
+        <String, UtilityDescriptor>{};
+    for (final UtilityDescriptor u in UtilityCatalog.all) {
+      if (matchedIds.contains(u.id)) {
+        matched.add(u);
+      } else {
+        remaining[u.id] = u;
+        rest.add(u);
+      }
+    }
+    final List<UtilityDescriptor> recents = <UtilityDescriptor>[];
+    for (final String id in recentIds) {
+      final UtilityDescriptor? u = remaining.remove(id);
+      if (u != null) recents.add(u);
+    }
+    rest.removeWhere((UtilityDescriptor u) => !remaining.containsKey(u.id));
+    return <UtilityDescriptor>[...matched, ...recents, ...rest];
   }
 }

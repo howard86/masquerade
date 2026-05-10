@@ -3,6 +3,11 @@ import 'package:flutter/cupertino.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 
+/// Editorial button variants:
+/// - [filled]: solid accent fill + onTint label (primary action).
+/// - [tinted]: soft accent-tinted pill + accent ink (secondary action with emphasis).
+/// - [glass]: hairline outline + ink-pri label (editorial secondary, restrained).
+/// - [plain]: text-only accent label (tertiary/inline).
 enum MqButtonVariant { filled, tinted, plain, glass }
 
 enum MqButtonSize { sm, md, lg }
@@ -44,14 +49,18 @@ class MqButton extends StatelessWidget {
     final Color tintInk = destructive ? c.danger : c.accentInk;
 
     final ({Color bg, Color fg, Color? border}) style = switch (variant) {
-      MqButtonVariant.filled => (bg: tint, fg: c.textInverse, border: null),
+      MqButtonVariant.filled => (bg: tint, fg: c.onTint, border: null),
       MqButtonVariant.tinted => (bg: tintBg, fg: tintInk, border: null),
       MqButtonVariant.plain => (
-        bg: const Color(0x00000000),
+        bg: CupertinoColors.transparent,
         fg: tint,
         border: null,
       ),
-      MqButtonVariant.glass => (bg: c.surface, fg: c.textPri, border: c.border),
+      MqButtonVariant.glass => (
+        bg: CupertinoColors.transparent,
+        fg: c.textPri,
+        border: c.borderStrong,
+      ),
     };
 
     final TextStyle textStyle = MqTextStyles.headline.copyWith(color: style.fg);
@@ -64,7 +73,15 @@ class MqButton extends StatelessWidget {
           Icon(icon, size: 16, color: style.fg),
           const SizedBox(width: 8),
         ],
-        Text(label, style: textStyle),
+        Flexible(
+          child: Text(
+            label,
+            style: textStyle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            softWrap: false,
+          ),
+        ),
       ],
     );
 
