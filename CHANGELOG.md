@@ -1,3 +1,36 @@
+## v1.7.0 (2026-05-10)
+
+### Feat
+
+- **routing**: shared ToolDetailRoute wrapper
+- **home**: ToolGridCard editorial grid tile
+- **home**: CompactPasteBar two-stage hero composer
+- **input**: MqInput accepts external focus node
+- **widgets**: add masthead, rule, reading block, wordmark, monogram
+- **widgets**: refresh mq components with editorial tokens
+- **widgets**: remap MqIcons to Lucide
+- **theme**: density tokens, controller, and MqTokens wiring
+- **theme**: editorial palette and Plex typography with WCAG extensions
+- **theme**: bundle IBM Plex fonts and flutter_lucide dep
+
+### Fix
+
+- **home**: early-return _onHeroChange when unmounted
+- **icons**: map flash + flashFill to distinct Lucide glyphs
+
+### Refactor
+
+- **home**: drop redundant recentIds, single-pass _sortCatalog
+- **utils**: extract truncateWithEllipsis helper
+- **home**: swap inline-expand grid for push-route card grid
+- **widgets**: MqRecentsRow consumes SectionRule
+- **theme**: collapse typography style builders
+- **state**: use enum.name in DensityController persistence
+
+### Perf
+
+- **theme**: cache Listenable.merge and drop MqDensityScope
+
 ## v1.6.0 (2026-05-09)
 
 ### Feat
