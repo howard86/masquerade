@@ -1,12 +1,11 @@
 import 'package:flutter/widgets.dart';
 
 import '../../theme/mq_metrics.dart';
-import '../../theme/mq_theme.dart';
 import '../../utility_catalog.dart';
 import 'mq_chip.dart';
-import 'mq_section_header.dart';
+import 'section_rule.dart';
 
-/// Editorial "Recents" row — hairline divider above + chip list.
+/// Editorial "Recents" row — section rule + chip list.
 class MqRecentsRow extends StatelessWidget {
   const MqRecentsRow({
     super.key,
@@ -22,19 +21,10 @@ class MqRecentsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (recents.isEmpty) return const SizedBox.shrink();
-    final c = context.mq.colors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        DecoratedBox(
-          decoration: BoxDecoration(
-            border: Border(top: BorderSide(color: c.border, width: 0.5)),
-          ),
-          child: const Padding(
-            padding: EdgeInsets.only(top: MqSpacing.sm),
-            child: MqSectionHeader(label: 'Recents'),
-          ),
-        ),
+        const SectionRule(label: 'Recents'),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 4),
