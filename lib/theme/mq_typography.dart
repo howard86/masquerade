@@ -20,44 +20,48 @@ class MqTextStyles {
     FontFeature.tabularFigures(),
   ];
 
+  static TextStyle _style({
+    required String family,
+    required double fs,
+    required double lh,
+    required FontWeight fw,
+    required double tr,
+    List<FontFeature>? features,
+  }) => TextStyle(
+    fontFamily: family,
+    fontSize: fs,
+    height: lh / fs,
+    fontWeight: fw,
+    letterSpacing: tr,
+    fontFeatures: features,
+  );
+
   static TextStyle _sans({
     required double fs,
     required double lh,
     required FontWeight fw,
     required double tr,
-  }) => TextStyle(
-    fontFamily: sansFamily,
-    fontSize: fs,
-    height: lh / fs,
-    fontWeight: fw,
-    letterSpacing: tr,
-  );
+  }) => _style(family: sansFamily, fs: fs, lh: lh, fw: fw, tr: tr);
 
   static TextStyle _serif({
     required double fs,
     required double lh,
     required FontWeight fw,
     required double tr,
-  }) => TextStyle(
-    fontFamily: serifFamily,
-    fontSize: fs,
-    height: lh / fs,
-    fontWeight: fw,
-    letterSpacing: tr,
-  );
+  }) => _style(family: serifFamily, fs: fs, lh: lh, fw: fw, tr: tr);
 
   static TextStyle _mono({
     required double fs,
     required double lh,
     required FontWeight fw,
     required double tr,
-  }) => TextStyle(
-    fontFamily: monoFamily,
-    fontSize: fs,
-    height: lh / fs,
-    fontWeight: fw,
-    letterSpacing: tr,
-    fontFeatures: _tabularFigures,
+  }) => _style(
+    family: monoFamily,
+    fs: fs,
+    lh: lh,
+    fw: fw,
+    tr: tr,
+    features: _tabularFigures,
   );
 
   /// Editorial display tier — Plex Serif. Reserved for masthead + tool hero.
