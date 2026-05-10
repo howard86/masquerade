@@ -12,7 +12,6 @@ class MqIcons {
   static const IconData swap = LucideIcons.arrow_up_down;
   static const IconData clear = LucideIcons.circle_x;
   static const IconData star = LucideIcons.star;
-  static const IconData starFill = LucideIcons.star;
   static const IconData check = LucideIcons.check;
   static const IconData warn = LucideIcons.triangle_alert;
   static const IconData info = LucideIcons.info;
@@ -44,6 +43,6 @@ class MqIcons {
   static const IconData qrCode = LucideIcons.qr_code;
   static const IconData qrCodeScan = LucideIcons.scan_qr_code;
   static const IconData share = LucideIcons.share_2;
-  static const IconData flash = LucideIcons.zap;
+  static const IconData flash = LucideIcons.zap_off;
   static const IconData flashFill = LucideIcons.zap;
 }
