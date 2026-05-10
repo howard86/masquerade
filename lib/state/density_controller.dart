@@ -37,19 +37,16 @@ class DensityController extends ChangeNotifier {
     final SharedPreferences prefs =
         _prefs ?? await SharedPreferences.getInstance();
     _prefs = prefs;
-    await prefs.setString(_prefsKey, _encode(next));
+    await prefs.setString(_prefsKey, next.name);
   }
 
-  static String _encode(MqDensityMode m) => switch (m) {
-    MqDensityMode.comfortable => 'comfortable',
-    MqDensityMode.compact => 'compact',
-  };
-
-  static MqDensityMode? _decode(String? raw) => switch (raw) {
-    'comfortable' => MqDensityMode.comfortable,
-    'compact' => MqDensityMode.compact,
-    _ => null,
-  };
+  static MqDensityMode? _decode(String? raw) {
+    if (raw == null) return null;
+    for (final MqDensityMode m in MqDensityMode.values) {
+      if (m.name == raw) return m;
+    }
+    return null;
+  }
 }
 
 /// Provides a [DensityController] to descendants. Listeners rebuild on change.
