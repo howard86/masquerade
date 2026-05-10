@@ -5,7 +5,6 @@ import 'state/density_controller.dart';
 import 'state/history_controller.dart';
 import 'state/theme_controller.dart';
 import 'theme/mq_colors.dart';
-import 'theme/mq_density.dart';
 import 'theme/mq_theme.dart';
 import 'widgets/iphone_frame.dart';
 
@@ -29,6 +28,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   late final ThemeController _theme;
   late final HistoryController _history;
   late final DensityController _density;
+  late final Listenable _appListenable;
 
   Brightness _platformBrightness = Brightness.light;
 
@@ -38,6 +38,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _theme = widget.themeController ?? ThemeController();
     _history = widget.historyController ?? HistoryController();
     _density = widget.densityController ?? DensityController();
+    _appListenable = Listenable.merge(<Listenable>[_theme, _density]);
     _platformBrightness =
         WidgetsBinding.instance.platformDispatcher.platformBrightness;
     WidgetsBinding.instance.addObserver(this);
@@ -73,17 +74,16 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         child: HistoryScope(
           controller: _history,
           child: ListenableBuilder(
-            listenable: Listenable.merge(<Listenable>[_theme, _density]),
+            listenable: _appListenable,
             builder: (BuildContext context, _) {
               final Brightness brightness = _resolveBrightness(_theme.mode);
               final MqColors colors = brightness == Brightness.dark
                   ? MqColors.dark()
                   : MqColors.light();
-              final MqDensity density = _density.density;
               final MqTokens tokens = MqTokens(
                 colors: colors,
                 brightness: brightness,
-                density: density,
+                density: _density.density,
               );
               return CupertinoApp(
                 debugShowCheckedModeBanner: false,
@@ -91,11 +91,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 theme: buildCupertinoTheme(brightness),
                 builder: (BuildContext context, Widget? child) => MqTheme(
                   tokens: tokens,
-                  child: MqDensityScope(
-                    density: density,
-                    child: ResponsiveLayout(
-                      child: child ?? const SizedBox.shrink(),
-                    ),
+                  child: ResponsiveLayout(
+                    child: child ?? const SizedBox.shrink(),
                   ),
                 ),
                 home: const RootTabScaffold(),

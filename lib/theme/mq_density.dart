@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import 'mq_metrics.dart';
+import 'mq_theme.dart';
 
 /// Density mode controls comfortable vs compact spacing across the app.
 enum MqDensityMode { comfortable, compact }
@@ -74,27 +75,7 @@ class MqDensity {
   );
 }
 
-/// Provides [MqDensity] to descendants. Resolved by `context.density`.
-class MqDensityScope extends InheritedWidget {
-  const MqDensityScope({
-    super.key,
-    required this.density,
-    required super.child,
-  });
-
-  final MqDensity density;
-
-  static MqDensity of(BuildContext context) {
-    final MqDensityScope? scope = context
-        .dependOnInheritedWidgetOfExactType<MqDensityScope>();
-    return scope?.density ?? MqDensity.comfortable();
-  }
-
-  @override
-  bool updateShouldNotify(MqDensityScope oldWidget) =>
-      density != oldWidget.density;
-}
-
+/// Density resolves through [MqTheme] — there is no separate scope to wire.
 extension MqDensityContext on BuildContext {
-  MqDensity get density => MqDensityScope.of(this);
+  MqDensity get density => MqTheme.of(this).density;
 }
