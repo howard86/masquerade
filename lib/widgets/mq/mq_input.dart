@@ -25,6 +25,7 @@ class MqInput extends StatefulWidget {
     this.maxLines,
     this.keyboardType,
     this.semanticsLabel,
+    this.focusNode,
   });
 
   final TextEditingController controller;
@@ -46,18 +47,25 @@ class MqInput extends StatefulWidget {
   final TextInputType? keyboardType;
   final String? semanticsLabel;
 
+  /// Optional externally-owned focus node. When omitted, MqInput owns one
+  /// internally and disposes it. When provided, the caller owns disposal.
+  final FocusNode? focusNode;
+
   @override
   State<MqInput> createState() => _MqInputState();
 }
 
 class _MqInputState extends State<MqInput> {
-  late final FocusNode _focus = FocusNode();
+  late final FocusNode _focus;
+  late final bool _ownsFocus;
   bool _focused = false;
   String _prevText = '';
 
   @override
   void initState() {
     super.initState();
+    _ownsFocus = widget.focusNode == null;
+    _focus = widget.focusNode ?? FocusNode();
     _prevText = widget.controller.text;
     widget.controller.addListener(_onControllerChanged);
     _focus.addListener(() {
@@ -80,7 +88,7 @@ class _MqInputState extends State<MqInput> {
   @override
   void dispose() {
     widget.controller.removeListener(_onControllerChanged);
-    _focus.dispose();
+    if (_ownsFocus) _focus.dispose();
     super.dispose();
   }
 
