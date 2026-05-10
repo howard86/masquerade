@@ -54,7 +54,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onHeroChange() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 200), _recomputeMatches);
   }
