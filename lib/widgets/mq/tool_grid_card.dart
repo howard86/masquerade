@@ -6,6 +6,7 @@ import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
+import '../../utils/text_truncate.dart';
 
 /// Editorial home-grid tile. Hairline border resting; accent border + pulsing
 /// dot when [matched]; mono preview line when [lastEntry] is present
@@ -27,8 +28,6 @@ class ToolGridCard extends StatelessWidget {
   final VoidCallback? onLongPress;
 
   static const int _previewMax = 24;
-  static String _truncate(String s) =>
-      s.length <= _previewMax ? s : '${s.substring(0, _previewMax)}…';
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +36,9 @@ class ToolGridCard extends StatelessWidget {
     final HistoryEntry? entry = lastEntry;
     final bool hasPreview = entry != null;
     final String? preview = hasPreview
-        ? (entry.sensitive ? '••••' : _truncate(entry.input))
+        ? (entry.sensitive
+              ? '••••'
+              : truncateWithEllipsis(entry.input, max: _previewMax))
         : null;
     final Color borderColor = matched ? c.accent : c.border;
     final double borderWidth = matched ? 1.0 : 0.5;

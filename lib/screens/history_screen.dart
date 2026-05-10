@@ -6,6 +6,7 @@ import '../theme/mq_metrics.dart';
 import '../theme/mq_theme.dart';
 import '../theme/mq_typography.dart';
 import '../utility_catalog.dart';
+import '../utils/text_truncate.dart';
 import '../widgets/mq/mq_button.dart';
 import '../widgets/mq/mq_icons.dart';
 import '../widgets/mq/mq_section_header.dart';
@@ -187,10 +188,10 @@ class _HistoryRow extends StatelessWidget {
     }
     final String displayInput = entry.sensitive
         ? '••••••••'
-        : _truncate(entry.input);
+        : truncateWithEllipsis(entry.input, max: _truncateAt);
     final String displayOutput = entry.sensitive
         ? '(hidden)'
-        : _truncate(entry.output);
+        : truncateWithEllipsis(entry.output, max: _truncateAt);
     return Container(
       padding: const EdgeInsets.all(MqSpacing.md),
       decoration: BoxDecoration(
@@ -252,7 +253,4 @@ class _HistoryRow extends StatelessWidget {
   /// Visible length cap for the input/output preview line. Anything longer
   /// gets a single ellipsis so the row stays one line at any device width.
   static const int _truncateAt = 32;
-
-  static String _truncate(String s) =>
-      s.length > _truncateAt ? '${s.substring(0, _truncateAt)}…' : s;
 }
