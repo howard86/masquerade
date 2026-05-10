@@ -52,12 +52,12 @@ class MqButton extends StatelessWidget {
       MqButtonVariant.filled => (bg: tint, fg: c.onTint, border: null),
       MqButtonVariant.tinted => (bg: tintBg, fg: tintInk, border: null),
       MqButtonVariant.plain => (
-        bg: const Color(0x00000000),
+        bg: CupertinoColors.transparent,
         fg: tint,
         border: null,
       ),
       MqButtonVariant.glass => (
-        bg: const Color(0x00000000),
+        bg: CupertinoColors.transparent,
         fg: c.textPri,
         border: c.borderStrong,
       ),

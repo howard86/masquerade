@@ -3,8 +3,6 @@ import 'package:flutter/widgets.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 
-/// "M." italic Plex Serif on a cream-square plate with a hairline border.
-/// Source for AppIcon + favicon regen — render into PNG offline.
 class MqMonogram extends StatelessWidget {
   const MqMonogram({
     super.key,

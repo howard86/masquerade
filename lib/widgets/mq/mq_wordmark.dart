@@ -3,8 +3,6 @@ import 'package:flutter/widgets.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 
-/// "Masquerade" set in Plex Serif italic + accent ink. Sized via the display
-/// tier by default; pass [size] to override.
 class MqWordmark extends StatelessWidget {
   const MqWordmark({super.key, this.size, this.color});
 
