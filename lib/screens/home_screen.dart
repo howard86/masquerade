@@ -105,21 +105,22 @@ class _HomeScreenState extends State<HomeScreen> {
     final HistoryController history = HistoryScope.of(context);
     final bool retentionOff = history.retention == Duration.zero;
 
+    // Dart's LinkedHashMap preserves insertion order, so the keys ARE the
+    // recency-ordered list of recently-used tool ids.
     final Map<String, HistoryEntry> lastByTool = <String, HistoryEntry>{};
-    final List<String> recentIds = <String>[];
     if (!retentionOff) {
       for (final HistoryEntry e in history.entries) {
-        if (!lastByTool.containsKey(e.utilityId)) {
-          lastByTool[e.utilityId] = e;
-          recentIds.add(e.utilityId);
-        }
+        lastByTool.putIfAbsent(e.utilityId, () => e);
       }
     }
 
     final Set<String> matchedIds = _matches
         .map((UtilityDescriptor u) => u.id)
         .toSet();
-    final List<UtilityDescriptor> sorted = _sortCatalog(matchedIds, recentIds);
+    final List<UtilityDescriptor> sorted = _sortCatalog(
+      matchedIds,
+      lastByTool.keys,
+    );
     final MqDensity d = context.density;
 
     return CupertinoPageScaffold(
@@ -176,28 +177,26 @@ class _HomeScreenState extends State<HomeScreen> {
   /// → remainder (catalog order).
   List<UtilityDescriptor> _sortCatalog(
     Set<String> matchedIds,
-    List<String> recentIds,
+    Iterable<String> recentIds,
   ) {
-    final List<UtilityDescriptor> out = <UtilityDescriptor>[];
-    final Set<String> placed = <String>{};
+    final List<UtilityDescriptor> matched = <UtilityDescriptor>[];
+    final List<UtilityDescriptor> rest = <UtilityDescriptor>[];
+    final Map<String, UtilityDescriptor> remaining =
+        <String, UtilityDescriptor>{};
     for (final UtilityDescriptor u in UtilityCatalog.all) {
       if (matchedIds.contains(u.id)) {
-        out.add(u);
-        placed.add(u.id);
+        matched.add(u);
+      } else {
+        remaining[u.id] = u;
+        rest.add(u);
       }
     }
+    final List<UtilityDescriptor> recents = <UtilityDescriptor>[];
     for (final String id in recentIds) {
-      if (placed.contains(id)) continue;
-      final UtilityDescriptor? u = UtilityCatalog.all
-          .where((UtilityDescriptor d) => d.id == id)
-          .firstOrNull;
-      if (u == null) continue;
-      out.add(u);
-      placed.add(u.id);
+      final UtilityDescriptor? u = remaining.remove(id);
+      if (u != null) recents.add(u);
     }
-    for (final UtilityDescriptor u in UtilityCatalog.all) {
-      if (!placed.contains(u.id)) out.add(u);
-    }
-    return out;
+    rest.removeWhere((UtilityDescriptor u) => !remaining.containsKey(u.id));
+    return <UtilityDescriptor>[...matched, ...recents, ...rest];
   }
 }
