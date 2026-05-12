@@ -161,7 +161,7 @@ In-place evolution under `lib/widgets/mq/` — no `mq2` namespace.
 | `SectionRule` | full-width hairline + optional centered label slot (uppercase sectionLabel style) |
 | `ReadingBlock` | paragraph-rhythm container (24px between paragraphs, 40px before headings) |
 | `MqWordmark` | "Masquerade" Plex Serif italic, accent ink, sized via display tier |
-| `MqMonogram` | "M." (italic Plex Serif Display) on cream square + hairline border, used as app-icon source + splash |
+| `MqMonogram` | Square brackets framing a crossed hammer + quill, oxblood on cream (light) / oxblood on espresso (dark). Renders by loading `assets/brand/monogram-{light,dark}.svg` via `flutter_svg` — SVG is the only source. |
 
 ### Icons
 - Library: Lucide (OFL, ~1500 line glyphs, 1.5px stroke).
@@ -206,8 +206,19 @@ No personalization, no usage tracking. Preserves zero-keystroke "paste anything"
 
 ## Brand mark
 
-- Wordmark: "Masquerade" Plex Serif italic, display tier, accent color. Used on splash + Settings → About header.
-- Monogram: "M." Plex Serif italic display, cream square (8% inset), hairline `borderStrong` outline. Used as iOS/macOS AppIcon + web favicon source. Regenerate `ios/Runner/Assets.xcassets/AppIcon.appiconset/*` + `macos/Runner/Assets.xcassets/AppIcon.appiconset/*` + `web/favicon.png` + `web/icons/*` from a single `assets/brand/monogram.svg`.
+Status: replaced 2026-05-11. Earlier spec was a typographic `[ M. ]` mark; the production mark is now a bracketed hammer+quill emblem. Implementation cascade tracked in `docs/launch-metadata.md` §"Update plan".
+
+- **Wordmark.** "Masquerade" Plex Serif italic, display tier, accent color. Used on splash + Settings → About header.
+- **Monogram.** Square brackets framing a crossed hammer + quill, oxblood `#8B2635`. Brackets retain the developer cue carried over from the earlier mark; the hammer + quill pair encodes "build" + "write" — the two postures the toolbox supports. Square frame with hairline `borderStrong` outline.
+- **Variants.** Two light/dark pairs:
+  - `assets/brand/monogram-{light,dark}.svg` — square mark with the hairline frame. Used as the iOS AppIcon + web favicon source.
+  - `assets/brand/monogram-{light,dark}-maskable.svg` — same mark with a 10% safe-zone inset and no frame, for PWA maskable icon slots that crop to a circle.
+  - `assets/brand/splash-{light,dark}.svg` — splash composition: framed monogram above the wordmark on a flat brand-bg fill.
+- **Pipeline.** SVGs are the source of truth. `scripts/build-brand-pngs.sh` rasterizes them to PNGs in `assets/brand/source/` via `rsvg-convert` (requires `brew install librsvg`); the fontconfig temp dir is preserved for the wordmark / splash compositions that still call out IBM Plex faces. The hammer + quill monogram itself is pure shape, no embedded type. Those PNGs feed the launcher and splash plugins:
+  - `dart run flutter_launcher_icons` — regenerates `ios/Runner/Assets.xcassets/AppIcon.appiconset/*` (light + dark transparent) + `web/favicon.png` + `web/icons/*`.
+  - `dart run flutter_native_splash:create` — regenerates `ios/Runner/Assets.xcassets/LaunchImage.imageset/*`, `ios/Runner/Base.lproj/LaunchScreen.storyboard`, and `web/splash/img/*` (with light/dark `prefers-color-scheme` srcset injected into `web/index.html`).
+- **Scope.** iOS + web only (per CLAUDE.md). macOS / Android / Windows / Linux Flutter scaffolds keep stock assets until those platforms ship.
+- **Splash motion.** `MqSplashScreen` is a Dart-side composition (`MqMonogram` over `MqWordmark`) that renders over the held native splash; once the engine paints it, `FlutterNativeSplash.remove()` dismisses the native overlay and an `AnimatedSwitcher` crossfades into `RootTabScaffold` after a 350 ms hold + 250 ms fade. Tests bypass this with `MyApp(skipSplash: true)`.
 
 ## Tests
 
