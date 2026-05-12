@@ -20,7 +20,7 @@ Future<HistoryController> pumpHomeWithLoadedHistory(WidgetTester tester) async {
   await tester.binding.setSurfaceSize(kHomeSurfaceSize);
   addTearDown(() => tester.binding.setSurfaceSize(null));
   final HistoryController history = await HistoryController.load();
-  await tester.pumpWidget(MyApp(historyController: history));
+  await tester.pumpWidget(MyApp(historyController: history, skipSplash: true));
   await tester.pumpAndSettle();
   return history;
 }

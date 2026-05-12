@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 
 import 'screens/root_tab_scaffold.dart';
 import 'state/density_controller.dart';
@@ -7,6 +8,7 @@ import 'state/theme_controller.dart';
 import 'theme/mq_colors.dart';
 import 'theme/mq_theme.dart';
 import 'widgets/iphone_frame.dart';
+import 'widgets/mq/mq_splash_screen.dart';
 
 class MyApp extends StatefulWidget {
   const MyApp({
@@ -14,23 +16,37 @@ class MyApp extends StatefulWidget {
     this.themeController,
     this.historyController,
     this.densityController,
+    this.skipSplash = false,
   });
 
   final ThemeController? themeController;
   final HistoryController? historyController;
   final DensityController? densityController;
 
+  /// Tests pump `MyApp` directly without going through `main.dart`'s
+  /// `FlutterNativeSplash.preserve()`, so the splash crossfade adds 600 ms
+  /// of timer noise without exercising any production code path. Set true
+  /// from test helpers to skip straight to the shell.
+  final bool skipSplash;
+
   @override
   State<MyApp> createState() => _MyAppState();
 }
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  /// Time the Dart splash stays on screen before crossfading to the
+  /// shell. The native splash dismisses at the start of this window so
+  /// the handoff is invisible.
+  static const Duration _splashHold = Duration(milliseconds: 350);
+  static const Duration _splashFade = Duration(milliseconds: 250);
+
   late final ThemeController _theme;
   late final HistoryController _history;
   late final DensityController _density;
   late final Listenable _appListenable;
 
   Brightness _platformBrightness = Brightness.light;
+  late bool _showSplash;
 
   @override
   void initState() {
@@ -42,6 +58,17 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _platformBrightness =
         WidgetsBinding.instance.platformDispatcher.platformBrightness;
     WidgetsBinding.instance.addObserver(this);
+    _showSplash = !widget.skipSplash;
+    if (!widget.skipSplash) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        // Dart splash now painted — release the native overlay and start
+        // the hold timer for the crossfade.
+        FlutterNativeSplash.remove();
+        Future<void>.delayed(_splashHold, () {
+          if (mounted) setState(() => _showSplash = false);
+        });
+      });
+    }
   }
 
   @override
@@ -92,7 +119,17 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 builder: (BuildContext context, Widget? child) => MqTheme(
                   tokens: tokens,
                   child: ResponsiveLayout(
-                    child: child ?? const SizedBox.shrink(),
+                    child: AnimatedSwitcher(
+                      duration: _splashFade,
+                      child: _showSplash
+                          ? const MqSplashScreen(
+                              key: ValueKey<String>('splash'),
+                            )
+                          : KeyedSubtree(
+                              key: const ValueKey<String>('shell'),
+                              child: child ?? const SizedBox.shrink(),
+                            ),
+                    ),
                   ),
                 ),
                 home: const RootTabScaffold(),

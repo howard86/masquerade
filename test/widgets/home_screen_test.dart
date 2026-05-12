@@ -36,7 +36,7 @@ void main() {
     await tester.binding.setSurfaceSize(kHomeSurfaceSize);
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(skipSplash: true));
     await tester.pumpAndSettle();
 
     final Iterable<ToolGridCard> cards = tester.widgetList<ToolGridCard>(
@@ -55,7 +55,7 @@ void main() {
     await tester.binding.setSurfaceSize(kHomeSurfaceSize);
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(skipSplash: true));
     await tester.pumpAndSettle();
 
     expect(find.bySemanticsLabel('Paste'), findsAtLeastNWidgets(1));
@@ -70,7 +70,7 @@ void main() {
     await tester.binding.setSurfaceSize(kHomeSurfaceSize);
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(skipSplash: true));
     await tester.pumpAndSettle();
 
     final Finder hero = await findHero(tester);
@@ -87,7 +87,7 @@ void main() {
     await tester.binding.setSurfaceSize(kHomeSurfaceSize);
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(skipSplash: true));
     await tester.pumpAndSettle();
 
     final Finder hero = await findHero(tester);
@@ -104,7 +104,7 @@ void main() {
     await tester.binding.setSurfaceSize(kHomeSurfaceSize);
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(skipSplash: true));
     await tester.pumpAndSettle();
 
     final Finder hero = await findHero(tester);
@@ -121,7 +121,7 @@ void main() {
     await tester.binding.setSurfaceSize(kHomeSurfaceSize);
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(skipSplash: true));
     await tester.pumpAndSettle();
 
     final Finder hero = await findHero(tester);
@@ -140,7 +140,7 @@ void main() {
     await tester.binding.setSurfaceSize(kHomeSurfaceSize);
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(skipSplash: true));
     await tester.pumpAndSettle();
 
     final Finder hero = await findHero(tester);
