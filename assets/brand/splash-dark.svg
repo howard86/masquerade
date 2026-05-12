@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1242 2208" width="1242" height="2208">
+  <title>Masquerade splash (dark)</title>
+  <rect x="0" y="0" width="1242" height="2208" fill="#14110D"/>
+  <g transform="translate(367 824)">
+    <rect x="0" y="0" width="508" height="508" fill="#1C1814"/>
+    <rect x="2" y="2" width="504" height="504" fill="none" stroke="#F2EBDC" stroke-opacity="0.28" stroke-width="3"/>
+    <g fill="#E0B872" text-anchor="middle">
+      <text x="125" y="324" font-family="IBM Plex Mono" font-weight="500" font-size="268">[</text>
+      <text x="254" y="324" font-family="IBM Plex Serif" font-style="italic" font-weight="400" font-size="268">M.</text>
+      <text x="383" y="324" font-family="IBM Plex Mono" font-weight="500" font-size="268">]</text>
+    </g>
+  </g>
+  <text x="621" y="1500" font-family="IBM Plex Serif" font-style="italic" font-weight="400" font-size="124" fill="#E0B872" text-anchor="middle">Masquerade</text>
+</svg>

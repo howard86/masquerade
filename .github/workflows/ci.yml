@@ -119,6 +119,11 @@ jobs:
           name: codecov-umbrella
           fail_ci_if_error: false
 
+      # Catches web-only regressions (manifest, splash injection, asset
+      # paths, tree-shake-icons). Output is discarded — gate only.
+      - name: Build web (release)
+        run: flutter build web --release
+
   # Security scan
   security:
     name: Security scan

@@ -18,7 +18,7 @@ Future<void> pumpHomeAndOpen(WidgetTester tester, String tileLabel) async {
   await tester.binding.setSurfaceSize(kDetailSurfaceSize);
   addTearDown(() => tester.binding.setSurfaceSize(null));
 
-  await tester.pumpWidget(const MyApp());
+  await tester.pumpWidget(const MyApp(skipSplash: true));
   await tester.pumpAndSettle();
 
   final Finder tile = find.text(tileLabel).last;

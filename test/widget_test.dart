@@ -14,7 +14,7 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(500, 1400));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(skipSplash: true));
     await tester.pumpAndSettle();
     final Finder timestampTile = find.text('Timestamp');
     expect(timestampTile, findsWidgets);
@@ -88,7 +88,7 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(500, 1100));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(skipSplash: true));
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
@@ -123,7 +123,7 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(1200, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(skipSplash: true));
     await tester.pumpAndSettle();
 
     expect(

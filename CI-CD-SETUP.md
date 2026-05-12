@@ -137,6 +137,35 @@ flutter analyze
 
 # Check formatting
 dart format --output=none --set-exit-if-changed .
+
+# Reproduce the web build CI gate
+flutter build web --release
+```
+
+### iOS release build (local only — not run in CI)
+
+CI does not exercise iOS or run macOS runners. Verify release-mode signing and archive locally before tagging:
+
+```bash
+# Release-mode device build with the project's automatic signing.
+flutter build ios --release
+
+# Produce a development-signed .ipa for sideload / TestFlight upload.
+flutter build ipa --release --export-method development
+# Output: build/ios/ipa/*.ipa, archive at build/ios/archive/Runner.xcarchive
+```
+
+The bundle identifier is `com.example.howardism` (the `com.example.` prefix is a Flutter scaffold leftover and should be replaced with a real reverse-DNS prefix before App Store submission). Code signing uses the Apple Developer team configured in `ios/Runner.xcodeproj` (Automatic signing, team `9KRJ83FMAF`).
+
+### Brand assets — regenerate
+
+Sources live in `assets/brand/*.svg`. To regenerate after editing them:
+
+```bash
+brew install librsvg                       # one-time
+./scripts/build-brand-pngs.sh              # SVG -> PNG sources
+dart run flutter_launcher_icons            # iOS + web icons
+dart run flutter_native_splash:create      # iOS + web splash
 ```
 
 ### Common Problems
