@@ -1,3 +1,12 @@
+## v1.8.0 (2026-05-12)
+
+### Feat
+
+- **web**: brand icons, PWA splash, manifest + theme-color meta
+- **ios**: regenerate AppIcon + LaunchImage from brand assets
+- **splash**: Dart-side splash crossfade + MqMonogram/MqSplashScreen
+- **brand**: add SVG mark sources + rasterization pipeline
+
 ## v1.7.0 (2026-05-10)
 
 ### Feat
