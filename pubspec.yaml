@@ -42,6 +42,16 @@ dependencies:
   share_plus: ^12.0.2
   cross_file: ^0.3.4+2
   flutter_lucide: ^1.0.0
+  # Renders assets/brand/*.svg in MqMonogram. SVG sources live with the
+  # repo so the brand mark is editable + diffable; PNGs in
+  # assets/brand/source/ are exports for native icon/splash pipelines.
+  flutter_svg: ^2.0.10+1
+
+  # Provides the runtime FlutterNativeSplash.preserve/remove API used in
+  # main.dart + app.dart to hand off from the native splash to
+  # MqSplashScreen. The :create generator (run-time-only command) lives
+  # in the same package; we still invoke it via `dart run` locally.
+  flutter_native_splash: ^2.4.6
 
 dev_dependencies:
   flutter_test:
@@ -58,6 +68,14 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+  # Asset generator — run-once, output committed. Sources are PNGs in
+  # assets/brand/source/, themselves rasterized from
+  # assets/brand/*.svg by scripts/build-brand-pngs.sh (requires librsvg).
+  # Regenerate icons:  dart run flutter_launcher_icons
+  # (flutter_native_splash is in dependencies because its runtime API
+  # is used in main.dart; regenerate via `dart run flutter_native_splash:create`.)
+  flutter_launcher_icons: ^0.14.4
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
@@ -66,6 +84,9 @@ flutter:
 
   # Cupertino-only app — see CLAUDE.md.
   uses-material-design: false
+
+  assets:
+    - assets/brand/
 
   fonts:
     - family: IBMPlexSerif
@@ -85,3 +106,29 @@ flutter:
           style: italic
         - asset: assets/fonts/IBMPlexMono-Medium.ttf
           weight: 500
+
+# iOS + web only per CLAUDE.md iOS-first stance. Sources are 1024×1024
+# PNGs rasterized from assets/brand/*.svg.
+flutter_launcher_icons:
+  ios: true
+  remove_alpha_ios: true
+  background_color_ios: "#FAF7F2"
+  image_path_ios: "assets/brand/source/monogram-light-1024.png"
+  image_path_ios_dark_transparent: "assets/brand/source/monogram-dark-1024.png"
+  web:
+    generate: true
+    image_path: "assets/brand/source/monogram-light-1024.png"
+    background_color: "#FAF7F2"
+    theme_color: "#8B2635"
+
+# Native splash. Plugin emits a static frame; the Dart-side
+# MqSplashScreen crossfades into RootTabScaffold once the engine boots.
+flutter_native_splash:
+  color: "#FAF7F2"
+  color_dark: "#14110D"
+  image: "assets/brand/source/splash-light.png"
+  image_dark: "assets/brand/source/splash-dark.png"
+  ios_content_mode: scaleAspectFit
+  web_image_mode: contain
+  android: false
+  fullscreen: false

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>Masquerade monogram (dark, maskable)</title>
+  <rect x="0" y="0" width="1024" height="1024" fill="#14110D"/>
+  <g fill="#E0B872" text-anchor="middle">
+    <text x="280" y="600" font-family="IBM Plex Mono" font-weight="500" font-size="320">[</text>
+    <text x="512" y="616" font-family="IBM Plex Serif" font-style="italic" font-weight="400" font-size="416">M.</text>
+    <text x="744" y="600" font-family="IBM Plex Mono" font-weight="500" font-size="320">]</text>
+  </g>
+</svg>
