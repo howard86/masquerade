@@ -6,7 +6,7 @@ import 'mq_wordmark.dart';
 
 /// Dart-side splash that mirrors `assets/brand/splash-{light,dark}.svg`.
 /// Rendered for one breath after engine init, then crossfaded into the
-/// app shell. Composition: framed `[ M. ]` monogram above the
+/// app shell. Composition: framed hammer+quill monogram above the
 /// `Masquerade` wordmark on a flat brand-bg fill.
 class MqSplashScreen extends StatelessWidget {
   const MqSplashScreen({super.key});
