@@ -1,3 +1,17 @@
+## v1.9.0 (2026-05-13)
+
+### Feat
+
+- **brand**: add hammer+quill marketing render
+- **web**: regenerate favicon + PWA icons + splash for hammer+quill
+- **ios**: regenerate AppIcon + LaunchImage for hammer+quill
+- **brand**: redesign monogram to bracketed hammer+quill
+- **web**: v1.7.0 launch SEO metadata + PWA manifest
+
+### Refactor
+
+- **brand**: MqMonogram renders SVG asset instead of Text.rich
+
 ## v1.8.0 (2026-05-12)
 
 ### Feat
