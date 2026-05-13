@@ -1,12 +1,16 @@
 {
-    "name": "Masquerade - Utility Toolbox",
+    "name": "Masquerade: A Quiet Toolbox",
     "short_name": "Masquerade",
+    "id": "/",
     "start_url": ".",
+    "scope": "/",
     "display": "standalone",
+    "orientation": "portrait-primary",
     "background_color": "#FAF7F2",
     "theme_color": "#8B2635",
-    "description": "A collection of utility tools and converters - your digital toolbox for everyday tasks.",
-    "orientation": "portrait-primary",
+    "lang": "en",
+    "categories": ["utilities", "productivity", "developer"],
+    "description": "A quiet toolbox for builders. Convert timestamps, JSON, base64, hex, color, cron, basis points, bytes and QR — on-device, offline, untracked.",
     "prefer_related_applications": false,
     "icons": [
         {
