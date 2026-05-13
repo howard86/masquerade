@@ -5,10 +5,20 @@
   <g transform="translate(367 824)">
     <rect x="0" y="0" width="508" height="508" fill="#FFFDF8"/>
     <rect x="2" y="2" width="504" height="504" fill="none" stroke="#1B1813" stroke-opacity="0.24" stroke-width="3"/>
-    <g fill="#8B2635" text-anchor="middle">
-      <text x="125" y="324" font-family="IBM Plex Mono" font-weight="500" font-size="268">[</text>
-      <text x="254" y="324" font-family="IBM Plex Serif" font-style="italic" font-weight="400" font-size="268">M.</text>
-      <text x="383" y="324" font-family="IBM Plex Mono" font-weight="500" font-size="268">]</text>
+    <g transform="scale(0.496)">
+      <g fill="none" stroke="#8B2635" stroke-width="28" stroke-linecap="square" stroke-linejoin="miter">
+        <path d="M334 296H248V728H334"/>
+        <path d="M690 296H776V728H690"/>
+      </g>
+      <g transform="rotate(45 512 512)" fill="#8B2635">
+        <rect x="447" y="372" width="130" height="78" rx="14"/>
+        <rect x="497" y="440" width="30" height="212" rx="15"/>
+      </g>
+      <g transform="rotate(-45 512 512)">
+        <path fill="#8B2635" d="M512 372C468 452 464 548 500 622C506 638 518 638 524 622C560 548 556 452 512 372Z"/>
+        <path fill="#8B2635" d="M502 616L522 616L512 686Z"/>
+        <path stroke="#FFFDF8" stroke-width="8" stroke-linecap="round" d="M512 396V618"/>
+      </g>
     </g>
   </g>
   <text x="621" y="1500" font-family="IBM Plex Serif" font-style="italic" font-weight="400" font-size="124" fill="#8B2635" text-anchor="middle">Masquerade</text>
