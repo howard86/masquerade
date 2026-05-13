@@ -161,7 +161,7 @@ In-place evolution under `lib/widgets/mq/` — no `mq2` namespace.
 | `SectionRule` | full-width hairline + optional centered label slot (uppercase sectionLabel style) |
 | `ReadingBlock` | paragraph-rhythm container (24px between paragraphs, 40px before headings) |
 | `MqWordmark` | "Masquerade" Plex Serif italic, accent ink, sized via display tier |
-| `MqMonogram` | "M." (italic Plex Serif Display) on cream square + hairline border, used as app-icon source + splash |
+| `MqMonogram` | bracketed crossed hammer + quill on a cream square + hairline border; loads `assets/brand/monogram-{light,dark}.svg` (theme-switched, no runtime recolor); used as app-icon source + splash |
 
 ### Icons
 - Library: Lucide (OFL, ~1500 line glyphs, 1.5px stroke).
@@ -207,7 +207,7 @@ No personalization, no usage tracking. Preserves zero-keystroke "paste anything"
 ## Brand mark
 
 - Wordmark: "Masquerade" Plex Serif italic, display tier, accent color. Used on splash + Settings → About header.
-- Monogram: "M." Plex Serif italic display, cream square (8% inset), hairline `borderStrong` outline. Used as iOS/macOS AppIcon + web favicon source. Regenerate `ios/Runner/Assets.xcassets/AppIcon.appiconset/*` + `macos/Runner/Assets.xcassets/AppIcon.appiconset/*` + `web/favicon.png` + `web/icons/*` from a single `assets/brand/monogram.svg`.
+- Monogram: a pair of upright square brackets `[ ]` framing a crossed hammer (behind) and quill (in front) — "build" + "write", the two postures the toolbox supports. Brackets carried over from the prior `[ M. ]` mark. Oxblood `#8B2635` on cream `#FAF7F2` (light) / brass `#E0B872` on espresso `#14110D` (dark). Source of truth is hand-authored SVG: `assets/brand/monogram-{light,dark,light-maskable,dark-maskable}.svg`. `scripts/build-brand-pngs.sh` rasterizes those to `assets/brand/source/*.png`; `dart run flutter_launcher_icons` + `dart run flutter_native_splash:create` regenerate `ios/Runner/Assets.xcassets/*` + `web/favicon.png` + `web/icons/*` + `web/splash/*` from the PNGs. The DALL-E marketing render at `assets/marketing/logo-still-1254.jpg` (baked shadow + paper texture) is NOT an icon source — Apple HIG forbids baked shadows on icons.
 
 ## Tests
 
@@ -251,10 +251,11 @@ Existing tests survive token swap (behavior + WCAG, no goldens, no hex literals 
 - Each `lib/widgets/tool_bodies/<tool>_body.dart` audited: drop ad-hoc colors/spacing, use refreshed components, ensure mono cells use new syntax tokens.
 
 ### PR(last) — Brand mark
-- `assets/brand/monogram.svg` — design.
-- iOS + macOS AppIcon regenerated.
-- `web/favicon.png` + `web/icons/Icon-*.png` regenerated.
-- `web/index.html` + `web/manifest.json` color-meta updated to cream `#FAF7F2`.
+- `assets/brand/monogram-{light,dark,light-maskable,dark-maskable}.svg` + `assets/brand/splash-{light,dark}.svg` — hand-authored hammer+quill design.
+- `assets/brand/source/*.png` regenerated via `scripts/build-brand-pngs.sh`.
+- iOS AppIcon + LaunchImage regenerated (`dart run flutter_launcher_icons`, `dart run flutter_native_splash:create`).
+- `web/favicon.png` + `web/icons/Icon-*.png` + `web/splash/*` regenerated.
+- `web/index.html` + `web/manifest.json` color-meta = cream `#FAF7F2` / accent `#8B2635`.
 
 ## Open implementation questions (resolve in PR1)
 

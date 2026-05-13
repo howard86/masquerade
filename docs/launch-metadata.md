@@ -102,27 +102,28 @@ Insert between the existing `<meta name="description">` and `<meta name="mobile-
 
 ## 5. Logo prompt (DALL-E 3 / GPT Image)
 
-Generates a marketing still life of the existing monogram. The app icon source remains `assets/brand/monogram-light.svg`; this prompt is for README/social/screenshots, not for replacing the production icon. Output size: 1024×1024.
+Marketing still life of the production hammer+quill monogram. The first generation landed at `assets/marketing/logo-still-1254.jpg` (1254×1254, JPEG q80 — re-encoded from the original PNG to clear the 500 KB pre-commit limit; baked shadow + paper texture). The clean SVG sources for the icon pipeline are authored separately and live in `assets/brand/monogram-{light,dark,light-maskable,dark-maskable}.svg` — DO NOT use this prompt's output as the production icon source (shadow + paper texture conflict with iOS HIG). Use only for marketing surfaces (README hero, OG card, App Store screenshot frames, social posts). Output size: 1024×1024.
 
 ```
 A square, photorealistic editorial still life on a warm cream paper surface
-(#FAF7F2). Centered, a small rectangular paper tag, debossed and inked in
-deep oxblood (#8B2635), bears a typographic monogram: a square bracket on
-the left, a single italic serif capital letter M followed by a period in the
-middle, and a square bracket on the right — like this: [ M. ] — in IBM Plex
-Mono brackets and IBM Plex Serif italic for the M. Soft north-window light
-falls from the upper left, casting a faint, soft shadow. A vintage brass
-fountain pen rests at a slight angle below the tag, its nib catching a
-highlight. Subtle paper grain visible. Restrained, literary, monastic
-composition. No additional text anywhere in the image. No logos other than
-the bracketed monogram on the tag. Shallow depth of field, 50mm lens look,
-museum-catalog photography.
+(#FAF7F2) with subtle paper grain. Centered, debossed and inked in deep
+oxblood (#8B2635), is a brand monogram: a pair of upright square brackets
+framing a crossed hammer and quill — the hammer behind, oriented from
+upper-left to lower-right; the quill in front, oriented from upper-right to
+lower-left, its feathered plume rising past the top inside edge of the
+right bracket. The mark sits flush with the paper, slightly recessed, with
+a faint inner debossed shadow on its lower edge. Soft north-window light
+falls from the upper left, casting a long, gentle shadow across the right
+side of the frame. Restrained, literary, monastic composition. No
+additional text anywhere in the image. No logos other than the bracketed
+hammer + quill mark. Shallow depth of field, 50mm lens look, museum-catalog
+photography.
 ```
 
 Iteration notes:
-- If the bracket-M-bracket type renders incorrectly, append: *"the tag reads exactly: open-bracket, capital M, period, close-bracket — three glyphs only"*.
-- Reduce ambition on re-runs by dropping the fountain pen, freeing attention for the tag.
-- DALL-E weakness: deboss + small italic serif. Expect 3–5 generations before landing.
+- If the hammer/quill arrangement reverses or the brackets render as parentheses, append: *"the mark reads exactly: open square bracket, crossed hammer behind quill, close square bracket — three elements only, no other glyphs"*.
+- DALL-E weakness: deboss + small object detail. Expect 3–5 generations before landing.
+- For App Store screenshot frames, prefer this prompt over re-cropping the banner — square aspect carries the mark better than wide.
 
 ## 6. Banner prompt (DALL-E 3 / GPT Image)
 
@@ -138,21 +139,21 @@ Native size 1792×1024 (DALL-E landscape). Crop targets:
 ```
 A wide, photorealistic editorial flat-lay shot from directly above. The
 surface is a sheet of warm cream paper (#FAF7F2) with subtle grain, filling
-the frame edge to edge. Arranged on the paper, slightly left of center, is
-a small rectangular paper tag debossed and inked in deep oxblood (#8B2635)
-with a typographic monogram: square bracket, capital italic serif M with a
-period, square bracket — exactly: [ M. ] — set in IBM Plex Mono brackets
-and IBM Plex Serif italic for the M. Around the tag, a quiet still life of
-a working desk: a vintage brass fountain pen, a thin brass ruler, and four
-or five narrow strips of cream paper bearing short typewritten ink fragments
-— for example "{ }", "0xFF", "42 bps", "*/5 *", "#8B2635" — scattered
-naturally, some overlapping, none in the right third of the frame. The
-right third of the frame is intentionally clean, empty paper, reserved as
-negative space. Soft north-window light from the upper left, gentle long
-shadows. Subtle paper grain. Restrained, literary, monastic composition,
-museum-catalog photography. No headlines, no body copy, no product names
-anywhere in the image except the small typographic fragments noted on the
-paper strips and the bracketed monogram on the tag.
+the frame edge to edge. Slightly left of center, debossed and inked in deep
+oxblood (#8B2635), is a brand monogram: a pair of upright square brackets
+framing a crossed hammer and quill — hammer behind, quill in front, their
+shafts crossing at roughly the bracket midline; the quill's plume rises
+past the upper inside edge of the right bracket. Around the mark, a quiet
+still life of a working desk: a vintage brass fountain pen, a thin brass
+ruler, and four or five narrow strips of cream paper bearing short
+typewritten ink fragments — for example "{ }", "0xFF", "42 bps", "*/5 *",
+"#8B2635" — scattered naturally, some overlapping, none in the right third
+of the frame. The right third of the frame is intentionally clean, empty
+paper, reserved as negative space. Soft north-window light from the upper
+left, gentle long shadows. Subtle paper grain. Restrained, literary,
+monastic composition, museum-catalog photography. No headlines, no body
+copy, no product names anywhere in the image except the small typographic
+fragments noted on the paper strips and the bracketed hammer + quill mark.
 ```
 
 Iteration notes:
@@ -166,8 +167,8 @@ Iteration notes:
 ┌──────────────────────────────────────────────────────────────────┐
 │  [generated banner image, 2:1 crop]                              │
 │                                                                  │
-│   [ M. ]                          A quiet toolbox                │
-│      tag                          for builders.                  │
+│   [ ⚒✒ ]                          A quiet toolbox                │
+│     mark                          for builders.                  │
 │                                                                  │
 │                                   ─────                          │
 │                                   Masquerade · iOS · web         │
