@@ -1,3 +1,9 @@
+## v1.10.0 (2026-05-15)
+
+### Feat
+
+- add Math expression evaluator tool
+
 ## v1.9.0 (2026-05-13)
 
 ### Feat
