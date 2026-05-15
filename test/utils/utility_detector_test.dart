@@ -56,6 +56,48 @@ void main() {
       expect(ids('1700000000'), <String>['number_base', 'timestamp']);
     });
 
+    test('arithmetic expression suggests Math only', () {
+      expect(ids('2+2'), <String>['math']);
+      expect(ids('2 * (3 + 4)'), <String>['math']);
+      expect(ids('100 - 1'), <String>['math']);
+    });
+
+    test('math function name triggers Math', () {
+      expect(ids('sin(pi/2)'), <String>['math']);
+      expect(ids('log(100)'), <String>['math']);
+    });
+
+    test('constant pi alone triggers Math', () {
+      expect(ids('pi'), <String>['math']);
+    });
+
+    test('lone integer does not trigger Math', () {
+      // Math should not poach single numbers — those belong to Number Base
+      // / Timestamp / bps depending on shape.
+      expect(ids('42'), isNot(contains('math')));
+    });
+
+    test('leading sign alone does not trigger Math', () {
+      // `-42` is a single negative number, not an expression.
+      expect(ids('-42'), isNot(contains('math')));
+    });
+
+    test('hex literal does not trigger Math', () {
+      // `0xFF` is owned by Number Base — Math has no multi-base literal
+      // support.
+      expect(ids('0xFF'), isNot(contains('math')));
+    });
+
+    test('ISO date does not trigger Math', () {
+      // Hyphens in dates would otherwise read as subtraction; the date-shape
+      // guard in _detectMath keeps these timestamp-only.
+      expect(ids('2026-05-15'), isNot(contains('math')));
+    });
+
+    test('JSON does not trigger Math', () {
+      expect(ids('{"a":1}'), isNot(contains('math')));
+    });
+
     test('5-field cron only suggests Cron', () {
       expect(ids('0 9 * * 1'), <String>['cron']);
     });

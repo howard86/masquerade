@@ -52,6 +52,8 @@ dependencies:
   # MqSplashScreen. The :create generator (run-time-only command) lives
   # in the same package; we still invoke it via `dart run` locally.
   flutter_native_splash: ^2.4.6
+  decimal: ^3.2.4
+  rational: ^2.2.3
 
 dev_dependencies:
   flutter_test:
