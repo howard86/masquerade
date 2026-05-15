@@ -17,6 +17,7 @@ import 'widgets/tool_bodies/bytes_body.dart';
 import 'widgets/tool_bodies/color_body.dart';
 import 'widgets/tool_bodies/cron_body.dart';
 import 'widgets/tool_bodies/json_body.dart';
+import 'widgets/tool_bodies/math_body.dart';
 import 'widgets/tool_bodies/number_base_body.dart';
 import 'widgets/tool_bodies/qr_code_body.dart';
 import 'widgets/tool_bodies/seed_source.dart';
@@ -188,6 +189,32 @@ class UtilityCatalog {
       detect: _detectColor,
     ),
     UtilityDescriptor(
+      id: 'math',
+      name: 'Math',
+      description: 'Expression evaluator · pi · sin · log',
+      icon: MqIcons.calculator,
+      tint: const Color(0xFFEF4444),
+      synonyms: <String>[
+        'calc',
+        'calculator',
+        'expression',
+        'evaluate',
+        'arithmetic',
+      ],
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            SeedSource seedSource = SeedSource.none,
+            OpenInToolCallback? onSwitchTool,
+          }) => MathBody(
+            initialInput: initialInput,
+            seedSource: seedSource,
+            onSwitchTool: onSwitchTool,
+          ),
+      detect: _detectMath,
+    ),
+    UtilityDescriptor(
       id: 'bps',
       name: 'bps · % · decimal',
       description: 'Basis points ↔ % ↔ decimal',
@@ -345,6 +372,50 @@ bool _detectBps(String input) {
 
 // QR has no input shape — entry is via grid tile or the home scan button.
 bool _detectQrCode(String _) => false;
+
+// Operator must sit between two *operand-shaped* tokens. Eliminates false
+// positives like `0.5%` (unary-suffix percent) and `hsl(184, 100%, 38%)`
+// (commas/parens flank the `%`).
+final RegExp _mathBinaryOp = RegExp(
+  r'[\dA-Za-z_)]\s*[+\-*/%^]\s*[\dA-Za-z_(\-]',
+);
+
+// ISO 8601 dates share the `-` character with subtraction; the timestamp tool
+// owns these, so skip math detection when the input matches that shape.
+final RegExp _isoDateShape = RegExp(r'^\d{4}-\d{2}-\d{2}([T ].*)?$');
+
+final RegExp _mathIdent = RegExp(r'[A-Za-z_]+');
+
+const Set<String> _mathFunctions = <String>{
+  'sin',
+  'cos',
+  'tan',
+  'asin',
+  'acos',
+  'atan',
+  'log',
+  'ln',
+  'sqrt',
+  'abs',
+  'floor',
+  'ceil',
+  'round',
+  'min',
+  'max',
+};
+const Set<String> _mathConsts = <String>{'pi', 'e', 'ans'};
+
+bool _detectMath(String input) {
+  final String t = input.trim();
+  if (t.isEmpty) return false;
+  if (_isoDateShape.hasMatch(t)) return false;
+  if (_mathBinaryOp.hasMatch(t)) return true;
+  for (final RegExpMatch m in _mathIdent.allMatches(t.toLowerCase())) {
+    final String w = m.group(0)!;
+    if (_mathFunctions.contains(w) || _mathConsts.contains(w)) return true;
+  }
+  return false;
+}
 
 bool _detectBytes(String input) {
   final String t = input.trim();
