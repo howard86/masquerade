@@ -11,6 +11,7 @@ import 'utils/encoding_parser.dart';
 import 'utils/json_parser.dart';
 import 'utils/number_base_parser.dart';
 import 'widgets/mq/mq_icons.dart';
+import 'widgets/mq/tool_action_bar.dart';
 import 'widgets/tool_bodies/base64_body.dart';
 import 'widgets/tool_bodies/bps_body.dart';
 import 'widgets/tool_bodies/bytes_body.dart';
@@ -33,12 +34,15 @@ typedef OpenInToolCallback = void Function(UtilityDescriptor u, String input);
 /// ([SeedSource]) so the body can decide whether to record history
 /// immediately (paste) or behind a typing-debounce. [onSwitchTool] lets a
 /// body pipe its current output into another tool without leaving Home.
+/// When [actionBar] is non-null, the body should bind its paste/clear
+/// handlers on the controller so the detail route can render a pinned bar.
 typedef UtilityBuilder =
     Widget Function(
       BuildContext context, {
       String? initialInput,
       SeedSource seedSource,
       OpenInToolCallback? onSwitchTool,
+      ToolActionBarController? actionBar,
     });
 
 class UtilityDescriptor {
@@ -81,10 +85,12 @@ class UtilityCatalog {
             String? initialInput,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
           }) => NumberBaseBody(
             initialInput: initialInput,
             seedSource: seedSource,
             onSwitchTool: onSwitchTool,
+            actionBar: actionBar,
           ),
       detect: _detectNumberBase,
     ),
@@ -101,10 +107,12 @@ class UtilityCatalog {
             String? initialInput,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
           }) => TimestampBody(
             initialInput: initialInput,
             seedSource: seedSource,
             onSwitchTool: onSwitchTool,
+            actionBar: actionBar,
           ),
       detect: _detectTimestamp,
     ),
@@ -121,10 +129,12 @@ class UtilityCatalog {
             String? initialInput,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
           }) => CronBody(
             initialInput: initialInput,
             seedSource: seedSource,
             onSwitchTool: onSwitchTool,
+            actionBar: actionBar,
           ),
       detect: _detectCron,
     ),
@@ -141,10 +151,12 @@ class UtilityCatalog {
             String? initialInput,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
           }) => JSONBody(
             initialInput: initialInput,
             seedSource: seedSource,
             onSwitchTool: onSwitchTool,
+            actionBar: actionBar,
           ),
       detect: _detectJson,
     ),
@@ -161,10 +173,12 @@ class UtilityCatalog {
             String? initialInput,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
           }) => Base64Body(
             initialInput: initialInput,
             seedSource: seedSource,
             onSwitchTool: onSwitchTool,
+            actionBar: actionBar,
           ),
       detect: _detectBase64,
     ),
@@ -181,10 +195,12 @@ class UtilityCatalog {
             String? initialInput,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
           }) => ColorBody(
             initialInput: initialInput,
             seedSource: seedSource,
             onSwitchTool: onSwitchTool,
+            actionBar: actionBar,
           ),
       detect: _detectColor,
     ),
@@ -207,10 +223,12 @@ class UtilityCatalog {
             String? initialInput,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
           }) => MathBody(
             initialInput: initialInput,
             seedSource: seedSource,
             onSwitchTool: onSwitchTool,
+            actionBar: actionBar,
           ),
       detect: _detectMath,
     ),
@@ -227,10 +245,12 @@ class UtilityCatalog {
             String? initialInput,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
           }) => BpsBody(
             initialInput: initialInput,
             seedSource: seedSource,
             onSwitchTool: onSwitchTool,
+            actionBar: actionBar,
           ),
       detect: _detectBps,
     ),
@@ -247,10 +267,12 @@ class UtilityCatalog {
             String? initialInput,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
           }) => BytesBody(
             initialInput: initialInput,
             seedSource: seedSource,
             onSwitchTool: onSwitchTool,
+            actionBar: actionBar,
           ),
       detect: _detectBytes,
     ),
@@ -267,10 +289,12 @@ class UtilityCatalog {
             String? initialInput,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
           }) => QrCodeBody(
             initialInput: initialInput,
             seedSource: seedSource,
             onSwitchTool: onSwitchTool,
+            actionBar: actionBar,
           ),
       detect: _detectQrCode,
     ),
@@ -280,10 +304,57 @@ class UtilityCatalog {
       all.firstWhere((UtilityDescriptor u) => u.id == id);
 
   /// Returns descriptors whose `detect` predicate accepts [input], in catalog
-  /// order. Returns empty when [input] trims to empty.
+  /// order. When shape-based detection finds nothing and [input] looks like a
+  /// short query (alphabetic, ≤ 20 chars), falls through to a synonym/name
+  /// scorer so typing "unix" surfaces Timestamp and "minify" surfaces JSON.
+  /// Returns empty when [input] trims to empty.
   static List<UtilityDescriptor> detectAll(String input) {
-    if (input.trim().isEmpty) return const <UtilityDescriptor>[];
-    return all.where((UtilityDescriptor u) => u.detect(input)).toList();
+    final String trimmed = input.trim();
+    if (trimmed.isEmpty) return const <UtilityDescriptor>[];
+    final List<UtilityDescriptor> shape = all
+        .where((UtilityDescriptor u) => u.detect(input))
+        .toList();
+    if (shape.isNotEmpty) return shape;
+    return _synonymMatch(trimmed);
+  }
+
+  static final RegExp _queryShape = RegExp(r'^[a-zA-Z0-9\- ]{1,20}$');
+
+  static List<UtilityDescriptor> _synonymMatch(String query) {
+    if (!_queryShape.hasMatch(query)) return const <UtilityDescriptor>[];
+    final String q = query.toLowerCase();
+    final List<({UtilityDescriptor u, int score})> ranked =
+        <({UtilityDescriptor u, int score})>[];
+    for (final UtilityDescriptor u in all) {
+      final int s = _scoreTool(u, q);
+      if (s > 0) ranked.add((u: u, score: s));
+    }
+    ranked.sort(
+      (
+        ({UtilityDescriptor u, int score}) a,
+        ({UtilityDescriptor u, int score}) b,
+      ) => b.score.compareTo(a.score),
+    );
+    return ranked
+        .map((({UtilityDescriptor u, int score}) e) => e.u)
+        .toList(growable: false);
+  }
+
+  static int _scoreTool(UtilityDescriptor u, String q) {
+    final String name = u.name.toLowerCase();
+    if (name == q) return 100;
+    for (final String syn in u.synonyms) {
+      if (syn.toLowerCase() == q) return 90;
+    }
+    if (name.startsWith(q)) return 70;
+    for (final String syn in u.synonyms) {
+      if (syn.toLowerCase().startsWith(q)) return 60;
+    }
+    if (name.contains(q)) return 40;
+    for (final String syn in u.synonyms) {
+      if (syn.toLowerCase().contains(q)) return 30;
+    }
+    return 0;
   }
 }
 

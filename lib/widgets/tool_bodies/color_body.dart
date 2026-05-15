@@ -11,13 +11,12 @@ import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
 import '../../utils/color_parser.dart';
 import '../../utils/history_recorder.dart';
-import '../mq/mq_button.dart';
 import '../mq/mq_empty_hint.dart';
-import '../mq/mq_icons.dart';
 import '../mq/mq_input.dart';
 import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_status.dart';
+import '../mq/tool_action_bar.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 
@@ -27,11 +26,13 @@ class ColorBody extends StatefulWidget {
     this.initialInput,
     this.seedSource = SeedSource.none,
     this.onSwitchTool,
+    this.actionBar,
   });
 
   final String? initialInput;
   final SeedSource seedSource;
   final OpenInToolCallback? onSwitchTool;
+  final ToolActionBarController? actionBar;
 
   @override
   State<ColorBody> createState() => _ColorBodyState();
@@ -51,6 +52,10 @@ class _ColorBodyState extends State<ColorBody> {
     final String? seed = widget.initialInput;
     _controller.text = (seed != null && seed.isNotEmpty) ? seed : '#00B8C4';
     _value = MqColorParser.parse(_controller.text);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      widget.actionBar?.bind(onPaste: _paste, onClear: _clear);
+    });
   }
 
   @override
@@ -202,30 +207,6 @@ class _ColorBodyState extends State<ColorBody> {
           ),
         ] else
           const MqEmptyHint(label: 'Paste a color to inspect.'),
-        const SizedBox(height: MqSpacing.lg),
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: MqButton(
-                label: 'Paste',
-                icon: MqIcons.paste,
-                variant: MqButtonVariant.glass,
-                onPressed: _paste,
-                full: true,
-              ),
-            ),
-            const SizedBox(width: MqSpacing.sm),
-            Expanded(
-              child: MqButton(
-                label: 'Clear',
-                icon: MqIcons.clear,
-                variant: MqButtonVariant.glass,
-                onPressed: _clear,
-                full: true,
-              ),
-            ),
-          ],
-        ),
       ],
     );
   }

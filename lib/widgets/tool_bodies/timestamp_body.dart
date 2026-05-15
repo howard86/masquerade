@@ -19,6 +19,7 @@ import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_status.dart';
 import '../mq/mq_surface.dart';
+import '../mq/tool_action_bar.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 
@@ -28,11 +29,13 @@ class TimestampBody extends StatefulWidget {
     this.initialInput,
     this.seedSource = SeedSource.none,
     this.onSwitchTool,
+    this.actionBar,
   });
 
   final String? initialInput;
   final SeedSource seedSource;
   final OpenInToolCallback? onSwitchTool;
+  final ToolActionBarController? actionBar;
 
   @override
   State<TimestampBody> createState() => _TimestampBodyState();
@@ -47,6 +50,11 @@ class _TimestampBodyState extends State<TimestampBody> {
   bool _ambiguous = false;
   bool _naive = false;
 
+  /// Non-null when the user has tapped the ambiguity banner to override the
+  /// heuristic's default interpretation for the session. Cleared when input
+  /// changes to something unambiguous.
+  TimestampFormat? _forcedUnit;
+
   HistoryRecorder? _recorder;
 
   @override
@@ -59,6 +67,10 @@ class _TimestampBodyState extends State<TimestampBody> {
         if (mounted) _parse();
       });
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      widget.actionBar?.bind(onPaste: _paste, onClear: _clear);
+    });
   }
 
   @override
@@ -96,15 +108,23 @@ class _TimestampBodyState extends State<TimestampBody> {
         _error = null;
         _ambiguous = false;
         _naive = false;
+        _forcedUnit = null;
       });
       return;
     }
-    final TimestampParseResult result = TimestampParser.parseAnyFormat(input);
+    final TimestampParseResult heuristic = TimestampParser.parseAnyFormat(
+      input,
+    );
+    final TimestampFormat? forced = heuristic.isAmbiguous ? _forcedUnit : null;
+    final TimestampParseResult result = forced == null
+        ? heuristic
+        : TimestampParser.parseAs(input, forced);
     setState(() {
       _parsed = result.timestamp;
       _format = result.format;
-      _ambiguous = result.isAmbiguous;
+      _ambiguous = heuristic.isAmbiguous;
       _naive = result.isNaive;
+      if (!heuristic.isAmbiguous) _forcedUnit = null;
       _error = result.isSuccess
           ? null
           : 'Invalid input format. Supported formats:\n'
@@ -116,6 +136,18 @@ class _TimestampBodyState extends State<TimestampBody> {
     if (result.isSuccess) {
       _recorder?.record(input, result.timestamp!.toIso8601String());
     }
+  }
+
+  void _toggleAmbiguousUnit() {
+    HapticFeedback.selectionClick();
+    final TimestampFormat current = _format == TimestampFormat.unixSeconds
+        ? TimestampFormat.unixSeconds
+        : TimestampFormat.unixMilliseconds;
+    final TimestampFormat next = current == TimestampFormat.unixSeconds
+        ? TimestampFormat.unixMilliseconds
+        : TimestampFormat.unixSeconds;
+    setState(() => _forcedUnit = next);
+    _parse();
   }
 
   void _applyKeyword(String keyword) {
@@ -176,8 +208,6 @@ class _TimestampBodyState extends State<TimestampBody> {
             runSpacing: MqSpacing.xs,
             children: <Widget>[
               MqStatus(label: _formatLabel(_format), kind: MqStatusKind.info),
-              if (_ambiguous)
-                const MqStatus(label: 'Ambiguous', kind: MqStatusKind.warning),
               if (_naive)
                 const MqStatus(
                   label: 'Local TZ assumed',
@@ -185,6 +215,10 @@ class _TimestampBodyState extends State<TimestampBody> {
                 ),
             ],
           ),
+          if (_ambiguous) ...<Widget>[
+            const SizedBox(height: MqSpacing.sm),
+            _AmbiguityBanner(current: _format, onToggle: _toggleAmbiguousUnit),
+          ],
           const SizedBox(height: MqSpacing.md),
           ..._outputRows(_parsed!),
           OpenInFooter(
@@ -194,30 +228,6 @@ class _TimestampBodyState extends State<TimestampBody> {
           ),
         ] else
           const MqEmptyHint(label: 'Paste a timestamp to see all forms.'),
-        const SizedBox(height: MqSpacing.lg),
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: MqButton(
-                label: 'Paste',
-                icon: MqIcons.paste,
-                variant: MqButtonVariant.glass,
-                onPressed: _paste,
-                full: true,
-              ),
-            ),
-            const SizedBox(width: MqSpacing.sm),
-            Expanded(
-              child: MqButton(
-                label: 'Clear',
-                icon: MqIcons.clear,
-                variant: MqButtonVariant.glass,
-                onPressed: _clear,
-                full: true,
-              ),
-            ),
-          ],
-        ),
       ],
     );
   }
@@ -274,6 +284,56 @@ class _TimestampBodyState extends State<TimestampBody> {
     if (abs < 86400) return suffix(abs ~/ 3600, 'hour');
     if (abs < 30 * 86400) return suffix(abs ~/ 86400, 'day');
     return DateFormat('yyyy-MM-dd').format(t);
+  }
+}
+
+/// Full-width warning banner shown when an integer falls in the
+/// seconds/ms overlap range. Tapping toggles the interpretation; the
+/// timestamp body re-renders every derived row.
+class _AmbiguityBanner extends StatelessWidget {
+  const _AmbiguityBanner({required this.current, required this.onToggle});
+
+  final TimestampFormat current;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mq.colors;
+    final bool isSeconds = current == TimestampFormat.unixSeconds;
+    final String currentLabel = isSeconds ? 'seconds' : 'milliseconds';
+    final String otherLabel = isSeconds ? 'milliseconds' : 'seconds';
+    return Semantics(
+      button: true,
+      label:
+          'Ambiguous magnitude. Reading as $currentLabel. '
+          'Double-tap to switch to $otherLabel.',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onToggle,
+        child: MqSurface(
+          padding: const EdgeInsets.symmetric(
+            horizontal: MqSpacing.md,
+            vertical: MqSpacing.md,
+          ),
+          radius: MqRadius.sm,
+          background: c.warningBg,
+          borderColor: c.warning,
+          child: Row(
+            children: <Widget>[
+              Icon(MqIcons.warn, size: 18, color: c.warning),
+              const SizedBox(width: MqSpacing.sm),
+              Expanded(
+                child: Text(
+                  'Ambiguous — reading as $currentLabel. '
+                  'Tap to switch to $otherLabel.',
+                  style: MqTextStyles.subhead.copyWith(color: c.textPri),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

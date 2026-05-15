@@ -17,6 +17,7 @@ import '../mq/mq_input.dart';
 import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_segmented.dart';
+import '../mq/tool_action_bar.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 
@@ -28,11 +29,13 @@ class BytesBody extends StatefulWidget {
     this.initialInput,
     this.seedSource = SeedSource.none,
     this.onSwitchTool,
+    this.actionBar,
   });
 
   final String? initialInput;
   final SeedSource seedSource;
   final OpenInToolCallback? onSwitchTool;
+  final ToolActionBarController? actionBar;
 
   @override
   State<BytesBody> createState() => _BytesBodyState();
@@ -62,6 +65,23 @@ class _BytesBodyState extends State<BytesBody> {
         if (mounted) _convert();
       });
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _updateActionBar();
+    });
+  }
+
+  void _updateActionBar() {
+    widget.actionBar?.bind(
+      onPaste: _paste,
+      onClear: _clear,
+      center: MqButton(
+        label: 'Swap',
+        icon: MqIcons.swap,
+        variant: MqButtonVariant.glass,
+        onPressed: _swapPayload == null ? null : _swap,
+        full: true,
+      ),
+    );
   }
 
   @override
@@ -104,6 +124,7 @@ class _BytesBodyState extends State<BytesBody> {
     final String input = _controller.text;
     if (input.isEmpty) {
       setState(_resetOutputs);
+      _updateActionBar();
       return;
     }
 
@@ -116,6 +137,7 @@ class _BytesBodyState extends State<BytesBody> {
         _outHex = BytesParser.format(bytes, BytesFormat.hex);
       });
       _recorder?.record(input, _outSpace!);
+      _updateActionBar();
       return;
     }
 
@@ -142,6 +164,7 @@ class _BytesBodyState extends State<BytesBody> {
         });
         _recorder?.record(input, text ?? hex);
     }
+    _updateActionBar();
   }
 
   Future<void> _paste() async {
@@ -155,6 +178,7 @@ class _BytesBodyState extends State<BytesBody> {
   void _clear() {
     _controller.clear();
     setState(_resetOutputs);
+    _updateActionBar();
   }
 
   String? get _swapPayload => switch (_mode) {
@@ -204,40 +228,6 @@ class _BytesBodyState extends State<BytesBody> {
         ),
         const SizedBox(height: MqSpacing.lg),
         ..._buildOutput(),
-        const SizedBox(height: MqSpacing.lg),
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: MqButton(
-                label: 'Paste',
-                icon: MqIcons.paste,
-                variant: MqButtonVariant.glass,
-                onPressed: _paste,
-                full: true,
-              ),
-            ),
-            const SizedBox(width: MqSpacing.sm),
-            Expanded(
-              child: MqButton(
-                label: 'Swap',
-                icon: MqIcons.swap,
-                variant: MqButtonVariant.glass,
-                onPressed: _swapPayload == null ? null : _swap,
-                full: true,
-              ),
-            ),
-            const SizedBox(width: MqSpacing.sm),
-            Expanded(
-              child: MqButton(
-                label: 'Clear',
-                icon: MqIcons.clear,
-                variant: MqButtonVariant.glass,
-                onPressed: _clear,
-                full: true,
-              ),
-            ),
-          ],
-        ),
       ],
     );
   }

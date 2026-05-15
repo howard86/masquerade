@@ -20,6 +20,7 @@ import '../mq/mq_input.dart';
 import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_segmented.dart';
+import '../mq/tool_action_bar.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 
@@ -31,11 +32,13 @@ class QrCodeBody extends StatefulWidget {
     this.initialInput,
     this.seedSource = SeedSource.none,
     this.onSwitchTool,
+    this.actionBar,
   });
 
   final String? initialInput;
   final SeedSource seedSource;
   final OpenInToolCallback? onSwitchTool;
+  final ToolActionBarController? actionBar;
 
   @override
   State<QrCodeBody> createState() => _QrCodeBodyState();
@@ -58,6 +61,28 @@ class _QrCodeBodyState extends State<QrCodeBody> {
     if (seed != null && seed.isNotEmpty) {
       _controller.text = seed;
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _updateActionBar();
+    });
+  }
+
+  void _updateActionBar() {
+    if (_mode != QrMode.generate) {
+      widget.actionBar?.bind();
+      return;
+    }
+    final bool hasInput = _controller.text.trim().isNotEmpty;
+    widget.actionBar?.bind(
+      onPaste: _paste,
+      onClear: hasInput ? _clear : null,
+      center: MqButton(
+        label: _exporting ? 'Sharing…' : 'Share',
+        icon: MqIcons.share,
+        variant: MqButtonVariant.glass,
+        onPressed: hasInput && !_exporting ? _share : null,
+        full: true,
+      ),
+    );
   }
 
   @override
@@ -80,7 +105,10 @@ class _QrCodeBodyState extends State<QrCodeBody> {
   void _onGenerateChanged(String _) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 200), () {
-      if (mounted) setState(() {});
+      if (mounted) {
+        setState(() {});
+        _updateActionBar();
+      }
     });
   }
 
@@ -89,10 +117,12 @@ class _QrCodeBodyState extends State<QrCodeBody> {
     final String? text = data?.text;
     if (text == null || text.isEmpty) return;
     setState(() => _controller.text = text);
+    _updateActionBar();
   }
 
   void _clear() {
     setState(() => _controller.clear());
+    _updateActionBar();
   }
 
   Future<void> _share() async {
@@ -102,6 +132,7 @@ class _QrCodeBodyState extends State<QrCodeBody> {
             as RenderRepaintBoundary?;
     if (boundary == null) return;
     setState(() => _exporting = true);
+    _updateActionBar();
     try {
       final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
       final Uint8List? bytes;
@@ -128,7 +159,10 @@ class _QrCodeBodyState extends State<QrCodeBody> {
       // Best-effort export; swallow render and share failures so the pending
       // Future does not bubble to the framework error overlay. User can retry.
     } finally {
-      if (mounted) setState(() => _exporting = false);
+      if (mounted) {
+        setState(() => _exporting = false);
+        _updateActionBar();
+      }
     }
   }
 
@@ -150,10 +184,13 @@ class _QrCodeBodyState extends State<QrCodeBody> {
             QrMode.scan: 'Scan',
           },
           selected: _mode,
-          onChanged: (QrMode m) => setState(() {
-            _mode = m;
-            if (m == QrMode.scan) _scanResult = null;
-          }),
+          onChanged: (QrMode m) {
+            setState(() {
+              _mode = m;
+              if (m == QrMode.scan) _scanResult = null;
+            });
+            _updateActionBar();
+          },
         ),
         const SizedBox(height: MqSpacing.md),
         if (_mode == QrMode.generate) ..._buildGenerate(context),
@@ -165,42 +202,10 @@ class _QrCodeBodyState extends State<QrCodeBody> {
   }
 
   Widget _buildBottomBar() {
-    if (_mode == QrMode.generate) {
-      final bool hasInput = _controller.text.trim().isNotEmpty;
-      return Row(
-        children: <Widget>[
-          Expanded(
-            child: MqButton(
-              label: 'Paste',
-              icon: MqIcons.paste,
-              variant: MqButtonVariant.glass,
-              onPressed: _paste,
-              full: true,
-            ),
-          ),
-          const SizedBox(width: MqSpacing.sm),
-          Expanded(
-            child: MqButton(
-              label: _exporting ? 'Sharing…' : 'Share',
-              icon: MqIcons.share,
-              variant: MqButtonVariant.glass,
-              onPressed: hasInput && !_exporting ? _share : null,
-              full: true,
-            ),
-          ),
-          const SizedBox(width: MqSpacing.sm),
-          Expanded(
-            child: MqButton(
-              label: 'Clear',
-              icon: MqIcons.clear,
-              variant: MqButtonVariant.glass,
-              onPressed: hasInput ? _clear : null,
-              full: true,
-            ),
-          ),
-        ],
-      );
-    }
+    // Generate-mode controls live on the route's shared ToolActionBar (see
+    // _updateActionBar). Scan mode keeps its inline full-width "Scan QR"
+    // button because the action bar's Paste/Center/Clear shape doesn't fit.
+    if (_mode == QrMode.generate) return const SizedBox.shrink();
     return MqButton(
       label: 'Scan QR',
       icon: MqIcons.qrCodeScan,
