@@ -17,6 +17,7 @@ import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_segmented.dart';
 import '../mq/mq_status.dart';
+import '../mq/tool_action_bar.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 
@@ -28,11 +29,13 @@ class JSONBody extends StatefulWidget {
     this.initialInput,
     this.seedSource = SeedSource.none,
     this.onSwitchTool,
+    this.actionBar,
   });
 
   final String? initialInput;
   final SeedSource seedSource;
   final OpenInToolCallback? onSwitchTool;
+  final ToolActionBarController? actionBar;
 
   @override
   State<JSONBody> createState() => _JSONBodyState();
@@ -56,6 +59,10 @@ class _JSONBodyState extends State<JSONBody> {
         if (mounted) _parse();
       });
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      widget.actionBar?.bind(onPaste: _paste, onClear: _clear);
+    });
   }
 
   @override
@@ -109,6 +116,16 @@ class _JSONBodyState extends State<JSONBody> {
   void _clear() {
     _controller.clear();
     setState(() => _result = null);
+  }
+
+  void _applyAutoFix() {
+    final JSONParseResult? current = _result;
+    if (current is! JSONErr) return;
+    final String? fixed = current.error.fixedText;
+    if (fixed == null) return;
+    HapticFeedback.selectionClick();
+    _controller.text = fixed;
+    _parse();
   }
 
   String _formatOutput(Object? value) => switch (_mode) {
@@ -178,6 +195,16 @@ class _JSONBodyState extends State<JSONBody> {
             value: (_result! as JSONErr).error.message,
             copyable: false,
           ),
+          if ((_result! as JSONErr).error.fixable) ...<Widget>[
+            const SizedBox(height: MqSpacing.sm),
+            MqButton(
+              label: 'Fix automatically',
+              icon: MqIcons.check,
+              variant: MqButtonVariant.glass,
+              onPressed: _applyAutoFix,
+              full: true,
+            ),
+          ],
         ] else if (_result is JSONOk) ...<Widget>[
           const MqSectionHeader(label: 'Output'),
           MqMonoCell(
@@ -191,30 +218,6 @@ class _JSONBodyState extends State<JSONBody> {
           ),
         ] else
           const MqEmptyHint(label: 'Paste JSON to format or validate.'),
-        const SizedBox(height: MqSpacing.lg),
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: MqButton(
-                label: 'Paste',
-                icon: MqIcons.paste,
-                variant: MqButtonVariant.glass,
-                onPressed: _paste,
-                full: true,
-              ),
-            ),
-            const SizedBox(width: MqSpacing.sm),
-            Expanded(
-              child: MqButton(
-                label: 'Clear',
-                icon: MqIcons.clear,
-                variant: MqButtonVariant.glass,
-                onPressed: _clear,
-                full: true,
-              ),
-            ),
-          ],
-        ),
       ],
     );
   }
