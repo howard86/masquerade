@@ -1,3 +1,14 @@
+## v1.11.0 (2026-05-16)
+
+### Feat
+
+- apply Magic Box design handoff (6 items in one PR)
+
+### Fix
+
+- **nav**: give tab bar vertical breathing room
+- **nav**: add 10px top padding to tab bar icons
+
 ## v1.10.0 (2026-05-15)
 
 ### Feat
