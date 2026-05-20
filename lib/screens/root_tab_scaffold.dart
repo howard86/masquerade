@@ -37,15 +37,28 @@ class _RootTabScaffoldState extends State<RootTabScaffold> {
         backgroundColor: c.surface.withValues(alpha: 0.85),
         activeColor: c.accent,
         inactiveColor: c.textTer,
+        height: 68,
         border: Border(top: BorderSide(color: c.border, width: 0.5)),
         items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(icon: Icon(MqIcons.home), label: 'Home'),
           BottomNavigationBarItem(
-            icon: Icon(MqIcons.history),
+            icon: Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Icon(MqIcons.home),
+            ),
+            label: 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Icon(MqIcons.history),
+            ),
             label: 'History',
           ),
           BottomNavigationBarItem(
-            icon: Icon(MqIcons.setting),
+            icon: Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Icon(MqIcons.setting),
+            ),
             label: 'Settings',
           ),
         ],

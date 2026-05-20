@@ -22,7 +22,7 @@ void main() {
   }
 
   testWidgets(
-    'Timestamp ambiguity badge shows for values in seconds/ms overlap range',
+    'Timestamp ambiguity banner shows for values in seconds/ms overlap range',
     (WidgetTester tester) async {
       await openTimestamp(tester);
 
@@ -30,11 +30,14 @@ void main() {
       await tester.enterText(input, '1700000000');
       await tester.pumpAndSettle(const Duration(milliseconds: 300));
 
-      expect(find.text('AMBIGUOUS'), findsOneWidget);
+      expect(
+        find.textContaining('Ambiguous — reading as seconds'),
+        findsOneWidget,
+      );
     },
   );
 
-  testWidgets('Timestamp ambiguity badge hidden for unambiguous ms value', (
+  testWidgets('Timestamp ambiguity banner hidden for unambiguous ms value', (
     WidgetTester tester,
   ) async {
     await openTimestamp(tester);
@@ -43,7 +46,32 @@ void main() {
     await tester.enterText(input, '1700000000000');
     await tester.pumpAndSettle(const Duration(milliseconds: 300));
 
-    expect(find.text('AMBIGUOUS'), findsNothing);
+    expect(find.textContaining('Ambiguous'), findsNothing);
+  });
+
+  testWidgets('Tapping ambiguity banner toggles seconds ↔ milliseconds', (
+    WidgetTester tester,
+  ) async {
+    await openTimestamp(tester);
+
+    final Finder input = find.byType(EditableText).last;
+    await tester.enterText(input, '1700000000');
+    await tester.pumpAndSettle(const Duration(milliseconds: 300));
+
+    expect(
+      find.textContaining('Ambiguous — reading as seconds'),
+      findsOneWidget,
+    );
+    expect(find.text('UNIX SECONDS'), findsOneWidget);
+
+    await tester.tap(find.textContaining('Ambiguous'));
+    await tester.pumpAndSettle(const Duration(milliseconds: 300));
+
+    expect(
+      find.textContaining('Ambiguous — reading as milliseconds'),
+      findsOneWidget,
+    );
+    expect(find.text('UNIX MS'), findsOneWidget);
   });
 
   testWidgets('16-digit input renders Unix µs label', (

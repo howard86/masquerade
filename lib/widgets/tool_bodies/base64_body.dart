@@ -17,6 +17,7 @@ import '../mq/mq_input.dart';
 import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_segmented.dart';
+import '../mq/tool_action_bar.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 
@@ -28,11 +29,13 @@ class Base64Body extends StatefulWidget {
     this.initialInput,
     this.seedSource = SeedSource.none,
     this.onSwitchTool,
+    this.actionBar,
   });
 
   final String? initialInput;
   final SeedSource seedSource;
   final OpenInToolCallback? onSwitchTool;
+  final ToolActionBarController? actionBar;
 
   @override
   State<Base64Body> createState() => _Base64BodyState();
@@ -62,6 +65,23 @@ class _Base64BodyState extends State<Base64Body> {
         if (mounted) _convert();
       });
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _updateActionBar();
+    });
+  }
+
+  void _updateActionBar() {
+    widget.actionBar?.bind(
+      onPaste: _paste,
+      onClear: _clear,
+      center: MqButton(
+        label: 'Swap',
+        icon: MqIcons.swap,
+        variant: MqButtonVariant.glass,
+        onPressed: _output == null ? null : _swap,
+        full: true,
+      ),
+    );
   }
 
   @override
@@ -98,6 +118,7 @@ class _Base64BodyState extends State<Base64Body> {
         _output = null;
         _error = null;
       });
+      _updateActionBar();
       return;
     }
     try {
@@ -131,6 +152,7 @@ class _Base64BodyState extends State<Base64Body> {
         _error = 'Conversion failed: $e';
       });
     }
+    _updateActionBar();
   }
 
   Future<void> _paste() async {
@@ -147,6 +169,7 @@ class _Base64BodyState extends State<Base64Body> {
       _output = null;
       _error = null;
     });
+    _updateActionBar();
   }
 
   void _swap() {
@@ -236,40 +259,6 @@ class _Base64BodyState extends State<Base64Body> {
                 ? 'Paste plain text to encode.'
                 : 'Paste a Base64 string to decode.',
           ),
-        const SizedBox(height: MqSpacing.lg),
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: MqButton(
-                label: 'Paste',
-                icon: MqIcons.paste,
-                variant: MqButtonVariant.glass,
-                onPressed: _paste,
-                full: true,
-              ),
-            ),
-            const SizedBox(width: MqSpacing.sm),
-            Expanded(
-              child: MqButton(
-                label: 'Swap',
-                icon: MqIcons.swap,
-                variant: MqButtonVariant.glass,
-                onPressed: _output == null ? null : _swap,
-                full: true,
-              ),
-            ),
-            const SizedBox(width: MqSpacing.sm),
-            Expanded(
-              child: MqButton(
-                label: 'Clear',
-                icon: MqIcons.clear,
-                variant: MqButtonVariant.glass,
-                onPressed: _clear,
-                full: true,
-              ),
-            ),
-          ],
-        ),
       ],
     );
   }

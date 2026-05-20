@@ -9,13 +9,12 @@ import '../../theme/mq_metrics.dart';
 import '../../utility_catalog.dart';
 import '../../utils/history_recorder.dart';
 import '../../utils/number_base_parser.dart';
-import '../mq/mq_button.dart';
 import '../mq/mq_empty_hint.dart';
-import '../mq/mq_icons.dart';
 import '../mq/mq_input.dart';
 import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_status.dart';
+import '../mq/tool_action_bar.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 
@@ -25,11 +24,13 @@ class NumberBaseBody extends StatefulWidget {
     this.initialInput,
     this.seedSource = SeedSource.none,
     this.onSwitchTool,
+    this.actionBar,
   });
 
   final String? initialInput;
   final SeedSource seedSource;
   final OpenInToolCallback? onSwitchTool;
+  final ToolActionBarController? actionBar;
 
   @override
   State<NumberBaseBody> createState() => _NumberBaseBodyState();
@@ -53,6 +54,10 @@ class _NumberBaseBodyState extends State<NumberBaseBody> {
         if (mounted) _parse();
       });
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      widget.actionBar?.bind(onPaste: _paste, onClear: _clear);
+    });
   }
 
   @override
@@ -162,30 +167,6 @@ class _NumberBaseBodyState extends State<NumberBaseBody> {
           ),
         ] else
           const MqEmptyHint(label: 'Paste a number to convert across bases.'),
-        const SizedBox(height: MqSpacing.lg),
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: MqButton(
-                label: 'Paste',
-                icon: MqIcons.paste,
-                variant: MqButtonVariant.glass,
-                onPressed: _paste,
-                full: true,
-              ),
-            ),
-            const SizedBox(width: MqSpacing.sm),
-            Expanded(
-              child: MqButton(
-                label: 'Clear',
-                icon: MqIcons.clear,
-                variant: MqButtonVariant.glass,
-                onPressed: _clear,
-                full: true,
-              ),
-            ),
-          ],
-        ),
       ],
     );
   }
