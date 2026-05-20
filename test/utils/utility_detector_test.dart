@@ -173,6 +173,10 @@ void main() {
       expect(ids('not a real input ~~~'), isEmpty);
     });
 
+    test('bulleted multi-line list only suggests List', () {
+      expect(ids('- BTCUSDT\n- ETHUSDT\n- SOLUSDT'), <String>['list']);
+    });
+
     test('numbered multi-line list suggests List', () {
       expect(ids('1. first\n2. second\n3. third'), contains('list'));
     });

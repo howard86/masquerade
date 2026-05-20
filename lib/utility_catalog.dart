@@ -438,6 +438,9 @@ bool _detectMath(String input) {
   final String t = input.trim();
   if (t.isEmpty) return false;
   if (_isoDateShape.hasMatch(t)) return false;
+  // A bulleted/numbered list reads as subtraction across line breaks
+  // (`…T\n- E…`); defer those to the List tool.
+  if (_detectList(input)) return false;
   if (_mathBinaryOp.hasMatch(t)) return true;
   for (final RegExpMatch m in _mathIdent.allMatches(t.toLowerCase())) {
     final String w = m.group(0)!;
