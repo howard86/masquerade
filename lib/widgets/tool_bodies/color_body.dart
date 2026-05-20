@@ -150,7 +150,7 @@ class _ColorBodyState extends State<ColorBody> {
         MqInput(
           controller: _controller,
           label: 'Color',
-          placeholder: '#00B8C4, rgb(0,184,196), hsl(184,100%,38%)',
+          placeholder: '#00B8C4 or rgb(0,184,196)',
           onChanged: _onChanged,
           onPaste: (_) => _recorder?.markPaste(),
         ),

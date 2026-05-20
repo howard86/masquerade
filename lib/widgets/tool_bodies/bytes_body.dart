@@ -219,7 +219,7 @@ class _BytesBodyState extends State<BytesBody> {
           label: 'Input',
           placeholder: _mode == BytesMode.encode
               ? 'Plain text'
-              : '[72, 101, 108, 108, 111] or 72 101 108 108 111',
+              : '72 101 108 108 111',
           onChanged: _onChanged,
           onPaste: (_) => _recorder?.markPaste(),
           multiline: true,

@@ -161,7 +161,7 @@ class _CronBodyState extends State<CronBody> {
         MqInput(
           controller: _controller,
           label: 'Input',
-          placeholder: '0 9 * * 1   ·   every weekday at 9am   ·   @daily',
+          placeholder: '*/5 * * * *',
           onChanged: _onChanged,
           onPaste: (_) => _recorder?.markPaste(),
           multiline: true,
