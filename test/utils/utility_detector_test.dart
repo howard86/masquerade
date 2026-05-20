@@ -172,5 +172,20 @@ void main() {
       expect(ids('!@#\$%^&*()'), isEmpty);
       expect(ids('not a real input ~~~'), isEmpty);
     });
+
+    test('numbered multi-line list suggests List', () {
+      expect(ids('1. first\n2. second\n3. third'), contains('list'));
+    });
+
+    test('single bulleted line does not suggest List', () {
+      expect(ids('- BTCUSDT'), isNot(contains('list')));
+    });
+
+    test('multi-line prose does not suggest List', () {
+      expect(
+        ids('the quick brown fox\njumped over the lazy dog'),
+        isNot(contains('list')),
+      );
+    });
   });
 }

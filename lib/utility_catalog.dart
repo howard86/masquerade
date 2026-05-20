@@ -17,6 +17,7 @@ import 'widgets/tool_bodies/bytes_body.dart';
 import 'widgets/tool_bodies/color_body.dart';
 import 'widgets/tool_bodies/cron_body.dart';
 import 'widgets/tool_bodies/json_body.dart';
+import 'widgets/tool_bodies/list_body.dart';
 import 'widgets/tool_bodies/math_body.dart';
 import 'widgets/tool_bodies/number_base_body.dart';
 import 'widgets/tool_bodies/qr_code_body.dart';
@@ -255,6 +256,34 @@ class UtilityCatalog {
       detect: _detectBytes,
     ),
     UtilityDescriptor(
+      id: 'list',
+      name: 'List',
+      description: 'Split ↔ join · separators',
+      icon: MqIcons.list,
+      tint: const Color(0xFF84CC16),
+      synonyms: <String>[
+        'split',
+        'join',
+        'delimiter',
+        'separator',
+        'csv',
+        'comma',
+        'lines',
+      ],
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            SeedSource seedSource = SeedSource.none,
+            OpenInToolCallback? onSwitchTool,
+          }) => ListToolBody(
+            initialInput: initialInput,
+            seedSource: seedSource,
+            onSwitchTool: onSwitchTool,
+          ),
+      detect: _detectList,
+    ),
+    UtilityDescriptor(
       id: 'qr_code',
       name: 'QR Code',
       description: 'Scan · generate QR',
@@ -430,4 +459,19 @@ bool _detectBytes(String input) {
   if (r is! BytesParseOk) return false;
   // Single tokens stay with Number Base / Timestamp.
   return r.bytes.length >= 2;
+}
+
+// Fires only on multi-line bulleted/numbered lists: at least two non-blank
+// lines, a strict majority starting with a list marker. Keeps the chip quiet
+// for prose, CSV, JSON, and single lines.
+final RegExp _listMarker = RegExp(r'^\s*([-*+•]|\d+[.)])\s+');
+
+bool _detectList(String input) {
+  final List<String> lines = input
+      .split('\n')
+      .where((String l) => l.trim().isNotEmpty)
+      .toList();
+  if (lines.length < 2) return false;
+  final int marked = lines.where(_listMarker.hasMatch).length;
+  return marked * 2 > lines.length;
 }
