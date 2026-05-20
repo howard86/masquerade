@@ -1,3 +1,11 @@
+## v1.13.0 (2026-05-20)
+
+### Feat
+
+- **diff**: add Diff tool — body, catalog entry, and icon
+- **mq**: hide ToolActionBar paste button when no handler is bound
+- **diff**: add Myers line/word diff parser
+
 ## v1.12.0 (2026-05-20)
 
 ### Feat
