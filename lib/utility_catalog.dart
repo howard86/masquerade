@@ -17,6 +17,7 @@ import 'widgets/tool_bodies/bps_body.dart';
 import 'widgets/tool_bodies/bytes_body.dart';
 import 'widgets/tool_bodies/color_body.dart';
 import 'widgets/tool_bodies/cron_body.dart';
+import 'widgets/tool_bodies/diff_body.dart';
 import 'widgets/tool_bodies/json_body.dart';
 import 'widgets/tool_bodies/list_body.dart';
 import 'widgets/tool_bodies/math_body.dart';
@@ -308,6 +309,27 @@ class UtilityCatalog {
       detect: _detectList,
     ),
     UtilityDescriptor(
+      id: 'diff',
+      name: 'Diff',
+      description: 'Compare two texts · line / word',
+      icon: MqIcons.diff,
+      tint: const Color(0xFF64748B),
+      synonyms: <String>['diff', 'compare', 'changes', 'patch', 'difference'],
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            SeedSource seedSource = SeedSource.none,
+            OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
+          }) => DiffBody(
+            initialInput: initialInput,
+            seedSource: seedSource,
+            actionBar: actionBar,
+          ),
+      detect: _detectDiff,
+    ),
+    UtilityDescriptor(
       id: 'qr_code',
       name: 'QR Code',
       description: 'Scan · generate QR',
@@ -474,6 +496,10 @@ bool _detectBps(String input) {
 
 // QR has no input shape — entry is via grid tile or the home scan button.
 bool _detectQrCode(String _) => false;
+
+// Diff compares two inputs; a single typed/pasted value can't trigger it.
+// Entry is via the Home grid tile or Search.
+bool _detectDiff(String _) => false;
 
 // Operator must sit between two *operand-shaped* tokens. Eliminates false
 // positives like `0.5%` (unary-suffix percent) and `hsl(184, 100%, 38%)`
