@@ -63,20 +63,25 @@ class ToolActionBar extends StatelessWidget {
             ),
             child: Row(
               children: <Widget>[
-                Expanded(
-                  child: MqButton(
-                    label: 'Paste',
-                    icon: MqIcons.paste,
-                    variant: MqButtonVariant.glass,
-                    onPressed: controller.onPaste ?? () {},
-                    full: true,
+                // Tools that take no single input (e.g. Diff's two fields) bind
+                // no paste handler; hide the leading Paste rather than show a
+                // dead button.
+                if (controller.onPaste != null) ...<Widget>[
+                  Expanded(
+                    child: MqButton(
+                      label: 'Paste',
+                      icon: MqIcons.paste,
+                      variant: MqButtonVariant.glass,
+                      onPressed: controller.onPaste!,
+                      full: true,
+                    ),
                   ),
-                ),
-                if (controller.center != null) ...<Widget>[
                   const SizedBox(width: MqSpacing.sm),
-                  Expanded(child: controller.center!),
                 ],
-                const SizedBox(width: MqSpacing.sm),
+                if (controller.center != null) ...<Widget>[
+                  Expanded(child: controller.center!),
+                  const SizedBox(width: MqSpacing.sm),
+                ],
                 Expanded(
                   child: MqButton(
                     label: 'Clear',
