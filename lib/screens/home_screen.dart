@@ -122,6 +122,12 @@ class _HomeScreenState extends State<HomeScreen> {
       lastByTool.keys,
     );
     final MqDensity d = context.density;
+    // Cards have a fixed cross-axis width, so a fixed aspect ratio also fixes
+    // their height. At large Dynamic Type the tile text needs more vertical
+    // room, so shrink the ratio in step with the text scale to grow the cards.
+    final double textScale = MediaQuery.textScalerOf(
+      context,
+    ).scale(1.0).clamp(1.0, 2.0);
 
     return CupertinoPageScaffold(
       backgroundColor: c.bg,
@@ -150,7 +156,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 crossAxisCount: 2,
                 mainAxisSpacing: d.cardGap,
                 crossAxisSpacing: d.cardGap,
-                childAspectRatio: d.isCompact ? 1.9 : 1.6,
+                childAspectRatio: d.cardAspectRatio / textScale,
               ),
               itemCount: sorted.length,
               itemBuilder: (BuildContext _, int i) {

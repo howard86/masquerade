@@ -28,8 +28,7 @@ void main() {
     final Finder inputField = find.byWidgetPredicate(
       (Widget widget) =>
           widget is CupertinoTextField &&
-          widget.placeholder ==
-              'Enter timestamp (Unix s/ms/µs/ns, ISO 8601, or keyword)',
+          widget.placeholder == 'Unix, ISO 8601, or "now"',
     );
     expect(inputField, findsOneWidget);
 
@@ -63,8 +62,7 @@ void main() {
     final Finder inputField = find.byWidgetPredicate(
       (Widget widget) =>
           widget is CupertinoTextField &&
-          widget.placeholder ==
-              'Enter timestamp (Unix s/ms/µs/ns, ISO 8601, or keyword)',
+          widget.placeholder == 'Unix, ISO 8601, or "now"',
     );
     await tester.enterText(inputField, '1700000000');
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
@@ -103,7 +101,7 @@ void main() {
     final Finder field = find.byWidgetPredicate(
       (Widget w) =>
           w is CupertinoTextField &&
-          w.placeholder == '#00B8C4, rgb(0,184,196), hsl(184,100%,38%)',
+          w.placeholder == '#00B8C4 or rgb(0,184,196)',
     );
     expect(
       field,

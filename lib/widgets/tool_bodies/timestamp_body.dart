@@ -184,8 +184,7 @@ class _TimestampBodyState extends State<TimestampBody> {
         MqInput(
           controller: _controller,
           label: 'Input',
-          placeholder:
-              'Enter timestamp (Unix s/ms/µs/ns, ISO 8601, or keyword)',
+          placeholder: 'Unix, ISO 8601, or "now"',
           onChanged: _onChanged,
           onPaste: (_) => _recorder?.markPaste(),
           multiline: true,

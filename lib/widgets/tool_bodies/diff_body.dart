@@ -308,9 +308,18 @@ class _DiffBodyState extends State<DiffBody> {
       background: context.mq.colors.monoBg,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(MqRadius.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: rows,
+        // Lines stay single-line and the body scrolls horizontally so the
+        // old/new gutters stay column-aligned. IntrinsicWidth sizes every row
+        // to the widest line so the red/green washes span the full scrolled
+        // width rather than stopping at the viewport edge.
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: IntrinsicWidth(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: rows,
+            ),
+          ),
         ),
       ),
     );
@@ -426,7 +435,7 @@ class _DiffRow extends StatelessWidget {
     final Color highlight = line.op == DiffOp.delete ? c.danger : c.success;
 
     final Widget content = spans == null
-        ? Text(line.text, style: mono)
+        ? Text(line.text, style: mono, softWrap: false)
         : Text.rich(
             TextSpan(
               children: <InlineSpan>[
@@ -444,6 +453,7 @@ class _DiffRow extends StatelessWidget {
               ],
             ),
             style: mono,
+            softWrap: false,
           );
 
     return Container(
@@ -464,7 +474,7 @@ class _DiffRow extends StatelessWidget {
               style: MqTextStyles.monoSm.copyWith(color: marker.color),
             ),
           ),
-          Expanded(child: content),
+          content,
         ],
       ),
     );

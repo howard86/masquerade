@@ -80,11 +80,17 @@ class SettingsScreen extends StatelessWidget {
                     children: <Widget>[
                       Icon(MqIcons.shield, size: 14, color: c.success),
                       const SizedBox(width: 6),
-                      Text(
-                        'On-device only',
-                        style: MqTextStyles.headline.copyWith(color: c.textPri),
+                      Expanded(
+                        child: Text(
+                          'On-device only',
+                          style: MqTextStyles.headline.copyWith(
+                            color: c.textPri,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      const Spacer(),
+                      const SizedBox(width: MqSpacing.sm),
                       const MqStatus(label: 'Active'),
                     ],
                   ),
@@ -133,11 +139,17 @@ class SettingsScreen extends StatelessWidget {
                 children: <Widget>[
                   Row(
                     children: <Widget>[
-                      Text(
-                        'Masquerade',
-                        style: MqTextStyles.headline.copyWith(color: c.textPri),
+                      Expanded(
+                        child: Text(
+                          'Masquerade',
+                          style: MqTextStyles.headline.copyWith(
+                            color: c.textPri,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      const Spacer(),
+                      const SizedBox(width: MqSpacing.sm),
                       FutureBuilder<PackageInfo>(
                         future: _packageInfoFuture,
                         builder:

@@ -64,6 +64,8 @@ class _ToolDetailRouteState extends State<ToolDetailRoute> {
         middle: Text(
           widget.descriptor.name,
           style: MqTextStyles.headline.copyWith(color: c.textPri),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
       ),
       child: SafeArea(

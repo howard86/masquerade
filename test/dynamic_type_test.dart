@@ -7,35 +7,13 @@ import 'package:masquerade/utility_catalog.dart';
 
 /// Inventory test for Dynamic Type (xxxLarge ≈ TextScaler 2.0).
 ///
-/// Empirically every screen overflows at 2.0× today — the home grid, the
-/// 2-column tool cards, every detail body's action-row Wrap, and the
-/// segmented controls. Fixing them all is its own redesign and is out of
-/// scope for the Magic Box handoff PR.
+/// Every tab and every tool body must pump at 2.0× without throwing a
+/// `RenderFlex` overflow. The home grid grows its cards with the text scale,
+/// the chip rows use `Wrap`, and the settings rows let their labels flex, so
+/// the layouts survive large Dynamic Type. If a future change reintroduces an
+/// overflow, the matching test below fails.
 ///
-/// This file pumps each screen at 2.0× so the inventory is in the test
-/// tree as a regression seam: when someone fixes a layout, they should
-/// remove that screen from [_knownOverflowing]; the test will then assert
-/// "no exceptions" for that screen and catch regressions.
-///
-/// The kickoff test (home at 1.0× as a sanity check) IS enforced so the
-/// app at least pumps cleanly with default Dynamic Type.
-const Set<String> _knownOverflowing = <String>{
-  'home',
-  'history',
-  'settings',
-  'number_base',
-  'timestamp',
-  'cron',
-  'json',
-  'base64',
-  'color',
-  'math',
-  'bps',
-  'bytes',
-  'list',
-  'diff',
-};
-
+/// QR Code opens the camera, so it is skipped in this smoke test.
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -46,14 +24,10 @@ void main() {
     child: app,
   );
 
-  Future<void> openTool(WidgetTester tester, String toolName) async {
+  Future<void> pumpApp(WidgetTester tester) async {
     await tester.binding.setSurfaceSize(const Size(500, 1400));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(wrap(const MyApp(skipSplash: true)));
-    await tester.pumpAndSettle();
-    final Finder tile = find.text(toolName);
-    expect(tile, findsWidgets, reason: '$toolName tile must be visible');
-    await tester.tap(tile.last);
     await tester.pumpAndSettle();
   }
 
@@ -67,12 +41,34 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  for (final String tab in <String>['Home', 'History', 'Settings']) {
+    testWidgets('$tab tab renders at TextScaler 2.0 without overflow', (
+      WidgetTester tester,
+    ) async {
+      await pumpApp(tester);
+      await tester.tap(find.text(tab).last);
+      await tester.pumpAndSettle();
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: '$tab tab threw an exception at TextScaler 2.0',
+      );
+    });
+  }
+
   for (final UtilityDescriptor u in UtilityCatalog.all) {
-    final bool expectedToOverflow = _knownOverflowing.contains(u.id);
     testWidgets(
       '${u.name} body renders at TextScaler 2.0 without overflow',
       (WidgetTester tester) async {
-        await openTool(tester, u.name);
+        await pumpApp(tester);
+        final Finder tile = find.text(u.name).last;
+        expect(tile, findsWidgets, reason: '${u.name} tile must be visible');
+        // The grid is tall at 2×, so the tile may sit below the fold; scroll it
+        // into view before tapping so the body actually opens.
+        await tester.ensureVisible(tile);
+        await tester.pumpAndSettle();
+        await tester.tap(tile);
+        await tester.pumpAndSettle();
         expect(
           tester.takeException(),
           isNull,
@@ -80,9 +76,7 @@ void main() {
         );
       },
       // QR Code body opens the camera; skip in this smoke test.
-      // Known-overflowing screens are tracked above; tests are skipped to
-      // let the inventory survive in the tree without failing CI.
-      skip: u.id == 'qr_code' || expectedToOverflow,
+      skip: u.id == 'qr_code',
     );
   }
 }
