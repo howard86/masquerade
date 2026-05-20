@@ -298,10 +298,12 @@ class UtilityCatalog {
             String? initialInput,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
           }) => ListToolBody(
             initialInput: initialInput,
             seedSource: seedSource,
             onSwitchTool: onSwitchTool,
+            actionBar: actionBar,
           ),
       detect: _detectList,
     ),

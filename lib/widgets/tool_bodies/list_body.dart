@@ -19,6 +19,7 @@ import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_segmented.dart';
 import '../mq/mq_surface.dart';
+import '../mq/tool_action_bar.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 
@@ -30,11 +31,13 @@ class ListToolBody extends StatefulWidget {
     this.initialInput,
     this.seedSource = SeedSource.none,
     this.onSwitchTool,
+    this.actionBar,
   });
 
   final String? initialInput;
   final SeedSource seedSource;
   final OpenInToolCallback? onSwitchTool;
+  final ToolActionBarController? actionBar;
 
   @override
   State<ListToolBody> createState() => _ListToolBodyState();
@@ -69,6 +72,23 @@ class _ListToolBodyState extends State<ListToolBody> {
         if (mounted) _convert();
       });
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _updateActionBar();
+    });
+  }
+
+  void _updateActionBar() {
+    widget.actionBar?.bind(
+      onPaste: _paste,
+      onClear: _clear,
+      center: MqButton(
+        label: 'Swap',
+        icon: MqIcons.swap,
+        variant: MqButtonVariant.glass,
+        onPressed: _output == null ? null : _swap,
+        full: true,
+      ),
+    );
   }
 
   @override
@@ -107,6 +127,7 @@ class _ListToolBodyState extends State<ListToolBody> {
         _parsedCount = 0;
         _outCount = 0;
       });
+      _updateActionBar();
       return;
     }
     final List<String> transformed = ListParser.transform(
@@ -128,6 +149,7 @@ class _ListToolBodyState extends State<ListToolBody> {
       _outCount = transformed.length;
     });
     _recorder?.record(input, result);
+    _updateActionBar();
   }
 
   Future<void> _paste() async {
@@ -145,6 +167,7 @@ class _ListToolBodyState extends State<ListToolBody> {
       _parsedCount = 0;
       _outCount = 0;
     });
+    _updateActionBar();
   }
 
   void _swap() {
@@ -320,40 +343,6 @@ class _ListToolBodyState extends State<ListToolBody> {
                 ? 'Paste a list to join into one line.'
                 : 'Paste a delimited string to split into lines.',
           ),
-        const SizedBox(height: MqSpacing.lg),
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: MqButton(
-                label: 'Paste',
-                icon: MqIcons.paste,
-                variant: MqButtonVariant.glass,
-                onPressed: _paste,
-                full: true,
-              ),
-            ),
-            const SizedBox(width: MqSpacing.sm),
-            Expanded(
-              child: MqButton(
-                label: 'Swap',
-                icon: MqIcons.swap,
-                variant: MqButtonVariant.glass,
-                onPressed: _output == null ? null : _swap,
-                full: true,
-              ),
-            ),
-            const SizedBox(width: MqSpacing.sm),
-            Expanded(
-              child: MqButton(
-                label: 'Clear',
-                icon: MqIcons.clear,
-                variant: MqButtonVariant.glass,
-                onPressed: _clear,
-                full: true,
-              ),
-            ),
-          ],
-        ),
       ],
     );
   }

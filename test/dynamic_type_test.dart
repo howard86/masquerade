@@ -32,6 +32,7 @@ const Set<String> _knownOverflowing = <String>{
   'math',
   'bps',
   'bytes',
+  'list',
 };
 
 void main() {
