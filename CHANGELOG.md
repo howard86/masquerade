@@ -1,3 +1,15 @@
+## v1.12.0 (2026-05-20)
+
+### Feat
+
+- **list**: add List tool with split/join UI
+- **list**: add split/join list parser
+
+### Fix
+
+- **list**: thread actionBar through List tool after Magic Box merge
+- **detect**: defer Math to List for bulleted/numbered input
+
 ## v1.11.0 (2026-05-16)
 
 ### Feat
