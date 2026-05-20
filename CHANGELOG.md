@@ -1,3 +1,15 @@
+## v1.14.0 (2026-05-20)
+
+### Feat
+
+- **diff**: scroll long diff lines horizontally
+
+### Fix
+
+- **detail**: ellipsize long tool names in the nav bar
+- **tools**: shorten input placeholders to fit the field
+- **a11y**: keep layouts within bounds at large Dynamic Type
+
 ## v1.13.0 (2026-05-20)
 
 ### Feat
