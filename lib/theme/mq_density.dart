@@ -54,6 +54,10 @@ class MqDensity {
 
   bool get isCompact => mode == MqDensityMode.compact;
 
+  /// Home-grid tile aspect ratio (width / height) at default text size.
+  /// Compact mode packs flatter cards.
+  double get cardAspectRatio => isCompact ? 1.9 : 1.6;
+
   @override
   bool operator ==(Object other) =>
       other is MqDensity &&

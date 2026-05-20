@@ -46,7 +46,18 @@ class MqChip extends StatelessWidget {
             Icon(icon, size: 12, color: accent ? c.accent : c.textSec),
             const SizedBox(width: 6),
           ],
-          Text(label, style: base),
+          // Loose Flexible: short chips size to content; a chip whose label is
+          // wider than the available line (e.g. at large Dynamic Type) shrinks
+          // and ellipsizes instead of overflowing. All call sites give the chip
+          // a width-bounded parent (Wrap / stretch column), so this is safe.
+          Flexible(
+            child: Text(
+              label,
+              style: base,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
     );

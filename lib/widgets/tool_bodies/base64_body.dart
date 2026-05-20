@@ -215,7 +215,9 @@ class _Base64BodyState extends State<Base64Body> {
           maxLines: 8,
         ),
         const SizedBox(height: MqSpacing.md),
-        Row(
+        Wrap(
+          spacing: MqSpacing.sm,
+          runSpacing: MqSpacing.sm,
           children: <Widget>[
             MqChip(
               label: 'URL-safe',
@@ -226,7 +228,6 @@ class _Base64BodyState extends State<Base64Body> {
                 _convert();
               },
             ),
-            const SizedBox(width: MqSpacing.sm),
             MqChip(
               label: 'Strip padding',
               accent: _stripPadding,

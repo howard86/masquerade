@@ -373,8 +373,16 @@ class _SeparatorField extends StatelessWidget {
               'Separator',
               style: MqTextStyles.subhead.copyWith(color: c.textSec),
             ),
-            const Spacer(),
-            Text(value, style: MqTextStyles.subhead.copyWith(color: c.textPri)),
+            const SizedBox(width: MqSpacing.sm),
+            Expanded(
+              child: Text(
+                value,
+                textAlign: TextAlign.right,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: MqTextStyles.subhead.copyWith(color: c.textPri),
+              ),
+            ),
             const SizedBox(width: 4),
             Icon(MqIcons.chevD, size: 16, color: c.textTer),
           ],
