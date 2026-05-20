@@ -47,4 +47,5 @@ class MqIcons {
   static const IconData flashFill = LucideIcons.zap;
   static const IconData calculator = LucideIcons.calculator;
   static const IconData list = LucideIcons.list;
+  static const IconData diff = LucideIcons.git_compare;
 }
