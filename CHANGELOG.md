@@ -1,3 +1,9 @@
+## v1.16.0 (2026-05-21)
+
+### Feat
+
+- add YAML / TOML conversion to the JSON tool
+
 ## v1.15.0 (2026-05-21)
 
 ### Feat
