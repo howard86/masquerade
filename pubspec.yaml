@@ -55,6 +55,13 @@ dependencies:
   decimal: ^3.2.4
   rational: ^2.2.3
 
+  # Structured-config parsers — used by the JSON / YAML / TOML tool. Both are
+  # pure-Dart parsers (no UI), wrapped by lib/utils/yaml_parser.dart and
+  # lib/utils/toml_parser.dart respectively.
+  yaml: ^3.1.2
+  yaml_writer: ^2.0.0
+  toml: ^0.18.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

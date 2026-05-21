@@ -10,6 +10,8 @@ import 'utils/cron_parser.dart';
 import 'utils/encoding_parser.dart';
 import 'utils/json_parser.dart';
 import 'utils/number_base_parser.dart';
+import 'utils/toml_parser.dart';
+import 'utils/yaml_parser.dart';
 import 'widgets/mq/mq_icons.dart';
 import 'widgets/mq/tool_action_bar.dart';
 import 'widgets/tool_bodies/base64_body.dart';
@@ -142,11 +144,21 @@ class UtilityCatalog {
     ),
     UtilityDescriptor(
       id: 'json',
-      name: 'JSON',
-      description: 'Pretty · minify · tree',
+      name: 'JSON / YAML / TOML',
+      description: 'Convert · pretty · minify · tree',
       icon: MqIcons.brackets,
       tint: const Color(0xFF8B5CF6),
-      synonyms: <String>['pretty', 'minify', 'tree', 'parse'],
+      synonyms: <String>[
+        'pretty',
+        'minify',
+        'tree',
+        'parse',
+        'yaml',
+        'yml',
+        'toml',
+        'config',
+        'convert',
+      ],
       builder:
           (
             BuildContext _, {
@@ -160,7 +172,7 @@ class UtilityCatalog {
             onSwitchTool: onSwitchTool,
             actionBar: actionBar,
           ),
-      detect: _detectJson,
+      detect: _detectStructured,
     ),
     UtilityDescriptor(
       id: 'base64',
@@ -411,11 +423,24 @@ class UtilityCatalog {
   }
 }
 
-bool _detectJson(String input) {
+bool _detectStructured(String input) {
   final String t = input.trim();
   if (t.isEmpty) return false;
-  if (!(t.startsWith('{') || t.startsWith('['))) return false;
-  return JSONParser.parse(t) is JSONOk;
+  // Cheap pre-guard: structured input must carry at least one shape glyph.
+  // Bypasses the regex sweep for plain scalars like "42", "deadbeef", words.
+  if (!t.contains(':') &&
+      !t.contains('=') &&
+      !t.startsWith('[') &&
+      !t.startsWith('{') &&
+      !t.startsWith('---')) {
+    return false;
+  }
+  // `{...}` is JSON only. `[name]\n...` is a TOML table header — must be
+  // matched before JSON-array since both start with `[`.
+  if (t.startsWith('{')) return JSONParser.parse(t) is JSONOk;
+  if (TomlParser.looksLike(t)) return true;
+  if (t.startsWith('[')) return JSONParser.parse(t) is JSONOk;
+  return YamlParser.looksLike(t);
 }
 
 bool _detectColor(String input) {
