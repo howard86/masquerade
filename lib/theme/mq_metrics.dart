@@ -32,6 +32,26 @@ class MqLayout {
   /// translucent CupertinoTabBar (49pt nominal height + safe-area inset +
   /// breathing room). Used by every screen mounted inside RootTabScaffold.
   static const double tabBarClearance = 96;
+
+  /// Minimum viewport width (logical px) at which the web desktop shell and
+  /// the desktop↔mobile toggle become available. Below this, web falls back
+  /// to the mobile UI with no toggle.
+  static const double desktopBreakpoint = 900;
+
+  /// Fixed width of the desktop shell's left navigation sidebar.
+  static const double sidebarWidth = 248;
+
+  /// Max width of the desktop Home content (tool grid) before it stops growing
+  /// and centers — keeps tiles from stretching on ultrawide monitors.
+  static const double desktopContentMaxWidth = 1100;
+
+  /// Max width for prose-style desktop panes (History, Settings, tool bodies)
+  /// so single-column lists stay comfortably readable.
+  static const double readableMaxWidth = 720;
+
+  /// Target max width of a Home tool tile; the grid derives its column count
+  /// from this so phones get 2 columns and the desktop pane gets 3–4.
+  static const double tileMaxExtent = 260;
 }
 
 /// Editorial reading-pace motion. Asymmetric reveal/dismiss — no overshoot.
