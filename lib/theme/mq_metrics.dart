@@ -41,6 +41,11 @@ class MqLayout {
   /// Fixed width of the desktop shell's left navigation sidebar.
   static const double sidebarWidth = 248;
 
+  /// Max width of the whole desktop shell (sidebar + content). Beyond this the
+  /// shell stops growing and centers on the page background, so the app reads
+  /// as a tidy window instead of stretching adrift across an ultrawide monitor.
+  static const double desktopShellMaxWidth = 1440;
+
   /// Max width of the desktop Home content (tool grid) before it stops growing
   /// and centers — keeps tiles from stretching on ultrawide monitors.
   static const double desktopContentMaxWidth = 1100;

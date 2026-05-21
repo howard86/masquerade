@@ -48,12 +48,17 @@ class _DesktopShellState extends State<DesktopShell> {
     final c = context.mq.colors;
     return CupertinoPageScaffold(
       backgroundColor: c.bg,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          DesktopSidebar(selectedIndex: _navIndex, onSelect: _select),
-          Expanded(child: _pane()),
-        ],
+      // Cap the whole shell so sidebar + content stay a tidy centered window
+      // instead of stretching adrift on ultrawide displays.
+      child: _capped(
+        maxWidth: MqLayout.desktopShellMaxWidth,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            DesktopSidebar(selectedIndex: _navIndex, onSelect: _select),
+            Expanded(child: _pane()),
+          ],
+        ),
       ),
     );
   }
