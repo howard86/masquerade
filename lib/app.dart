@@ -5,6 +5,7 @@ import 'screens/root_tab_scaffold.dart';
 import 'state/density_controller.dart';
 import 'state/history_controller.dart';
 import 'state/theme_controller.dart';
+import 'state/view_mode_controller.dart';
 import 'theme/mq_colors.dart';
 import 'theme/mq_theme.dart';
 import 'widgets/iphone_frame.dart';
@@ -16,12 +17,20 @@ class MyApp extends StatefulWidget {
     this.themeController,
     this.historyController,
     this.densityController,
+    this.viewModeController,
+    this.isWebOverride,
     this.skipSplash = false,
   });
 
   final ThemeController? themeController;
   final HistoryController? historyController;
   final DensityController? densityController;
+  final ViewModeController? viewModeController;
+
+  /// Test seam for the web-gated desktop shell. `kIsWeb` is always false under
+  /// `flutter test`, so widget tests pass `true` here to exercise the desktop
+  /// path. Null in production — the shell reads `kIsWeb` directly.
+  final bool? isWebOverride;
 
   /// Tests pump `MyApp` directly without going through `main.dart`'s
   /// `FlutterNativeSplash.preserve()`, so the splash crossfade adds 600 ms
@@ -43,6 +52,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   late final ThemeController _theme;
   late final HistoryController _history;
   late final DensityController _density;
+  late final ViewModeController _viewMode;
   late final Listenable _appListenable;
 
   Brightness _platformBrightness = Brightness.light;
@@ -54,6 +64,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _theme = widget.themeController ?? ThemeController();
     _history = widget.historyController ?? HistoryController();
     _density = widget.densityController ?? DensityController();
+    _viewMode = widget.viewModeController ?? ViewModeController();
+    // _viewMode is intentionally absent: it drives layout solely through
+    // ViewModeScope (an InheritedNotifier), so toggling rebuilds only the
+    // layout consumers — not the whole CupertinoApp this builder produces.
     _appListenable = Listenable.merge(<Listenable>[_theme, _density]);
     _platformBrightness =
         WidgetsBinding.instance.platformDispatcher.platformBrightness;
@@ -94,47 +108,51 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return ThemeScope(
-      controller: _theme,
-      child: DensityScope(
-        controller: _density,
-        child: HistoryScope(
-          controller: _history,
-          child: ListenableBuilder(
-            listenable: _appListenable,
-            builder: (BuildContext context, _) {
-              final Brightness brightness = _resolveBrightness(_theme.mode);
-              final MqColors colors = brightness == Brightness.dark
-                  ? MqColors.dark()
-                  : MqColors.light();
-              final MqTokens tokens = MqTokens(
-                colors: colors,
-                brightness: brightness,
-                density: _density.density,
-              );
-              return CupertinoApp(
-                debugShowCheckedModeBanner: false,
-                title: 'Masquerade',
-                theme: buildCupertinoTheme(brightness),
-                builder: (BuildContext context, Widget? child) => MqTheme(
-                  tokens: tokens,
-                  child: ResponsiveLayout(
-                    child: AnimatedSwitcher(
-                      duration: _splashFade,
-                      child: _showSplash
-                          ? const MqSplashScreen(
-                              key: ValueKey<String>('splash'),
-                            )
-                          : KeyedSubtree(
-                              key: const ValueKey<String>('shell'),
-                              child: child ?? const SizedBox.shrink(),
-                            ),
+    return ViewModeScope(
+      controller: _viewMode,
+      child: ThemeScope(
+        controller: _theme,
+        child: DensityScope(
+          controller: _density,
+          child: HistoryScope(
+            controller: _history,
+            child: ListenableBuilder(
+              listenable: _appListenable,
+              builder: (BuildContext context, _) {
+                final Brightness brightness = _resolveBrightness(_theme.mode);
+                final MqColors colors = brightness == Brightness.dark
+                    ? MqColors.dark()
+                    : MqColors.light();
+                final MqTokens tokens = MqTokens(
+                  colors: colors,
+                  brightness: brightness,
+                  density: _density.density,
+                );
+                return CupertinoApp(
+                  debugShowCheckedModeBanner: false,
+                  title: 'Masquerade',
+                  theme: buildCupertinoTheme(brightness),
+                  builder: (BuildContext context, Widget? child) => MqTheme(
+                    tokens: tokens,
+                    child: ResponsiveLayout(
+                      isWebOverride: widget.isWebOverride,
+                      child: AnimatedSwitcher(
+                        duration: _splashFade,
+                        child: _showSplash
+                            ? const MqSplashScreen(
+                                key: ValueKey<String>('splash'),
+                              )
+                            : KeyedSubtree(
+                                key: const ValueKey<String>('shell'),
+                                child: child ?? const SizedBox.shrink(),
+                              ),
+                      ),
                     ),
                   ),
-                ),
-                home: const RootTabScaffold(),
-              );
-            },
+                  home: RootTabScaffold(isWebOverride: widget.isWebOverride),
+                );
+              },
+            ),
           ),
         ),
       ),

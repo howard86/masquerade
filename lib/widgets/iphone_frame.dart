@@ -1,48 +1,105 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
+import '../state/view_mode_controller.dart';
 import '../theme/mq_metrics.dart';
 import '../theme/mq_theme.dart';
+import '../utils/shell_layout.dart';
+import 'mq/view_mode_toggle_button.dart';
 
-/// Responsive wrapper that renders [child] inside a hand-rolled iPhone 16 Pro
-/// silhouette on screens larger than the device's logical size, and renders
-/// [child] directly otherwise.
+/// Responsive wrapper. On a wide web window in desktop mode it renders [child]
+/// full-bleed (the desktop shell supplies its own chrome). Otherwise it renders
+/// [child] inside the hand-rolled iPhone silhouette on large viewports —
+/// overlaying a "Desktop view" toggle when the desktop shell is available — or
+/// directly on small viewports.
 class ResponsiveLayout extends StatelessWidget {
-  const ResponsiveLayout({super.key, required this.child});
+  const ResponsiveLayout({super.key, required this.child, this.isWebOverride});
 
   final Widget child;
 
+  /// See `MyApp.isWebOverride`. Null in production → reads [kIsWeb].
+  final bool? isWebOverride;
+
   static const double _maxScale = 2;
+
+  // Inset (logical px) of the compact "Desktop view" chip within the frame.
+  // Sits in the status strip beside the Dynamic Island and clear of the screen's
+  // rounded top-right corner, so it reads as part of the device chrome.
+  static const double _toggleTop = 16;
+  static const double _toggleRight = 36;
 
   @override
   Widget build(BuildContext context) {
+    final bool isWeb = isWebOverride ?? kIsWeb;
+    final MqViewMode viewMode = ViewModeScope.of(context).mode;
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        if (constraints.maxWidth <= IphoneFrame.logicalWidth + 100 &&
-            constraints.maxHeight <= IphoneFrame.logicalHeight + 200) {
-          return child;
-        }
+        final MqShellLayout layout = resolveShellLayout(
+          isWeb: isWeb,
+          width: constraints.maxWidth,
+          height: constraints.maxHeight,
+          viewMode: viewMode,
+        );
+        // Desktop shell and small phones both render the child directly; only
+        // the framed-mobile case wraps it in the silhouette.
+        if (layout != MqShellLayout.framedMobile) return child;
 
-        final double innerW = constraints.maxWidth - MqSpacing.lg * 2;
-        final double innerH = constraints.maxHeight - MqSpacing.lg * 2;
-        final double fitH = innerH / IphoneFrame.logicalHeight;
-        final double fitW = innerW / IphoneFrame.logicalWidth;
-        final double scale = (fitH < fitW ? fitH : fitW).clamp(0.0, _maxScale);
-
-        return Container(
-          padding: const EdgeInsets.all(MqSpacing.lg),
-          color: context.mq.colors.bg,
-          child: Center(
-            child: SizedBox(
-              width: IphoneFrame.logicalWidth * scale,
-              height: IphoneFrame.logicalHeight * scale,
-              child: FittedBox(
-                fit: BoxFit.fill,
-                child: IphoneFrame(screen: child),
-              ),
-            ),
+        return _frame(
+          context,
+          constraints,
+          showToggle: toggleAvailable(
+            isWeb: isWeb,
+            width: constraints.maxWidth,
           ),
         );
       },
+    );
+  }
+
+  Widget _frame(
+    BuildContext context,
+    BoxConstraints constraints, {
+    required bool showToggle,
+  }) {
+    final double innerW = constraints.maxWidth - MqSpacing.lg * 2;
+    final double innerH = constraints.maxHeight - MqSpacing.lg * 2;
+    final double fitH = innerH / IphoneFrame.logicalHeight;
+    final double fitW = innerW / IphoneFrame.logicalWidth;
+    final double scale = (fitH < fitW ? fitH : fitW).clamp(0.0, _maxScale);
+
+    return Container(
+      padding: const EdgeInsets.all(MqSpacing.lg),
+      color: context.mq.colors.bg,
+      child: Center(
+        child: SizedBox(
+          width: IphoneFrame.logicalWidth * scale,
+          height: IphoneFrame.logicalHeight * scale,
+          // The frame and its overlaid toggle scale together: FittedBox maps the
+          // logical 393×852 silhouette onto the rendered size.
+          child: FittedBox(
+            fit: BoxFit.fill,
+            child: SizedBox(
+              width: IphoneFrame.logicalWidth,
+              height: IphoneFrame.logicalHeight,
+              child: Stack(
+                children: <Widget>[
+                  Positioned.fill(child: IphoneFrame(screen: child)),
+                  if (showToggle)
+                    const Positioned(
+                      top: _toggleTop,
+                      right: _toggleRight,
+                      child: ViewModeToggleButton(
+                        target: MqViewMode.desktop,
+                        label: 'Desktop view',
+                        compact: true,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
