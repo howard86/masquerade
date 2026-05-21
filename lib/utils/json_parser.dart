@@ -181,6 +181,34 @@ class JSONParser {
 
   static String minify(Object? value) => jsonEncode(value);
 
+  /// Indented key-path renderer used by the JSON tool's "Tree" view. Sits
+  /// next to [pretty] / [minify] so callers can dispatch by enum without
+  /// leaving the parser layer.
+  static String tree(Object? value) => _renderTree(value, 0);
+
+  static String _renderTree(Object? v, int depth) {
+    final String indent = '  ' * depth;
+    if (v is Map) {
+      if (v.isEmpty) return '{}';
+      final List<String> lines = <String>['{'];
+      v.forEach((Object? k, Object? val) {
+        lines.add('$indent  $k: ${_renderTree(val, depth + 1)}');
+      });
+      lines.add('$indent}');
+      return lines.join('\n');
+    }
+    if (v is List) {
+      if (v.isEmpty) return '[]';
+      final List<String> lines = <String>['['];
+      for (int i = 0; i < v.length; i++) {
+        lines.add('$indent  [$i] ${_renderTree(v[i], depth + 1)}');
+      }
+      lines.add('$indent]');
+      return lines.join('\n');
+    }
+    return '$v';
+  }
+
   static ({int line, int col}) _offsetToLineCol(String input, int offset) {
     int line = 1;
     int col = 1;

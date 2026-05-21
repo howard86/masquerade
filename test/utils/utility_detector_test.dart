@@ -98,6 +98,32 @@ void main() {
       expect(ids('{"a":1}'), isNot(contains('math')));
     });
 
+    test('YAML map with ≥2 keys suggests JSON tool', () {
+      expect(ids('a: 1\nb: hello'), contains('json'));
+    });
+
+    test('single YAML key does not suggest JSON tool', () {
+      // Single `foo: bar` is ambiguous and noisy — keep the chip quiet.
+      expect(ids('foo: bar'), isNot(contains('json')));
+    });
+
+    test('YAML doc separator suggests JSON tool', () {
+      expect(ids('---\na: 1'), contains('json'));
+    });
+
+    test('TOML table header suggests JSON tool', () {
+      expect(ids('[server]\nport = 8080'), contains('json'));
+    });
+
+    test('TOML bare key/value (≥2 lines) suggests JSON tool', () {
+      expect(ids('title = "x"\ncount = 3'), contains('json'));
+    });
+
+    test('single TOML-shaped line does not suggest JSON tool', () {
+      // Single `KEY = value` matches env files / shell snippets too.
+      expect(ids('FOO = bar'), isNot(contains('json')));
+    });
+
     test('5-field cron only suggests Cron', () {
       expect(ids('0 9 * * 1'), <String>['cron']);
     });

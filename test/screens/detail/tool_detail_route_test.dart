@@ -50,7 +50,7 @@ void main() {
     expect(
       find.descendant(
         of: find.byType(CupertinoNavigationBar),
-        matching: find.text('JSON'),
+        matching: find.text('JSON / YAML / TOML'),
       ),
       findsOneWidget,
     );
