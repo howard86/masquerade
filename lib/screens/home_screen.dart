@@ -17,10 +17,16 @@ import 'detail/qr_scanner_route.dart';
 import 'detail/tool_detail_route.dart';
 
 /// Home tab — compact paste bar (two-stage hero), hairline section rule, and
-/// a 2-column tool grid sorted matched → recently-used → idle. Tapping a card
-/// pushes a [ToolDetailRoute] seeded with the hero text.
+/// a responsive tool grid sorted matched → recently-used → idle. Tapping a
+/// card pushes a [ToolDetailRoute] seeded with the hero text, unless
+/// [onOpenTool] is supplied (desktop shell) — then it opens the tool in-pane.
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.onOpenTool});
+
+  /// When non-null, tapping a tool card calls this instead of pushing a route.
+  /// The desktop shell uses it to swap its content pane. The `input` arg is the
+  /// current hero text (may be empty).
+  final OpenInToolCallback? onOpenTool;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -90,6 +96,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _open(UtilityDescriptor u) {
     final String text = _hero.text;
+    final OpenInToolCallback? open = widget.onOpenTool;
+    if (open != null) {
+      open(u, text);
+      return;
+    }
     ToolDetailRoute.push(context, u, seed: text.isNotEmpty ? text : null);
   }
 
@@ -152,8 +163,8 @@ class _HomeScreenState extends State<HomeScreen> {
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
+              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: MqLayout.tileMaxExtent,
                 mainAxisSpacing: d.cardGap,
                 crossAxisSpacing: d.cardGap,
                 childAspectRatio: d.cardAspectRatio / textScale,

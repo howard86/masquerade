@@ -48,4 +48,6 @@ class MqIcons {
   static const IconData calculator = LucideIcons.calculator;
   static const IconData list = LucideIcons.list;
   static const IconData diff = LucideIcons.git_compare;
+  static const IconData monitor = LucideIcons.monitor;
+  static const IconData smartphone = LucideIcons.smartphone;
 }
