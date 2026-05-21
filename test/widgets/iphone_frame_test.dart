@@ -1,14 +1,21 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:masquerade/state/view_mode_controller.dart';
 import 'package:masquerade/theme/mq_colors.dart';
 import 'package:masquerade/theme/mq_theme.dart';
 import 'package:masquerade/widgets/iphone_frame.dart';
 
 Widget _harness(Widget child) {
   return CupertinoApp(
-    home: MqTheme(
-      tokens: MqTokens(colors: MqColors.light(), brightness: Brightness.light),
-      child: ResponsiveLayout(child: child),
+    home: ViewModeScope(
+      controller: ViewModeController(),
+      child: MqTheme(
+        tokens: MqTokens(
+          colors: MqColors.light(),
+          brightness: Brightness.light,
+        ),
+        child: ResponsiveLayout(child: child),
+      ),
     ),
   );
 }

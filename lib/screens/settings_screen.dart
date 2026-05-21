@@ -1,11 +1,14 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../state/history_controller.dart';
 import '../state/theme_controller.dart';
+import '../state/view_mode_controller.dart';
 import '../theme/mq_metrics.dart';
 import '../theme/mq_theme.dart';
 import '../theme/mq_typography.dart';
+import '../utils/shell_layout.dart';
 import '../widgets/mq/mq_button.dart';
 import '../widgets/mq/mq_icons.dart';
 import '../widgets/mq/mq_section_header.dart';
@@ -18,13 +21,22 @@ import '../widgets/mq/mq_surface.dart';
 final Future<PackageInfo> _packageInfoFuture = PackageInfo.fromPlatform();
 
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key});
+  const SettingsScreen({super.key, this.isWebOverride});
+
+  /// See `MyApp.isWebOverride`. Null in production → reads [kIsWeb]. Gates the
+  /// desktop↔mobile "Layout" row, which is only meaningful on wide web.
+  final bool? isWebOverride;
 
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
     final ThemeController theme = ThemeScope.of(context);
     final HistoryController history = HistoryScope.of(context);
+    final ViewModeController viewMode = ViewModeScope.of(context);
+    final bool showViewToggle = toggleAvailable(
+      isWeb: isWebOverride ?? kIsWeb,
+      width: MediaQuery.sizeOf(context).width,
+    );
 
     return CupertinoPageScaffold(
       backgroundColor: c.bg,
@@ -70,6 +82,35 @@ class SettingsScreen extends StatelessWidget {
                 ],
               ),
             ),
+            if (showViewToggle) ...<Widget>[
+              const SizedBox(height: MqSpacing.xl),
+              const MqSectionHeader(label: 'Layout'),
+              MqSurface(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'View',
+                      style: MqTextStyles.headline.copyWith(color: c.textPri),
+                    ),
+                    const SizedBox(height: MqSpacing.sm),
+                    Text(
+                      'Use the full desktop layout or the mobile preview.',
+                      style: MqTextStyles.subhead.copyWith(color: c.textSec),
+                    ),
+                    const SizedBox(height: MqSpacing.md),
+                    MqSegmented<MqViewMode>(
+                      options: const <MqViewMode, String>{
+                        MqViewMode.desktop: 'Desktop',
+                        MqViewMode.mobile: 'Mobile',
+                      },
+                      selected: viewMode.mode,
+                      onChanged: viewMode.setMode,
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: MqSpacing.xl),
             const MqSectionHeader(label: 'Privacy'),
             MqSurface(
