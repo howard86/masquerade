@@ -6,6 +6,7 @@ import 'package:masquerade/screens/desktop/desktop_sidebar.dart';
 import 'package:masquerade/screens/desktop/desktop_tool_view.dart';
 import 'package:masquerade/screens/history_screen.dart';
 import 'package:masquerade/state/view_mode_controller.dart';
+import 'package:masquerade/theme/mq_metrics.dart';
 import 'package:masquerade/widgets/iphone_frame.dart';
 import 'package:masquerade/widgets/mq/tool_grid_card.dart';
 import 'package:masquerade/widgets/mq/view_mode_toggle_button.dart';
@@ -46,6 +47,17 @@ void main() {
       expect(find.byType(DesktopSidebar), findsOneWidget);
       expect(find.byType(IphoneFrame), findsNothing);
       expect(find.byType(ToolGridCard), findsWidgets);
+    });
+
+    testWidgets('shell is a height-capped window, not full-height', (
+      WidgetTester tester,
+    ) async {
+      await _pump(tester, size: const Size(1200, 1100));
+      final Size window = tester.getSize(find.byKey(DesktopShell.windowKey));
+      // Capped at the token height and centered, rather than filling the 1100px
+      // viewport, so the surrounding background reads as margin.
+      expect(window.height, MqLayout.desktopShellMaxHeight);
+      expect(window.height, lessThan(1100));
     });
 
     testWidgets('sidebar nav switches the content pane', (

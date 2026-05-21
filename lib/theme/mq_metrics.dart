@@ -46,6 +46,12 @@ class MqLayout {
   /// as a tidy window instead of stretching adrift across an ultrawide monitor.
   static const double desktopShellMaxWidth = 1440;
 
+  /// Max height of the whole desktop shell window. Beyond this the shell stops
+  /// growing and centers vertically, so it reads as a contained, bordered
+  /// window rather than stretching to fill tall viewports. Echoes the iPhone
+  /// frame height so desktop and mobile-frame modes feel like the same window.
+  static const double desktopShellMaxHeight = 820;
+
   /// Max width of the desktop Home content (tool grid) before it stops growing
   /// and centers — keeps tiles from stretching on ultrawide monitors.
   static const double desktopContentMaxWidth = 1100;

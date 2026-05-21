@@ -16,6 +16,9 @@ import 'desktop_tool_view.dart';
 class DesktopShell extends StatefulWidget {
   const DesktopShell({super.key});
 
+  /// Identifies the bordered, height-capped shell window (for tests/geometry).
+  static const Key windowKey = ValueKey<String>('desktop-shell-window');
+
   @override
   State<DesktopShell> createState() => _DesktopShellState();
 }
@@ -46,18 +49,50 @@ class _DesktopShellState extends State<DesktopShell> {
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
+    const BorderRadius windowRadius = BorderRadius.all(
+      Radius.circular(MqRadius.lg),
+    );
     return CupertinoPageScaffold(
       backgroundColor: c.bg,
-      // Cap the whole shell so sidebar + content stay a tidy centered window
-      // instead of stretching adrift on ultrawide displays.
-      child: _capped(
-        maxWidth: MqLayout.desktopShellMaxWidth,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            DesktopSidebar(selectedIndex: _navIndex, onSelect: _select),
-            Expanded(child: _pane()),
-          ],
+      // Bind the shell to a centered, bordered window: cap its width and height
+      // and lift it off the page with a hairline + shadow, so tall/ultrawide
+      // viewports read as intentional margin instead of empty stretch.
+      child: Padding(
+        padding: const EdgeInsets.all(MqSpacing.xl),
+        child: Center(
+          child: ConstrainedBox(
+            // minHeight == maxHeight pins the window to a tight height (capped
+            // to the viewport) so the embedded scaffolds get a bounded height;
+            // Center then drops the slack as symmetric top/bottom margin.
+            constraints: const BoxConstraints(
+              maxWidth: MqLayout.desktopShellMaxWidth,
+              minHeight: MqLayout.desktopShellMaxHeight,
+              maxHeight: MqLayout.desktopShellMaxHeight,
+            ),
+            child: DecoratedBox(
+              // Shadow sits on the outer box so the clip below doesn't crop it.
+              decoration: BoxDecoration(
+                borderRadius: windowRadius,
+                boxShadow: c.shadowLg,
+              ),
+              child: Container(
+                key: DesktopShell.windowKey,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: c.bg,
+                  borderRadius: windowRadius,
+                  border: Border.all(color: c.border, width: 0.5),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    DesktopSidebar(selectedIndex: _navIndex, onSelect: _select),
+                    Expanded(child: _pane()),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
