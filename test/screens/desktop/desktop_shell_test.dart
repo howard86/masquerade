@@ -8,6 +8,7 @@ import 'package:masquerade/screens/history_screen.dart';
 import 'package:masquerade/state/view_mode_controller.dart';
 import 'package:masquerade/widgets/iphone_frame.dart';
 import 'package:masquerade/widgets/mq/tool_grid_card.dart';
+import 'package:masquerade/widgets/mq/view_mode_toggle_button.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const Size _desktop = Size(1200, 900);
@@ -94,8 +95,9 @@ void main() {
       await _pump(tester, size: _desktop, initial: MqViewMode.mobile);
       expect(find.byType(IphoneFrame), findsOneWidget);
       expect(find.byType(DesktopShell), findsNothing);
+      expect(find.byKey(ViewModeToggleButton.compactKey), findsOneWidget);
 
-      await tester.tap(find.text('Desktop view'));
+      await tester.tap(find.byKey(ViewModeToggleButton.compactKey));
       await tester.pumpAndSettle();
       expect(find.byType(DesktopShell), findsOneWidget);
       expect(find.byType(IphoneFrame), findsNothing);
@@ -108,7 +110,7 @@ void main() {
       expect(find.byType(DesktopShell), findsNothing);
       expect(find.byType(IphoneFrame), findsNothing);
       expect(find.text('Mobile view'), findsNothing);
-      expect(find.text('Desktop view'), findsNothing);
+      expect(find.byKey(ViewModeToggleButton.compactKey), findsNothing);
     });
 
     testWidgets('non-web wide viewport is unchanged (framed, no toggle)', (
@@ -117,7 +119,7 @@ void main() {
       await _pump(tester, size: _desktop, isWeb: false);
       expect(find.byType(IphoneFrame), findsOneWidget);
       expect(find.byType(DesktopShell), findsNothing);
-      expect(find.text('Desktop view'), findsNothing);
+      expect(find.byKey(ViewModeToggleButton.compactKey), findsNothing);
     });
   });
 }
