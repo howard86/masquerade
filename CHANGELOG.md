@@ -1,3 +1,14 @@
+## v1.15.0 (2026-05-21)
+
+### Feat
+
+- **desktop**: bound the shell into a height-capped, bordered window
+- **web**: move the desktop toggle into the iPhone frame
+- **desktop**: cap and center the shell on wide displays
+- **web**: render desktop view on wide web with a layout toggle
+- **web**: add desktop shell, sidebar, and in-pane tool view
+- **web**: add view-mode state and shell-layout resolver
+
 ## v1.14.0 (2026-05-20)
 
 ### Feat
