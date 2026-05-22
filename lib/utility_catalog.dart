@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
 
+import 'state/link_group.dart';
 import 'utils/bps_parser.dart';
 import 'utils/bytes_parser.dart';
 import 'utils/color_parser.dart';
@@ -60,6 +61,10 @@ enum CardWidthClass {
 /// body pipe its current output into another tool without leaving Home.
 /// When [actionBar] is non-null, the body should bind its paste/clear
 /// handlers on the controller so the detail route can render a pinned bar.
+/// [link] is non-null only when the body's card is in a desktop canvas Link
+/// group (see docs/adr/0001); a linkable body then projects the group's
+/// canonical value to its display and emits local edits back. It is always
+/// null on mobile and Home, so the seam stays backward-compatible.
 typedef UtilityBuilder =
     Widget Function(
       BuildContext context, {
@@ -67,6 +72,7 @@ typedef UtilityBuilder =
       SeedSource seedSource,
       OpenInToolCallback? onSwitchTool,
       ToolActionBarController? actionBar,
+      LinkChannel? link,
     });
 
 class UtilityDescriptor {
@@ -114,6 +120,7 @@ class UtilityCatalog {
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
+            LinkChannel? link,
           }) => NumberBaseBody(
             initialInput: initialInput,
             seedSource: seedSource,
@@ -136,6 +143,7 @@ class UtilityCatalog {
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
+            LinkChannel? link,
           }) => TimestampBody(
             initialInput: initialInput,
             seedSource: seedSource,
@@ -159,6 +167,7 @@ class UtilityCatalog {
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
+            LinkChannel? link,
           }) => CronBody(
             initialInput: initialInput,
             seedSource: seedSource,
@@ -192,11 +201,13 @@ class UtilityCatalog {
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
+            LinkChannel? link,
           }) => JSONBody(
             initialInput: initialInput,
             seedSource: seedSource,
             onSwitchTool: onSwitchTool,
             actionBar: actionBar,
+            link: link,
           ),
       detect: _detectStructured,
     ),
@@ -214,11 +225,13 @@ class UtilityCatalog {
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
+            LinkChannel? link,
           }) => Base64Body(
             initialInput: initialInput,
             seedSource: seedSource,
             onSwitchTool: onSwitchTool,
             actionBar: actionBar,
+            link: link,
           ),
       detect: _detectBase64,
     ),
@@ -237,6 +250,7 @@ class UtilityCatalog {
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
+            LinkChannel? link,
           }) => ColorBody(
             initialInput: initialInput,
             seedSource: seedSource,
@@ -265,6 +279,7 @@ class UtilityCatalog {
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
+            LinkChannel? link,
           }) => MathBody(
             initialInput: initialInput,
             seedSource: seedSource,
@@ -287,6 +302,7 @@ class UtilityCatalog {
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
+            LinkChannel? link,
           }) => BpsBody(
             initialInput: initialInput,
             seedSource: seedSource,
@@ -310,6 +326,7 @@ class UtilityCatalog {
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
+            LinkChannel? link,
           }) => BytesBody(
             initialInput: initialInput,
             seedSource: seedSource,
@@ -340,6 +357,7 @@ class UtilityCatalog {
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
+            LinkChannel? link,
           }) => ListToolBody(
             initialInput: initialInput,
             seedSource: seedSource,
@@ -363,6 +381,7 @@ class UtilityCatalog {
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
+            LinkChannel? link,
           }) => DiffBody(
             initialInput: initialInput,
             seedSource: seedSource,
@@ -384,6 +403,7 @@ class UtilityCatalog {
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
+            LinkChannel? link,
           }) => QrCodeBody(
             initialInput: initialInput,
             seedSource: seedSource,

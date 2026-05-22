@@ -25,6 +25,9 @@ class ToolCardFrame extends StatelessWidget {
     required this.onResizeDelta,
     required this.onResizeEnd,
     required this.child,
+    this.linked = false,
+    this.linkTooltip,
+    this.onLink,
   });
 
   final UtilityDescriptor descriptor;
@@ -35,6 +38,12 @@ class ToolCardFrame extends StatelessWidget {
   final VoidCallback onFocus;
   final VoidCallback onClose;
   final VoidCallback onDuplicate;
+
+  /// When [onLink] is non-null the header shows a link toggle. [linked] paints
+  /// it gold (active) and [linkTooltip] is its accessibility label.
+  final bool linked;
+  final String? linkTooltip;
+  final VoidCallback? onLink;
 
   /// Called with the drag delta while the title bar is dragged.
   final ValueChanged<Offset> onMoveDelta;
@@ -80,6 +89,9 @@ class ToolCardFrame extends StatelessWidget {
                   onDuplicate: onDuplicate,
                   onMoveDelta: onMoveDelta,
                   onMoveEnd: onMoveEnd,
+                  linked: linked,
+                  linkTooltip: linkTooltip,
+                  onLink: onLink,
                 ),
                 Padding(
                   padding: const EdgeInsets.all(MqSpacing.lg),
@@ -113,6 +125,9 @@ class _Header extends StatelessWidget {
     required this.onDuplicate,
     required this.onMoveDelta,
     required this.onMoveEnd,
+    required this.linked,
+    required this.linkTooltip,
+    required this.onLink,
   });
 
   final UtilityDescriptor descriptor;
@@ -122,6 +137,9 @@ class _Header extends StatelessWidget {
   final VoidCallback onDuplicate;
   final ValueChanged<Offset> onMoveDelta;
   final VoidCallback onMoveEnd;
+  final bool linked;
+  final String? linkTooltip;
+  final VoidCallback? onLink;
 
   @override
   Widget build(BuildContext context) {
@@ -162,6 +180,13 @@ class _Header extends StatelessWidget {
                 ),
                 const SizedBox(width: MqSpacing.sm),
               ],
+              if (onLink != null)
+                _IconButton(
+                  icon: MqIcons.link,
+                  tooltip: linkTooltip ?? 'Link',
+                  onTap: onLink!,
+                  color: linked ? c.warning : null,
+                ),
               _IconButton(
                 icon: MqIcons.copy,
                 tooltip: 'Duplicate (⌥D)',
@@ -217,11 +242,15 @@ class _IconButton extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     required this.onTap,
+    this.color,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
+
+  /// Icon tint; defaults to the tertiary text color when null.
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
@@ -233,7 +262,12 @@ class _IconButton extends StatelessWidget {
         cursor: SystemMouseCursors.click,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: MqSpacing.xs),
-          child: Icon(icon, size: 15, color: c.textTer, semanticLabel: tooltip),
+          child: Icon(
+            icon,
+            size: 15,
+            color: color ?? c.textTer,
+            semanticLabel: tooltip,
+          ),
         ),
       ),
     );

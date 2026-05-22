@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
 import '../../state/history_controller.dart';
+import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../utility_catalog.dart';
@@ -21,6 +22,7 @@ import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_status.dart';
 import '../mq/tool_action_bar.dart';
+import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 
@@ -96,6 +98,7 @@ class JSONBody extends StatefulWidget {
     this.seedSource = SeedSource.none,
     this.onSwitchTool,
     this.actionBar,
+    this.link,
   });
 
   final String? initialInput;
@@ -103,11 +106,15 @@ class JSONBody extends StatefulWidget {
   final OpenInToolCallback? onSwitchTool;
   final ToolActionBarController? actionBar;
 
+  /// Non-null when this card is in a canvas Link group. JSON is the group's
+  /// identity peer: its input text *is* the canonical value (see docs/adr/0001).
+  final LinkChannel? link;
+
   @override
   State<JSONBody> createState() => _JSONBodyState();
 }
 
-class _JSONBodyState extends State<JSONBody> {
+class _JSONBodyState extends State<JSONBody> with LinkableToolBody<JSONBody> {
   final TextEditingController _controller = TextEditingController();
   Timer? _debounce;
   SourceFormat _source = SourceFormat.auto;
@@ -132,6 +139,26 @@ class _JSONBodyState extends State<JSONBody> {
       if (!mounted) return;
       widget.actionBar?.bind(onPaste: _paste, onClear: _clear);
     });
+    initLink();
+  }
+
+  @override
+  void didUpdateWidget(JSONBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    didUpdateLink();
+  }
+
+  // ─── Canonical-hub link (identity peer) ─────────────────────────────────
+  @override
+  LinkChannel? get linkChannel => widget.link;
+
+  @override
+  String currentCanonical() => _controller.text;
+
+  @override
+  void applyInbound(String canonical) {
+    _controller.text = canonical;
+    _parse();
   }
 
   @override
@@ -150,6 +177,7 @@ class _JSONBodyState extends State<JSONBody> {
 
   @override
   void dispose() {
+    disposeLink();
     _debounce?.cancel();
     _recorder?.dispose();
     _controller.dispose();
@@ -170,6 +198,7 @@ class _JSONBodyState extends State<JSONBody> {
         _output = null;
         _footerMinified = null;
       });
+      emitToLink();
       return;
     }
     final ({_Parsed? parsed, _ParseError? error}) r = _runParse(input, _source);
@@ -189,6 +218,7 @@ class _JSONBodyState extends State<JSONBody> {
       _output = parsed == null ? null : _renderOutput(parsed.value, _target);
     });
     if (parsed != null) _recorder?.record(input, minified!);
+    emitToLink();
   }
 
   /// Computes the output string for [target]. The TOML target is hidden by

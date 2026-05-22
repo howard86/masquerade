@@ -1,7 +1,9 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../../state/canvas_controller.dart';
+import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
@@ -11,6 +13,16 @@ import '../../widgets/desktop/tool_card_frame.dart';
 import '../../widgets/mq/mq_icons.dart';
 import '../../widgets/tool_bodies/seed_source.dart';
 import '../home_screen.dart';
+
+/// Flagship live-link pairing (see docs/adr/0001): a Base64 card and a JSON
+/// card share one canonical plain-text value, so each can render the other's
+/// content live. Keyed by tool id → its partner tool + the shared canonical
+/// type. The canvas owns this; the bodies stay shell-agnostic.
+const Map<String, ({String partnerId, ContentType type})> _linkPartners =
+    <String, ({String partnerId, ContentType type})>{
+      'base64': (partnerId: 'json', type: ContentType.text),
+      'json': (partnerId: 'base64', type: ContentType.text),
+    };
 
 /// The desktop Home surface: a multi-card canvas. When no cards are open it
 /// shows the familiar Home grid (so a tile-tap opens the first card); once a
@@ -151,12 +163,28 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
                 ),
               ),
             ),
+            // Gold tether drawn behind the cards for each Link group.
+            if (_c.hasLinks)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    painter: _LinkLinePainter(
+                      segments: _linkSegments(cards),
+                      color: c.warning,
+                    ),
+                  ),
+                ),
+              ),
             for (int i = 0; i < cards.length; i++)
               Positioned(
+                // Key the Positioned itself (not just the inner SizedBox) so a
+                // card's State survives sibling inserts/removes — the gold-line
+                // painter shifts child indices, and closing a middle card would
+                // otherwise rebind the wrong element.
+                key: ValueKey<int>(cards[i].id),
                 left: cards[i].x + _pan.dx,
                 top: cards[i].y + _pan.dy,
                 child: SizedBox(
-                  key: ValueKey<int>(cards[i].id),
                   width: cards[i].width,
                   child: _cardFrame(cards[i], slot: i + 1),
                 ),
@@ -171,6 +199,9 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     final SeedSource src = card.seed != null
         ? SeedSource.paste
         : SeedSource.none;
+    final ({String partnerId, ContentType type})? partner =
+        _linkPartners[card.descriptor.id];
+    final bool linked = _c.groupForCard(card.id) != null;
     return ToolCardFrame(
       descriptor: card.descriptor,
       slot: slot <= 9 ? slot : null,
@@ -183,6 +214,13 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
       onMoveEnd: _c.commit,
       onResizeDelta: (double dx) => _c.resize(card.id, card.width + dx),
       onResizeEnd: _c.commit,
+      linked: linked,
+      linkTooltip: partner == null
+          ? null
+          : linked
+          ? 'Unlink'
+          : 'Open linked ${UtilityCatalog.byId(partner.partnerId).name}',
+      onLink: partner == null ? null : () => _toggleLink(card, partner),
       child: card.descriptor.builder(
         context,
         initialInput: card.seed,
@@ -190,9 +228,47 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
         onSwitchTool: (UtilityDescriptor u, String input) =>
             _c.openTool(u, seed: input),
         actionBar: null,
+        link: _c.channelForCard(card.id),
       ),
     );
   }
+
+  /// Toggles the flagship link on [card]: unlinks if already linked, otherwise
+  /// opens its [partner] tool as a new card and links the two. The source
+  /// card's value seeds the group (the linkable body emits on attach).
+  void _toggleLink(
+    CanvasCard card,
+    ({String partnerId, ContentType type}) partner,
+  ) {
+    if (_c.groupForCard(card.id) != null) {
+      _c.unlinkCard(card.id);
+      return;
+    }
+    final int siblingId = _c.openTool(UtilityCatalog.byId(partner.partnerId));
+    _c.linkCards(card.id, siblingId, type: partner.type);
+  }
+
+  /// One gold segment per linked pair, anchored at each card's title bar (in
+  /// the same panned coordinates as the cards).
+  List<({Offset a, Offset b})> _linkSegments(List<CanvasCard> cards) {
+    final Map<int, CanvasCard> byId = <int, CanvasCard>{
+      for (final CanvasCard card in cards) card.id: card,
+    };
+    final List<({Offset a, Offset b})> segments = <({Offset a, Offset b})>[];
+    for (final LinkGroup g in _c.groups) {
+      final List<CanvasCard> members = g.members
+          .map((int id) => byId[id])
+          .whereType<CanvasCard>()
+          .toList();
+      for (int i = 0; i + 1 < members.length; i++) {
+        segments.add((a: _anchor(members[i]), b: _anchor(members[i + 1])));
+      }
+    }
+    return segments;
+  }
+
+  Offset _anchor(CanvasCard card) =>
+      Offset(card.x + _pan.dx + card.width / 2, card.y + _pan.dy + 18);
 }
 
 class _CanvasTopBar extends StatelessWidget {
@@ -307,4 +383,28 @@ class _DotGridPainter extends CustomPainter {
   @override
   bool shouldRepaint(_DotGridPainter old) =>
       old.offset != offset || old.color != color;
+}
+
+/// Draws the gold tether between linked cards (see docs/adr/0001).
+class _LinkLinePainter extends CustomPainter {
+  _LinkLinePainter({required this.segments, required this.color});
+
+  final List<({Offset a, Offset b})> segments;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = color
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    for (final ({Offset a, Offset b}) s in segments) {
+      canvas.drawLine(s.a, s.b, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_LinkLinePainter old) =>
+      old.color != color || !listEquals(old.segments, segments);
 }
