@@ -50,4 +50,5 @@ class MqIcons {
   static const IconData diff = LucideIcons.git_compare;
   static const IconData monitor = LucideIcons.monitor;
   static const IconData smartphone = LucideIcons.smartphone;
+  static const IconData key = LucideIcons.key_round;
 }

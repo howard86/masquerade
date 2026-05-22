@@ -10,6 +10,7 @@ import 'utils/cron_nl_parser.dart';
 import 'utils/cron_parser.dart';
 import 'utils/encoding_parser.dart';
 import 'utils/json_parser.dart';
+import 'utils/jwt_parser.dart';
 import 'utils/number_base_parser.dart';
 import 'utils/toml_parser.dart';
 import 'utils/yaml_parser.dart';
@@ -22,6 +23,7 @@ import 'widgets/tool_bodies/color_body.dart';
 import 'widgets/tool_bodies/cron_body.dart';
 import 'widgets/tool_bodies/diff_body.dart';
 import 'widgets/tool_bodies/json_body.dart';
+import 'widgets/tool_bodies/jwt_body.dart';
 import 'widgets/tool_bodies/list_body.dart';
 import 'widgets/tool_bodies/math_body.dart';
 import 'widgets/tool_bodies/number_base_body.dart';
@@ -212,6 +214,29 @@ class UtilityCatalog {
             link: link,
           ),
       detect: _detectStructured,
+    ),
+    UtilityDescriptor(
+      id: 'jwt',
+      name: 'JWT',
+      description: 'Decode header · payload · claims',
+      icon: MqIcons.key,
+      tint: const Color(0xFFA855F7),
+      synonyms: <String>['jwt', 'token', 'jose', 'bearer', 'auth'],
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            SeedSource seedSource = SeedSource.none,
+            OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
+            LinkChannel? link,
+          }) => JwtBody(
+            initialInput: initialInput,
+            seedSource: seedSource,
+            onSwitchTool: onSwitchTool,
+            actionBar: actionBar,
+          ),
+      detect: _detectJwt,
     ),
     UtilityDescriptor(
       id: 'base64',
@@ -570,6 +595,16 @@ bool _detectCron(String input) {
   if (t.isEmpty) return false;
   if (CronParser.parseSyntax(t).isSuccess) return true;
   return CronNlParser.parse(t).isSuccess;
+}
+
+final RegExp _jwtShape = RegExp(
+  r'^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$',
+);
+
+bool _detectJwt(String input) {
+  final String t = input.trim();
+  if (!_jwtShape.hasMatch(t)) return false;
+  return JwtParser.parse(t) is JwtOk;
 }
 
 bool _detectBase64(String input) {
