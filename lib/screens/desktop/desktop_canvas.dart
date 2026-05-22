@@ -9,6 +9,7 @@ import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
 import '../../widgets/desktop/command_palette.dart';
+import '../../widgets/desktop/pipe.dart';
 import '../../widgets/desktop/tool_card_frame.dart';
 import '../../widgets/mq/mq_icons.dart';
 import '../../widgets/tool_bodies/seed_source.dart';
@@ -23,6 +24,14 @@ const Map<String, ({String partnerId, ContentType type})> _linkPartners =
       'base64': (partnerId: 'json', type: ContentType.text),
       'json': (partnerId: 'base64', type: ContentType.text),
     };
+
+/// Which canonical [ContentType]s a tool's card can RECEIVE via a pipe drop.
+/// A cell→card drop links the two cards iff the target tool's set contains the
+/// dragged payload's type. Phase 6 extends this as more link pairs land.
+const Map<String, Set<ContentType>> _linkableTypes = <String, Set<ContentType>>{
+  'base64': <ContentType>{ContentType.text},
+  'json': <ContentType>{ContentType.text},
+};
 
 /// The desktop Home surface: a multi-card canvas. When no cards are open it
 /// shows the familiar Home grid (so a tile-tap opens the first card); once a
@@ -42,6 +51,10 @@ class DesktopCanvas extends StatefulWidget {
 
 class _DesktopCanvasState extends State<DesktopCanvas> {
   final FocusNode _focusNode = FocusNode(debugLabel: 'canvas');
+
+  /// Anchors the canvas surface so a pipe drop's global offset can be mapped to
+  /// canvas-local coordinates (drop − surfaceTopLeft − pan).
+  final GlobalKey _surfaceKey = GlobalKey();
   Offset _pan = Offset.zero;
 
   CanvasController get _c => widget.controller;
@@ -149,18 +162,30 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     final List<CanvasCard> cards = _c.cards;
     return ClipRect(
       child: ColoredBox(
+        key: _surfaceKey,
         color: c.bg,
         child: Stack(
           children: <Widget>[
             // Background: drag on empty space to pan; dot grid scrolls with it.
+            // A DragTarget overlays the pan gesture so a cell dropped on empty
+            // space opens a new seeded card. DragTarget doesn't consume pans, so
+            // the empty-space pan stays live.
             Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onPanUpdate: (DragUpdateDetails d) =>
-                    setState(() => _pan += d.delta),
-                child: CustomPaint(
-                  painter: _DotGridPainter(color: c.border, offset: _pan),
-                ),
+              child: DragTarget<PipePayload>(
+                onAcceptWithDetails: _onDropOnCanvas,
+                builder:
+                    (
+                      BuildContext context,
+                      List<PipePayload?> candidate,
+                      List<dynamic> rejected,
+                    ) => GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onPanUpdate: (DragUpdateDetails d) =>
+                          setState(() => _pan += d.delta),
+                      child: CustomPaint(
+                        painter: _DotGridPainter(color: c.border, offset: _pan),
+                      ),
+                    ),
               ),
             ),
             // Gold tether drawn behind the cards for each Link group.
@@ -195,6 +220,23 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     );
   }
 
+  /// Empty-canvas drop: opens the best-matching tool for the dropped value at
+  /// the drop point. The global offset is mapped to canvas-local coordinates
+  /// (drop − surfaceTopLeft − pan) so the new card lands under the pointer.
+  void _onDropOnCanvas(DragTargetDetails<PipePayload> details) {
+    final List<UtilityDescriptor> matches = UtilityCatalog.detectAll(
+      details.data.value,
+    );
+    if (matches.isEmpty) return;
+    final RenderBox? box =
+        _surfaceKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final Offset local = box.globalToLocal(details.offset);
+    final int id = _c.openTool(matches.first, seed: details.data.value);
+    _c.moveTo(id, local.dx - _pan.dx, local.dy - _pan.dy);
+    _c.commit();
+  }
+
   Widget _cardFrame(CanvasCard card, {required int slot}) {
     final SeedSource src = card.seed != null
         ? SeedSource.paste
@@ -202,7 +244,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     final ({String partnerId, ContentType type})? partner =
         _linkPartners[card.descriptor.id];
     final bool linked = _c.groupForCard(card.id) != null;
-    return ToolCardFrame(
+    final ToolCardFrame frame = ToolCardFrame(
       descriptor: card.descriptor,
       slot: slot <= 9 ? slot : null,
       focused: _c.focusedId == card.id,
@@ -221,15 +263,38 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
           ? 'Unlink'
           : 'Open linked ${UtilityCatalog.byId(partner.partnerId).name}',
       onLink: partner == null ? null : () => _toggleLink(card, partner),
-      child: card.descriptor.builder(
-        context,
-        initialInput: card.seed,
-        seedSource: src,
-        onSwitchTool: (UtilityDescriptor u, String input) =>
-            _c.openTool(u, seed: input),
-        actionBar: null,
-        link: _c.channelForCard(card.id),
+      // PipeScope tells this card's output cells their source id and that pipe
+      // mode is active; absent on mobile/Home so cells stay inert there.
+      child: PipeScope(
+        cardId: card.id,
+        child: card.descriptor.builder(
+          context,
+          initialInput: card.seed,
+          seedSource: src,
+          onSwitchTool: (UtilityDescriptor u, String input) =>
+              _c.openTool(u, seed: input),
+          actionBar: null,
+          link: _c.channelForCard(card.id),
+        ),
       ),
+    );
+    // Drop a cell onto this card → live link the two (reuses the proven engine).
+    return DragTarget<PipePayload>(
+      onWillAcceptWithDetails: (DragTargetDetails<PipePayload> d) =>
+          d.data.sourceCardId != card.id &&
+          (_linkableTypes[card.descriptor.id]?.contains(d.data.type) ?? false),
+      onAcceptWithDetails: (DragTargetDetails<PipePayload> d) => _c.linkCards(
+        d.data.sourceCardId,
+        card.id,
+        type: d.data.type,
+        seedCanonical: d.data.value,
+      ),
+      builder:
+          (
+            BuildContext context,
+            List<PipePayload?> candidate,
+            List<dynamic> rejected,
+          ) => frame,
     );
   }
 

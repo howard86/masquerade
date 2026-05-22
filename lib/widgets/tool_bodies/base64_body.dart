@@ -296,6 +296,9 @@ class _Base64BodyState extends State<Base64Body>
             label: _mode == Base64Mode.encode ? 'Base64' : 'Plain text',
             value: _output!,
             accent: true,
+            // Canvas-only: only the decoded (plain-text) output is the text
+            // canonical; encode-mode output is base64, so leave it unpiped.
+            pipeType: _mode == Base64Mode.decode ? ContentType.text : null,
           ),
           OpenInFooter(
             output: _output,
