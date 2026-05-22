@@ -9,6 +9,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../state/history_controller.dart';
 import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
+import '../../theme/mq_theme.dart';
+import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
 import '../../utils/history_recorder.dart';
 import '../../utils/math_parser.dart';
@@ -24,6 +26,7 @@ import '../mq/tool_action_bar.dart';
 import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
+import 'tool_layout.dart';
 
 class MathBody extends StatefulWidget {
   const MathBody({
@@ -53,6 +56,10 @@ class MathBody extends StatefulWidget {
 class _MathBodyState extends State<MathBody> with LinkableToolBody<MathBody> {
   static const String _angleUnitPrefsKey = 'mq.math.angle_unit';
 
+  /// Most evaluations the visible tape keeps in memory before dropping the
+  /// oldest. Per-card, session-only — not persisted.
+  static const int _tapeCap = 50;
+
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   Timer? _debounce;
@@ -62,6 +69,11 @@ class _MathBodyState extends State<MathBody> with LinkableToolBody<MathBody> {
   bool _showingStale = false;
   AngleUnit _angleUnit = AngleUnit.radians;
   HistoryRecorder? _recorder;
+
+  /// Visible tape of past `expression = result` evaluations, most-recent last.
+  /// Canvas-only (shown above [kToolCanvasWide]); ignored at phone width.
+  final List<({String expr, String result})> _tape =
+      <({String expr, String result})>[];
 
   @override
   void initState() {
@@ -191,6 +203,7 @@ class _MathBodyState extends State<MathBody> with LinkableToolBody<MathBody> {
             _showingStale = false;
           });
         }
+        _pushTape(input.trim(), _formatPrimary(value));
         _recorder?.record(input, _formatPrimary(value));
         emitToLink();
       case MathIncomplete():
@@ -209,6 +222,22 @@ class _MathBodyState extends State<MathBody> with LinkableToolBody<MathBody> {
         });
         emitToLink();
     }
+  }
+
+  /// Appends a `expr = result` entry to the visible tape, skipping a repeat of
+  /// the trailing entry (debounced re-parses of the same input don't stack).
+  void _pushTape(String expr, String result) {
+    if (expr.isEmpty) return;
+    final ({String expr, String result}) entry = (expr: expr, result: result);
+    if (_tape.isNotEmpty &&
+        _tape.last.expr == entry.expr &&
+        _tape.last.result == entry.result) {
+      return;
+    }
+    setState(() {
+      _tape.add(entry);
+      if (_tape.length > _tapeCap) _tape.removeAt(0);
+    });
   }
 
   Future<void> _paste() async {
@@ -250,53 +279,70 @@ class _MathBodyState extends State<MathBody> with LinkableToolBody<MathBody> {
     final MathValue? result = _result;
     final MathError? error = _error;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        MqInput(
-          controller: _controller,
-          focusNode: _focusNode,
-          label: 'Expression',
-          placeholder: '2*(3+4) - sin(pi/2)',
-          onChanged: _onChanged,
-          onPaste: (_) => _recorder?.markPaste(),
-        ),
-        const SizedBox(height: MqSpacing.md),
-        MqSegmented<AngleUnit>(
-          options: const <AngleUnit, String>{
-            AngleUnit.radians: 'Radians',
-            AngleUnit.degrees: 'Degrees',
-          },
-          selected: _angleUnit,
-          onChanged: _setAngleUnit,
-        ),
-        if (_lastGood != null) ...<Widget>[
-          const SizedBox(height: MqSpacing.sm),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: MqChip(
-              label: 'ans = ${_formatPrimary(_lastGood!)}',
-              icon: MqIcons.history,
-              accent: false,
-              mono: true,
-              onTap: _insertAns,
-            ),
-          ),
-        ],
-        const SizedBox(height: MqSpacing.lg),
-        if (error != null)
-          MqMonoCell(label: 'Error', value: error.message, copyable: false)
-        else if (result != null)
-          Opacity(
-            opacity: _showingStale ? 0.5 : 1.0,
-            child: _buildResults(result),
-          )
-        else
-          const MqEmptyHint(
-            label: 'Type an expression — `pi`, `sin`, `ans` all work.',
-          ),
-      ],
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final bool wide = constraints.maxWidth >= kToolCanvasWide;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            ..._buildCore(result, error),
+            // Canvas-only: a scrollable tape of this card's past evaluations.
+            // Below [kToolCanvasWide] (every phone) the body is unchanged.
+            if (wide && _tape.isNotEmpty) ...<Widget>[
+              const SizedBox(height: MqSpacing.lg),
+              _buildTape(),
+            ],
+          ],
+        );
+      },
     );
+  }
+
+  List<Widget> _buildCore(MathValue? result, MathError? error) {
+    return <Widget>[
+      MqInput(
+        controller: _controller,
+        focusNode: _focusNode,
+        label: 'Expression',
+        placeholder: '2*(3+4) - sin(pi/2)',
+        onChanged: _onChanged,
+        onPaste: (_) => _recorder?.markPaste(),
+      ),
+      const SizedBox(height: MqSpacing.md),
+      MqSegmented<AngleUnit>(
+        options: const <AngleUnit, String>{
+          AngleUnit.radians: 'Radians',
+          AngleUnit.degrees: 'Degrees',
+        },
+        selected: _angleUnit,
+        onChanged: _setAngleUnit,
+      ),
+      if (_lastGood != null) ...<Widget>[
+        const SizedBox(height: MqSpacing.sm),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: MqChip(
+            label: 'ans = ${_formatPrimary(_lastGood!)}',
+            icon: MqIcons.history,
+            accent: false,
+            mono: true,
+            onTap: _insertAns,
+          ),
+        ),
+      ],
+      const SizedBox(height: MqSpacing.lg),
+      if (error != null)
+        MqMonoCell(label: 'Error', value: error.message, copyable: false)
+      else if (result != null)
+        Opacity(
+          opacity: _showingStale ? 0.5 : 1.0,
+          child: _buildResults(result),
+        )
+      else
+        const MqEmptyHint(
+          label: 'Type an expression — `pi`, `sin`, `ans` all work.',
+        ),
+    ];
   }
 
   Widget _buildResults(MathValue v) {
@@ -338,6 +384,69 @@ class _MathBodyState extends State<MathBody> with LinkableToolBody<MathBody> {
           output: primary,
           excludeUtilityId: 'math',
           onSwitchTool: widget.onSwitchTool,
+        ),
+      ],
+    );
+  }
+
+  // TODO(phase7): ↑/↓ tape recall — fiddly to test, deferred per plan.
+  Widget _buildTape() {
+    final c = context.mq.colors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const MqSectionHeader(label: 'Tape'),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 200),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: c.monoBg,
+              borderRadius: BorderRadius.circular(MqRadius.sm),
+              border: Border.all(color: c.border, width: 0.5),
+            ),
+            child: ListView.separated(
+              shrinkWrap: true,
+              reverse: true,
+              padding: const EdgeInsets.symmetric(
+                horizontal: MqSpacing.md,
+                vertical: MqSpacing.sm,
+              ),
+              itemCount: _tape.length,
+              separatorBuilder: (_, _) => const SizedBox(height: MqSpacing.xs),
+              itemBuilder: (BuildContext context, int i) {
+                // reverse:true counts from the newest; map to most-recent first.
+                final ({String expr, String result}) e =
+                    _tape[_tape.length - 1 - i];
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Flexible(
+                      child: Text(
+                        e.expr,
+                        style: MqTextStyles.monoSm.copyWith(color: c.textSec),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: MqSpacing.sm,
+                      ),
+                      child: Text(
+                        '=',
+                        style: MqTextStyles.monoSm.copyWith(color: c.textTer),
+                      ),
+                    ),
+                    Flexible(
+                      child: Text(
+                        e.result,
+                        textAlign: TextAlign.right,
+                        style: MqTextStyles.monoSm.copyWith(color: c.monoText),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
         ),
       ],
     );
