@@ -3,11 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
 import 'package:masquerade/screens/desktop/desktop_shell.dart';
 import 'package:masquerade/screens/desktop/desktop_sidebar.dart';
-import 'package:masquerade/screens/desktop/desktop_tool_view.dart';
 import 'package:masquerade/screens/history_screen.dart';
 import 'package:masquerade/state/view_mode_controller.dart';
 import 'package:masquerade/theme/mq_metrics.dart';
+import 'package:masquerade/widgets/desktop/tool_card_frame.dart';
 import 'package:masquerade/widgets/iphone_frame.dart';
+import 'package:masquerade/widgets/mq/mq_icons.dart';
 import 'package:masquerade/widgets/mq/tool_grid_card.dart';
 import 'package:masquerade/widgets/mq/view_mode_toggle_button.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -75,18 +76,57 @@ void main() {
       expect(find.byType(ToolGridCard), findsNothing);
     });
 
-    testWidgets('tapping a tool opens it in-pane and Back returns', (
+    testWidgets('tapping a tool opens a canvas card; closing it returns', (
+      WidgetTester tester,
+    ) async {
+      await _pump(tester, size: _desktop);
+      // Empty canvas shows the Home grid; tapping a tile opens the first card.
+      await tester.tap(find.byType(ToolGridCard).first);
+      await tester.pumpAndSettle();
+      expect(find.byType(ToolCardFrame), findsOneWidget);
+      // Non-empty canvas swaps the grid out for the card surface.
+      expect(find.byType(ToolGridCard), findsNothing);
+
+      // Closing the card (the ✕ in its title bar) returns to the grid.
+      await tester.tap(find.byIcon(MqIcons.xmark));
+      await tester.pumpAndSettle();
+      expect(find.byType(ToolCardFrame), findsNothing);
+      expect(find.byType(ToolGridCard), findsWidgets);
+    });
+
+    testWidgets('canvas auto-restores open cards after a reload', (
       WidgetTester tester,
     ) async {
       await _pump(tester, size: _desktop);
       await tester.tap(find.byType(ToolGridCard).first);
       await tester.pumpAndSettle();
-      expect(find.byType(DesktopToolView), findsOneWidget);
+      expect(find.byType(ToolCardFrame), findsOneWidget);
 
-      await tester.tap(find.text('Back'));
+      // Re-mount the app (same mock prefs) — the canvas should come back.
+      await tester.pumpWidget(
+        MyApp(
+          isWebOverride: true,
+          viewModeController: ViewModeController(initial: MqViewMode.desktop),
+          skipSplash: true,
+        ),
+      );
       await tester.pumpAndSettle();
-      expect(find.byType(DesktopToolView), findsNothing);
-      expect(find.byType(ToolGridCard), findsWidgets);
+      expect(find.byType(ToolCardFrame), findsOneWidget);
+    });
+
+    testWidgets('Layouts sidebar row opens the saved-layouts sheet', (
+      WidgetTester tester,
+    ) async {
+      await _pump(tester, size: _desktop);
+      await tester.tap(
+        find.descendant(
+          of: find.byType(DesktopSidebar),
+          matching: find.text('Layouts'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Save current canvas…'), findsOneWidget);
+      expect(find.text('No saved layouts yet.'), findsOneWidget);
     });
 
     testWidgets('"Mobile view" toggle switches to the iPhone frame', (

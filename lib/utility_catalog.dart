@@ -33,6 +33,26 @@ import 'widgets/tool_bodies/timestamp_body.dart';
 /// [input]. Fired by `OpenInFooter` and the QR scan-result chips.
 typedef OpenInToolCallback = void Function(UtilityDescriptor u, String input);
 
+/// Default on-canvas width for a tool's card in the desktop shell. Mobile
+/// ignores this — every body is full-width there. Some tools earn more room
+/// because their content needs it (Cron's 7-day strip, JSON's two panes,
+/// Diff's dual panes); the user can still resize any card from its default.
+enum CardWidthClass {
+  /// 380 px — a hair wider than mobile's 340 px column. The default.
+  standard(380),
+
+  /// 560 px — for content with a horizontal strip or palette.
+  wide(560),
+
+  /// 640 px — for genuinely two-pane content.
+  xwide(640);
+
+  const CardWidthClass(this.px);
+
+  /// Default card width in logical pixels.
+  final double px;
+}
+
 /// Builds an embeddable tool body for inline rendering inside an
 /// `InlineToolCard`. Receives the optional seed input and how it arrived
 /// ([SeedSource]) so the body can decide whether to record history
@@ -59,6 +79,7 @@ class UtilityDescriptor {
     required this.synonyms,
     required this.builder,
     required this.detect,
+    this.defaultCardWidth = CardWidthClass.standard,
   });
 
   final String id;
@@ -69,6 +90,9 @@ class UtilityDescriptor {
   final List<String> synonyms;
   final UtilityBuilder builder;
   final bool Function(String input) detect;
+
+  /// Width this tool's card opens at on the desktop canvas. Mobile ignores it.
+  final CardWidthClass defaultCardWidth;
 }
 
 /// Static catalog of every utility shipped in the app.
@@ -127,6 +151,7 @@ class UtilityCatalog {
       icon: MqIcons.cron,
       tint: const Color(0xFFD946EF),
       synonyms: <String>['cron', 'schedule', 'crontab'],
+      defaultCardWidth: CardWidthClass.wide,
       builder:
           (
             BuildContext _, {
@@ -159,6 +184,7 @@ class UtilityCatalog {
         'config',
         'convert',
       ],
+      defaultCardWidth: CardWidthClass.xwide,
       builder:
           (
             BuildContext _, {
@@ -203,6 +229,7 @@ class UtilityCatalog {
       icon: MqIcons.drop,
       tint: const Color(0xFFEC4899),
       synonyms: <String>['hex', 'rgb', 'hsl', 'oklch', 'contrast', 'wcag'],
+      defaultCardWidth: CardWidthClass.wide,
       builder:
           (
             BuildContext _, {
@@ -275,6 +302,7 @@ class UtilityCatalog {
       icon: MqIcons.bytes,
       tint: const Color(0xFF22C55E),
       synonyms: <String>['buffer', 'bytes', 'array', 'utf8', 'utf-8', 'decode'],
+      defaultCardWidth: CardWidthClass.wide,
       builder:
           (
             BuildContext _, {
@@ -327,6 +355,7 @@ class UtilityCatalog {
       icon: MqIcons.diff,
       tint: const Color(0xFF64748B),
       synonyms: <String>['diff', 'compare', 'changes', 'patch', 'difference'],
+      defaultCardWidth: CardWidthClass.xwide,
       builder:
           (
             BuildContext _, {
@@ -367,6 +396,39 @@ class UtilityCatalog {
 
   static UtilityDescriptor byId(String id) =>
       all.firstWhere((UtilityDescriptor u) => u.id == id);
+
+  /// Like [byId] but returns null instead of throwing — for restoring a saved
+  /// canvas whose tool id may no longer exist in the catalog.
+  static UtilityDescriptor? byIdOrNull(String id) {
+    for (final UtilityDescriptor u in all) {
+      if (u.id == id) return u;
+    }
+    return null;
+  }
+
+  /// Ranks the catalog by name/synonym match for the command palette's
+  /// free-text query. Unlike [detectAll], this never inspects input *shape* —
+  /// it's a pure name search. An empty query returns the full catalog in
+  /// catalog order so the palette shows everything before the user types.
+  static List<UtilityDescriptor> searchByName(String query) {
+    final String q = query.trim().toLowerCase();
+    if (q.isEmpty) return List<UtilityDescriptor>.unmodifiable(all);
+    final List<({UtilityDescriptor u, int score})> ranked =
+        <({UtilityDescriptor u, int score})>[];
+    for (final UtilityDescriptor u in all) {
+      final int s = _scoreTool(u, q);
+      if (s > 0) ranked.add((u: u, score: s));
+    }
+    ranked.sort(
+      (
+        ({UtilityDescriptor u, int score}) a,
+        ({UtilityDescriptor u, int score}) b,
+      ) => b.score.compareTo(a.score),
+    );
+    return ranked
+        .map((({UtilityDescriptor u, int score}) e) => e.u)
+        .toList(growable: false);
+  }
 
   /// Returns descriptors whose `detect` predicate accepts [input], in catalog
   /// order. When shape-based detection finds nothing and [input] looks like a
