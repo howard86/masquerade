@@ -94,6 +94,41 @@ void main() {
       expect(find.byType(ToolGridCard), findsWidgets);
     });
 
+    testWidgets('canvas auto-restores open cards after a reload', (
+      WidgetTester tester,
+    ) async {
+      await _pump(tester, size: _desktop);
+      await tester.tap(find.byType(ToolGridCard).first);
+      await tester.pumpAndSettle();
+      expect(find.byType(ToolCardFrame), findsOneWidget);
+
+      // Re-mount the app (same mock prefs) — the canvas should come back.
+      await tester.pumpWidget(
+        MyApp(
+          isWebOverride: true,
+          viewModeController: ViewModeController(initial: MqViewMode.desktop),
+          skipSplash: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(ToolCardFrame), findsOneWidget);
+    });
+
+    testWidgets('Layouts sidebar row opens the saved-layouts sheet', (
+      WidgetTester tester,
+    ) async {
+      await _pump(tester, size: _desktop);
+      await tester.tap(
+        find.descendant(
+          of: find.byType(DesktopSidebar),
+          matching: find.text('Layouts'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Save current canvas…'), findsOneWidget);
+      expect(find.text('No saved layouts yet.'), findsOneWidget);
+    });
+
     testWidgets('"Mobile view" toggle switches to the iPhone frame', (
       WidgetTester tester,
     ) async {

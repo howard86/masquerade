@@ -397,6 +397,15 @@ class UtilityCatalog {
   static UtilityDescriptor byId(String id) =>
       all.firstWhere((UtilityDescriptor u) => u.id == id);
 
+  /// Like [byId] but returns null instead of throwing — for restoring a saved
+  /// canvas whose tool id may no longer exist in the catalog.
+  static UtilityDescriptor? byIdOrNull(String id) {
+    for (final UtilityDescriptor u in all) {
+      if (u.id == id) return u;
+    }
+    return null;
+  }
+
   /// Ranks the catalog by name/synonym match for the command palette's
   /// free-text query. Unlike [detectAll], this never inspects input *shape* —
   /// it's a pure name search. An empty query returns the full catalog in

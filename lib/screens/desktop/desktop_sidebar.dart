@@ -15,10 +15,14 @@ class DesktopSidebar extends StatelessWidget {
     super.key,
     required this.selectedIndex,
     required this.onSelect,
+    this.onLayouts,
   });
 
   final int selectedIndex;
   final ValueChanged<int> onSelect;
+
+  /// Opens the saved-layouts sheet. When null, the Layouts row is hidden.
+  final VoidCallback? onLayouts;
 
   static const List<({IconData icon, String label})> _items =
       <({IconData icon, String label})>[
@@ -61,6 +65,15 @@ class DesktopSidebar extends StatelessWidget {
                 const SizedBox(height: MqSpacing.xs),
               ],
               const Spacer(),
+              if (onLayouts != null) ...<Widget>[
+                _NavItem(
+                  icon: MqIcons.bytes,
+                  label: 'Layouts',
+                  selected: false,
+                  onTap: onLayouts!,
+                ),
+                const SizedBox(height: MqSpacing.xs),
+              ],
               const ViewModeToggleButton(
                 target: MqViewMode.mobile,
                 label: 'Mobile view',

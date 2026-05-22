@@ -1,8 +1,10 @@
 import 'package:flutter/cupertino.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../state/canvas_controller.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
+import '../../widgets/desktop/layouts_sheet.dart';
 import '../history_screen.dart';
 import '../settings_screen.dart';
 import 'desktop_canvas.dart';
@@ -27,6 +29,18 @@ class _DesktopShellState extends State<DesktopShell> {
   final CanvasController _canvas = CanvasController();
 
   @override
+  void initState() {
+    super.initState();
+    _attachCanvasPrefs();
+  }
+
+  Future<void> _attachCanvasPrefs() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    _canvas.attachPrefs(prefs); // restores the last auto-saved canvas
+  }
+
+  @override
   void dispose() {
     _canvas.dispose();
     super.dispose();
@@ -35,6 +49,8 @@ class _DesktopShellState extends State<DesktopShell> {
   void _select(int index) {
     setState(() => _navIndex = index);
   }
+
+  void _showLayouts() => showLayoutsSheet(context, _canvas);
 
   @override
   Widget build(BuildContext context) {
@@ -76,7 +92,11 @@ class _DesktopShellState extends State<DesktopShell> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    DesktopSidebar(selectedIndex: _navIndex, onSelect: _select),
+                    DesktopSidebar(
+                      selectedIndex: _navIndex,
+                      onSelect: _select,
+                      onLayouts: _showLayouts,
+                    ),
                     Expanded(child: _pane()),
                   ],
                 ),

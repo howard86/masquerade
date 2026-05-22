@@ -180,7 +180,9 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
       onDuplicate: () => _c.duplicate(card.id),
       onMoveDelta: (Offset d) =>
           _c.moveTo(card.id, card.x + d.dx, card.y + d.dy),
+      onMoveEnd: _c.commit,
       onResizeDelta: (double dx) => _c.resize(card.id, card.width + dx),
+      onResizeEnd: _c.commit,
       child: card.descriptor.builder(
         context,
         initialInput: card.seed,

@@ -21,7 +21,9 @@ class ToolCardFrame extends StatelessWidget {
     required this.onClose,
     required this.onDuplicate,
     required this.onMoveDelta,
+    required this.onMoveEnd,
     required this.onResizeDelta,
+    required this.onResizeEnd,
     required this.child,
   });
 
@@ -37,8 +39,14 @@ class ToolCardFrame extends StatelessWidget {
   /// Called with the drag delta while the title bar is dragged.
   final ValueChanged<Offset> onMoveDelta;
 
+  /// Called once the title-bar drag settles (persist hook).
+  final VoidCallback onMoveEnd;
+
   /// Called with the horizontal drag delta while the resize handle is dragged.
   final ValueChanged<double> onResizeDelta;
+
+  /// Called once the resize drag settles (persist hook).
+  final VoidCallback onResizeEnd;
 
   final Widget child;
 
@@ -71,6 +79,7 @@ class ToolCardFrame extends StatelessWidget {
                   onClose: onClose,
                   onDuplicate: onDuplicate,
                   onMoveDelta: onMoveDelta,
+                  onMoveEnd: onMoveEnd,
                 ),
                 Padding(
                   padding: const EdgeInsets.all(MqSpacing.lg),
@@ -85,7 +94,10 @@ class ToolCardFrame extends StatelessWidget {
           bottom: 0,
           right: -2,
           width: 10,
-          child: _ResizeHandle(onResizeDelta: onResizeDelta),
+          child: _ResizeHandle(
+            onResizeDelta: onResizeDelta,
+            onResizeEnd: onResizeEnd,
+          ),
         ),
       ],
     );
@@ -100,6 +112,7 @@ class _Header extends StatelessWidget {
     required this.onClose,
     required this.onDuplicate,
     required this.onMoveDelta,
+    required this.onMoveEnd,
   });
 
   final UtilityDescriptor descriptor;
@@ -108,6 +121,7 @@ class _Header extends StatelessWidget {
   final VoidCallback onClose;
   final VoidCallback onDuplicate;
   final ValueChanged<Offset> onMoveDelta;
+  final VoidCallback onMoveEnd;
 
   @override
   Widget build(BuildContext context) {
@@ -117,6 +131,7 @@ class _Header extends StatelessWidget {
       onTap: onFocus,
       onPanStart: (_) => onFocus(),
       onPanUpdate: (DragUpdateDetails d) => onMoveDelta(d.delta),
+      onPanEnd: (_) => onMoveEnd(),
       child: MouseRegion(
         cursor: SystemMouseCursors.grab,
         child: Container(
@@ -226,8 +241,9 @@ class _IconButton extends StatelessWidget {
 }
 
 class _ResizeHandle extends StatelessWidget {
-  const _ResizeHandle({required this.onResizeDelta});
+  const _ResizeHandle({required this.onResizeDelta, required this.onResizeEnd});
   final ValueChanged<double> onResizeDelta;
+  final VoidCallback onResizeEnd;
 
   @override
   Widget build(BuildContext context) {
@@ -237,6 +253,7 @@ class _ResizeHandle extends StatelessWidget {
         behavior: HitTestBehavior.translucent,
         onHorizontalDragUpdate: (DragUpdateDetails d) =>
             onResizeDelta(d.delta.dx),
+        onHorizontalDragEnd: (_) => onResizeEnd(),
         child: const SizedBox.expand(),
       ),
     );
