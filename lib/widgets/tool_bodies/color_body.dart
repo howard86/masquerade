@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../state/history_controller.dart';
+import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
@@ -17,6 +18,7 @@ import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_status.dart';
 import '../mq/tool_action_bar.dart';
+import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 
@@ -27,6 +29,7 @@ class ColorBody extends StatefulWidget {
     this.seedSource = SeedSource.none,
     this.onSwitchTool,
     this.actionBar,
+    this.link,
   });
 
   final String? initialInput;
@@ -34,15 +37,27 @@ class ColorBody extends StatefulWidget {
   final OpenInToolCallback? onSwitchTool;
   final ToolActionBarController? actionBar;
 
+  /// Non-null when this card is in a canvas Link group. The group's canonical
+  /// value is the parsed canonical hex (`#RRGGBB`); this body projects it to
+  /// every color form and parses a dropped hex back (see docs/adr/0001).
+  final LinkChannel? link;
+
   @override
   State<ColorBody> createState() => _ColorBodyState();
 }
 
-class _ColorBodyState extends State<ColorBody> {
+class _ColorBodyState extends State<ColorBody>
+    with LinkableToolBody<ColorBody> {
   final TextEditingController _controller = TextEditingController();
   Timer? _debounce;
   MqColorValue? _value;
   String? _error;
+
+  /// The opening field is a cold placeholder (`#00B8C4`) unless the host handed
+  /// a seed. We must not let that placeholder seed a Link group it joins (it
+  /// would clobber an existing canonical), so a fresh card pulls instead of
+  /// emits on attach until the user actually provides a value.
+  bool _userProvided = false;
 
   HistoryRecorder? _recorder;
 
@@ -50,12 +65,38 @@ class _ColorBodyState extends State<ColorBody> {
   void initState() {
     super.initState();
     final String? seed = widget.initialInput;
-    _controller.text = (seed != null && seed.isNotEmpty) ? seed : '#00B8C4';
+    final bool hasSeed = seed != null && seed.isNotEmpty;
+    _userProvided = hasSeed;
+    _controller.text = hasSeed ? seed : '#00B8C4';
     _value = MqColorParser.parse(_controller.text);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       widget.actionBar?.bind(onPaste: _paste, onClear: _clear);
     });
+    initLink();
+  }
+
+  @override
+  void didUpdateWidget(ColorBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    didUpdateLink();
+  }
+
+  // ─── Canonical-hub link (canonical-hex canonical) ───────────────────────
+  @override
+  LinkChannel? get linkChannel => widget.link;
+
+  /// The canonical is the parsed canonical hex. Empty until the user supplies a
+  /// value, so an untouched card with the cold placeholder pulls the group's
+  /// existing color rather than overwriting it with the placeholder.
+  @override
+  String currentCanonical() => _userProvided ? (_value?.hex ?? '') : '';
+
+  @override
+  void applyInbound(String canonical) {
+    _userProvided = true;
+    _controller.text = canonical;
+    _parse();
   }
 
   @override
@@ -85,6 +126,7 @@ class _ColorBodyState extends State<ColorBody> {
 
   @override
   void dispose() {
+    disposeLink();
     _debounce?.cancel();
     _recorder?.dispose();
     _controller.dispose();
@@ -92,6 +134,7 @@ class _ColorBodyState extends State<ColorBody> {
   }
 
   void _onChanged(String _) {
+    _userProvided = true;
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 200), _parse);
   }
@@ -103,6 +146,7 @@ class _ColorBodyState extends State<ColorBody> {
         _value = null;
         _error = null;
       });
+      emitToLink();
       return;
     }
     final MqColorValue? parsed = MqColorParser.parse(input);
@@ -115,11 +159,13 @@ class _ColorBodyState extends State<ColorBody> {
     if (parsed != null) {
       _recorder?.record(input, parsed.hex);
     }
+    emitToLink();
   }
 
   Future<void> _paste() async {
     final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
     if (data?.text == null) return;
+    _userProvided = true;
     _controller.text = data!.text!;
     _recorder?.markPaste();
     _parse();
@@ -168,7 +214,14 @@ class _ColorBodyState extends State<ColorBody> {
           ),
           const SizedBox(height: MqSpacing.lg),
           const MqSectionHeader(label: 'Output'),
-          MqMonoCell(label: 'HEX', value: _value!.hex, accent: true),
+          MqMonoCell(
+            label: 'HEX',
+            value: _value!.hex,
+            accent: true,
+            // Canvas-only: the canonical hex is draggable as both the color and
+            // text canonical. Inert on mobile (no PipeScope ancestor).
+            pipeType: ContentType.color,
+          ),
           const SizedBox(height: MqSpacing.sm),
           MqMonoCell(label: 'RGB', value: _value!.rgb),
           const SizedBox(height: MqSpacing.sm),

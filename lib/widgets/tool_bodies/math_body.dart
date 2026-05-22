@@ -7,6 +7,7 @@ import 'package:rational/rational.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../state/history_controller.dart';
+import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../utility_catalog.dart';
 import '../../utils/history_recorder.dart';
@@ -20,6 +21,7 @@ import '../mq/mq_section_header.dart';
 import '../mq/mq_segmented.dart';
 import '../mq/mq_status.dart';
 import '../mq/tool_action_bar.dart';
+import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 
@@ -30,6 +32,7 @@ class MathBody extends StatefulWidget {
     this.seedSource = SeedSource.none,
     this.onSwitchTool,
     this.actionBar,
+    this.link,
   });
 
   final String? initialInput;
@@ -37,11 +40,17 @@ class MathBody extends StatefulWidget {
   final OpenInToolCallback? onSwitchTool;
   final ToolActionBarController? actionBar;
 
+  /// Non-null when this card is in a canvas Link group. The group's canonical
+  /// value is a plain number (number ↔ math, or epoch ↔ math — Math treats an
+  /// epoch as just a number): this body projects it to its result and parses a
+  /// dropped number into a literal expression (see docs/adr/0001).
+  final LinkChannel? link;
+
   @override
   State<MathBody> createState() => _MathBodyState();
 }
 
-class _MathBodyState extends State<MathBody> {
+class _MathBodyState extends State<MathBody> with LinkableToolBody<MathBody> {
   static const String _angleUnitPrefsKey = 'mq.math.angle_unit';
 
   final TextEditingController _controller = TextEditingController();
@@ -69,6 +78,33 @@ class _MathBodyState extends State<MathBody> {
       if (!mounted) return;
       widget.actionBar?.bind(onPaste: _paste, onClear: _clear);
     });
+    initLink();
+  }
+
+  @override
+  void didUpdateWidget(MathBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    didUpdateLink();
+  }
+
+  // ─── Canonical-hub link (plain-number canonical) ────────────────────────
+  @override
+  LinkChannel? get linkChannel => widget.link;
+
+  /// The canonical is this body's evaluated result as a plain number string —
+  /// empty when the expression is incomplete, errored, or unset.
+  @override
+  String currentCanonical() {
+    final MathValue? r = _result;
+    return r == null ? '' : _formatPrimary(r);
+  }
+
+  @override
+  void applyInbound(String canonical) {
+    // Re-project a peer's number as a literal expression so [_parse] evaluates
+    // it straight back to [canonical].
+    _controller.text = canonical;
+    _parse();
   }
 
   @override
@@ -87,6 +123,7 @@ class _MathBodyState extends State<MathBody> {
 
   @override
   void dispose() {
+    disposeLink();
     _debounce?.cancel();
     _recorder?.dispose();
     _controller.dispose();
@@ -137,6 +174,7 @@ class _MathBodyState extends State<MathBody> {
         _error = null;
         _showingStale = false;
       });
+      emitToLink();
       return;
     }
     final MathParseResult res = MathParser.parse(
@@ -154,6 +192,7 @@ class _MathBodyState extends State<MathBody> {
           });
         }
         _recorder?.record(input, _formatPrimary(value));
+        emitToLink();
       case MathIncomplete():
         final bool nextStale = _result != null;
         if (_error == null && _showingStale == nextStale) return;
@@ -168,6 +207,7 @@ class _MathBodyState extends State<MathBody> {
           _result = null;
           _showingStale = false;
         });
+        emitToLink();
     }
   }
 
@@ -275,7 +315,15 @@ class _MathBodyState extends State<MathBody> {
                 )
               : null,
         ),
-        MqMonoCell(label: 'Value', value: primary, accent: true, large: true),
+        MqMonoCell(
+          label: 'Value',
+          value: primary,
+          accent: true,
+          large: true,
+          // Canvas-only: the result is the number canonical, draggable to a
+          // Number Base or Timestamp card. Inert on mobile (no PipeScope).
+          pipeType: ContentType.number,
+        ),
         if (scientific != null) ...<Widget>[
           const SizedBox(height: MqSpacing.sm),
           MqMonoCell(label: 'Scientific', value: scientific),
