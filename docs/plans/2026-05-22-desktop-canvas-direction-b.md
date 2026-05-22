@@ -96,15 +96,22 @@ Width class: **S**=standard 380 · **W**=wide 560 · **X**=xwide 640 (all user-r
 
 ## Phasing (each phase ends green: `dart format` · `flutter analyze` · `flutter test`)
 
-1. **Canvas core** — `CanvasController`, `DesktopCanvas`, `ToolCardFrame`; multi-card Stack, drag-reposition, resize, close, duplicate (⌥D), focus slots (⌥1–9), Esc-close. `desktop_shell` Home→canvas. Hero composer reused. _Tests: controller add/remove/move/duplicate; shell renders canvas; widthclass defaults._
-2. **Command palette** — ⌘K modal + public scorer; new-card flow. _Tests: scorer parity with existing `_scoreTool`; palette opens a card._
-3. **Persistence** — serialize canvas to `shared_preferences`; auto-restore; named Saved layouts + sidebar Layouts row. _Tests: round-trip serialize/restore; layout save/load._
-4. **Pipe drag pipeline** — typed in-canvas drags (cell→input, cell→empty-canvas); `ContentType` enum. _Tests: drop routing by content type._
-5. **Canonical-hub links — infrastructure + flagship** — `LinkChannel`, hub, project/parse registry, gold-line viz, break-by-drag; wire **Base64↔JSON** end-to-end. _Tests: bidirectional propagation; cycle-freedom; break-on-drag._
-6. **Remaining link pairs** — Number Base↔Math, Timestamp↔Math, List↔Diff, Color↔text. _Tests per pair._
-7. **Per-tool unlocks (no-new-dep)** — work the table top to bottom; one tool per commit. _Tests per unlock + mobile-parity render test._
+1. **✅ DONE — Canvas core** — `CanvasController`, `DesktopCanvas`, `ToolCardFrame`; multi-card Stack, drag-reposition, resize, close, duplicate (⌥D), focus slots (⌥1–9), Esc-close. `desktop_shell` Home→canvas. Empty state reuses Home grid. _Tests: 16 controller + shell open/close._
+2. **✅ DONE — Command palette** — ⌘K modal + `UtilityCatalog.searchByName`; new-card flow + hero paste-to-open. _Tests: scorer + palette-opens-2nd-card._
+3. **✅ DONE — Persistence** — `shared_preferences` auto-restore (current canvas survives reload) + named Saved layouts + sidebar Layouts sheet. _Tests: round-trip, auto-restore-across-reload, named-layout CRUD._
 
-Phases 1–5 are the architecture and the headline demo; 6–7 are additive and can spill into follow-up PRs without leaving the branch in a broken state.
+— delivered & verified as commits 1–3 on this branch (568 tests green) —
+
+4. **Pipe drag pipeline** — typed in-canvas drags (cell→input, cell→empty-canvas); `ContentType` enum. **Requires the cross-body seam extension below.**
+5. **Canonical-hub links — infrastructure + flagship** — `LinkChannel`, hub, project/parse registry, gold-line viz, break-by-drag; wire **Base64↔JSON** end-to-end (ADR 0001).
+6. **Remaining link pairs** — Number Base↔Math, Timestamp↔Math, List↔Diff, Color↔text.
+7. **Per-tool unlocks (no-new-dep)** — work the table top to bottom; one tool per commit + mobile-parity render test.
+
+### Revised finding (after building 1–3)
+
+Phases **4 and 5 are co-dependent**, not independent: dragging a value *out* of a card and dropping it *onto* another card's input both require each tool body to participate (a draggable output cell + a droppable input). That is the **same** "value in / value out" surface the canonical-hub link channel needs. So the realistic next unit of work is one **cross-body seam extension** — add the optional `link`/value channel to `UtilityBuilder` and thread it through all 12 builders + the linkable bodies — which then powers *both* pipes (4) and live links (5). This is larger than the original per-file estimate (it touches every body) and is best done as its own reviewed PR. The design's "the seam stays clean" line does **not** survive contact with bidirectional behavior — already recorded in ADR 0001.
+
+Phases 1–3 are a complete, shippable canvas MVP on their own (open many tools, arrange/resize/duplicate, ⌘K, persistence). 4–7 build on the seam extension and are sequenced for follow-up PRs.
 
 ## Repo-level migration
 
