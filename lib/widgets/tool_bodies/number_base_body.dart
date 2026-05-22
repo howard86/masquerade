@@ -7,6 +7,8 @@ import 'package:flutter/widgets.dart';
 import '../../state/history_controller.dart';
 import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
+import '../../theme/mq_theme.dart';
+import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
 import '../../utils/history_recorder.dart';
 import '../../utils/number_base_parser.dart';
@@ -19,6 +21,7 @@ import '../mq/tool_action_bar.dart';
 import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
+import 'tool_layout.dart';
 
 class NumberBaseBody extends StatefulWidget {
   const NumberBaseBody({
@@ -160,53 +163,188 @@ class _NumberBaseBodyState extends State<NumberBaseBody>
     });
   }
 
+  /// Re-feeds [value] as a plain decimal through the normal parse/emit path so
+  /// the bit grid stays a thin editor over the existing pipeline.
+  void _setValue(BigInt value) {
+    _debounce?.cancel();
+    _controller.text = value.toString();
+    _parse();
+  }
+
+  // TODO(phase7): ⇧↑↓ nibble-nudge keyboard accelerator over the bit grid.
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final bool wide = constraints.maxWidth >= kToolCanvasWide;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            MqInput(
+              controller: _controller,
+              label: 'Input',
+              placeholder: '0xFF, 0b1010, 255, 0o377…',
+              onChanged: _onChanged,
+              onPaste: (_) => _recorder?.markPaste(),
+              keyboardType: TextInputType.text,
+            ),
+            const SizedBox(height: MqSpacing.lg),
+            if (_error != null)
+              MqMonoCell(label: 'Error', value: _error!, copyable: false)
+            else if (_result != null) ...<Widget>[
+              const MqSectionHeader(label: 'Detected base'),
+              MqStatus(
+                label: 'Base ${_result!.detectedBase}',
+                kind: MqStatusKind.info,
+              ),
+              const SizedBox(height: MqSpacing.md),
+              const MqSectionHeader(label: 'Output'),
+              MqMonoCell(
+                label: 'Decimal',
+                value: _result!.decimal,
+                large: true,
+                accent: true,
+                // Canvas-only: the decimal is the number canonical, draggable to
+                // a Math card. Inert on mobile (no PipeScope ancestor).
+                pipeType: ContentType.number,
+              ),
+              const SizedBox(height: MqSpacing.sm),
+              MqMonoCell(label: 'Hexadecimal', value: _result!.hex),
+              const SizedBox(height: MqSpacing.sm),
+              MqMonoCell(label: 'Octal', value: _result!.octal),
+              const SizedBox(height: MqSpacing.sm),
+              MqMonoCell(label: 'Binary', value: _result!.binary),
+              // Canvas-only: an interactive bit grid for the current value,
+              // default-expanded. Hidden on phones (width < [kToolCanvasWide]),
+              // where the body stays exactly as before.
+              if (wide && _result!.value.sign >= 0) ...<Widget>[
+                const SizedBox(height: MqSpacing.md),
+                const MqSectionHeader(label: 'Bits'),
+                _BitGrid(value: _result!.value, onChanged: _setValue),
+              ],
+              OpenInFooter(
+                output: _result?.decimal,
+                excludeUtilityId: 'number_base',
+                onSwitchTool: widget.onSwitchTool,
+              ),
+            ] else
+              const MqEmptyHint(
+                label: 'Paste a number to convert across bases.',
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Interactive bit grid for a non-negative [value]. Renders enough nibbles to
+/// hold the value (minimum one byte), each bit a toggleable cell labelled with
+/// its index. Tapping a bit flips it and re-emits the new value to the parent.
+class _BitGrid extends StatelessWidget {
+  const _BitGrid({required this.value, required this.onChanged});
+
+  final BigInt value;
+  final ValueChanged<BigInt> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    // Round up to a whole nibble; show at least 8 bits so a small value still
+    // reads as a byte. Cap at 64 bits to keep the grid bounded for huge inputs.
+    final int bitLength = value.bitLength;
+    int nibbles = ((bitLength + 3) ~/ 4).clamp(2, 16);
+    final int bits = nibbles * 4;
+    return Wrap(
+      spacing: MqSpacing.sm,
+      runSpacing: MqSpacing.sm,
       children: <Widget>[
-        MqInput(
-          controller: _controller,
-          label: 'Input',
-          placeholder: '0xFF, 0b1010, 255, 0o377…',
-          onChanged: _onChanged,
-          onPaste: (_) => _recorder?.markPaste(),
-          keyboardType: TextInputType.text,
-        ),
-        const SizedBox(height: MqSpacing.lg),
-        if (_error != null)
-          MqMonoCell(label: 'Error', value: _error!, copyable: false)
-        else if (_result != null) ...<Widget>[
-          const MqSectionHeader(label: 'Detected base'),
-          MqStatus(
-            label: 'Base ${_result!.detectedBase}',
-            kind: MqStatusKind.info,
+        for (int n = 0; n < nibbles; n++)
+          _Nibble(
+            value: value,
+            highBit: bits - 1 - n * 4,
+            onChanged: onChanged,
           ),
-          const SizedBox(height: MqSpacing.md),
-          const MqSectionHeader(label: 'Output'),
-          MqMonoCell(
-            label: 'Decimal',
-            value: _result!.decimal,
-            large: true,
-            accent: true,
-            // Canvas-only: the decimal is the number canonical, draggable to a
-            // Math card. Inert on mobile (no PipeScope ancestor).
-            pipeType: ContentType.number,
-          ),
-          const SizedBox(height: MqSpacing.sm),
-          MqMonoCell(label: 'Hexadecimal', value: _result!.hex),
-          const SizedBox(height: MqSpacing.sm),
-          MqMonoCell(label: 'Octal', value: _result!.octal),
-          const SizedBox(height: MqSpacing.sm),
-          MqMonoCell(label: 'Binary', value: _result!.binary),
-          OpenInFooter(
-            output: _result?.decimal,
-            excludeUtilityId: 'number_base',
-            onSwitchTool: widget.onSwitchTool,
-          ),
-        ] else
-          const MqEmptyHint(label: 'Paste a number to convert across bases.'),
       ],
+    );
+  }
+}
+
+/// A group of four adjacent bits (one nibble), MSB first.
+class _Nibble extends StatelessWidget {
+  const _Nibble({
+    required this.value,
+    required this.highBit,
+    required this.onChanged,
+  });
+
+  final BigInt value;
+  final int highBit;
+  final ValueChanged<BigInt> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        for (int i = 0; i < 4; i++) ...<Widget>[
+          if (i > 0) const SizedBox(width: 2),
+          _BitCell(
+            index: highBit - i,
+            on: (value >> (highBit - i)) & BigInt.one == BigInt.one,
+            onTap: () => onChanged(value ^ (BigInt.one << (highBit - i))),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// A single toggleable bit cell: bit value above its index.
+class _BitCell extends StatelessWidget {
+  const _BitCell({required this.index, required this.on, required this.onTap});
+
+  final int index;
+  final bool on;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mq.colors;
+    return Semantics(
+      button: true,
+      label: 'Bit $index ${on ? 'set' : 'clear'}',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          width: 30,
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          decoration: BoxDecoration(
+            color: on ? c.accentBg : c.monoBg,
+            borderRadius: BorderRadius.circular(MqRadius.sm),
+            border: Border.all(color: on ? c.accent : c.border, width: 0.5),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(
+                on ? '1' : '0',
+                style: MqTextStyles.monoMd.copyWith(
+                  color: on ? c.accent : c.textTer,
+                ),
+              ),
+              Text(
+                '$index',
+                style: MqTextStyles.caption1.copyWith(
+                  color: c.textTer,
+                  fontSize: 9,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
