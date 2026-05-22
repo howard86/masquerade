@@ -9,6 +9,7 @@ import 'utils/color_parser.dart';
 import 'utils/cron_nl_parser.dart';
 import 'utils/cron_parser.dart';
 import 'utils/encoding_parser.dart';
+import 'utils/hash_parser.dart';
 import 'utils/json_parser.dart';
 import 'utils/jwt_parser.dart';
 import 'utils/number_base_parser.dart';
@@ -22,6 +23,7 @@ import 'widgets/tool_bodies/bytes_body.dart';
 import 'widgets/tool_bodies/color_body.dart';
 import 'widgets/tool_bodies/cron_body.dart';
 import 'widgets/tool_bodies/diff_body.dart';
+import 'widgets/tool_bodies/hash_body.dart';
 import 'widgets/tool_bodies/json_body.dart';
 import 'widgets/tool_bodies/jwt_body.dart';
 import 'widgets/tool_bodies/list_body.dart';
@@ -421,6 +423,36 @@ class UtilityCatalog {
       detect: _detectDiff,
     ),
     UtilityDescriptor(
+      id: 'hash',
+      name: 'Hash',
+      description: 'MD5 · SHA-1 · SHA-256 · SHA-512',
+      icon: MqIcons.hash,
+      tint: const Color(0xFF0D9488),
+      synonyms: <String>[
+        'hash',
+        'digest',
+        'md5',
+        'sha',
+        'checksum',
+        'fingerprint',
+      ],
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            SeedSource seedSource = SeedSource.none,
+            OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
+            LinkChannel? link,
+          }) => HashBody(
+            initialInput: initialInput,
+            seedSource: seedSource,
+            onSwitchTool: onSwitchTool,
+            actionBar: actionBar,
+          ),
+      detect: _detectHash,
+    ),
+    UtilityDescriptor(
       id: 'qr_code',
       name: 'QR Code',
       description: 'Scan · generate QR',
@@ -640,6 +672,10 @@ bool _detectBps(String input) {
   if (hasSuffix) return true;
   final double? n = double.tryParse(t);
   return n != null && n.abs() <= 1.0;
+}
+
+bool _detectHash(String input) {
+  return HashTool.identify(input) is HashShape;
 }
 
 // QR has no input shape — entry is via grid tile or the home scan button.
