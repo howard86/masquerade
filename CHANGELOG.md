@@ -1,3 +1,22 @@
+## v1.19.0 (2026-05-22)
+
+### Feat
+
+- Base64 image preview + byte-delta at canvas width (Direction B phase 7)
+- bps pinned-baseline delta at canvas width (Direction B phase 7)
+- Timestamp UTC/Local toggle + Now/Start-of-day keys at canvas width (Direction B phase 7)
+- Number Base interactive bit-grid at canvas width (Direction B phase 7)
+- Cron 7-day fire strip at canvas width (Direction B phase 7)
+- List inline count + Diff-with action at canvas width (Direction B phase 7)
+- Diff dual-pane default at canvas width (Direction B phase 7)
+- JSON two-pane layout at canvas width (Direction B phase 7)
+- QR big preview + inline ECC/size controls (Direction B phase 7)
+- Color session palette strip (Direction B phase 7)
+- Bytes hexdump view + Latin-1/UTF-16LE decode (Direction B phase 7)
+- Math visible tape unlock + canvas width-gate helper (Direction B phase 7)
+- remaining canvas link pairs — Number/Math, Timestamp/Math, List/Diff, Color (Direction B phase 6)
+- pipe-drag pipeline — typed in-canvas drags (Direction B phase 4)
+
 ## v1.18.0 (2026-05-22)
 
 ### Feat
