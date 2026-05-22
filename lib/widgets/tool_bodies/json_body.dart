@@ -25,6 +25,7 @@ import '../mq/tool_action_bar.dart';
 import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
+import 'tool_layout.dart';
 
 enum SourceFormat {
   auto('Auto', ''),
@@ -413,6 +414,39 @@ class _JSONBodyState extends State<JSONBody> with LinkableToolBody<JSONBody> {
 
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final bool wide = constraints.maxWidth >= kToolCanvasWide;
+        final Widget input = _buildInput();
+        final Widget result = _buildResult();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            // Canvas-wide: Input (with its From/To controls) and the rendered
+            // Output sit side-by-side. Below 460 the tree is identical to the
+            // phone layout (input over output).
+            if (wide)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Expanded(child: input),
+                  const SizedBox(width: MqSpacing.md),
+                  Expanded(child: result),
+                ],
+              )
+            else ...<Widget>[
+              input,
+              const SizedBox(height: MqSpacing.lg),
+              result,
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  /// Input field + detection chips + From/To controls. Shared by both layouts.
+  Widget _buildInput() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -443,7 +477,15 @@ class _JSONBodyState extends State<JSONBody> with LinkableToolBody<JSONBody> {
           onTarget: _setTarget,
           onSwap: _swap,
         ),
-        const SizedBox(height: MqSpacing.lg),
+      ],
+    );
+  }
+
+  /// Error block, rendered output, or empty hint. Shared by both layouts.
+  Widget _buildResult() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
         if (_error != null) ...<Widget>[
           MqStatus(label: _errorLabel(_error!), kind: MqStatusKind.danger),
           const SizedBox(height: MqSpacing.sm),
