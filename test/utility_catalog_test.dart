@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:masquerade/utility_catalog.dart';
@@ -72,6 +74,39 @@ void main() {
 
     test('unknown word returns empty', () {
       expect(UtilityCatalog.detectAll('xyzpdq'), isEmpty);
+    });
+  });
+
+  group('README coverage — drift guard', () {
+    test('toolbox section names every catalog tool', () {
+      final String readme = File('README.md').readAsStringSync();
+
+      const String heading = 'in the toolbox today';
+      final int start = readme.indexOf(heading);
+      expect(
+        start,
+        isNonNegative,
+        reason: 'README is missing the "$heading" section.',
+      );
+
+      // Scope the check to that section (up to the next "## " heading).
+      final int next = readme.indexOf('\n## ', start);
+      final String section = next == -1
+          ? readme.substring(start)
+          : readme.substring(start, next);
+
+      final List<String> missing = <String>[
+        for (final UtilityDescriptor u in UtilityCatalog.all)
+          if (!section.contains(u.name)) u.name,
+      ];
+
+      expect(
+        missing,
+        isEmpty,
+        reason:
+            'README "toolbox today" section is missing: ${missing.join(', ')}. '
+            'Add a bullet naming each (see lib/utility_catalog.dart).',
+      );
     });
   });
 }

@@ -4,16 +4,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Masquerade is a Flutter utility-toolbox app. iOS-first (`CupertinoApp`). Tab scaffold (`lib/screens/root_tab_scaffold.dart`) with home / history / search / settings. Tools live as dedicated screens under `lib/screens/detail/` and are registered in `lib/utility_catalog.dart`:
+Masquerade is a Flutter utility-toolbox app. iOS-first (`CupertinoApp`). Tab scaffold (`lib/screens/root_tab_scaffold.dart`) with three tabs — home / history / settings (search is a field on Home, not a tab). Tools render inline on Home as `InlineToolCard`s and open full-screen through the shared `lib/screens/detail/tool_detail_route.dart`. Every tool is registered in `lib/utility_catalog.dart`:
 
-- Timestamp (Unix s/ms, ISO 8601)
-- Base64 (encode/decode, URL-safe)
 - Number Base (hex/binary/octal/decimal)
-- JSON (pretty/minify/tree)
+- Timestamp (Unix s/ms, ISO 8601)
+- Cron (cron expressions ↔ natural language)
+- JSON (pretty/minify/tree, plus YAML/TOML conversion)
+- Base64 (encode/decode, URL-safe)
 - Color (HEX/RGB/HSL/OKLCH, WCAG contrast)
+- Math (expression evaluator)
 - bps (basis points ↔ % ↔ decimal)
+- Bytes (byte array ↔ text, UTF-8)
+- List (split ↔ join)
+- Diff (compare two texts, line/word)
+- QR Code (scan / generate)
 
 Add new tools by registering in `UtilityCatalog` plus an embeddable body widget under `lib/widgets/tool_bodies/<tool>_body.dart`. Home reads the catalog directly and renders each entry as an `InlineToolCard` — there is no manual wiring elsewhere.
+
+On wide web (≥900px) the same catalog tools also open on a **desktop canvas** (`lib/screens/desktop/`) — a multi-card workspace with a ⌘K command palette and live links that pipe one card's output into another. See `CONTEXT.md` for the domain language and `docs/adr/0001-canonical-hub-live-links.md` for the link-engine decision.
 
 ## Stack
 
@@ -32,8 +40,10 @@ lib/
   screens/
     root_tab_scaffold.dart     3-tab Cupertino tab bar (Home, History, Settings)
     home_screen.dart, history_screen.dart, settings_screen.dart
-    detail/qr_scanner_route.dart  full-screen modal camera (only remaining detail route)
-  state/               ChangeNotifier controllers (theme_controller, history_controller); persisted via shared_preferences
+    desktop/             web shell ≥900px: sidebar + multi-card DesktopCanvas (draggable cards, ⌘K palette, live links)
+    detail/tool_detail_route.dart  shared full-screen route host for any catalog tool
+    detail/qr_scanner_route.dart   full-screen modal camera
+  state/               ChangeNotifier controllers (theme, history, view_mode, canvas, density) + link_group link engine; persisted via shared_preferences
   theme/               MqColors / MqTypography / MqMetrics / MqTheme InheritedWidget
   utils/               pure parsers (static `parse()`) + copy_util
   widgets/
