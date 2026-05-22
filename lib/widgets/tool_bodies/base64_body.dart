@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../state/history_controller.dart';
+import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../utility_catalog.dart';
 import '../../utils/history_recorder.dart';
@@ -18,6 +19,7 @@ import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_segmented.dart';
 import '../mq/tool_action_bar.dart';
+import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 
@@ -30,6 +32,7 @@ class Base64Body extends StatefulWidget {
     this.seedSource = SeedSource.none,
     this.onSwitchTool,
     this.actionBar,
+    this.link,
   });
 
   final String? initialInput;
@@ -37,11 +40,17 @@ class Base64Body extends StatefulWidget {
   final OpenInToolCallback? onSwitchTool;
   final ToolActionBarController? actionBar;
 
+  /// Non-null when this card is in a canvas Link group. The group's canonical
+  /// value is the plain text; this body projects it to base64 and parses
+  /// base64 edits back to text (see docs/adr/0001).
+  final LinkChannel? link;
+
   @override
   State<Base64Body> createState() => _Base64BodyState();
 }
 
-class _Base64BodyState extends State<Base64Body> {
+class _Base64BodyState extends State<Base64Body>
+    with LinkableToolBody<Base64Body> {
   final TextEditingController _controller = TextEditingController();
   Timer? _debounce;
   Base64Mode _mode = Base64Mode.encode;
@@ -68,6 +77,42 @@ class _Base64BodyState extends State<Base64Body> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _updateActionBar();
     });
+    initLink();
+  }
+
+  @override
+  void didUpdateWidget(Base64Body oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    didUpdateLink();
+  }
+
+  // ─── Canonical-hub link (plain-text canonical) ──────────────────────────
+  @override
+  LinkChannel? get linkChannel => widget.link;
+
+  /// The canonical (plain text) is the input in Encode mode and the decoded
+  /// output in Decode mode.
+  @override
+  String currentCanonical() =>
+      _mode == Base64Mode.encode ? _controller.text : (_output ?? '');
+
+  @override
+  void applyInbound(String canonical) {
+    // Drive the editable field so a re-[_convert] reproduces [canonical]:
+    // Encode mode edits plain text directly; Decode mode edits base64.
+    _controller.text = _mode == Base64Mode.encode
+        ? canonical
+        : _encodeForDisplay(canonical);
+    _convert();
+  }
+
+  /// Encodes [text] the way the current chips dictate, so the value shown in
+  /// the Decode input round-trips back to [text] through [_convert].
+  String _encodeForDisplay(String text) {
+    final List<int> bytes = utf8.encode(text);
+    String s = _urlSafe ? base64UrlEncode(bytes) : base64Encode(bytes);
+    if (_stripPadding) s = s.replaceAll('=', '');
+    return s;
   }
 
   void _updateActionBar() {
@@ -100,6 +145,7 @@ class _Base64BodyState extends State<Base64Body> {
 
   @override
   void dispose() {
+    disposeLink();
     _debounce?.cancel();
     _recorder?.dispose();
     _controller.dispose();
@@ -119,6 +165,7 @@ class _Base64BodyState extends State<Base64Body> {
         _error = null;
       });
       _updateActionBar();
+      emitToLink();
       return;
     }
     try {
@@ -141,6 +188,7 @@ class _Base64BodyState extends State<Base64Body> {
         _error = null;
       });
       _recorder?.record(input, result);
+      emitToLink();
     } on FormatException catch (e) {
       setState(() {
         _output = null;

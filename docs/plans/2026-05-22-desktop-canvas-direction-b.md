@@ -103,7 +103,7 @@ Width class: **S**=standard 380 · **W**=wide 560 · **X**=xwide 640 (all user-r
 — delivered & verified as commits 1–3 on this branch (568 tests green) —
 
 4. **Pipe drag pipeline** — typed in-canvas drags (cell→input, cell→empty-canvas); `ContentType` enum. **Requires the cross-body seam extension below.**
-5. **Canonical-hub links — infrastructure + flagship** — `LinkChannel`, hub, project/parse registry, gold-line viz, break-by-drag; wire **Base64↔JSON** end-to-end (ADR 0001).
+5. **✅ DONE — Canonical-hub links + flagship** — engine (`LinkGroup`/`LinkChannel` + `CanvasController` link API) shipped as commit 1 of PR #74; then the `LinkableToolBody` mixin threads the optional `link` channel through the builder seam, and **Base64↔JSON** is wired end-to-end (canonical = plain text; Base64 projects it ↔ base64, JSON is identity). Canvas gains a per-card link/unlink toggle and a gold tether between linked cards. _Tests: 8 engine + 4 canvas link-flow (seeding, both directions, unlink)._ The body's `project`/`parse` surface from the design is realized as the mixin's `applyInbound`/`currentCanonical`. Drag-to-break is deferred — the explicit unlink toggle covers it for v1.
 6. **Remaining link pairs** — Number Base↔Math, Timestamp↔Math, List↔Diff, Color↔text.
 7. **Per-tool unlocks (no-new-dep)** — work the table top to bottom; one tool per commit + mobile-parity render test.
 
