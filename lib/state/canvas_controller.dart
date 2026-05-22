@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utility_catalog.dart';
+import 'link_group.dart';
 
 /// One open tool instance on the desktop canvas: which tool, where it sits, how
 /// wide it is, and the value it was seeded with. Identity is a stable [id] so a
@@ -67,6 +68,9 @@ class CanvasController extends ChangeNotifier {
   int _nextId = 1;
   int? _focusedId;
 
+  final List<LinkGroup> _groups = <LinkGroup>[];
+  int _nextGroupId = 1;
+
   /// Resize bounds for a card's width (logical px).
   static const double minCardWidth = 300;
   static const double maxCardWidth = 880;
@@ -106,6 +110,7 @@ class CanvasController extends ChangeNotifier {
     final int before = _cards.length;
     _cards.removeWhere((CanvasCard c) => c.id == id);
     if (_cards.length == before) return;
+    _detachFromGroup(id);
     if (_focusedId == id) {
       _focusedId = _cards.isEmpty ? null : _cards.last.id;
     }
@@ -117,6 +122,9 @@ class CanvasController extends ChangeNotifier {
   void closeAll() {
     if (_cards.isEmpty) return;
     _cards.clear();
+    // Notifiers are dropped, not disposed: the cards' bodies remove their
+    // listeners during the ensuing rebuild, after which the notifiers are GC'd.
+    _groups.clear();
     _focusedId = null;
     notifyListeners();
     _persist();
@@ -195,6 +203,7 @@ class CanvasController extends ChangeNotifier {
   /// (later) link membership survive a reload.
   Map<String, dynamic> toJson() => <String, dynamic>{
     'nextId': _nextId,
+    'nextGroupId': _nextGroupId,
     'focused': _focusedId,
     'cards': _cards
         .map(
@@ -208,12 +217,23 @@ class CanvasController extends ChangeNotifier {
           },
         )
         .toList(),
+    'groups': _groups
+        .map(
+          (LinkGroup g) => <String, dynamic>{
+            'id': g.id,
+            'type': g.type.name,
+            'canonical': g.canonical.value,
+            'members': g.members.toList(),
+          },
+        )
+        .toList(),
   };
 
   /// Replaces the canvas from a [toJson] map. Cards whose tool id no longer
   /// exists in the catalog are dropped. Notifies but does not re-persist.
   void applyJson(Map<String, dynamic> json) {
     _cards.clear();
+    _groups.clear();
     int maxId = 0;
     for (final dynamic raw
         in (json['cards'] as List<dynamic>? ?? const <dynamic>[])) {
@@ -239,7 +259,39 @@ class CanvasController extends ChangeNotifier {
     if (_nextId <= maxId) _nextId = maxId + 1;
     final int? focused = (json['focused'] as num?)?.toInt();
     _focusedId = _cards.any((CanvasCard c) => c.id == focused) ? focused : null;
+
+    int maxGid = 0;
+    for (final dynamic raw
+        in (json['groups'] as List<dynamic>? ?? const <dynamic>[])) {
+      final Map<String, dynamic> m = raw as Map<String, dynamic>;
+      final ContentType? type = _contentTypeOrNull(m['type'] as String?);
+      if (type == null) continue;
+      final Set<int> members = (m['members'] as List<dynamic>)
+          .map((dynamic e) => (e as num).toInt())
+          .where((int cid) => _cards.any((CanvasCard c) => c.id == cid))
+          .toSet();
+      if (members.length < 2) continue; // a link needs at least two live cards
+      final int gid = (m['id'] as num).toInt();
+      maxGid = gid > maxGid ? gid : maxGid;
+      _groups.add(
+        LinkGroup(
+          id: gid,
+          type: type,
+          canonical: m['canonical'] as String? ?? '',
+        )..members.addAll(members),
+      );
+    }
+    _nextGroupId = (json['nextGroupId'] as num?)?.toInt() ?? (maxGid + 1);
+    if (_nextGroupId <= maxGid) _nextGroupId = maxGid + 1;
+
     notifyListeners();
+  }
+
+  static ContentType? _contentTypeOrNull(String? name) {
+    for (final ContentType t in ContentType.values) {
+      if (t.name == name) return t;
+    }
+    return null;
   }
 
   /// Restores the auto-saved canvas from prefs. No-op without a backend or
@@ -298,5 +350,79 @@ class CanvasController extends ChangeNotifier {
     if (_prefs == null) return;
     final Map<String, dynamic> all = _layouts()..remove(name);
     unawaited(_prefs!.setString(layoutsKey, jsonEncode(all)));
+  }
+
+  // ─── Live links (canonical-hub, see docs/adr/0001) ──────────────────────
+
+  /// All link groups (read-only). The canvas draws a gold line per group.
+  List<LinkGroup> get groups => List<LinkGroup>.unmodifiable(_groups);
+
+  bool get hasLinks => _groups.isNotEmpty;
+
+  /// The link group [cardId] belongs to, or null if it isn't linked.
+  LinkGroup? groupForCard(int cardId) {
+    for (final LinkGroup g in _groups) {
+      if (g.members.contains(cardId)) return g;
+    }
+    return null;
+  }
+
+  /// A [LinkChannel] for [cardId] when it's linked, else null. The canvas hands
+  /// this to the tool body via the builder's `link` parameter.
+  LinkChannel? channelForCard(int cardId) {
+    final LinkGroup? g = groupForCard(cardId);
+    if (g == null) return null;
+    return LinkChannel(
+      canonicalType: g.type,
+      inbound: g.canonical,
+      onEmit: (String value) => _emit(g, value),
+    );
+  }
+
+  /// Links [a] and [b] into a shared group of [type]. If either is already in a
+  /// group, the other joins it; otherwise a new group is created seeded with
+  /// [seedCanonical]. Returns the group id. A card lives in at most one group.
+  int linkCards(
+    int a,
+    int b, {
+    required ContentType type,
+    String seedCanonical = '',
+  }) {
+    LinkGroup g =
+        groupForCard(a) ??
+        groupForCard(b) ??
+        (LinkGroup(id: _nextGroupId++, type: type, canonical: seedCanonical)
+          ..canonical.value = seedCanonical);
+    if (!_groups.contains(g)) _groups.add(g);
+    g.members
+      ..add(a)
+      ..add(b);
+    notifyListeners();
+    _persist();
+    return g.id;
+  }
+
+  /// Removes [cardId] from its group, dissolving the group when fewer than two
+  /// members remain.
+  void unlinkCard(int cardId) {
+    if (_detachFromGroup(cardId)) {
+      notifyListeners();
+      _persist();
+    }
+  }
+
+  bool _detachFromGroup(int cardId) {
+    final LinkGroup? g = groupForCard(cardId);
+    if (g == null) return false;
+    g.members.remove(cardId);
+    if (g.members.length < 2) _groups.remove(g);
+    return true;
+  }
+
+  void _emit(LinkGroup g, String value) {
+    if (!_groups.contains(g)) return;
+    if (g.canonical.value == value) return; // idempotent → cycles terminate
+    g.canonical.value = value;
+    _persist();
   }
 }
