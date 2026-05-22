@@ -18,12 +18,17 @@ import '../mq/mq_icons.dart';
 import '../mq/mq_input.dart';
 import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
+import '../mq/mq_segmented.dart';
 import '../mq/mq_status.dart';
 import '../mq/mq_surface.dart';
 import '../mq/tool_action_bar.dart';
 import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
+import 'tool_layout.dart';
+
+/// Which timezone the canvas-only date rows are formatted in.
+enum _Zone { utc, local }
 
 class TimestampBody extends StatefulWidget {
   const TimestampBody({
@@ -63,6 +68,9 @@ class _TimestampBodyState extends State<TimestampBody>
   /// heuristic's default interpretation for the session. Cleared when input
   /// changes to something unambiguous.
   TimestampFormat? _forcedUnit;
+
+  /// Canvas-only: which timezone the date rows render in. Defaults to UTC.
+  _Zone _zone = _Zone.utc;
 
   HistoryRecorder? _recorder;
 
@@ -197,6 +205,25 @@ class _TimestampBodyState extends State<TimestampBody>
     _parse();
   }
 
+  /// Canvas-only: set the input to the current epoch in seconds.
+  void _setNow() {
+    final int s = (DateTime.now().millisecondsSinceEpoch / 1000).round();
+    _applyKeyword('$s');
+  }
+
+  /// Canvas-only: set the input to today's midnight (epoch seconds), honouring
+  /// the active display zone so "start of day" matches what the rows show.
+  void _setStartOfDay() {
+    final DateTime now = _zone == _Zone.utc
+        ? DateTime.now().toUtc()
+        : DateTime.now();
+    final DateTime midnight = _zone == _Zone.utc
+        ? DateTime.utc(now.year, now.month, now.day)
+        : DateTime(now.year, now.month, now.day);
+    final int s = (midnight.millisecondsSinceEpoch / 1000).round();
+    _applyKeyword('$s');
+  }
+
   Future<void> _paste() async {
     final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
     if (data?.text == null) return;
@@ -218,68 +245,134 @@ class _TimestampBodyState extends State<TimestampBody>
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        MqInput(
-          controller: _controller,
-          label: 'Input',
-          placeholder: 'Unix, ISO 8601, or "now"',
-          onChanged: _onChanged,
-          onPaste: (_) => _recorder?.markPaste(),
-          multiline: true,
-          minLines: 1,
-          maxLines: 3,
-          trailing: _KeywordPickerButton(onPick: _applyKeyword),
-        ),
-        const SizedBox(height: MqSpacing.lg),
-        if (_error != null)
-          MqMonoCell(
-            label: 'Error',
-            value: _error!,
-            copyable: false,
-            accent: false,
-          )
-        else if (_parsed != null) ...<Widget>[
-          const MqSectionHeader(label: 'Output'),
-          Wrap(
-            spacing: MqSpacing.sm,
-            runSpacing: MqSpacing.xs,
-            children: <Widget>[
-              MqStatus(label: _formatLabel(_format), kind: MqStatusKind.info),
-              if (_naive)
-                const MqStatus(
-                  label: 'Local TZ assumed',
-                  kind: MqStatusKind.warning,
-                ),
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final bool wide = constraints.maxWidth >= kToolCanvasWide;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            MqInput(
+              controller: _controller,
+              label: 'Input',
+              placeholder: 'Unix, ISO 8601, or "now"',
+              onChanged: _onChanged,
+              onPaste: (_) => _recorder?.markPaste(),
+              multiline: true,
+              minLines: 1,
+              maxLines: 3,
+              trailing: _KeywordPickerButton(onPick: _applyKeyword),
+            ),
+            // Canvas-only: zone toggle + quick-action keys. Hidden on phones
+            // (width < [kToolCanvasWide]) where the layout stays as today.
+            if (wide) ...<Widget>[
+              const SizedBox(height: MqSpacing.md),
+              MqSegmented<_Zone>(
+                options: const <_Zone, String>{
+                  _Zone.utc: 'UTC',
+                  _Zone.local: 'Local',
+                },
+                selected: _zone,
+                onChanged: (_Zone z) => setState(() => _zone = z),
+              ),
+              const SizedBox(height: MqSpacing.sm),
+              Wrap(
+                spacing: MqSpacing.sm,
+                runSpacing: MqSpacing.sm,
+                children: <Widget>[
+                  MqButton(
+                    label: 'Now',
+                    icon: MqIcons.clock,
+                    variant: MqButtonVariant.tinted,
+                    size: MqButtonSize.sm,
+                    onPressed: _setNow,
+                  ),
+                  MqButton(
+                    label: 'Start of day',
+                    variant: MqButtonVariant.glass,
+                    size: MqButtonSize.sm,
+                    onPressed: _setStartOfDay,
+                  ),
+                ],
+              ),
             ],
-          ),
-          if (_ambiguous) ...<Widget>[
-            const SizedBox(height: MqSpacing.sm),
-            _AmbiguityBanner(current: _format, onToggle: _toggleAmbiguousUnit),
+            const SizedBox(height: MqSpacing.lg),
+            if (_error != null)
+              MqMonoCell(
+                label: 'Error',
+                value: _error!,
+                copyable: false,
+                accent: false,
+              )
+            else if (_parsed != null) ...<Widget>[
+              const MqSectionHeader(label: 'Output'),
+              Wrap(
+                spacing: MqSpacing.sm,
+                runSpacing: MqSpacing.xs,
+                children: <Widget>[
+                  MqStatus(
+                    label: _formatLabel(_format),
+                    kind: MqStatusKind.info,
+                  ),
+                  if (_naive)
+                    const MqStatus(
+                      label: 'Local TZ assumed',
+                      kind: MqStatusKind.warning,
+                    ),
+                ],
+              ),
+              if (_ambiguous) ...<Widget>[
+                const SizedBox(height: MqSpacing.sm),
+                _AmbiguityBanner(
+                  current: _format,
+                  onToggle: _toggleAmbiguousUnit,
+                ),
+              ],
+              const SizedBox(height: MqSpacing.md),
+              // Canvas wide picks the zone; phones always show both rows as
+              // before (zone defaults to UTC and is never surfaced).
+              ..._outputRows(_parsed!, wide ? _zone : null),
+              OpenInFooter(
+                output: _parsed?.toUtc().toIso8601String(),
+                excludeUtilityId: 'timestamp',
+                onSwitchTool: widget.onSwitchTool,
+              ),
+            ] else
+              const MqEmptyHint(label: 'Paste a timestamp to see all forms.'),
           ],
-          const SizedBox(height: MqSpacing.md),
-          ..._outputRows(_parsed!),
-          OpenInFooter(
-            output: _parsed?.toUtc().toIso8601String(),
-            excludeUtilityId: 'timestamp',
-            onSwitchTool: widget.onSwitchTool,
-          ),
-        ] else
-          const MqEmptyHint(label: 'Paste a timestamp to see all forms.'),
-      ],
+        );
+      },
     );
   }
 
-  static List<Widget> _outputRows(DateTime t) {
+  /// Builds the derived rows. When [zone] is non-null (canvas wide), the primary
+  /// date row reflects that timezone; when null (phones) both UTC and Local rows
+  /// show exactly as before.
+  static List<Widget> _outputRows(DateTime t, _Zone? zone) {
     final String utc = DateFormat('yyyy-MM-dd HH:mm:ss').format(t.toUtc());
     final String local = DateFormat('yyyy-MM-dd HH:mm:ss').format(t.toLocal());
     final int ms = t.millisecondsSinceEpoch;
     final int s = (ms / 1000).round();
+    // Canvas wide collapses the two date rows into the active zone; phones keep
+    // both rows exactly as before.
+    final List<({String label, String value, bool copyable, ContentType? pipe})>
+    dateRows = switch (zone) {
+      null =>
+        <({String label, String value, bool copyable, ContentType? pipe})>[
+          (label: 'UTC', value: utc, copyable: true, pipe: null),
+          (label: 'Local', value: local, copyable: true, pipe: null),
+        ],
+      _Zone.utc =>
+        <({String label, String value, bool copyable, ContentType? pipe})>[
+          (label: 'UTC', value: utc, copyable: true, pipe: null),
+        ],
+      _Zone.local =>
+        <({String label, String value, bool copyable, ContentType? pipe})>[
+          (label: 'Local', value: local, copyable: true, pipe: null),
+        ],
+    };
     final List<({String label, String value, bool copyable, ContentType? pipe})>
     rows = <({String label, String value, bool copyable, ContentType? pipe})>[
-      (label: 'UTC', value: utc, copyable: true, pipe: null),
-      (label: 'Local', value: local, copyable: true, pipe: null),
+      ...dateRows,
       // Canvas-only: the seconds row is the epoch canonical, draggable to a
       // Math card. Inert on mobile (no PipeScope ancestor).
       (

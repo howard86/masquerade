@@ -21,6 +21,7 @@ import '../mq/tool_action_bar.dart';
 import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
+import 'tool_layout.dart';
 
 class ColorBody extends StatefulWidget {
   const ColorBody({
@@ -48,10 +49,17 @@ class ColorBody extends StatefulWidget {
 
 class _ColorBodyState extends State<ColorBody>
     with LinkableToolBody<ColorBody> {
+  /// Most swatches the session palette strip keeps. Canvas-only; per card.
+  static const int _paletteCap = 8;
+
   final TextEditingController _controller = TextEditingController();
   Timer? _debounce;
   MqColorValue? _value;
   String? _error;
+
+  /// Sticky swatches of colors parsed in this card this session, most-recent
+  /// first. Shown only in the wide layout (canvas); ignored at phone width.
+  final List<MqColorValue> _palette = <MqColorValue>[];
 
   /// The opening field is a cold placeholder (`#00B8C4`) unless the host handed
   /// a seed. We must not let that placeholder seed a Link group it joins (it
@@ -155,11 +163,26 @@ class _ColorBodyState extends State<ColorBody>
       _error = parsed == null
           ? 'Could not parse color. Try #RRGGBB, rgb(), hsl().'
           : null;
+      if (parsed != null) _pushPalette(parsed);
     });
     if (parsed != null) {
       _recorder?.record(input, parsed.hex);
     }
     emitToLink();
+  }
+
+  /// Records [color] at the head of the session palette, deduping by hex and
+  /// capping at [_paletteCap]. Always called inside a [setState].
+  void _pushPalette(MqColorValue color) {
+    _palette.removeWhere((MqColorValue c) => c.hex == color.hex);
+    _palette.insert(0, color);
+    if (_palette.length > _paletteCap) _palette.removeLast();
+  }
+
+  void _loadSwatch(MqColorValue color) {
+    _userProvided = true;
+    _controller.text = color.hex;
+    _parse();
   }
 
   Future<void> _paste() async {
@@ -187,6 +210,15 @@ class _ColorBodyState extends State<ColorBody>
 
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final bool wide = constraints.maxWidth >= kToolCanvasWide;
+        return _buildBody(context, wide);
+      },
+    );
+  }
+
+  Widget _buildBody(BuildContext context, bool wide) {
     final tokens = context.mq;
     final c = tokens.colors;
 
@@ -200,6 +232,12 @@ class _ColorBodyState extends State<ColorBody>
           onChanged: _onChanged,
           onPaste: (_) => _recorder?.markPaste(),
         ),
+        // Canvas-only: sticky swatches of colors entered this session; tap to
+        // reload. Hidden at phone width so the body matches mobile exactly.
+        if (wide && _palette.isNotEmpty) ...<Widget>[
+          const SizedBox(height: MqSpacing.md),
+          _PaletteStrip(swatches: _palette, onTap: _loadSwatch),
+        ],
         const SizedBox(height: MqSpacing.lg),
         if (_error != null)
           MqMonoCell(label: 'Error', value: _error!, copyable: false)
@@ -260,6 +298,40 @@ class _ColorBodyState extends State<ColorBody>
           ),
         ] else
           const MqEmptyHint(label: 'Paste a color to inspect.'),
+      ],
+    );
+  }
+}
+
+/// Horizontal row of tappable session swatches (most-recent first). Wraps so a
+/// full palette never overflows under large Dynamic Type.
+class _PaletteStrip extends StatelessWidget {
+  const _PaletteStrip({required this.swatches, required this.onTap});
+
+  final List<MqColorValue> swatches;
+  final ValueChanged<MqColorValue> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mq.colors;
+    return Wrap(
+      spacing: MqSpacing.sm,
+      runSpacing: MqSpacing.sm,
+      children: <Widget>[
+        for (final MqColorValue color in swatches)
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => onTap(color),
+            child: Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: color.toFlutter,
+                borderRadius: BorderRadius.circular(MqRadius.sm),
+                border: Border.all(color: c.border, width: 0.5),
+              ),
+            ),
+          ),
       ],
     );
   }

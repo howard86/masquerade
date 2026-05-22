@@ -1,7 +1,10 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:masquerade/app.dart';
+import 'package:masquerade/state/history_controller.dart';
+import 'package:masquerade/theme/mq_colors.dart';
+import 'package:masquerade/theme/mq_theme.dart';
 
 /// Below `ResponsiveLayout`'s 493x1052 threshold so `MyApp` skips the
 /// iPhone-frame wrap that constrains content to 393 logical wide and breaks
@@ -25,5 +28,42 @@ Future<void> pumpHomeAndOpen(WidgetTester tester, String tileLabel) async {
   await tester.ensureVisible(tile);
   await tester.pumpAndSettle();
   await tester.tap(tile);
+  await tester.pumpAndSettle();
+}
+
+/// Pumps a single tool [body] inside the app's theme + history scopes,
+/// constrained to [width] logical px. Tool bodies width-gate their canvas
+/// layouts on their own `LayoutBuilder`, so constraining the incoming width is
+/// how a test toggles compact (mobile-parity) vs the richer wide layout.
+Future<void> pumpBodyAtWidth(
+  WidgetTester tester,
+  Widget body,
+  double width,
+) async {
+  await tester.binding.setSurfaceSize(const Size(1024, 1400));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+
+  await tester.pumpWidget(
+    CupertinoApp(
+      home: MqTheme(
+        tokens: MqTokens(
+          colors: MqColors.light(),
+          brightness: Brightness.light,
+        ),
+        child: HistoryScope(
+          controller: HistoryController(),
+          child: CupertinoPageScaffold(
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: SizedBox(
+                width: width,
+                child: SingleChildScrollView(child: body),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
   await tester.pumpAndSettle();
 }

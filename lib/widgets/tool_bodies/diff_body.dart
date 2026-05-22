@@ -19,6 +19,7 @@ import '../mq/mq_surface.dart';
 import '../mq/tool_action_bar.dart';
 import 'linkable_body.dart';
 import 'seed_source.dart';
+import 'tool_layout.dart';
 
 /// Diff · compare two texts. Line-level Myers diff rendered delta-style:
 /// old/new gutters, red/green row washes, intra-line word highlighting, and
@@ -250,31 +251,55 @@ class _DiffBodyState extends State<DiffBody> with LinkableToolBody<DiffBody> {
     final DiffResult? result = _result;
     final bool bothEmpty = _a.text.isEmpty && _b.text.isEmpty;
 
+    final Widget aInput = MqInput(
+      controller: _a,
+      focusNode: _aFocus,
+      label: 'A · original',
+      placeholder: 'Paste the original text',
+      onChanged: _onChanged,
+      onPaste: (_) => _recorder?.markPaste(),
+      multiline: true,
+      minLines: 3,
+      maxLines: 6,
+    );
+    final Widget bInput = MqInput(
+      controller: _b,
+      focusNode: _bFocus,
+      label: 'B · changed',
+      placeholder: 'Paste the changed text',
+      onChanged: _onChanged,
+      onPaste: (_) => _recorder?.markPaste(),
+      multiline: true,
+      minLines: 3,
+      maxLines: 6,
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        MqInput(
-          controller: _a,
-          focusNode: _aFocus,
-          label: 'A · original',
-          placeholder: 'Paste the original text',
-          onChanged: _onChanged,
-          onPaste: (_) => _recorder?.markPaste(),
-          multiline: true,
-          minLines: 3,
-          maxLines: 6,
-        ),
-        const SizedBox(height: MqSpacing.md),
-        MqInput(
-          controller: _b,
-          focusNode: _bFocus,
-          label: 'B · changed',
-          placeholder: 'Paste the changed text',
-          onChanged: _onChanged,
-          onPaste: (_) => _recorder?.markPaste(),
-          multiline: true,
-          minLines: 3,
-          maxLines: 6,
+        // Canvas-wide: the two inputs sit side-by-side (A ‖ B). Below 460 they
+        // stack — identical to the phone layout.
+        LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            if (constraints.maxWidth >= kToolCanvasWide) {
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Expanded(child: aInput),
+                  const SizedBox(width: MqSpacing.md),
+                  Expanded(child: bInput),
+                ],
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                aInput,
+                const SizedBox(height: MqSpacing.md),
+                bInput,
+              ],
+            );
+          },
         ),
         const SizedBox(height: MqSpacing.md),
         Wrap(
