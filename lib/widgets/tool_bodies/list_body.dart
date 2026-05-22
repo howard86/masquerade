@@ -24,6 +24,7 @@ import '../mq/tool_action_bar.dart';
 import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
+import 'tool_layout.dart';
 
 enum ListMode { split, join }
 
@@ -215,6 +216,14 @@ class _ListToolBodyState extends State<ListToolBody>
     _convert();
   }
 
+  /// Opens the Diff tool seeded with the current list text (side A). Wired
+  /// through the same `onSwitchTool` route the OpenInFooter chips use.
+  void _diffWith() {
+    final OpenInToolCallback? open = widget.onSwitchTool;
+    if (open == null) return;
+    open(UtilityCatalog.byId('diff'), _controller.text);
+  }
+
   void _cycleCase() {
     setState(() {
       _caseMode = switch (_caseMode) {
@@ -356,6 +365,40 @@ class _ListToolBodyState extends State<ListToolBody>
               },
             ),
           ],
+        ),
+        // Canvas-wide: an inline item/duplicate readout plus a "Diff with…"
+        // action that opens the Diff tool seeded with the current text. Below
+        // 460 the tree is identical to the phone layout (the count still shows
+        // on the output cell's hint).
+        LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            if (constraints.maxWidth < kToolCanvasWide || _parsedCount == 0) {
+              return const SizedBox.shrink();
+            }
+            return Padding(
+              padding: const EdgeInsets.only(top: MqSpacing.md),
+              child: Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      _countHint,
+                      style: MqTextStyles.caption1.copyWith(
+                        color: context.mq.colors.textSec,
+                      ),
+                    ),
+                  ),
+                  if (widget.onSwitchTool != null)
+                    MqChip(
+                      label: 'Diff with…',
+                      icon: MqIcons.swap,
+                      accent: true,
+                      mono: false,
+                      onTap: _diffWith,
+                    ),
+                ],
+              ),
+            );
+          },
         ),
         const SizedBox(height: MqSpacing.lg),
         if (_output != null) ...<Widget>[
