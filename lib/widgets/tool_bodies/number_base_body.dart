@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../state/history_controller.dart';
+import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../utility_catalog.dart';
 import '../../utils/history_recorder.dart';
@@ -15,6 +16,7 @@ import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_status.dart';
 import '../mq/tool_action_bar.dart';
+import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 
@@ -25,6 +27,7 @@ class NumberBaseBody extends StatefulWidget {
     this.seedSource = SeedSource.none,
     this.onSwitchTool,
     this.actionBar,
+    this.link,
   });
 
   final String? initialInput;
@@ -32,11 +35,17 @@ class NumberBaseBody extends StatefulWidget {
   final OpenInToolCallback? onSwitchTool;
   final ToolActionBarController? actionBar;
 
+  /// Non-null when this card is in a canvas Link group. The group's canonical
+  /// value is the parsed number as a decimal string; this body projects it
+  /// across bases and parses local edits back to a decimal (see docs/adr/0001).
+  final LinkChannel? link;
+
   @override
   State<NumberBaseBody> createState() => _NumberBaseBodyState();
 }
 
-class _NumberBaseBodyState extends State<NumberBaseBody> {
+class _NumberBaseBodyState extends State<NumberBaseBody>
+    with LinkableToolBody<NumberBaseBody> {
   final TextEditingController _controller = TextEditingController();
   Timer? _debounce;
   NumberBaseResult? _result;
@@ -58,6 +67,30 @@ class _NumberBaseBodyState extends State<NumberBaseBody> {
       if (!mounted) return;
       widget.actionBar?.bind(onPaste: _paste, onClear: _clear);
     });
+    initLink();
+  }
+
+  @override
+  void didUpdateWidget(NumberBaseBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    didUpdateLink();
+  }
+
+  // ─── Canonical-hub link (decimal-number canonical) ──────────────────────
+  @override
+  LinkChannel? get linkChannel => widget.link;
+
+  /// The canonical is the parsed value as a plain decimal string — empty until
+  /// something parses, so a number ↔ math link shares one numeric value.
+  @override
+  String currentCanonical() => _result?.decimal ?? '';
+
+  @override
+  void applyInbound(String canonical) {
+    // The parser accepts a bare decimal, so re-projecting [canonical] as the
+    // input round-trips back to the same decimal through [_parse].
+    _controller.text = canonical;
+    _parse();
   }
 
   @override
@@ -76,6 +109,7 @@ class _NumberBaseBodyState extends State<NumberBaseBody> {
 
   @override
   void dispose() {
+    disposeLink();
     _debounce?.cancel();
     _recorder?.dispose();
     _controller.dispose();
@@ -94,6 +128,7 @@ class _NumberBaseBodyState extends State<NumberBaseBody> {
         _result = null;
         _error = null;
       });
+      emitToLink();
       return;
     }
     final NumberBaseResult? parsed = NumberBaseParser.parse(input);
@@ -106,6 +141,7 @@ class _NumberBaseBodyState extends State<NumberBaseBody> {
     if (parsed != null) {
       _recorder?.record(input, parsed.decimal);
     }
+    emitToLink();
   }
 
   Future<void> _paste() async {
@@ -153,6 +189,9 @@ class _NumberBaseBodyState extends State<NumberBaseBody> {
             value: _result!.decimal,
             large: true,
             accent: true,
+            // Canvas-only: the decimal is the number canonical, draggable to a
+            // Math card. Inert on mobile (no PipeScope ancestor).
+            pipeType: ContentType.number,
           ),
           const SizedBox(height: MqSpacing.sm),
           MqMonoCell(label: 'Hexadecimal', value: _result!.hex),

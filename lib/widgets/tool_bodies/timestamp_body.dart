@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../../state/history_controller.dart';
+import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
@@ -20,6 +21,7 @@ import '../mq/mq_section_header.dart';
 import '../mq/mq_status.dart';
 import '../mq/mq_surface.dart';
 import '../mq/tool_action_bar.dart';
+import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 
@@ -30,6 +32,7 @@ class TimestampBody extends StatefulWidget {
     this.seedSource = SeedSource.none,
     this.onSwitchTool,
     this.actionBar,
+    this.link,
   });
 
   final String? initialInput;
@@ -37,11 +40,17 @@ class TimestampBody extends StatefulWidget {
   final OpenInToolCallback? onSwitchTool;
   final ToolActionBarController? actionBar;
 
+  /// Non-null when this card is in a canvas Link group. The group's canonical
+  /// value is the unix epoch *in seconds*; this body projects it to all date
+  /// forms and parses a dropped epoch back to seconds (see docs/adr/0001).
+  final LinkChannel? link;
+
   @override
   State<TimestampBody> createState() => _TimestampBodyState();
 }
 
-class _TimestampBodyState extends State<TimestampBody> {
+class _TimestampBodyState extends State<TimestampBody>
+    with LinkableToolBody<TimestampBody> {
   final TextEditingController _controller = TextEditingController();
   Timer? _debounce;
   DateTime? _parsed;
@@ -71,6 +80,34 @@ class _TimestampBodyState extends State<TimestampBody> {
       if (!mounted) return;
       widget.actionBar?.bind(onPaste: _paste, onClear: _clear);
     });
+    initLink();
+  }
+
+  @override
+  void didUpdateWidget(TimestampBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    didUpdateLink();
+  }
+
+  // ─── Canvas-hub link (epoch-seconds canonical) ──────────────────────────
+  @override
+  LinkChannel? get linkChannel => widget.link;
+
+  /// The canonical is the parsed instant as unix epoch *seconds* — empty until
+  /// something parses, so a timestamp ↔ math link shares one numeric value.
+  @override
+  String currentCanonical() {
+    final DateTime? t = _parsed;
+    if (t == null) return '';
+    return '${(t.millisecondsSinceEpoch / 1000).round()}';
+  }
+
+  @override
+  void applyInbound(String canonical) {
+    // The parser reads a bare integer as an epoch, so re-projecting the seconds
+    // string round-trips back to the same epoch through [_parse].
+    _controller.text = canonical;
+    _parse();
   }
 
   @override
@@ -89,6 +126,7 @@ class _TimestampBodyState extends State<TimestampBody> {
 
   @override
   void dispose() {
+    disposeLink();
     _debounce?.cancel();
     _recorder?.dispose();
     _controller.dispose();
@@ -110,6 +148,7 @@ class _TimestampBodyState extends State<TimestampBody> {
         _naive = false;
         _forcedUnit = null;
       });
+      emitToLink();
       return;
     }
     final TimestampParseResult heuristic = TimestampParser.parseAnyFormat(
@@ -136,6 +175,7 @@ class _TimestampBodyState extends State<TimestampBody> {
     if (result.isSuccess) {
       _recorder?.record(input, result.timestamp!.toIso8601String());
     }
+    emitToLink();
   }
 
   void _toggleAmbiguousUnit() {
@@ -236,19 +276,27 @@ class _TimestampBodyState extends State<TimestampBody> {
     final String local = DateFormat('yyyy-MM-dd HH:mm:ss').format(t.toLocal());
     final int ms = t.millisecondsSinceEpoch;
     final int s = (ms / 1000).round();
-    final List<({String label, String value, bool copyable})> rows =
-        <({String label, String value, bool copyable})>[
-          (label: 'UTC', value: utc, copyable: true),
-          (label: 'Local', value: local, copyable: true),
-          (label: 'Unix seconds', value: '$s', copyable: true),
-          (label: 'Unix ms', value: '$ms', copyable: true),
-          (
-            label: 'ISO 8601',
-            value: t.toUtc().toIso8601String(),
-            copyable: true,
-          ),
-          (label: 'Relative', value: _relative(t), copyable: false),
-        ];
+    final List<({String label, String value, bool copyable, ContentType? pipe})>
+    rows = <({String label, String value, bool copyable, ContentType? pipe})>[
+      (label: 'UTC', value: utc, copyable: true, pipe: null),
+      (label: 'Local', value: local, copyable: true, pipe: null),
+      // Canvas-only: the seconds row is the epoch canonical, draggable to a
+      // Math card. Inert on mobile (no PipeScope ancestor).
+      (
+        label: 'Unix seconds',
+        value: '$s',
+        copyable: true,
+        pipe: ContentType.epoch,
+      ),
+      (label: 'Unix ms', value: '$ms', copyable: true, pipe: null),
+      (
+        label: 'ISO 8601',
+        value: t.toUtc().toIso8601String(),
+        copyable: true,
+        pipe: null,
+      ),
+      (label: 'Relative', value: _relative(t), copyable: false, pipe: null),
+    ];
     final List<Widget> widgets = <Widget>[];
     for (int i = 0; i < rows.length; i++) {
       if (i > 0) widgets.add(const SizedBox(height: MqSpacing.sm));
@@ -257,6 +305,7 @@ class _TimestampBodyState extends State<TimestampBody> {
           label: rows[i].label,
           value: rows[i].value,
           copyable: rows[i].copyable,
+          pipeType: rows[i].pipe,
         ),
       );
     }

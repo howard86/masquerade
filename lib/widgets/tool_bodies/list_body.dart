@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
 import '../../state/history_controller.dart';
+import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
@@ -20,6 +21,7 @@ import '../mq/mq_section_header.dart';
 import '../mq/mq_segmented.dart';
 import '../mq/mq_surface.dart';
 import '../mq/tool_action_bar.dart';
+import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 
@@ -32,6 +34,7 @@ class ListToolBody extends StatefulWidget {
     this.seedSource = SeedSource.none,
     this.onSwitchTool,
     this.actionBar,
+    this.link,
   });
 
   final String? initialInput;
@@ -39,11 +42,17 @@ class ListToolBody extends StatefulWidget {
   final OpenInToolCallback? onSwitchTool;
   final ToolActionBarController? actionBar;
 
+  /// Non-null when this card is in a canvas Link group. The group's canonical
+  /// value is this tool's raw input text (the lines/text it operates on), so a
+  /// list ↔ diff link shares the same source text (see docs/adr/0001).
+  final LinkChannel? link;
+
   @override
   State<ListToolBody> createState() => _ListToolBodyState();
 }
 
-class _ListToolBodyState extends State<ListToolBody> {
+class _ListToolBodyState extends State<ListToolBody>
+    with LinkableToolBody<ListToolBody> {
   final TextEditingController _controller = TextEditingController();
   Timer? _debounce;
 
@@ -75,6 +84,28 @@ class _ListToolBodyState extends State<ListToolBody> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _updateActionBar();
     });
+    initLink();
+  }
+
+  @override
+  void didUpdateWidget(ListToolBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    didUpdateLink();
+  }
+
+  // ─── Canonical-hub link (raw input text canonical) ──────────────────────
+  @override
+  LinkChannel? get linkChannel => widget.link;
+
+  /// The canonical is the raw input text — the list is a transform *of* that
+  /// text, so the input (not the joined/split output) is the shared value.
+  @override
+  String currentCanonical() => _controller.text;
+
+  @override
+  void applyInbound(String canonical) {
+    _controller.text = canonical;
+    _convert();
   }
 
   void _updateActionBar() {
@@ -107,6 +138,7 @@ class _ListToolBodyState extends State<ListToolBody> {
 
   @override
   void dispose() {
+    disposeLink();
     _debounce?.cancel();
     _recorder?.dispose();
     _controller.dispose();
@@ -128,6 +160,7 @@ class _ListToolBodyState extends State<ListToolBody> {
         _outCount = 0;
       });
       _updateActionBar();
+      emitToLink();
       return;
     }
     final List<String> transformed = ListParser.transform(
@@ -150,6 +183,7 @@ class _ListToolBodyState extends State<ListToolBody> {
     });
     _recorder?.record(input, result);
     _updateActionBar();
+    emitToLink();
   }
 
   Future<void> _paste() async {
@@ -331,6 +365,9 @@ class _ListToolBodyState extends State<ListToolBody> {
             value: _output!,
             hint: _countHint,
             accent: true,
+            // Canvas-only: the output is plain text, draggable to a Diff card.
+            // Inert on mobile (no PipeScope ancestor).
+            pipeType: ContentType.text,
           ),
           OpenInFooter(
             output: _output,

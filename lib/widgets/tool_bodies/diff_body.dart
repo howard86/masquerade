@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 
 import '../../state/history_controller.dart';
+import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
@@ -16,6 +17,7 @@ import '../mq/mq_icons.dart';
 import '../mq/mq_input.dart';
 import '../mq/mq_surface.dart';
 import '../mq/tool_action_bar.dart';
+import 'linkable_body.dart';
 import 'seed_source.dart';
 
 /// Diff · compare two texts. Line-level Myers diff rendered delta-style:
@@ -28,17 +30,24 @@ class DiffBody extends StatefulWidget {
     this.initialInput,
     this.seedSource = SeedSource.none,
     this.actionBar,
+    this.link,
   });
 
   final String? initialInput;
   final SeedSource seedSource;
   final ToolActionBarController? actionBar;
 
+  /// Non-null when this card is in a canvas Link group. Diff is a two-input
+  /// tool; the canonical drives **side A** (the original text), so a list ↔
+  /// diff link feeds the list's text into A while B stays the user's local
+  /// comparison (see docs/adr/0001).
+  final LinkChannel? link;
+
   @override
   State<DiffBody> createState() => _DiffBodyState();
 }
 
-class _DiffBodyState extends State<DiffBody> {
+class _DiffBodyState extends State<DiffBody> with LinkableToolBody<DiffBody> {
   final TextEditingController _a = TextEditingController();
   final TextEditingController _b = TextEditingController();
   final FocusNode _aFocus = FocusNode();
@@ -70,6 +79,28 @@ class _DiffBodyState extends State<DiffBody> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _updateActionBar();
     });
+    initLink();
+  }
+
+  @override
+  void didUpdateWidget(DiffBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    didUpdateLink();
+  }
+
+  // ─── Canonical-hub link (side-A text canonical) ─────────────────────────
+  @override
+  LinkChannel? get linkChannel => widget.link;
+
+  /// The canonical is side A's text (the original); side B is the user's local
+  /// comparison and stays out of the group.
+  @override
+  String currentCanonical() => _a.text;
+
+  @override
+  void applyInbound(String canonical) {
+    _a.text = canonical;
+    _convert();
   }
 
   @override
@@ -88,6 +119,7 @@ class _DiffBodyState extends State<DiffBody> {
 
   @override
   void dispose() {
+    disposeLink();
     _debounce?.cancel();
     _recorder?.dispose();
     _a.dispose();
@@ -154,6 +186,8 @@ class _DiffBodyState extends State<DiffBody> {
       _recorder?.record(aText, unified);
     }
     _updateActionBar();
+    // Only side A is the canonical; an emit after a B-only edit is a no-op.
+    emitToLink();
   }
 
   // Pairs the k-th deleted line with the k-th inserted line inside each change

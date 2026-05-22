@@ -15,14 +15,23 @@ import '../../widgets/mq/mq_icons.dart';
 import '../../widgets/tool_bodies/seed_source.dart';
 import '../home_screen.dart';
 
-/// Flagship live-link pairing (see docs/adr/0001): a Base64 card and a JSON
-/// card share one canonical plain-text value, so each can render the other's
-/// content live. Keyed by tool id → its partner tool + the shared canonical
-/// type. The canvas owns this; the bodies stay shell-agnostic.
+/// Header-toggle link pairings (see docs/adr/0001): a card's link button opens
+/// this fixed partner tool and links the two on one canonical type. Keyed by
+/// tool id → its partner tool + the shared canonical type. Only *unambiguous*
+/// pairs live here; tools reachable on several types (or with no clean tool
+/// partner) link via phase-4 drop-to-link instead. The canvas owns this; the
+/// bodies stay shell-agnostic.
+///
+/// Math sits in two pairs (number ↔ math, epoch ↔ math); its toggle defaults
+/// to Number Base, and the Timestamp pairing is reachable via drop-to-link.
 const Map<String, ({String partnerId, ContentType type})> _linkPartners =
     <String, ({String partnerId, ContentType type})>{
       'base64': (partnerId: 'json', type: ContentType.text),
       'json': (partnerId: 'base64', type: ContentType.text),
+      'number_base': (partnerId: 'math', type: ContentType.number),
+      'math': (partnerId: 'number_base', type: ContentType.number),
+      'list': (partnerId: 'diff', type: ContentType.text),
+      'diff': (partnerId: 'list', type: ContentType.text),
     };
 
 /// Which canonical [ContentType]s a tool's card can RECEIVE via a pipe drop.
@@ -31,6 +40,12 @@ const Map<String, ({String partnerId, ContentType type})> _linkPartners =
 const Map<String, Set<ContentType>> _linkableTypes = <String, Set<ContentType>>{
   'base64': <ContentType>{ContentType.text},
   'json': <ContentType>{ContentType.text},
+  'number_base': <ContentType>{ContentType.number},
+  'math': <ContentType>{ContentType.number, ContentType.epoch},
+  'timestamp': <ContentType>{ContentType.epoch, ContentType.number},
+  'list': <ContentType>{ContentType.lines, ContentType.text},
+  'diff': <ContentType>{ContentType.text, ContentType.lines},
+  'color': <ContentType>{ContentType.color, ContentType.text},
 };
 
 /// The desktop Home surface: a multi-card canvas. When no cards are open it
@@ -257,12 +272,17 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
       onResizeDelta: (double dx) => _c.resize(card.id, card.width + dx),
       onResizeEnd: _c.commit,
       linked: linked,
-      linkTooltip: partner == null
-          ? null
-          : linked
+      // A linked card always offers Unlink — even one linked by drop-to-link
+      // with no fixed [partner]. An unlinked card with a partner offers Open.
+      // An unlinked card with no partner has no toggle.
+      linkTooltip: linked
           ? 'Unlink'
+          : partner == null
+          ? null
           : 'Open linked ${UtilityCatalog.byId(partner.partnerId).name}',
-      onLink: partner == null ? null : () => _toggleLink(card, partner),
+      onLink: (linked || partner != null)
+          ? () => _toggleLink(card, partner)
+          : null,
       // PipeScope tells this card's output cells their source id and that pipe
       // mode is active; absent on mobile/Home so cells stay inert there.
       child: PipeScope(
@@ -298,17 +318,19 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     );
   }
 
-  /// Toggles the flagship link on [card]: unlinks if already linked, otherwise
-  /// opens its [partner] tool as a new card and links the two. The source
-  /// card's value seeds the group (the linkable body emits on attach).
+  /// Toggles the header link on [card]: unlinks if already linked (works even
+  /// for a drop-linked card whose [partner] is null), otherwise opens its fixed
+  /// [partner] tool as a new card and links the two. The source card's value
+  /// seeds the group (the linkable body emits on attach).
   void _toggleLink(
     CanvasCard card,
-    ({String partnerId, ContentType type}) partner,
+    ({String partnerId, ContentType type})? partner,
   ) {
     if (_c.groupForCard(card.id) != null) {
       _c.unlinkCard(card.id);
       return;
     }
+    if (partner == null) return;
     final int siblingId = _c.openTool(UtilityCatalog.byId(partner.partnerId));
     _c.linkCards(card.id, siblingId, type: partner.type);
   }
