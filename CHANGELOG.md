@@ -1,3 +1,9 @@
+## v1.17.0 (2026-05-22)
+
+### Feat
+
+- desktop multi-card canvas (Direction B) — canvas MVP (#73)
+
 ## v1.16.0 (2026-05-21)
 
 ### Feat
