@@ -23,8 +23,13 @@ import '../mq/mq_segmented.dart';
 import '../mq/tool_action_bar.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
+import 'tool_layout.dart';
 
 enum QrMode { generate, scan }
+
+/// Module-size presets exposed inline on the canvas (wide) layout. Phones keep
+/// the fixed 240 preview, so the body matches mobile bit-for-bit.
+enum QrSize { small, medium, large }
 
 class QrCodeBody extends StatefulWidget {
   const QrCodeBody({
@@ -51,6 +56,11 @@ class _QrCodeBodyState extends State<QrCodeBody> {
   QrMode _mode = QrMode.generate;
   String? _scanResult;
   bool _exporting = false;
+
+  // Canvas-only generate controls. Defaults reproduce the mobile preview:
+  // `QrErrorCorrectLevel.L` (QrImageView's default) and the fixed 240 size.
+  int _ecc = QrErrorCorrectLevel.L;
+  QrSize _size = QrSize.medium;
 
   HistoryRecorder? _recorder;
 
@@ -175,31 +185,42 @@ class _QrCodeBodyState extends State<QrCodeBody> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        MqSegmented<QrMode>(
-          options: const <QrMode, String>{
-            QrMode.generate: 'Generate',
-            QrMode.scan: 'Scan',
-          },
-          selected: _mode,
-          onChanged: (QrMode m) {
-            setState(() {
-              _mode = m;
-              if (m == QrMode.scan) _scanResult = null;
-            });
-            _updateActionBar();
-          },
-        ),
-        const SizedBox(height: MqSpacing.md),
-        if (_mode == QrMode.generate) ..._buildGenerate(context),
-        if (_mode == QrMode.scan) ..._buildScan(context),
-        const SizedBox(height: MqSpacing.lg),
-        _buildBottomBar(),
-      ],
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final bool wide = constraints.maxWidth >= kToolCanvasWide;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            MqSegmented<QrMode>(
+              options: const <QrMode, String>{
+                QrMode.generate: 'Generate',
+                QrMode.scan: 'Scan',
+              },
+              selected: _mode,
+              onChanged: (QrMode m) {
+                setState(() {
+                  _mode = m;
+                  if (m == QrMode.scan) _scanResult = null;
+                });
+                _updateActionBar();
+              },
+            ),
+            const SizedBox(height: MqSpacing.md),
+            if (_mode == QrMode.generate) ..._buildGenerate(context, wide),
+            if (_mode == QrMode.scan) ..._buildScan(context),
+            const SizedBox(height: MqSpacing.lg),
+            _buildBottomBar(),
+          ],
+        );
+      },
     );
   }
+
+  double get _qrSizePx => switch (_size) {
+    QrSize.small => 180,
+    QrSize.medium => 240,
+    QrSize.large => 320,
+  };
 
   Widget _buildBottomBar() {
     // Generate-mode controls live on the route's shared ToolActionBar (see
@@ -214,7 +235,7 @@ class _QrCodeBodyState extends State<QrCodeBody> {
     );
   }
 
-  List<Widget> _buildGenerate(BuildContext context) {
+  List<Widget> _buildGenerate(BuildContext context, bool wide) {
     final String text = _controller.text;
     final c = context.mq.colors;
     return <Widget>[
@@ -232,6 +253,12 @@ class _QrCodeBodyState extends State<QrCodeBody> {
       if (text.trim().isEmpty)
         const MqEmptyHint(label: 'Type text or a URL to render its QR code.')
       else ...<Widget>[
+        // Canvas-only: error-correction and module-size controls. Hidden at
+        // phone width, where the preview keeps the fixed 240/ECC-L look.
+        if (wide) ...<Widget>[
+          ..._buildQrControls(),
+          const SizedBox(height: MqSpacing.lg),
+        ],
         Center(
           child: RepaintBoundary(
             key: _qrBoundaryKey,
@@ -241,8 +268,9 @@ class _QrCodeBodyState extends State<QrCodeBody> {
                 padding: const EdgeInsets.all(MqSpacing.md),
                 child: QrImageView(
                   data: text,
-                  size: 240,
+                  size: wide ? _qrSizePx : 240,
                   version: QrVersions.auto,
+                  errorCorrectionLevel: _ecc,
                   backgroundColor: const Color(0xFFFFFFFF),
                   eyeStyle: const QrEyeStyle(
                     eyeShape: QrEyeShape.square,
@@ -270,6 +298,36 @@ class _QrCodeBodyState extends State<QrCodeBody> {
           onSwitchTool: widget.onSwitchTool,
         ),
       ],
+    ];
+  }
+
+  List<Widget> _buildQrControls() {
+    return <Widget>[
+      const MqSectionHeader(label: 'Error correction'),
+      MqSegmented<int>(
+        options: const <int, String>{
+          QrErrorCorrectLevel.L: 'L',
+          QrErrorCorrectLevel.M: 'M',
+          QrErrorCorrectLevel.Q: 'Q',
+          QrErrorCorrectLevel.H: 'H',
+        },
+        selected: _ecc,
+        onChanged: (int level) {
+          setState(() => _ecc = level);
+          _updateActionBar();
+        },
+      ),
+      const SizedBox(height: MqSpacing.md),
+      const MqSectionHeader(label: 'Size'),
+      MqSegmented<QrSize>(
+        options: const <QrSize, String>{
+          QrSize.small: 'Small',
+          QrSize.medium: 'Medium',
+          QrSize.large: 'Large',
+        },
+        selected: _size,
+        onChanged: (QrSize s) => setState(() => _size = s),
+      ),
     ];
   }
 
