@@ -1,3 +1,10 @@
+## v1.18.0 (2026-05-22)
+
+### Feat
+
+- wire flagship Base64↔JSON live link end-to-end (ADR 0001)
+- canonical-hub link engine (ADR 0001) — model + controller API
+
 ## v1.17.0 (2026-05-22)
 
 ### Feat
