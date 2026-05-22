@@ -1,18 +1,17 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../state/canvas_controller.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
-import '../../utility_catalog.dart';
 import '../history_screen.dart';
-import '../home_screen.dart';
 import '../settings_screen.dart';
+import 'desktop_canvas.dart';
 import 'desktop_sidebar.dart';
-import 'desktop_tool_view.dart';
 
-/// Web desktop layout: a fixed left [DesktopSidebar] plus a content pane that
-/// shows the selected nav screen (Home / History / Settings) or, when a tool is
-/// open, a [DesktopToolView]. Tools open in-pane (no route push) so the sidebar
-/// stays put; cross-tool "Open in X" pushes onto the in-pane tool stack.
+/// Web desktop layout: a fixed left [DesktopSidebar] plus a content pane. The
+/// Home nav shows a [DesktopCanvas] — a multi-card surface where tools open as
+/// draggable cards; History and Settings show their own screens. The
+/// [CanvasController] lives here so open cards survive nav switches.
 class DesktopShell extends StatefulWidget {
   const DesktopShell({super.key});
 
@@ -25,25 +24,16 @@ class DesktopShell extends StatefulWidget {
 
 class _DesktopShellState extends State<DesktopShell> {
   int _navIndex = 0;
-  final List<_PaneTool> _tools = <_PaneTool>[];
+  final CanvasController _canvas = CanvasController();
+
+  @override
+  void dispose() {
+    _canvas.dispose();
+    super.dispose();
+  }
 
   void _select(int index) {
-    setState(() {
-      _navIndex = index;
-      _tools.clear();
-    });
-  }
-
-  void _openTool(UtilityDescriptor descriptor, String seed) {
-    setState(() {
-      _tools.add(_PaneTool(descriptor, seed.isEmpty ? null : seed));
-    });
-  }
-
-  void _back() {
-    setState(() {
-      if (_tools.isNotEmpty) _tools.removeLast();
-    });
+    setState(() => _navIndex = index);
   }
 
   @override
@@ -99,19 +89,6 @@ class _DesktopShellState extends State<DesktopShell> {
   }
 
   Widget _pane() {
-    if (_tools.isNotEmpty) {
-      final _PaneTool top = _tools.last;
-      return _capped(
-        maxWidth: MqLayout.readableMaxWidth,
-        child: DesktopToolView(
-          key: ValueKey<String>('tool-${_tools.length}-${top.descriptor.id}'),
-          descriptor: top.descriptor,
-          seed: top.seed,
-          onBack: _back,
-          onSwitchTool: _openTool,
-        ),
-      );
-    }
     return switch (_navIndex) {
       1 => _capped(
         maxWidth: MqLayout.readableMaxWidth,
@@ -123,7 +100,7 @@ class _DesktopShellState extends State<DesktopShell> {
       ),
       _ => _capped(
         maxWidth: MqLayout.desktopContentMaxWidth,
-        child: HomeScreen(onOpenTool: _openTool),
+        child: DesktopCanvas(controller: _canvas),
       ),
     };
   }
@@ -141,10 +118,4 @@ class _DesktopShellState extends State<DesktopShell> {
       ),
     );
   }
-}
-
-class _PaneTool {
-  const _PaneTool(this.descriptor, this.seed);
-  final UtilityDescriptor descriptor;
-  final String? seed;
 }
