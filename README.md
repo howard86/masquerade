@@ -6,12 +6,13 @@ A Flutter utility-toolbox app — a digital toolbox for the small everyday conve
 
 ## What's in the toolbox today
 
-Twelve tools, each reachable from the Home screen's inline cards or via search:
+Thirteen tools, each reachable from the Home screen's inline cards or via search:
 
 - **Number Base** — hex / binary / octal / decimal converter with grouped output.
 - **Timestamp** — paste a Unix timestamp (seconds or milliseconds) or an ISO 8601 string; read it back in every other format. Tap any row to copy.
 - **Cron** — translate between cron expressions and natural language, in both directions.
 - **JSON / YAML / TOML** — pretty-print, minify, browse as an interactive tree, and convert between JSON, YAML, and TOML.
+- **JWT** — decode header, payload, and standard claims from a JSON Web Token. Flags expired / not-yet-valid. Decode-only — no signature verification.
 - **Base64** — encode/decode with URL-safe variant; auto-detects which way you meant.
 - **Color** — HEX / RGB / HSL / OKLCH conversion with WCAG contrast scoring.
 - **Math** — expression evaluator with constants and functions (`pi`, `sin`, `log`, …).
