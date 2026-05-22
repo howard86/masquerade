@@ -6,14 +6,26 @@ A Flutter utility-toolbox app — a digital toolbox for the small everyday conve
 
 ## What's in the toolbox today
 
-- **Timestamp** — paste a Unix timestamp (seconds or milliseconds) or an ISO 8601 string; read it back in every other format. Tap any row to copy.
-- **Base64** — encode/decode with URL-safe variant; auto-detects which way you meant.
+Twelve tools, each reachable from the Home screen's inline cards or via search:
+
 - **Number Base** — hex / binary / octal / decimal converter with grouped output.
-- **JSON** — pretty-print, minify, or browse as an interactive tree.
+- **Timestamp** — paste a Unix timestamp (seconds or milliseconds) or an ISO 8601 string; read it back in every other format. Tap any row to copy.
+- **Cron** — translate between cron expressions and natural language, in both directions.
+- **JSON / YAML / TOML** — pretty-print, minify, browse as an interactive tree, and convert between JSON, YAML, and TOML.
+- **Base64** — encode/decode with URL-safe variant; auto-detects which way you meant.
 - **Color** — HEX / RGB / HSL / OKLCH conversion with WCAG contrast scoring.
-- **bps** — basis points ↔ percent ↔ decimal.
+- **Math** — expression evaluator with constants and functions (`pi`, `sin`, `log`, …).
+- **bps · % · decimal** — basis points ↔ percent ↔ decimal.
+- **Bytes** — byte array ↔ text (UTF-8).
+- **List** — split ↔ join with custom separators.
+- **Diff** — compare two texts with line- or word-level granularity.
+- **QR Code** — scan a code with the camera or generate one from text.
+
+Plus, across every tool:
+
 - **Live, debounced parsing** — results update as you type with a 200 ms debounce; unrecognized input surfaces an inline error banner instead of silent failure.
 - **Light / dark / system theme + searchable history** — theme choice and per-tool history persist via `shared_preferences`.
+- **Desktop web canvas** — on wide web (≥ 900 px) the app opens a multi-card canvas: tools open as draggable cards found through a ⌘K command palette, with live links that pipe one tool's output into the next and saved layouts that persist. A sidebar toggle drops back to the mobile view.
 
 ## Requirements
 
