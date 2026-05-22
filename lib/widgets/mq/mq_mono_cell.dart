@@ -1,10 +1,12 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
+import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utils/copy_util.dart';
+import '../desktop/pipe.dart';
 import 'mq_icons.dart';
 
 /// Masquerade mono output cell. Uppercase caption + mono value + optional copy.
@@ -20,6 +22,7 @@ class MqMonoCell extends StatelessWidget {
     this.hint,
     this.large = false,
     this.semanticsLabel,
+    this.pipeType,
   });
 
   final String label;
@@ -29,6 +32,11 @@ class MqMonoCell extends StatelessWidget {
   final String? hint;
   final bool large;
   final String? semanticsLabel;
+
+  /// Canvas-only: when non-null AND a [PipeScope] ancestor is present, the cell
+  /// becomes a long-press drag source emitting a [PipePayload] of this canonical
+  /// type. Null (or no [PipeScope]) leaves the cell exactly as on mobile/Home.
+  final ContentType? pipeType;
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +51,7 @@ class MqMonoCell extends StatelessWidget {
       color: accent ? c.accent : c.textSec,
     );
 
-    return DecoratedBox(
+    final Widget cell = DecoratedBox(
       decoration: BoxDecoration(
         color: accent ? c.accentBg : c.monoBg,
         borderRadius: BorderRadius.circular(MqRadius.sm),
@@ -77,6 +85,58 @@ class MqMonoCell extends StatelessWidget {
               ),
             ],
           ],
+        ),
+      ),
+    );
+
+    // Pipe-drag is canvas-only: inert unless this tool exposes a canonical type
+    // AND the cell is inside a card's PipeScope. Mobile/Home have no scope, so
+    // the cell renders bit-for-bit as before.
+    final PipeScope? scope = pipeType == null
+        ? null
+        : PipeScope.maybeOf(context);
+    if (scope == null) return cell;
+
+    return LongPressDraggable<PipePayload>(
+      data: PipePayload(
+        type: pipeType!,
+        value: value,
+        sourceCardId: scope.cardId,
+      ),
+      dragAnchorStrategy: pointerDragAnchorStrategy,
+      feedback: _PipeChip(value: value),
+      childWhenDragging: Opacity(opacity: 0.4, child: cell),
+      child: cell,
+    );
+  }
+}
+
+/// The compact chip that follows the pointer while a cell is being piped. A
+/// plain [DecoratedBox] + [Text] so it renders under the CupertinoApp overlay
+/// without pulling in any Material chrome.
+class _PipeChip extends StatelessWidget {
+  const _PipeChip({required this.value});
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mq.colors;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: c.accentBg,
+        borderRadius: BorderRadius.circular(MqRadius.sm),
+        border: Border.all(color: c.accent, width: 0.5),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: MqSpacing.md,
+          vertical: 6,
+        ),
+        child: Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: MqTextStyles.monoSm.copyWith(color: c.accent),
         ),
       ),
     );

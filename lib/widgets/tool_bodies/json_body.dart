@@ -460,7 +460,13 @@ class _JSONBodyState extends State<JSONBody> with LinkableToolBody<JSONBody> {
           ],
         ] else if (_output != null) ...<Widget>[
           const MqSectionHeader(label: 'Output'),
-          MqMonoCell(label: _target.cellLabel, value: _output!),
+          MqMonoCell(
+            label: _target.cellLabel,
+            value: _output!,
+            // Canvas-only: the rendered output is plain text — draggable as the
+            // text canonical. Inert on mobile (no PipeScope ancestor).
+            pipeType: ContentType.text,
+          ),
           OpenInFooter(
             output: _footerMinified,
             excludeUtilityId: 'json',
