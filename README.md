@@ -6,8 +6,9 @@ A Flutter utility-toolbox app — a digital toolbox for the small everyday conve
 
 ## What's in the toolbox today
 
-Fifteen tools, each reachable from the Home screen's inline cards or via search:
+Sixteen tools, each reachable from the Home screen's inline cards or via search:
 
+- **UUID** — generate v4 / v7, validate any UUID, inspect version & variant, parse ULID; v1/v7/ULID timestamps cross-link into Timestamp.
 - **IP / CIDR** — parse IPv4 / IPv6 and CIDR blocks; subnet network, broadcast, host range and count, netmask, and scope flags (private / loopback / link-local / multicast / documentation).
 - **Number Base** — hex / binary / octal / decimal converter with grouped output.
 - **Timestamp** — paste a Unix timestamp (seconds or milliseconds) or an ISO 8601 string; read it back in every other format. Tap any row to copy.
