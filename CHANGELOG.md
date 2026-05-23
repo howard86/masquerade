@@ -1,3 +1,9 @@
+## v1.22.0 (2026-05-23)
+
+### Feat
+
+- add IP / CIDR parser tool
+
 ## v1.21.0 (2026-05-23)
 
 ### Feat
