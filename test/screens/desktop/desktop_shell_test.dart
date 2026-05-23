@@ -3,11 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
 import 'package:masquerade/screens/desktop/desktop_shell.dart';
 import 'package:masquerade/state/view_mode_controller.dart';
+import 'package:masquerade/utility_catalog.dart';
+import 'package:masquerade/widgets/desktop/desktop_icon_grid.dart';
 import 'package:masquerade/widgets/desktop/desktop_menubar.dart';
 import 'package:masquerade/widgets/desktop/tool_card_frame.dart';
 import 'package:masquerade/widgets/iphone_frame.dart';
 import 'package:masquerade/widgets/mq/mq_icons.dart';
-import 'package:masquerade/widgets/mq/tool_grid_card.dart';
 import 'package:masquerade/widgets/mq/view_mode_toggle_button.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -38,14 +39,14 @@ void main() {
   });
 
   group('DesktopShell (wide web, desktop mode)', () {
-    testWidgets('renders menubar + tool grid, no sidebar, no iPhone frame', (
+    testWidgets('renders menubar + icon grid, no sidebar, no iPhone frame', (
       WidgetTester tester,
     ) async {
       await _pump(tester, size: _desktop);
       expect(find.byType(DesktopShell), findsOneWidget);
       expect(find.byType(DesktopMenubar), findsOneWidget);
       expect(find.byType(IphoneFrame), findsNothing);
-      expect(find.byType(ToolGridCard), findsWidgets);
+      expect(find.byType(DesktopIconGrid), findsOneWidget);
     });
 
     testWidgets('shell fills the viewport (not height-capped)', (
@@ -61,22 +62,25 @@ void main() {
       WidgetTester tester,
     ) async {
       await _pump(tester, size: _desktop);
-      await tester.tap(find.byType(ToolGridCard).first);
+      final String firstName = UtilityCatalog.all.first.name;
+      await tester.tap(find.text(firstName));
       await tester.pumpAndSettle();
       expect(find.byType(ToolCardFrame), findsOneWidget);
-      expect(find.byType(ToolGridCard), findsNothing);
+      // Icon grid stays visible (always present).
+      expect(find.byType(DesktopIconGrid), findsOneWidget);
 
       await tester.tap(find.byIcon(MqIcons.xmark));
       await tester.pumpAndSettle();
       expect(find.byType(ToolCardFrame), findsNothing);
-      expect(find.byType(ToolGridCard), findsWidgets);
+      expect(find.byType(DesktopIconGrid), findsOneWidget);
     });
 
     testWidgets('canvas auto-restores open cards after a reload', (
       WidgetTester tester,
     ) async {
       await _pump(tester, size: _desktop);
-      await tester.tap(find.byType(ToolGridCard).first);
+      final String firstName = UtilityCatalog.all.first.name;
+      await tester.tap(find.text(firstName));
       await tester.pumpAndSettle();
       expect(find.byType(ToolCardFrame), findsOneWidget);
 

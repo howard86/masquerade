@@ -10,7 +10,6 @@ import '../../theme/mq_density.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
-import '../../utility_catalog.dart';
 import 'command_palette.dart';
 import 'layouts_sheet.dart';
 
@@ -174,8 +173,8 @@ class _DesktopMenubarState extends State<DesktopMenubar> {
   }
 
   Future<void> _openPalette() async {
-    final UtilityDescriptor? u = await showCommandPalette(context);
-    if (u != null && mounted) _c.openTool(u);
+    final PaletteResult? r = await showCommandPalette(context);
+    if (r != null && mounted) _c.openTool(r.tool, seed: r.seed);
   }
 
   void _openLayouts() => showLayoutsSheet(context, _c);

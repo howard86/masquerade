@@ -3,8 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
 import 'package:masquerade/state/view_mode_controller.dart';
 import 'package:masquerade/utility_catalog.dart';
+import 'package:masquerade/widgets/desktop/desktop_icon_grid.dart';
 import 'package:masquerade/widgets/desktop/tool_card_frame.dart';
-import 'package:masquerade/widgets/mq/tool_grid_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -40,7 +40,7 @@ void main() {
       SharedPreferences.setMockInitialValues(<String, Object>{});
     });
 
-    testWidgets('opens from the canvas top bar and opens a second card', (
+    testWidgets('opens from the menubar and opens a card', (
       WidgetTester tester,
     ) async {
       await tester.binding.setSurfaceSize(const Size(1200, 900));
@@ -54,13 +54,13 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Open the first card so the canvas top bar (with the ⌘K pill) appears.
-      await tester.tap(find.byType(ToolGridCard).first);
-      await tester.pumpAndSettle();
-      expect(find.byType(ToolCardFrame), findsOneWidget);
+      // Icon grid is visible.
+      expect(find.byType(DesktopIconGrid), findsOneWidget);
 
-      // Open the palette via its top-bar pill.
-      await tester.tap(find.text('⌘K  Open tool'));
+      // Open the palette via File → New tool…
+      await tester.tap(find.text('File'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('New tool…  ⌘K'));
       await tester.pumpAndSettle();
       expect(find.text('Open a tool…'), findsOneWidget);
 
@@ -70,11 +70,46 @@ void main() {
         'diff',
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Diff'));
+      await tester.tap(find.text('Diff').last);
       await tester.pumpAndSettle();
 
-      // Two cards now live on the canvas.
-      expect(find.byType(ToolCardFrame), findsNWidgets(2));
+      expect(find.byType(ToolCardFrame), findsOneWidget);
+    });
+
+    testWidgets('typing a detectable value shows "Open X with this value"', (
+      WidgetTester tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(1200, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        MyApp(
+          isWebOverride: true,
+          viewModeController: ViewModeController(initial: MqViewMode.desktop),
+          skipSplash: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Open the palette via File → New tool…
+      await tester.tap(find.text('File'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('New tool…  ⌘K'));
+      await tester.pumpAndSettle();
+
+      // Type a UUID — should be detected.
+      await tester.enterText(
+        find.byKey(const ValueKey<String>('command-palette-field')),
+        '550e8400-e29b-41d4-a716-446655440000',
+      );
+      await tester.pumpAndSettle();
+
+      // The detect row should appear.
+      expect(find.text('Open UUID with this value'), findsOneWidget);
+
+      // Tapping it opens the tool seeded.
+      await tester.tap(find.text('Open UUID with this value'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ToolCardFrame), findsOneWidget);
     });
   });
 }

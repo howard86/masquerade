@@ -3,9 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
 import 'package:masquerade/screens/desktop/desktop_shell.dart';
 import 'package:masquerade/state/view_mode_controller.dart';
+import 'package:masquerade/utility_catalog.dart';
+import 'package:masquerade/widgets/desktop/desktop_icon_grid.dart';
 import 'package:masquerade/widgets/desktop/tool_card_frame.dart';
 import 'package:masquerade/widgets/iphone_frame.dart';
-import 'package:masquerade/widgets/mq/tool_grid_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const Size _desktop = Size(1200, 900);
@@ -31,8 +32,9 @@ void main() {
   group('DesktopMenubar', () {
     testWidgets('Close All clears open cards', (WidgetTester tester) async {
       await _pump(tester);
-      // Open a card first.
-      await tester.tap(find.byType(ToolGridCard).first);
+      // Open a card first via icon tile.
+      final String firstName = UtilityCatalog.all.first.name;
+      await tester.tap(find.text(firstName));
       await tester.pumpAndSettle();
       expect(find.byType(ToolCardFrame), findsOneWidget);
 
@@ -42,7 +44,7 @@ void main() {
       await tester.tap(find.text('Close All').last);
       await tester.pumpAndSettle();
       expect(find.byType(ToolCardFrame), findsNothing);
-      expect(find.byType(ToolGridCard), findsWidgets);
+      expect(find.byType(DesktopIconGrid), findsOneWidget);
     });
 
     testWidgets('Mobile view fires the view-mode change', (
