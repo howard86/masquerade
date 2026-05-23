@@ -56,6 +56,55 @@ void main() {
       expect(c.length, 1);
       expect(c.cards.single.descriptor.id, 'json');
     });
+
+    test('old snapshot without z/minimized/maximized loads with defaults', () {
+      final CanvasController c = CanvasController();
+      final Map<String, dynamic> oldJson = <String, dynamic>{
+        'nextId': 3,
+        'focused': 1,
+        'cards': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'id': 1,
+            'tool': 'json',
+            'x': 50,
+            'y': 60,
+            'w': 400.0,
+          },
+          <String, dynamic>{
+            'id': 2,
+            'tool': 'timestamp',
+            'x': 100,
+            'y': 100,
+            'w': 380.0,
+          },
+        ],
+      };
+      c.applyJson(oldJson);
+
+      expect(c.length, 2);
+      expect(c.cards[0].z, 1); // defaults to id
+      expect(c.cards[1].z, 2);
+      expect(c.cards[0].minimized, isFalse);
+      expect(c.cards[0].maximized, isFalse);
+      expect(c.cards[0].height, isNull);
+      expect(c.cards[0].restoreBounds, isNull);
+    });
+
+    test('round-trips z, minimized, maximized, height, restoreBounds', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(json);
+      c.openTool(timestamp);
+      c.maximize(a, x: 0, y: 0, width: 1200, height: 800);
+      c.minimize(c.cards[1].id);
+
+      final CanvasController restored = CanvasController()
+        ..applyJson(c.toJson());
+
+      expect(restored.cards[0].maximized, isTrue);
+      expect(restored.cards[0].height, 800);
+      expect(restored.cards[0].restoreBounds, isNotNull);
+      expect(restored.cards[1].minimized, isTrue);
+    });
   });
 
   group('auto-restore via prefs', () {
