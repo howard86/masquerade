@@ -15,6 +15,7 @@ import 'utils/json_parser.dart';
 import 'utils/jwt_parser.dart';
 import 'utils/number_base_parser.dart';
 import 'utils/toml_parser.dart';
+import 'utils/uuid_parser.dart';
 import 'utils/yaml_parser.dart';
 import 'widgets/mq/mq_icons.dart';
 import 'widgets/mq/tool_action_bar.dart';
@@ -34,6 +35,7 @@ import 'widgets/tool_bodies/number_base_body.dart';
 import 'widgets/tool_bodies/qr_code_body.dart';
 import 'widgets/tool_bodies/seed_source.dart';
 import 'widgets/tool_bodies/timestamp_body.dart';
+import 'widgets/tool_bodies/uuid_body.dart';
 
 /// Routes a cross-tool "Open in X" tap from any tool body's footer back to
 /// the host screen, which expands the target tool's inline card seeded with
@@ -112,6 +114,30 @@ class UtilityCatalog {
   const UtilityCatalog._();
 
   static final List<UtilityDescriptor> all = <UtilityDescriptor>[
+    UtilityDescriptor(
+      id: 'uuid',
+      name: 'UUID',
+      description: 'Generate · validate · v4 / v7 / ULID',
+      icon: MqIcons.uuid,
+      tint: const Color(0xFF14B8A6),
+      synonyms: <String>['uuid', 'guid', 'ulid', 'identifier'],
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            SeedSource seedSource = SeedSource.none,
+            OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
+            LinkChannel? link,
+          }) => UuidBody(
+            initialInput: initialInput,
+            seedSource: seedSource,
+            onSwitchTool: onSwitchTool,
+            actionBar: actionBar,
+            link: link,
+          ),
+      detect: _detectUuid,
+    ),
     UtilityDescriptor(
       id: 'ip',
       name: 'IP / CIDR',
@@ -596,6 +622,23 @@ class UtilityCatalog {
 
 final RegExp _ipv4Cidr = RegExp(r'^(\d{1,3}\.){3}\d{1,3}(/\d{1,2})?$');
 final RegExp _ipv6Cidr = RegExp(r'^[0-9A-Fa-f:]+(/\d{1,3})?$');
+
+final RegExp _uuidDashed = RegExp(
+  r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+);
+final RegExp _uuidPlain = RegExp(r'^[0-9a-fA-F]{32}$');
+final RegExp _ulidShape = RegExp(r'^[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}$');
+
+bool _detectUuid(String input) {
+  final String t = input.trim();
+  if (!_uuidDashed.hasMatch(t) &&
+      !_uuidPlain.hasMatch(t) &&
+      !_ulidShape.hasMatch(t)) {
+    return false;
+  }
+  final UuidParseResult r = UuidParser.parse(t);
+  return r is UuidOk || r is UlidOk;
+}
 
 bool _detectIp(String input) {
   final String t = input.trim();
