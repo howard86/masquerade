@@ -4,16 +4,13 @@ import 'package:flutter/services.dart';
 
 import '../../state/canvas_controller.dart';
 import '../../state/link_group.dart';
-import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
-import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
 import '../../widgets/desktop/command_palette.dart';
+import '../../widgets/desktop/desktop_icon_grid.dart';
 import '../../widgets/desktop/pipe.dart';
 import '../../widgets/desktop/tool_card_frame.dart';
-import '../../widgets/mq/mq_icons.dart';
 import '../../widgets/tool_bodies/seed_source.dart';
-import '../home_screen.dart';
 
 /// Header-toggle link pairings (see docs/adr/0001): a card's link button opens
 /// this fixed partner tool and links the two on one canonical type. Keyed by
@@ -48,9 +45,10 @@ const Map<String, Set<ContentType>> _linkableTypes = <String, Set<ContentType>>{
   'color': <ContentType>{ContentType.color, ContentType.text},
 };
 
-/// The desktop Home surface: a multi-card canvas. When no cards are open it
-/// shows the familiar Home grid (so a tile-tap opens the first card); once a
-/// card is open it switches to the pannable canvas with a compact top bar.
+/// The desktop work surface: a pannable canvas hosting the fixed
+/// [DesktopIconGrid] (single-click an icon to open a tool) with draggable tool
+/// cards floating above it. Menubar items cover ⌘K / paste / close-all, so the
+/// canvas carries no chrome of its own.
 ///
 /// Owns no state itself beyond the pan offset — the open cards live in the
 /// injected [CanvasController] so the shell can keep them across nav switches
@@ -104,17 +102,8 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
   }
 
   Future<void> _openViaPalette() async {
-    final UtilityDescriptor? u = await showCommandPalette(context);
-    if (u != null && mounted) _c.openTool(u);
-  }
-
-  Future<void> _pasteOpen() async {
-    final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
-    final String? text = data?.text;
-    if (text == null || text.isEmpty || !mounted) return;
-    final List<UtilityDescriptor> matches = UtilityCatalog.detectAll(text);
-    if (matches.isEmpty) return;
-    _c.openTool(matches.first, seed: text);
+    final PaletteResult? r = await showCommandPalette(context);
+    if (r != null && mounted) _c.openTool(r.tool, seed: r.seed);
   }
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
@@ -153,22 +142,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
       focusNode: _focusNode,
       autofocus: true,
       onKeyEvent: _onKey,
-      child: _c.isEmpty
-          ? HomeScreen(
-              onOpenTool: (UtilityDescriptor u, String seed) =>
-                  _c.openTool(u, seed: seed),
-            )
-          : Column(
-              children: <Widget>[
-                _CanvasTopBar(
-                  count: _c.length,
-                  onPalette: _openViaPalette,
-                  onPaste: _pasteOpen,
-                  onCloseAll: _c.closeAll,
-                ),
-                Expanded(child: _surface(context)),
-              ],
-            ),
+      child: _surface(context),
     );
   }
 
@@ -201,6 +175,15 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
                         painter: _DotGridPainter(color: c.border, offset: _pan),
                       ),
                     ),
+              ),
+            ),
+            // Icon grid: fixed (no pan offset), above dot-grid, below cards.
+            Positioned.fill(
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: DesktopIconGrid(
+                  onOpen: (UtilityDescriptor u) => _c.openTool(u),
+                ),
               ),
             ),
             // Gold tether drawn behind the cards for each Link group.
@@ -356,94 +339,6 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
 
   Offset _anchor(CanvasCard card) =>
       Offset(card.x + _pan.dx + card.width / 2, card.y + _pan.dy + 18);
-}
-
-class _CanvasTopBar extends StatelessWidget {
-  const _CanvasTopBar({
-    required this.count,
-    required this.onPalette,
-    required this.onPaste,
-    required this.onCloseAll,
-  });
-
-  final int count;
-  final VoidCallback onPalette;
-  final VoidCallback onPaste;
-  final VoidCallback onCloseAll;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.mq.colors;
-    return Container(
-      decoration: BoxDecoration(
-        color: c.surface,
-        border: Border(bottom: BorderSide(color: c.border, width: 0.5)),
-      ),
-      padding: const EdgeInsets.symmetric(
-        horizontal: MqSpacing.lg,
-        vertical: MqSpacing.sm,
-      ),
-      child: Row(
-        children: <Widget>[
-          Text(
-            'Canvas',
-            style: MqTextStyles.sectionLabel.copyWith(color: c.textTer),
-          ),
-          const SizedBox(width: MqSpacing.lg),
-          _Pill(icon: MqIcons.search, label: '⌘K  Open tool', onTap: onPalette),
-          const SizedBox(width: MqSpacing.sm),
-          _Pill(icon: MqIcons.paste, label: 'Paste', onTap: onPaste),
-          const Spacer(),
-          Text(
-            '$count ${count == 1 ? 'card' : 'cards'}',
-            style: MqTextStyles.monoSm.copyWith(color: c.textTer),
-          ),
-          const SizedBox(width: MqSpacing.md),
-          _Pill(icon: MqIcons.trash, label: 'Close all', onTap: onCloseAll),
-        ],
-      ),
-    );
-  }
-}
-
-class _Pill extends StatelessWidget {
-  const _Pill({required this.icon, required this.label, required this.onTap});
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.mq.colors;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: MqSpacing.md,
-            vertical: MqSpacing.xs + 2,
-          ),
-          decoration: BoxDecoration(
-            border: Border.all(color: c.borderStrong, width: 0.5),
-            borderRadius: BorderRadius.circular(MqRadius.sm),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Icon(icon, size: 13, color: c.textSec),
-              const SizedBox(width: MqSpacing.xs + 2),
-              Text(
-                label,
-                style: MqTextStyles.caption1.copyWith(color: c.textSec),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 /// Subtle dot grid that scrolls with the canvas pan, echoing the design mock.
