@@ -1,3 +1,10 @@
+## v1.23.0 (2026-05-23)
+
+### Feat
+
+- add Generator tool (password / token / UUID)
+- add UUID / ULID parser tool
+
 ## v1.22.0 (2026-05-23)
 
 ### Feat
