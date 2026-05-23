@@ -51,4 +51,5 @@ class MqIcons {
   static const IconData monitor = LucideIcons.monitor;
   static const IconData smartphone = LucideIcons.smartphone;
   static const IconData key = LucideIcons.key_round;
+  static const IconData network = LucideIcons.network;
 }
