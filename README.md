@@ -6,7 +6,7 @@ A Flutter utility-toolbox app — a digital toolbox for the small everyday conve
 
 ## What's in the toolbox today
 
-Thirteen tools, each reachable from the Home screen's inline cards or via search:
+Fourteen tools, each reachable from the Home screen's inline cards or via search:
 
 - **Number Base** — hex / binary / octal / decimal converter with grouped output.
 - **Timestamp** — paste a Unix timestamp (seconds or milliseconds) or an ISO 8601 string; read it back in every other format. Tap any row to copy.
@@ -20,6 +20,7 @@ Thirteen tools, each reachable from the Home screen's inline cards or via search
 - **Bytes** — byte array ↔ text (UTF-8).
 - **List** — split ↔ join with custom separators.
 - **Diff** — compare two texts with line- or word-level granularity.
+- **Hash** — MD5 / SHA-1 / SHA-256 / SHA-512 digests with verify mode.
 - **QR Code** — scan a code with the camera or generate one from text.
 
 Plus, across every tool:
