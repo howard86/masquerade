@@ -38,20 +38,6 @@ class MqLayout {
   /// to the mobile UI with no toggle.
   static const double desktopBreakpoint = 900;
 
-  /// Fixed width of the desktop shell's left navigation sidebar.
-  static const double sidebarWidth = 248;
-
-  /// Max width of the whole desktop shell (sidebar + content). Beyond this the
-  /// shell stops growing and centers on the page background, so the app reads
-  /// as a tidy window instead of stretching adrift across an ultrawide monitor.
-  static const double desktopShellMaxWidth = 1440;
-
-  /// Max height of the whole desktop shell window. Beyond this the shell stops
-  /// growing and centers vertically, so it reads as a contained, bordered
-  /// window rather than stretching to fill tall viewports. Echoes the iPhone
-  /// frame height so desktop and mobile-frame modes feel like the same window.
-  static const double desktopShellMaxHeight = 820;
-
   /// Max width of the desktop Home content (tool grid) before it stops growing
   /// and centers — keeps tiles from stretching on ultrawide monitors.
   static const double desktopContentMaxWidth = 1100;
@@ -63,6 +49,9 @@ class MqLayout {
   /// Target max width of a Home tool tile; the grid derives its column count
   /// from this so phones get 2 columns and the desktop pane gets 3–4.
   static const double tileMaxExtent = 260;
+
+  /// Fixed height of the desktop Mac-style menubar.
+  static const double menubarHeight = 28;
 }
 
 /// Editorial reading-pace motion. Asymmetric reveal/dismiss — no overshoot.

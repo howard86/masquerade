@@ -51,7 +51,7 @@ class _RootTabScaffoldState extends State<RootTabScaffold> {
           viewMode: viewMode,
         );
         if (layout == MqShellLayout.desktop) {
-          return const DesktopShell();
+          return DesktopShell(isWebOverride: widget.isWebOverride);
         }
         return _buildTabScaffold(context);
       },

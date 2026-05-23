@@ -178,7 +178,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     return ClipRect(
       child: ColoredBox(
         key: _surfaceKey,
-        color: c.bg,
+        color: const Color(0x00000000),
         child: Stack(
           children: <Widget>[
             // Background: drag on empty space to pan; dot grid scrolls with it.
