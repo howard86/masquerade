@@ -8,7 +8,6 @@ import 'package:masquerade/widgets/desktop/desktop_icon_grid.dart';
 import 'package:masquerade/widgets/desktop/desktop_menubar.dart';
 import 'package:masquerade/widgets/desktop/tool_card_frame.dart';
 import 'package:masquerade/widgets/iphone_frame.dart';
-import 'package:masquerade/widgets/mq/mq_icons.dart';
 import 'package:masquerade/widgets/mq/view_mode_toggle_button.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -69,7 +68,7 @@ void main() {
       // Icon grid stays visible (always present).
       expect(find.byType(DesktopIconGrid), findsOneWidget);
 
-      await tester.tap(find.byIcon(MqIcons.xmark));
+      await tester.tap(find.bySemanticsLabel('Close (Esc)'));
       await tester.pumpAndSettle();
       expect(find.byType(ToolCardFrame), findsNothing);
       expect(find.byType(DesktopIconGrid), findsOneWidget);

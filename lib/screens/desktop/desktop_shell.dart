@@ -3,8 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../state/canvas_controller.dart';
+import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../utility_catalog.dart';
+import '../../widgets/desktop/desktop_dock.dart';
 import '../../widgets/desktop/desktop_menubar.dart';
 import '../../widgets/desktop/desktop_wallpaper.dart';
 import '../history_screen.dart';
@@ -97,6 +99,18 @@ class _DesktopShellState extends State<DesktopShell> {
               children: <Widget>[
                 const Positioned.fill(child: DesktopWallpaper()),
                 Positioned.fill(child: DesktopCanvas(controller: _canvas)),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: MqSpacing.md,
+                  child: Center(
+                    child: ListenableBuilder(
+                      listenable: _canvas,
+                      builder: (BuildContext context, Widget? _) =>
+                          DesktopDock(controller: _canvas),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

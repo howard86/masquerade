@@ -148,7 +148,9 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
 
   Widget _surface(BuildContext context) {
     final c = context.mq.colors;
-    final List<CanvasCard> cards = _c.cards;
+    // Paint in z-order; compute slot from open-order index.
+    final List<CanvasCard> zCards = _c.cardsByZ;
+    final List<CanvasCard> openOrder = _c.cards;
     return ClipRect(
       child: ColoredBox(
         key: _surfaceKey,
@@ -156,9 +158,6 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
         child: Stack(
           children: <Widget>[
             // Background: drag on empty space to pan; dot grid scrolls with it.
-            // A DragTarget overlays the pan gesture so a cell dropped on empty
-            // space opens a new seeded card. DragTarget doesn't consume pans, so
-            // the empty-space pan stays live.
             Positioned.fill(
               child: DragTarget<PipePayload>(
                 onAcceptWithDetails: _onDropOnCanvas,
@@ -192,26 +191,31 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
                 child: IgnorePointer(
                   child: CustomPaint(
                     painter: _LinkLinePainter(
-                      segments: _linkSegments(cards),
+                      segments: _linkSegments(openOrder),
                       color: c.warning,
                     ),
                   ),
                 ),
               ),
-            for (int i = 0; i < cards.length; i++)
-              Positioned(
-                // Key the Positioned itself (not just the inner SizedBox) so a
-                // card's State survives sibling inserts/removes — the gold-line
-                // painter shifts child indices, and closing a middle card would
-                // otherwise rebind the wrong element.
-                key: ValueKey<int>(cards[i].id),
-                left: cards[i].x + _pan.dx,
-                top: cards[i].y + _pan.dy,
-                child: SizedBox(
-                  width: cards[i].width,
-                  child: _cardFrame(cards[i], slot: i + 1),
+            for (final CanvasCard card in zCards)
+              if (!card.minimized)
+                Positioned(
+                  key: ValueKey<int>(card.id),
+                  left: card.x + _pan.dx,
+                  top: card.y + _pan.dy,
+                  child: SizedBox(
+                    width: card.width,
+                    height: card.height,
+                    child: _cardFrame(
+                      card,
+                      slot:
+                          openOrder.indexWhere(
+                            (CanvasCard c) => c.id == card.id,
+                          ) +
+                          1,
+                    ),
+                  ),
                 ),
-              ),
           ],
         ),
       ),
@@ -246,18 +250,19 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
       descriptor: card.descriptor,
       slot: slot <= 9 ? slot : null,
       focused: _c.focusedId == card.id,
+      maximized: card.maximized,
+      height: card.height,
       onFocus: () => _c.focus(card.id),
       onClose: () => _c.close(card.id),
+      onMinimize: () => _c.minimize(card.id),
+      onToggleMaximize: () => _toggleMax(card),
       onDuplicate: () => _c.duplicate(card.id),
       onMoveDelta: (Offset d) =>
           _c.moveTo(card.id, card.x + d.dx, card.y + d.dy),
-      onMoveEnd: _c.commit,
+      onMoveEnd: () => _onMoveEnd(card),
       onResizeDelta: (double dx) => _c.resize(card.id, card.width + dx),
       onResizeEnd: _c.commit,
       linked: linked,
-      // A linked card always offers Unlink — even one linked by drop-to-link
-      // with no fixed [partner]. An unlinked card with a partner offers Open.
-      // An unlinked card with no partner has no toggle.
       linkTooltip: linked
           ? 'Unlink'
           : partner == null
@@ -266,8 +271,6 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
       onLink: (linked || partner != null)
           ? () => _toggleLink(card, partner)
           : null,
-      // PipeScope tells this card's output cells their source id and that pipe
-      // mode is active; absent on mobile/Home so cells stay inert there.
       child: PipeScope(
         cardId: card.id,
         child: card.descriptor.builder(
@@ -281,7 +284,6 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
         ),
       ),
     );
-    // Drop a cell onto this card → live link the two (reuses the proven engine).
     return DragTarget<PipePayload>(
       onWillAcceptWithDetails: (DragTargetDetails<PipePayload> d) =>
           d.data.sourceCardId != card.id &&
@@ -299,6 +301,65 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
             List<dynamic> rejected,
           ) => frame,
     );
+  }
+
+  /// Edge-snap threshold in logical pixels.
+  static const double _snapThreshold = 16;
+
+  void _onMoveEnd(CanvasCard card) {
+    final Size? size = _canvasSize;
+    if (size != null) {
+      // Check edge-snap: left, right, top.
+      if (card.x <= _snapThreshold) {
+        _c.snap(
+          card.id,
+          x: 0,
+          y: 0,
+          width: size.width / 2,
+          height: size.height,
+        );
+        return;
+      }
+      if (card.x + card.width >= size.width - _snapThreshold) {
+        _c.snap(
+          card.id,
+          x: size.width / 2,
+          y: 0,
+          width: size.width / 2,
+          height: size.height,
+        );
+        return;
+      }
+      if (card.y <= _snapThreshold) {
+        _c.maximize(
+          card.id,
+          x: 0,
+          y: 0,
+          width: size.width,
+          height: size.height,
+        );
+        return;
+      }
+    }
+    _c.commit();
+  }
+
+  void _toggleMax(CanvasCard card) {
+    final Size? size = _canvasSize;
+    if (size == null) return;
+    _c.toggleMaximize(
+      card.id,
+      x: 0,
+      y: 0,
+      width: size.width,
+      height: size.height,
+    );
+  }
+
+  Size? get _canvasSize {
+    final RenderBox? box =
+        _surfaceKey.currentContext?.findRenderObject() as RenderBox?;
+    return box?.size;
   }
 
   /// Toggles the header link on [card]: unlinks if already linked (works even

@@ -118,6 +118,160 @@ void main() {
 
       expect(c.focusedId, a);
     });
+
+    test('focusSlot restores a minimized card', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(timestamp);
+      c.minimize(a);
+
+      c.focusSlot(1);
+
+      expect(c.cards.single.minimized, isFalse);
+      expect(c.focusedId, a);
+    });
+  });
+
+  group('z-order', () {
+    test('focus raises card z while slot order stays stable', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(timestamp);
+      final int b = c.openTool(json);
+      // b was opened last, so it has higher z.
+      expect(c.cards[0].id, a); // slot order unchanged
+      expect(c.cards[1].id, b);
+
+      c.focus(a);
+      // a now has the highest z.
+      final List<CanvasCard> byZ = c.cardsByZ;
+      expect(byZ.last.id, a);
+      // Slot order unchanged.
+      expect(c.cards[0].id, a);
+      expect(c.cards[1].id, b);
+    });
+
+    test('cardsByZ returns cards sorted by z ascending', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(timestamp);
+      final int b = c.openTool(json);
+      final int d = c.openTool(diff);
+      c.focus(a); // a raised to top
+
+      final List<CanvasCard> byZ = c.cardsByZ;
+      expect(byZ[0].id, b);
+      expect(byZ[1].id, d);
+      expect(byZ[2].id, a);
+    });
+  });
+
+  group('minimize / restore', () {
+    test('minimize hides card and shifts focus', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(timestamp);
+      final int b = c.openTool(json);
+      c.focus(a);
+
+      c.minimize(a);
+
+      expect(c.cards[0].minimized, isTrue);
+      expect(c.focusedId, b); // focus fell to next visible
+    });
+
+    test('restore shows card and focuses it', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(timestamp);
+      c.openTool(json);
+      c.minimize(a);
+
+      c.restoreWindow(a);
+
+      expect(c.cards[0].minimized, isFalse);
+      expect(c.focusedId, a);
+    });
+
+    test('minimize all clears focus', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(timestamp);
+      c.minimize(a);
+
+      expect(c.focusedId, isNull);
+    });
+  });
+
+  group('maximize / unmaximize', () {
+    test('maximize saves restoreBounds and sets geometry', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(timestamp);
+      c.moveTo(a, 100, 50);
+
+      c.maximize(a, x: 0, y: 0, width: 1200, height: 800);
+
+      final CanvasCard card = c.cards.single;
+      expect(card.maximized, isTrue);
+      expect(card.x, 0);
+      expect(card.y, 0);
+      expect(card.width, 1200);
+      expect(card.height, 800);
+      expect(card.restoreBounds, isNotNull);
+      expect(card.restoreBounds!.x, 100);
+      expect(card.restoreBounds!.y, 50);
+    });
+
+    test('unmaximize restores saved bounds', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(timestamp);
+      c.moveTo(a, 100, 50);
+      c.maximize(a, x: 0, y: 0, width: 1200, height: 800);
+
+      c.unmaximize(a);
+
+      final CanvasCard card = c.cards.single;
+      expect(card.maximized, isFalse);
+      expect(card.x, 100);
+      expect(card.y, 50);
+      expect(card.restoreBounds, isNull);
+    });
+
+    test('toggleMaximize toggles between states', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(timestamp);
+
+      c.toggleMaximize(a, x: 0, y: 0, width: 1200, height: 800);
+      expect(c.cards.single.maximized, isTrue);
+
+      c.toggleMaximize(a, x: 0, y: 0, width: 1200, height: 800);
+      expect(c.cards.single.maximized, isFalse);
+      expect(c.cards.single.restoreBounds, isNull);
+    });
+  });
+
+  group('snap', () {
+    test('snap sets half-bounds and saves restoreBounds', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(timestamp);
+      c.moveTo(a, 100, 50);
+
+      c.snap(a, x: 0, y: 0, width: 600, height: 800);
+
+      final CanvasCard card = c.cards.single;
+      expect(card.maximized, isFalse);
+      expect(card.x, 0);
+      expect(card.width, 600);
+      expect(card.height, 800);
+      expect(card.restoreBounds!.x, 100);
+    });
+
+    test('unmaximize after snap restores original bounds', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(timestamp);
+      c.moveTo(a, 100, 50);
+      c.snap(a, x: 0, y: 0, width: 600, height: 800);
+
+      c.unmaximize(a);
+
+      expect(c.cards.single.x, 100);
+      expect(c.cards.single.y, 50);
+      expect(c.cards.single.restoreBounds, isNull);
+    });
   });
 
   group('moveTo', () {
