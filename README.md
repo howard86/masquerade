@@ -6,7 +6,7 @@ A Flutter utility-toolbox app — a digital toolbox for the small everyday conve
 
 ## What's in the toolbox today
 
-Sixteen tools, each reachable from the Home screen's inline cards or via search:
+Seventeen tools, each reachable from the Home screen's inline cards or via search:
 
 - **UUID** — generate v4 / v7, validate any UUID, inspect version & variant, parse ULID; v1/v7/ULID timestamps cross-link into Timestamp.
 - **IP / CIDR** — parse IPv4 / IPv6 and CIDR blocks; subnet network, broadcast, host range and count, netmask, and scope flags (private / loopback / link-local / multicast / documentation).
@@ -24,6 +24,7 @@ Sixteen tools, each reachable from the Home screen's inline cards or via search:
 - **Diff** — compare two texts with line- or word-level granularity.
 - **Hash** — MD5 / SHA-1 / SHA-256 / SHA-512 digests with verify mode.
 - **QR Code** — scan a code with the camera or generate one from text.
+- **Generator** — generate secure passwords (configurable length + character sets), random tokens (hex / base64url / alphanumeric), and UUIDs (v4 / v7).
 
 Plus, across every tool:
 

@@ -25,6 +25,7 @@ import 'widgets/tool_bodies/bytes_body.dart';
 import 'widgets/tool_bodies/color_body.dart';
 import 'widgets/tool_bodies/cron_body.dart';
 import 'widgets/tool_bodies/diff_body.dart';
+import 'widgets/tool_bodies/generator_body.dart';
 import 'widgets/tool_bodies/hash_body.dart';
 import 'widgets/tool_bodies/ip_body.dart';
 import 'widgets/tool_bodies/json_body.dart';
@@ -527,6 +528,39 @@ class UtilityCatalog {
           ),
       detect: _detectQrCode,
     ),
+    UtilityDescriptor(
+      id: 'generator',
+      name: 'Generator',
+      description: 'Password · token · UUID',
+      icon: MqIcons.dices,
+      tint: const Color(0xFFF97316),
+      synonyms: <String>[
+        'generate',
+        'random',
+        'password',
+        'token',
+        'secret',
+        'key',
+        'nonce',
+        'salt',
+      ],
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            SeedSource seedSource = SeedSource.none,
+            OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
+            LinkChannel? link,
+          }) => GeneratorBody(
+            initialInput: initialInput,
+            seedSource: seedSource,
+            onSwitchTool: onSwitchTool,
+            actionBar: actionBar,
+            link: link,
+          ),
+      detect: _detectGenerator,
+    ),
   ];
 
   static UtilityDescriptor byId(String id) =>
@@ -761,6 +795,10 @@ bool _detectHash(String input) {
 
 // QR has no input shape — entry is via grid tile or the home scan button.
 bool _detectQrCode(String _) => false;
+
+// Generator produces output from controls; it has no input to detect. Entry is
+// via the Home grid tile or Search.
+bool _detectGenerator(String _) => false;
 
 // Diff compares two inputs; a single typed/pasted value can't trigger it.
 // Entry is via the Home grid tile or Search.
