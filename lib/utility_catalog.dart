@@ -10,6 +10,7 @@ import 'utils/cron_nl_parser.dart';
 import 'utils/cron_parser.dart';
 import 'utils/encoding_parser.dart';
 import 'utils/hash_parser.dart';
+import 'utils/ip_parser.dart';
 import 'utils/json_parser.dart';
 import 'utils/jwt_parser.dart';
 import 'utils/number_base_parser.dart';
@@ -24,6 +25,7 @@ import 'widgets/tool_bodies/color_body.dart';
 import 'widgets/tool_bodies/cron_body.dart';
 import 'widgets/tool_bodies/diff_body.dart';
 import 'widgets/tool_bodies/hash_body.dart';
+import 'widgets/tool_bodies/ip_body.dart';
 import 'widgets/tool_bodies/json_body.dart';
 import 'widgets/tool_bodies/jwt_body.dart';
 import 'widgets/tool_bodies/list_body.dart';
@@ -110,6 +112,30 @@ class UtilityCatalog {
   const UtilityCatalog._();
 
   static final List<UtilityDescriptor> all = <UtilityDescriptor>[
+    UtilityDescriptor(
+      id: 'ip',
+      name: 'IP / CIDR',
+      description: 'IPv4 · IPv6 · subnet info',
+      icon: MqIcons.network,
+      tint: const Color(0xFF10B981),
+      synonyms: <String>['ip', 'ipv4', 'ipv6', 'cidr', 'subnet', 'netmask'],
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            SeedSource seedSource = SeedSource.none,
+            OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
+            LinkChannel? link,
+          }) => IpBody(
+            initialInput: initialInput,
+            seedSource: seedSource,
+            onSwitchTool: onSwitchTool,
+            actionBar: actionBar,
+            link: link,
+          ),
+      detect: _detectIp,
+    ),
     UtilityDescriptor(
       id: 'number_base',
       name: 'Number Base',
@@ -566,6 +592,18 @@ class UtilityCatalog {
     }
     return 0;
   }
+}
+
+final RegExp _ipv4Cidr = RegExp(r'^(\d{1,3}\.){3}\d{1,3}(/\d{1,2})?$');
+final RegExp _ipv6Cidr = RegExp(r'^[0-9A-Fa-f:]+(/\d{1,3})?$');
+
+bool _detectIp(String input) {
+  final String t = input.trim();
+  if (_ipv4Cidr.hasMatch(t)) return IpParser.parse(t) is IpOk;
+  if (t.contains(':') && _ipv6Cidr.hasMatch(t)) {
+    return IpParser.parse(t) is IpOk;
+  }
+  return false;
 }
 
 bool _detectStructured(String input) {
