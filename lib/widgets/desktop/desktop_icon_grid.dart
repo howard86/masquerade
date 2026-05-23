@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../state/window_content.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
@@ -9,9 +10,14 @@ import '../../utility_catalog.dart';
 /// is clickable (single-click opens); gaps between tiles are transparent to
 /// pointer events so the canvas pan gesture still works.
 class DesktopIconGrid extends StatelessWidget {
-  const DesktopIconGrid({super.key, required this.onOpen});
+  const DesktopIconGrid({
+    super.key,
+    required this.onOpen,
+    required this.onOpenSystem,
+  });
 
   final void Function(UtilityDescriptor descriptor) onOpen;
+  final void Function(SystemApp app) onOpenSystem;
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +29,67 @@ class DesktopIconGrid extends StatelessWidget {
         children: <Widget>[
           for (final UtilityDescriptor d in UtilityCatalog.all)
             _DesktopIconTile(descriptor: d, onOpen: () => onOpen(d)),
+          for (final SystemApp app in SystemApp.values)
+            _SystemIconTile(app: app, onOpen: () => onOpenSystem(app)),
         ],
+      ),
+    );
+  }
+}
+
+/// A single system-app icon tile (History / Settings).
+class _SystemIconTile extends StatefulWidget {
+  const _SystemIconTile({required this.app, required this.onOpen});
+
+  final SystemApp app;
+  final VoidCallback onOpen;
+
+  @override
+  State<_SystemIconTile> createState() => _SystemIconTileState();
+}
+
+class _SystemIconTileState extends State<_SystemIconTile> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mq.colors;
+    final SystemWindow sw = SystemWindow(widget.app);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onOpen,
+        child: SizedBox(
+          width: 84,
+          height: 84,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: _hovered ? c.accentBg : null,
+                  borderRadius: BorderRadius.circular(MqRadius.sm),
+                ),
+                child: Icon(sw.icon, size: 24, color: sw.tint),
+              ),
+              const SizedBox(height: MqSpacing.xs),
+              Text(
+                sw.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: MqTextStyles.caption2.copyWith(
+                  color: c.textPri,
+                  fontWeight: _hovered ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

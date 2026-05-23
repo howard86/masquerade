@@ -61,7 +61,7 @@ void main() {
       expect(find.byType(DesktopShell), findsNothing);
     });
 
-    testWidgets('⏻ → History… opens the History dialog', (
+    testWidgets('⏻ → History… opens a History window', (
       WidgetTester tester,
     ) async {
       await _pump(tester);
@@ -69,8 +69,9 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('History…'));
       await tester.pumpAndSettle();
-      // The full-screen dialog wrapper shows a "Done" control to dismiss.
-      expect(find.text('Done'), findsOneWidget);
+      // History opens as a first-class window with traffic lights.
+      expect(find.byType(ToolCardFrame), findsOneWidget);
+      expect(find.text('History'), findsWidgets);
     });
 
     testWidgets('displays a live clock', (WidgetTester tester) async {

@@ -3,14 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../state/canvas_controller.dart';
+import '../../state/window_content.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../utility_catalog.dart';
 import '../../widgets/desktop/desktop_dock.dart';
 import '../../widgets/desktop/desktop_menubar.dart';
 import '../../widgets/desktop/desktop_wallpaper.dart';
-import '../history_screen.dart';
-import '../settings_screen.dart';
 import 'desktop_canvas.dart';
 
 /// Full-bleed desktop shell: a Mac-style [DesktopMenubar] pinned at the top,
@@ -60,25 +59,11 @@ class _DesktopShellState extends State<DesktopShell> {
   }
 
   void _openSettings() {
-    Navigator.of(context, rootNavigator: true).push<void>(
-      CupertinoPageRoute<void>(
-        fullscreenDialog: true,
-        builder: (_) => _DialogWrapper(
-          title: 'Settings',
-          child: SettingsScreen(isWebOverride: widget.isWebOverride),
-        ),
-      ),
-    );
+    _canvas.openSystem(SystemApp.settings);
   }
 
   void _openHistory() {
-    Navigator.of(context, rootNavigator: true).push<void>(
-      CupertinoPageRoute<void>(
-        fullscreenDialog: true,
-        builder: (_) =>
-            const _DialogWrapper(title: 'History', child: HistoryScreen()),
-      ),
-    );
+    _canvas.openSystem(SystemApp.history);
   }
 
   @override
@@ -116,31 +101,6 @@ class _DesktopShellState extends State<DesktopShell> {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Thin wrapper for full-screen dialog routes (Settings, History). Provides a
-/// [CupertinoNavigationBar] with a Done button that pops the route.
-class _DialogWrapper extends StatelessWidget {
-  const _DialogWrapper({required this.title, required this.child});
-  final String title;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.mq.colors;
-    return CupertinoPageScaffold(
-      backgroundColor: c.bg,
-      navigationBar: CupertinoNavigationBar(
-        middle: Text(title),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Done'),
-        ),
-      ),
-      child: child,
     );
   }
 }

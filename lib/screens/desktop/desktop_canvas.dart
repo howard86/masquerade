@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../../state/canvas_controller.dart';
 import '../../state/link_group.dart';
+import '../../state/window_content.dart';
 import '../../theme/mq_theme.dart';
 import '../../utility_catalog.dart';
 import '../../widgets/desktop/command_palette.dart';
@@ -11,6 +12,8 @@ import '../../widgets/desktop/desktop_icon_grid.dart';
 import '../../widgets/desktop/pipe.dart';
 import '../../widgets/desktop/tool_card_frame.dart';
 import '../../widgets/tool_bodies/seed_source.dart';
+import '../history_screen.dart';
+import '../settings_screen.dart';
 
 /// Header-toggle link pairings (see docs/adr/0001): a card's link button opens
 /// this fixed partner tool and links the two on one canonical type. Keyed by
@@ -182,6 +185,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
                 alignment: Alignment.topLeft,
                 child: DesktopIconGrid(
                   onOpen: (UtilityDescriptor u) => _c.openTool(u),
+                  onOpenSystem: (SystemApp app) => _c.openSystem(app),
                 ),
               ),
             ),
@@ -240,14 +244,52 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
   }
 
   Widget _cardFrame(CanvasCard card, {required int slot}) {
+    final WindowContent content = card.content;
+    return switch (content) {
+      ToolWindow tw => _toolCardFrame(card, tw, slot: slot),
+      SystemWindow sw => _systemCardFrame(card, sw, slot: slot),
+    };
+  }
+
+  Widget _systemCardFrame(
+    CanvasCard card,
+    SystemWindow sw, {
+    required int slot,
+  }) {
+    final Widget body = switch (sw.app) {
+      SystemApp.history => const HistoryBody(),
+      SystemApp.settings => SettingsBody(isWebOverride: true),
+    };
+    return ToolCardFrame(
+      title: sw.title,
+      slot: slot <= 9 ? slot : null,
+      focused: _c.focusedId == card.id,
+      maximized: card.maximized,
+      height: card.height,
+      scrollBody: false,
+      onFocus: () => _c.focus(card.id),
+      onClose: () => _c.close(card.id),
+      onMinimize: () => _c.minimize(card.id),
+      onToggleMaximize: () => _toggleMax(card),
+      onMoveDelta: (Offset d) =>
+          _c.moveTo(card.id, card.x + d.dx, card.y + d.dy),
+      onMoveEnd: () => _onMoveEnd(card),
+      onResizeDelta: (double dx) => _c.resize(card.id, card.width + dx),
+      onResizeEnd: _c.commit,
+      child: body,
+    );
+  }
+
+  Widget _toolCardFrame(CanvasCard card, ToolWindow tw, {required int slot}) {
+    final UtilityDescriptor descriptor = tw.descriptor;
     final SeedSource src = card.seed != null
         ? SeedSource.paste
         : SeedSource.none;
     final ({String partnerId, ContentType type})? partner =
-        _linkPartners[card.descriptor.id];
+        _linkPartners[descriptor.id];
     final bool linked = _c.groupForCard(card.id) != null;
     final ToolCardFrame frame = ToolCardFrame(
-      descriptor: card.descriptor,
+      title: tw.title,
       slot: slot <= 9 ? slot : null,
       focused: _c.focusedId == card.id,
       maximized: card.maximized,
@@ -273,7 +315,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
           : null,
       child: PipeScope(
         cardId: card.id,
-        child: card.descriptor.builder(
+        child: descriptor.builder(
           context,
           initialInput: card.seed,
           seedSource: src,
@@ -287,7 +329,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     return DragTarget<PipePayload>(
       onWillAcceptWithDetails: (DragTargetDetails<PipePayload> d) =>
           d.data.sourceCardId != card.id &&
-          (_linkableTypes[card.descriptor.id]?.contains(d.data.type) ?? false),
+          (_linkableTypes[descriptor.id]?.contains(d.data.type) ?? false),
       onAcceptWithDetails: (DragTargetDetails<PipePayload> d) => _c.linkCards(
         d.data.sourceCardId,
         card.id,
