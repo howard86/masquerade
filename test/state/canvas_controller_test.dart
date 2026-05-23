@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/state/canvas_controller.dart';
+import 'package:masquerade/state/window_content.dart';
 import 'package:masquerade/utility_catalog.dart';
 
 void main() {
@@ -331,7 +332,7 @@ void main() {
       expect(c.length, 2);
       final CanvasCard a = c.cards[0];
       final CanvasCard b = c.cards[1];
-      expect(b.descriptor.id, a.descriptor.id);
+      expect(b.toolDescriptor!.id, a.toolDescriptor!.id);
       expect(b.width, a.width);
       expect(b.seed, a.seed);
       expect(b.x, a.x + 32);
@@ -342,6 +343,52 @@ void main() {
     test('returns null for an unknown id', () {
       final CanvasController c = CanvasController();
       expect(c.duplicate(123), isNull);
+    });
+
+    test('returns null for a system window (singletons)', () {
+      final CanvasController c = CanvasController();
+      final int id = c.openSystem(SystemApp.history);
+      expect(c.duplicate(id), isNull);
+      expect(c.length, 1);
+    });
+  });
+
+  group('openSystem', () {
+    test('opens a system window with default size', () {
+      final CanvasController c = CanvasController();
+      final int id = c.openSystem(SystemApp.history);
+      expect(c.length, 1);
+      expect(c.focusedId, id);
+      expect(c.cards.single.content, isA<SystemWindow>());
+      expect(c.cards.single.width, 440);
+      expect(c.cards.single.height, 600);
+    });
+
+    test('deduplicates: second call focuses existing card', () {
+      final CanvasController c = CanvasController();
+      final int id1 = c.openSystem(SystemApp.settings);
+      c.openTool(timestamp); // open something else to shift focus
+      final int id2 = c.openSystem(SystemApp.settings);
+      expect(id1, id2);
+      expect(c.length, 2); // only 2 cards total (system + tool)
+      expect(c.focusedId, id1);
+    });
+
+    test('dedup restores minimized system window', () {
+      final CanvasController c = CanvasController();
+      final int id = c.openSystem(SystemApp.history);
+      c.minimize(id);
+      expect(c.cards.single.minimized, isTrue);
+      c.openSystem(SystemApp.history);
+      expect(c.cards.single.minimized, isFalse);
+      expect(c.focusedId, id);
+    });
+
+    test('different system apps open separate windows', () {
+      final CanvasController c = CanvasController();
+      c.openSystem(SystemApp.history);
+      c.openSystem(SystemApp.settings);
+      expect(c.length, 2);
     });
   });
 }

@@ -95,9 +95,9 @@ class _DockTileState extends State<_DockTile> {
                       borderRadius: BorderRadius.circular(MqRadius.sm),
                     ),
                     child: Icon(
-                      widget.card.descriptor.icon,
+                      widget.card.content.icon,
                       size: 18,
-                      color: widget.card.descriptor.tint,
+                      color: widget.card.content.tint,
                     ),
                   ),
                 ),

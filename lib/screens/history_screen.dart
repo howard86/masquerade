@@ -18,158 +18,165 @@ class HistoryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
+    return CupertinoPageScaffold(
+      backgroundColor: c.bg,
+      child: const SafeArea(bottom: false, child: HistoryBody()),
+    );
+  }
+}
+
+/// The inner content of the History screen, reusable without a scaffold.
+/// Used directly by the desktop window manager.
+class HistoryBody extends StatelessWidget {
+  const HistoryBody({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mq.colors;
     final HistoryController history = HistoryScope.of(context);
     final Map<String, List<HistoryEntry>> grouped = _groupByDay(
       history.entries,
     );
 
-    return CupertinoPageScaffold(
-      backgroundColor: c.bg,
-      child: SafeArea(
-        bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                MqSpacing.lg,
-                MqSpacing.md,
-                MqSpacing.lg,
-                MqSpacing.md,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            MqSpacing.lg,
+            MqSpacing.md,
+            MqSpacing.lg,
+            MqSpacing.md,
+          ),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  'History',
+                  style: MqTextStyles.largeTitle.copyWith(color: c.textPri),
+                ),
               ),
-              child: Row(
-                children: <Widget>[
-                  Expanded(
-                    child: Text(
-                      'History',
-                      style: MqTextStyles.largeTitle.copyWith(color: c.textPri),
+              if (history.entries.isNotEmpty)
+                MqButton(
+                  label: 'Clear',
+                  icon: MqIcons.trash,
+                  variant: MqButtonVariant.glass,
+                  size: MqButtonSize.sm,
+                  destructive: true,
+                  onPressed: () => _confirmClear(context, history),
+                ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: history.entries.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: MqSpacing.xl,
                     ),
-                  ),
-                  if (history.entries.isNotEmpty)
-                    MqButton(
-                      label: 'Clear',
-                      icon: MqIcons.trash,
-                      variant: MqButtonVariant.glass,
-                      size: MqButtonSize.sm,
-                      destructive: true,
-                      onPressed: () => _confirmClear(context, history),
-                    ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: history.entries.isEmpty
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: MqSpacing.xl,
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: <Widget>[
-                            Icon(MqIcons.history, size: 36, color: c.textTer),
-                            const SizedBox(height: MqSpacing.md),
-                            Text(
-                              'Nothing yet',
-                              style: MqTextStyles.title3.copyWith(
-                                color: c.textPri,
-                              ),
-                            ),
-                            const SizedBox(height: MqSpacing.xs),
-                            Text(
-                              'Your last 7 days of utility usage will appear here. On-device only.',
-                              style: MqTextStyles.subhead.copyWith(
-                                color: c.textSec,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                  : ListView(
-                      padding: const EdgeInsets.fromLTRB(
-                        MqSpacing.lg,
-                        0,
-                        MqSpacing.lg,
-                        MqLayout.tabBarClearance,
-                      ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: <Widget>[
-                        for (final MapEntry<String, List<HistoryEntry>> g
-                            in grouped.entries) ...<Widget>[
-                          MqSectionHeader(
-                            label: g.key,
-                            trailing: MqStatus(
-                              label: '${g.value.length}',
-                              kind: MqStatusKind.neutral,
-                              showIcon: false,
-                            ),
+                        Icon(MqIcons.history, size: 36, color: c.textTer),
+                        const SizedBox(height: MqSpacing.md),
+                        Text(
+                          'Nothing yet',
+                          style: MqTextStyles.title3.copyWith(color: c.textPri),
+                        ),
+                        const SizedBox(height: MqSpacing.xs),
+                        Text(
+                          'Your last 7 days of utility usage will appear here. On-device only.',
+                          style: MqTextStyles.subhead.copyWith(
+                            color: c.textSec,
                           ),
-                          for (final HistoryEntry e in g.value) ...<Widget>[
-                            _HistoryRow(entry: e),
-                            const SizedBox(height: MqSpacing.sm),
-                          ],
-                          const SizedBox(height: MqSpacing.md),
-                        ],
+                          textAlign: TextAlign.center,
+                        ),
                       ],
                     ),
-            ),
-          ],
+                  ),
+                )
+              : ListView(
+                  padding: const EdgeInsets.fromLTRB(
+                    MqSpacing.lg,
+                    0,
+                    MqSpacing.lg,
+                    MqSpacing.lg,
+                  ),
+                  children: <Widget>[
+                    for (final MapEntry<String, List<HistoryEntry>> g
+                        in grouped.entries) ...<Widget>[
+                      MqSectionHeader(
+                        label: g.key,
+                        trailing: MqStatus(
+                          label: '${g.value.length}',
+                          kind: MqStatusKind.neutral,
+                          showIcon: false,
+                        ),
+                      ),
+                      for (final HistoryEntry e in g.value) ...<Widget>[
+                        _HistoryRow(entry: e),
+                        const SizedBox(height: MqSpacing.sm),
+                      ],
+                      const SizedBox(height: MqSpacing.md),
+                    ],
+                  ],
+                ),
         ),
-      ),
+      ],
     );
   }
+}
 
-  Map<String, List<HistoryEntry>> _groupByDay(List<HistoryEntry> entries) {
-    final DateTime now = DateTime.now();
-    final DateTime today = DateTime(now.year, now.month, now.day);
-    final DateTime yesterday = today.subtract(const Duration(days: 1));
-    final Map<String, List<HistoryEntry>> map = <String, List<HistoryEntry>>{};
-    for (final HistoryEntry e in entries) {
-      final DateTime d = DateTime(
-        e.timestamp.year,
-        e.timestamp.month,
-        e.timestamp.day,
-      );
-      String label;
-      if (d == today) {
-        label = 'Today';
-      } else if (d == yesterday) {
-        label = 'Yesterday';
-      } else {
-        label = DateFormat('EEE MMM d').format(e.timestamp);
-      }
-      map.putIfAbsent(label, () => <HistoryEntry>[]).add(e);
+Map<String, List<HistoryEntry>> _groupByDay(List<HistoryEntry> entries) {
+  final DateTime now = DateTime.now();
+  final DateTime today = DateTime(now.year, now.month, now.day);
+  final DateTime yesterday = today.subtract(const Duration(days: 1));
+  final Map<String, List<HistoryEntry>> map = <String, List<HistoryEntry>>{};
+  for (final HistoryEntry e in entries) {
+    final DateTime d = DateTime(
+      e.timestamp.year,
+      e.timestamp.month,
+      e.timestamp.day,
+    );
+    String label;
+    if (d == today) {
+      label = 'Today';
+    } else if (d == yesterday) {
+      label = 'Yesterday';
+    } else {
+      label = DateFormat('EEE MMM d').format(e.timestamp);
     }
-    return map;
+    map.putIfAbsent(label, () => <HistoryEntry>[]).add(e);
   }
+  return map;
+}
 
-  void _confirmClear(BuildContext context, HistoryController history) {
-    showCupertinoDialog<void>(
-      context: context,
-      builder: (BuildContext ctx) => CupertinoAlertDialog(
-        title: const Text('Clear all history?'),
-        content: const Text(
-          'This permanently deletes all on-device entries. Cannot be undone.',
-        ),
-        actions: <Widget>[
-          CupertinoDialogAction(
-            isDestructiveAction: true,
-            onPressed: () {
-              history.clear();
-              Navigator.of(ctx).pop();
-            },
-            child: const Text('Clear'),
-          ),
-          CupertinoDialogAction(
-            isDefaultAction: true,
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-        ],
+void _confirmClear(BuildContext context, HistoryController history) {
+  showCupertinoDialog<void>(
+    context: context,
+    builder: (BuildContext ctx) => CupertinoAlertDialog(
+      title: const Text('Clear all history?'),
+      content: const Text(
+        'This permanently deletes all on-device entries. Cannot be undone.',
       ),
-    );
-  }
+      actions: <Widget>[
+        CupertinoDialogAction(
+          isDestructiveAction: true,
+          onPressed: () {
+            history.clear();
+            Navigator.of(ctx).pop();
+          },
+          child: const Text('Clear'),
+        ),
+        CupertinoDialogAction(
+          isDefaultAction: true,
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('Cancel'),
+        ),
+      ],
+    ),
+  );
 }
 
 class _HistoryRow extends StatelessWidget {

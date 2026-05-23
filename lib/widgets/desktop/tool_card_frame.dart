@@ -3,7 +3,6 @@ import 'package:flutter/cupertino.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
-import '../../utility_catalog.dart';
 import '../mq/mq_icons.dart';
 
 /// Card chrome for the desktop canvas: a draggable title bar (traffic lights ·
@@ -14,27 +13,28 @@ import '../mq/mq_icons.dart';
 class ToolCardFrame extends StatelessWidget {
   const ToolCardFrame({
     super.key,
-    required this.descriptor,
+    required this.title,
     required this.slot,
     required this.focused,
     required this.onFocus,
     required this.onClose,
     required this.onMinimize,
     required this.onToggleMaximize,
-    required this.onDuplicate,
     required this.onMoveDelta,
     required this.onMoveEnd,
     required this.onResizeDelta,
     required this.onResizeEnd,
     required this.child,
+    this.onDuplicate,
     this.maximized = false,
     this.height,
     this.linked = false,
     this.linkTooltip,
     this.onLink,
+    this.scrollBody = true,
   });
 
-  final UtilityDescriptor descriptor;
+  final String title;
 
   /// 1-based slot for the ⌥N tag, or null when beyond slot 9.
   final int? slot;
@@ -48,7 +48,9 @@ class ToolCardFrame extends StatelessWidget {
   final VoidCallback onClose;
   final VoidCallback onMinimize;
   final VoidCallback onToggleMaximize;
-  final VoidCallback onDuplicate;
+
+  /// When null, the duplicate button is hidden (system windows).
+  final VoidCallback? onDuplicate;
 
   /// When [onLink] is non-null the header shows a link toggle. [linked] paints
   /// it gold (active) and [linkTooltip] is its accessibility label.
@@ -68,20 +70,31 @@ class ToolCardFrame extends StatelessWidget {
   /// Called once the resize drag settles (persist hook).
   final VoidCallback onResizeEnd;
 
+  /// Whether the frame wraps the child in a SingleChildScrollView when height
+  /// is bounded. Set to false for system windows whose body scrolls itself.
+  final bool scrollBody;
+
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
-    final Widget body = height != null
-        ? SizedBox(
-            height: height! - _kHeaderHeight,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(MqSpacing.lg),
-              child: child,
-            ),
-          )
-        : Padding(padding: const EdgeInsets.all(MqSpacing.lg), child: child);
+    final Widget body;
+    if (height != null) {
+      if (scrollBody) {
+        body = SizedBox(
+          height: height! - _kHeaderHeight,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(MqSpacing.lg),
+            child: child,
+          ),
+        );
+      } else {
+        body = SizedBox(height: height! - _kHeaderHeight, child: child);
+      }
+    } else {
+      body = Padding(padding: const EdgeInsets.all(MqSpacing.lg), child: child);
+    }
     return Stack(
       clipBehavior: Clip.none,
       children: <Widget>[
@@ -105,7 +118,7 @@ class ToolCardFrame extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
                 _Header(
-                  descriptor: descriptor,
+                  title: title,
                   slot: slot,
                   maximized: maximized,
                   onFocus: onFocus,
@@ -145,7 +158,7 @@ const double _kHeaderHeight = 36;
 
 class _Header extends StatelessWidget {
   const _Header({
-    required this.descriptor,
+    required this.title,
     required this.slot,
     required this.maximized,
     required this.onFocus,
@@ -160,14 +173,14 @@ class _Header extends StatelessWidget {
     required this.onLink,
   });
 
-  final UtilityDescriptor descriptor;
+  final String title;
   final int? slot;
   final bool maximized;
   final VoidCallback onFocus;
   final VoidCallback onClose;
   final VoidCallback onMinimize;
   final VoidCallback onToggleMaximize;
-  final VoidCallback onDuplicate;
+  final VoidCallback? onDuplicate;
   final ValueChanged<Offset> onMoveDelta;
   final VoidCallback onMoveEnd;
   final bool linked;
@@ -219,7 +232,7 @@ class _Header extends StatelessWidget {
               const SizedBox(width: MqSpacing.sm),
               Expanded(
                 child: Text(
-                  descriptor.name,
+                  title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: MqTextStyles.sectionLabel.copyWith(color: c.textPri),
@@ -239,11 +252,12 @@ class _Header extends StatelessWidget {
                   onTap: onLink!,
                   color: linked ? c.warning : null,
                 ),
-              _IconButton(
-                icon: MqIcons.copy,
-                tooltip: 'Duplicate (⌥D)',
-                onTap: onDuplicate,
-              ),
+              if (onDuplicate != null)
+                _IconButton(
+                  icon: MqIcons.copy,
+                  tooltip: 'Duplicate (⌥D)',
+                  onTap: onDuplicate!,
+                ),
             ],
           ),
         ),

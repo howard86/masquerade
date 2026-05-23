@@ -29,7 +29,7 @@ void main() {
       await tester.pumpWidget(
         _wrap(
           ToolCardFrame(
-            descriptor: desc,
+            title: desc.name,
             slot: 1,
             focused: true,
             onFocus: () {},
@@ -67,7 +67,7 @@ void main() {
       await tester.pumpWidget(
         _wrap(
           ToolCardFrame(
-            descriptor: desc,
+            title: desc.name,
             slot: 1,
             focused: true,
             onFocus: () {},

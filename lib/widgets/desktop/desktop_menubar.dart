@@ -122,7 +122,7 @@ class _DesktopMenubarState extends State<DesktopMenubar> {
             label: 'Window',
             items: <_MenuItem>[
               for (final CanvasCard card in _c.cards)
-                _MenuItem(card.descriptor.name, () => _c.focus(card.id)),
+                _MenuItem(card.content.title, () => _c.focus(card.id)),
               if (_c.cards.isNotEmpty) _MenuItem('Close All', _closeAll),
             ],
           ),

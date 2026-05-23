@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utility_catalog.dart';
 import 'link_group.dart';
+import 'window_content.dart';
 
 /// Saved geometry before a maximize/snap so the window can restore.
 typedef RestoreBounds = ({double x, double y, double width, double? height});
@@ -17,7 +18,7 @@ typedef RestoreBounds = ({double x, double y, double width, double? height});
 class CanvasCard {
   const CanvasCard({
     required this.id,
-    required this.descriptor,
+    required this.content,
     required this.x,
     required this.y,
     required this.width,
@@ -30,7 +31,7 @@ class CanvasCard {
   });
 
   final int id;
-  final UtilityDescriptor descriptor;
+  final WindowContent content;
   final double x;
   final double y;
   final double width;
@@ -55,6 +56,11 @@ class CanvasCard {
   /// in v1 (that arrives with the link/value channel).
   final String? seed;
 
+  /// Convenience: the underlying [UtilityDescriptor] when this card holds a
+  /// tool, or null for system windows.
+  UtilityDescriptor? get toolDescriptor =>
+      content is ToolWindow ? (content as ToolWindow).descriptor : null;
+
   CanvasCard copyWith({
     double? x,
     double? y,
@@ -66,7 +72,7 @@ class CanvasCard {
     RestoreBounds? Function()? restoreBounds,
   }) => CanvasCard(
     id: id,
-    descriptor: descriptor,
+    content: content,
     x: x ?? this.x,
     y: y ?? this.y,
     width: width ?? this.width,
@@ -137,11 +143,45 @@ class CanvasController extends ChangeNotifier {
     final int step = _cards.length % 5;
     final CanvasCard card = CanvasCard(
       id: _nextId++,
-      descriptor: descriptor,
+      content: ToolWindow(descriptor),
       x: 32 + step * _cascadeStep,
       y: 24 + step * _cascadeStep,
       width: descriptor.defaultCardWidth.px,
       seed: (seed == null || seed.isEmpty) ? null : seed,
+      z: _nextZ++,
+    );
+    _cards.add(card);
+    _focusedId = card.id;
+    notifyListeners();
+    _persist();
+    return card.id;
+  }
+
+  /// Opens a system window (History / Settings). Deduplicates: if already open,
+  /// restores (if minimized) and focuses it. Returns the card id.
+  int openSystem(SystemApp app) {
+    final WindowContent target = SystemWindow(app);
+    final int existing = _cards.indexWhere(
+      (CanvasCard c) =>
+          c.content is SystemWindow && (c.content as SystemWindow).app == app,
+    );
+    if (existing >= 0) {
+      final int id = _cards[existing].id;
+      if (_cards[existing].minimized) {
+        restoreWindow(id);
+      } else {
+        focus(id);
+      }
+      return id;
+    }
+    final int step = _cards.length % 5;
+    final CanvasCard card = CanvasCard(
+      id: _nextId++,
+      content: target,
+      x: 32 + step * _cascadeStep,
+      y: 24 + step * _cascadeStep,
+      width: 440,
+      height: 600,
       z: _nextZ++,
     );
     _cards.add(card);
@@ -223,15 +263,16 @@ class CanvasController extends ChangeNotifier {
   }
 
   /// Duplicates card [id] — same tool, width, and seed, offset by one cascade
-  /// step. Returns the new card's id, or null if [id] isn't open. (v1 freezes
-  /// the *seed*; freezing the live edited value arrives with the value channel.)
+  /// step. Returns the new card's id, or null if [id] isn't open or is a system
+  /// window (system windows are singletons).
   int? duplicate(int id) {
     final int i = _cards.indexWhere((CanvasCard c) => c.id == id);
     if (i < 0) return null;
     final CanvasCard src = _cards[i];
+    if (src.content is SystemWindow) return null;
     final CanvasCard dup = CanvasCard(
       id: _nextId++,
-      descriptor: src.descriptor,
+      content: src.content,
       x: src.x + _cascadeStep,
       y: src.y + _cascadeStep,
       width: src.width,
@@ -384,7 +425,10 @@ class CanvasController extends ChangeNotifier {
         .map(
           (CanvasCard c) => <String, dynamic>{
             'id': c.id,
-            'tool': c.descriptor.id,
+            ...switch (c.content) {
+              ToolWindow tw => <String, dynamic>{'tool': tw.descriptor.id},
+              SystemWindow sw => <String, dynamic>{'system': sw.app.name},
+            },
             'x': c.x,
             'y': c.y,
             'w': c.width,
@@ -417,7 +461,8 @@ class CanvasController extends ChangeNotifier {
   };
 
   /// Replaces the canvas from a [toJson] map. Cards whose tool id no longer
-  /// exists in the catalog are dropped. Notifies but does not re-persist.
+  /// exists in the catalog are dropped. Unknown system app names are dropped.
+  /// Notifies but does not re-persist.
   void applyJson(Map<String, dynamic> json) {
     _cards.clear();
     _groups.clear();
@@ -426,10 +471,22 @@ class CanvasController extends ChangeNotifier {
     for (final dynamic raw
         in (json['cards'] as List<dynamic>? ?? const <dynamic>[])) {
       final Map<String, dynamic> m = raw as Map<String, dynamic>;
-      final UtilityDescriptor? d = UtilityCatalog.byIdOrNull(
-        m['tool'] as String,
-      );
-      if (d == null) continue;
+      final WindowContent? content;
+      if (m.containsKey('system')) {
+        final String name = m['system'] as String;
+        final SystemApp? app = SystemApp.values.cast<SystemApp?>().firstWhere(
+          (SystemApp? a) => a!.name == name,
+          orElse: () => null,
+        );
+        if (app == null) continue;
+        content = SystemWindow(app);
+      } else {
+        final UtilityDescriptor? d = UtilityCatalog.byIdOrNull(
+          m['tool'] as String,
+        );
+        if (d == null) continue;
+        content = ToolWindow(d);
+      }
       final int id = (m['id'] as num).toInt();
       final int z = (m['z'] as num?)?.toInt() ?? id;
       maxId = id > maxId ? id : maxId;
@@ -447,7 +504,7 @@ class CanvasController extends ChangeNotifier {
       _cards.add(
         CanvasCard(
           id: id,
-          descriptor: d,
+          content: content,
           x: (m['x'] as num).toDouble(),
           y: (m['y'] as num).toDouble(),
           width: (m['w'] as num).toDouble(),
