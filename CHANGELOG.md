@@ -1,3 +1,12 @@
+## v1.24.0 (2026-05-24)
+
+### Feat
+
+- **desktop**: History & Settings as system windows
+- **desktop**: window manager — traffic lights, z-order, min/max/snap, dock
+- **desktop**: desktop icon grid + Spotlight palette
+- **desktop**: replace sidebar with full-bleed macOS-style shell
+
 ## v1.23.0 (2026-05-23)
 
 ### Feat
