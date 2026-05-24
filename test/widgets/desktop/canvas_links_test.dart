@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
 import 'package:masquerade/state/view_mode_controller.dart';
 import 'package:masquerade/widgets/desktop/tool_card_frame.dart';
-import 'package:masquerade/widgets/mq/tool_grid_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Past the longest body debounce (JSON 200 ms) so converts settle.
@@ -24,9 +23,9 @@ Future<void> _pumpDesktop(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-/// Opens a JSON card from the desktop home grid.
+/// Opens a JSON card from the desktop icon grid.
 Future<void> _openJson(WidgetTester tester) async {
-  final Finder tile = find.widgetWithText(ToolGridCard, 'JSON / YAML / TOML');
+  final Finder tile = find.text('JSON / YAML / TOML');
   await tester.ensureVisible(tile);
   await tester.tap(tile);
   await tester.pumpAndSettle();

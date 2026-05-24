@@ -21,7 +21,7 @@ Masquerade is a Flutter utility-toolbox app. iOS-first (`CupertinoApp`). Tab sca
 
 Add new tools by registering in `UtilityCatalog` plus an embeddable body widget under `lib/widgets/tool_bodies/<tool>_body.dart`. Home reads the catalog directly and renders each entry as an `InlineToolCard` — there is no manual wiring elsewhere.
 
-On wide web (≥900px) the same catalog tools also open on a **desktop canvas** (`lib/screens/desktop/`) — a multi-card workspace with a ⌘K command palette and live links that pipe one card's output into another. See `CONTEXT.md` for the domain language and `docs/adr/0001-canonical-hub-live-links.md` for the link-engine decision.
+On wide web (≥ 900 px) the same catalog tools also open on a **desktop OS** (`lib/screens/desktop/`) — a full-bleed, skeuomorphic macOS-style desktop with a menubar, wallpaper, desktop icon grid, windowed cards (traffic-light chrome + a window manager with z-order, minimize/maximize, edge-snap), a dock, a Spotlight ⌘K palette, and History/Settings as system windows. Live links pipe one window's output into another. See `CONTEXT.md` for the domain language and `docs/adr/` (0001 for the link engine, 0002 for the desktop OS metaphor).
 
 ## Stack
 
@@ -40,13 +40,14 @@ lib/
   screens/
     root_tab_scaffold.dart     3-tab Cupertino tab bar (Home, History, Settings)
     home_screen.dart, history_screen.dart, settings_screen.dart
-    desktop/             web shell ≥900px: sidebar + multi-card DesktopCanvas (draggable cards, ⌘K palette, live links)
+    desktop/             full-bleed macOS-style desktop OS (menubar, wallpaper, icon grid, windows, dock, Spotlight)
     detail/tool_detail_route.dart  shared full-screen route host for any catalog tool
     detail/qr_scanner_route.dart   full-screen modal camera
-  state/               ChangeNotifier controllers (theme, history, view_mode, canvas, density) + link_group link engine; persisted via shared_preferences
+  state/               ChangeNotifier controllers (theme, history, view_mode, canvas, density) + link_group link engine + window_content.dart (ToolWindow | SystemWindow union); persisted via shared_preferences
   theme/               MqColors / MqTypography / MqMetrics / MqTheme InheritedWidget
   utils/               pure parsers (static `parse()`) + copy_util
   widgets/
+    desktop/           menubar, wallpaper, icon grid, dock, window chrome (ToolCardFrame), command palette, pipe, layouts sheet
     mq/                design-system widgets (MqButton, MqInput, MqSurface, InlineToolCard, ...) — prefer these over raw Cupertino
     tool_bodies/       one StatefulWidget per tool, embedded inline by Home
     iphone_frame.dart  hand-rolled preview wrapper

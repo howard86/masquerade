@@ -6,6 +6,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utility_catalog.dart';
 import 'link_group.dart';
+import 'window_content.dart';
+
+/// Saved geometry before a maximize/snap so the window can restore.
+typedef RestoreBounds = ({double x, double y, double width, double? height});
 
 /// One open tool instance on the desktop canvas: which tool, where it sits, how
 /// wide it is, and the value it was seeded with. Identity is a stable [id] so a
@@ -14,31 +18,70 @@ import 'link_group.dart';
 class CanvasCard {
   const CanvasCard({
     required this.id,
-    required this.descriptor,
+    required this.content,
     required this.x,
     required this.y,
     required this.width,
     this.seed,
+    this.z = 0,
+    this.minimized = false,
+    this.maximized = false,
+    this.height,
+    this.restoreBounds,
   });
 
   final int id;
-  final UtilityDescriptor descriptor;
+  final WindowContent content;
   final double x;
   final double y;
   final double width;
+
+  /// Paint order — higher = front.
+  final int z;
+
+  /// Whether the card is minimized (hidden from canvas, shown in dock).
+  final bool minimized;
+
+  /// Whether the card is maximized (fills the canvas).
+  final bool maximized;
+
+  /// Explicit height when maximized/snapped; null = intrinsic.
+  final double? height;
+
+  /// Saved pre-maximize/snap geometry for restore.
+  final RestoreBounds? restoreBounds;
 
   /// The value the card opened with (paste / pipe). The live, edited value
   /// lives inside the tool body — the controller deliberately doesn't track it
   /// in v1 (that arrives with the link/value channel).
   final String? seed;
 
-  CanvasCard copyWith({double? x, double? y, double? width}) => CanvasCard(
+  /// Convenience: the underlying [UtilityDescriptor] when this card holds a
+  /// tool, or null for system windows.
+  UtilityDescriptor? get toolDescriptor =>
+      content is ToolWindow ? (content as ToolWindow).descriptor : null;
+
+  CanvasCard copyWith({
+    double? x,
+    double? y,
+    double? width,
+    int? z,
+    bool? minimized,
+    bool? maximized,
+    double? Function()? height,
+    RestoreBounds? Function()? restoreBounds,
+  }) => CanvasCard(
     id: id,
-    descriptor: descriptor,
+    content: content,
     x: x ?? this.x,
     y: y ?? this.y,
     width: width ?? this.width,
     seed: seed,
+    z: z ?? this.z,
+    minimized: minimized ?? this.minimized,
+    maximized: maximized ?? this.maximized,
+    height: height != null ? height() : this.height,
+    restoreBounds: restoreBounds != null ? restoreBounds() : this.restoreBounds,
   );
 }
 
@@ -66,6 +109,7 @@ class CanvasController extends ChangeNotifier {
 
   final List<CanvasCard> _cards = <CanvasCard>[];
   int _nextId = 1;
+  int _nextZ = 1;
   int? _focusedId;
 
   final List<LinkGroup> _groups = <LinkGroup>[];
@@ -77,6 +121,13 @@ class CanvasController extends ChangeNotifier {
 
   /// Open cards in slot order (the order they were opened). Read-only view.
   List<CanvasCard> get cards => List<CanvasCard>.unmodifiable(_cards);
+
+  /// Cards sorted by z-order (paint order: lowest first). The canvas paints
+  /// in this order so higher-z cards appear on top.
+  List<CanvasCard> get cardsByZ =>
+      List<CanvasCard>.of(_cards)
+        ..sort((CanvasCard a, CanvasCard b) => a.z.compareTo(b.z));
+
   bool get isEmpty => _cards.isEmpty;
   int get length => _cards.length;
   int? get focusedId => _focusedId;
@@ -92,11 +143,46 @@ class CanvasController extends ChangeNotifier {
     final int step = _cards.length % 5;
     final CanvasCard card = CanvasCard(
       id: _nextId++,
-      descriptor: descriptor,
+      content: ToolWindow(descriptor),
       x: 32 + step * _cascadeStep,
       y: 24 + step * _cascadeStep,
       width: descriptor.defaultCardWidth.px,
       seed: (seed == null || seed.isEmpty) ? null : seed,
+      z: _nextZ++,
+    );
+    _cards.add(card);
+    _focusedId = card.id;
+    notifyListeners();
+    _persist();
+    return card.id;
+  }
+
+  /// Opens a system window (History / Settings). Deduplicates: if already open,
+  /// restores (if minimized) and focuses it. Returns the card id.
+  int openSystem(SystemApp app) {
+    final WindowContent target = SystemWindow(app);
+    final int existing = _cards.indexWhere(
+      (CanvasCard c) =>
+          c.content is SystemWindow && (c.content as SystemWindow).app == app,
+    );
+    if (existing >= 0) {
+      final int id = _cards[existing].id;
+      if (_cards[existing].minimized) {
+        restoreWindow(id);
+      } else {
+        focus(id);
+      }
+      return id;
+    }
+    final int step = _cards.length % 5;
+    final CanvasCard card = CanvasCard(
+      id: _nextId++,
+      content: target,
+      x: 32 + step * _cascadeStep,
+      y: 24 + step * _cascadeStep,
+      width: 440,
+      height: 600,
+      z: _nextZ++,
     );
     _cards.add(card);
     _focusedId = card.id;
@@ -131,18 +217,29 @@ class CanvasController extends ChangeNotifier {
   }
 
   /// Gives focus to [id] (no-op if it isn't open or already focused).
+  /// Also raises the card to the front (highest z).
   void focus(int id) {
-    if (_focusedId == id) return;
     if (!_cards.any((CanvasCard c) => c.id == id)) return;
+    final int i = _cards.indexWhere((CanvasCard c) => c.id == id);
+    if (_focusedId != id || _cards[i].z != _nextZ - 1) {
+      _cards[i] = _cards[i].copyWith(z: _nextZ++);
+    }
+    if (_focusedId == id) return;
     _focusedId = id;
     notifyListeners();
     _persist();
   }
 
   /// Focuses the card in 1-based [slot] (⌥1–9). No-op if the slot is empty.
+  /// If the card is minimized, restores it first.
   void focusSlot(int slot) {
     final CanvasCard? card = cardInSlot(slot);
-    if (card != null) focus(card.id);
+    if (card == null) return;
+    if (card.minimized) {
+      restoreWindow(card.id);
+    } else {
+      focus(card.id);
+    }
   }
 
   /// Moves card [id] to absolute ([x], [y]), clamped to the canvas origin.
@@ -166,15 +263,16 @@ class CanvasController extends ChangeNotifier {
   }
 
   /// Duplicates card [id] — same tool, width, and seed, offset by one cascade
-  /// step. Returns the new card's id, or null if [id] isn't open. (v1 freezes
-  /// the *seed*; freezing the live edited value arrives with the value channel.)
+  /// step. Returns the new card's id, or null if [id] isn't open or is a system
+  /// window (system windows are singletons).
   int? duplicate(int id) {
     final int i = _cards.indexWhere((CanvasCard c) => c.id == id);
     if (i < 0) return null;
     final CanvasCard src = _cards[i];
+    if (src.content is SystemWindow) return null;
     final CanvasCard dup = CanvasCard(
       id: _nextId++,
-      descriptor: src.descriptor,
+      content: src.content,
       x: src.x + _cascadeStep,
       y: src.y + _cascadeStep,
       width: src.width,
@@ -185,6 +283,123 @@ class CanvasController extends ChangeNotifier {
     notifyListeners();
     _persist();
     return dup.id;
+  }
+
+  /// Minimizes card [id] — hides it from the canvas (shown in dock).
+  void minimize(int id) {
+    final int i = _cards.indexWhere((CanvasCard c) => c.id == id);
+    if (i < 0 || _cards[i].minimized) return;
+    _cards[i] = _cards[i].copyWith(minimized: true);
+    if (_focusedId == id) {
+      final List<CanvasCard> visible = cardsByZ
+          .where((CanvasCard c) => !c.minimized)
+          .toList();
+      _focusedId = visible.isEmpty ? null : visible.last.id;
+    }
+    notifyListeners();
+    _persist();
+  }
+
+  /// Restores a minimized card [id] — shows it on the canvas and focuses it.
+  void restoreWindow(int id) {
+    final int i = _cards.indexWhere((CanvasCard c) => c.id == id);
+    if (i < 0 || !_cards[i].minimized) return;
+    _cards[i] = _cards[i].copyWith(minimized: false, z: _nextZ++);
+    _focusedId = id;
+    notifyListeners();
+    _persist();
+  }
+
+  /// Maximizes card [id] to the given fill bounds.
+  void maximize(
+    int id, {
+    required double x,
+    required double y,
+    required double width,
+    required double height,
+  }) {
+    final int i = _cards.indexWhere((CanvasCard c) => c.id == id);
+    if (i < 0) return;
+    final CanvasCard card = _cards[i];
+    final RestoreBounds rb =
+        card.restoreBounds ??
+        (x: card.x, y: card.y, width: card.width, height: card.height);
+    _cards[i] = card.copyWith(
+      x: x,
+      y: y,
+      width: width,
+      maximized: true,
+      height: () => height,
+      restoreBounds: () => rb,
+      z: _nextZ++,
+    );
+    _focusedId = id;
+    notifyListeners();
+    _persist();
+  }
+
+  /// Restores a maximized/snapped card to its saved bounds.
+  void unmaximize(int id) {
+    final int i = _cards.indexWhere((CanvasCard c) => c.id == id);
+    if (i < 0) return;
+    final CanvasCard card = _cards[i];
+    final RestoreBounds? rb = card.restoreBounds;
+    if (rb == null) return;
+    _cards[i] = card.copyWith(
+      x: rb.x,
+      y: rb.y,
+      width: rb.width,
+      maximized: false,
+      height: () => rb.height,
+      restoreBounds: () => null,
+    );
+    notifyListeners();
+    _persist();
+  }
+
+  /// Toggles maximize: if maximized/snapped → unmaximize, else maximize.
+  void toggleMaximize(
+    int id, {
+    required double x,
+    required double y,
+    required double width,
+    required double height,
+  }) {
+    final int i = _cards.indexWhere((CanvasCard c) => c.id == id);
+    if (i < 0) return;
+    if (_cards[i].maximized || _cards[i].restoreBounds != null) {
+      unmaximize(id);
+    } else {
+      maximize(id, x: x, y: y, width: width, height: height);
+    }
+  }
+
+  /// Snaps card [id] to arbitrary bounds (half-tile). Saves restoreBounds.
+  void snap(
+    int id, {
+    required double x,
+    required double y,
+    required double width,
+    required double height,
+  }) {
+    final int i = _cards.indexWhere((CanvasCard c) => c.id == id);
+    if (i < 0) return;
+    final CanvasCard card = _cards[i];
+    final RestoreBounds rb =
+        card.restoreBounds ??
+        (x: card.x, y: card.y, width: card.width, height: card.height);
+    _cards[i] = card.copyWith(
+      x: x,
+      y: y,
+      width: width,
+      maximized: false,
+      height: () => height,
+      restoreBounds: () => rb,
+      z: _nextZ++,
+    );
+    _focusedId = id;
+    notifyListeners();
+    _persist();
   }
 
   /// Persists the current canvas — call after a drag (move/resize) settles.
@@ -204,16 +419,32 @@ class CanvasController extends ChangeNotifier {
   Map<String, dynamic> toJson() => <String, dynamic>{
     'nextId': _nextId,
     'nextGroupId': _nextGroupId,
+    'nextZ': _nextZ,
     'focused': _focusedId,
     'cards': _cards
         .map(
           (CanvasCard c) => <String, dynamic>{
             'id': c.id,
-            'tool': c.descriptor.id,
+            ...switch (c.content) {
+              ToolWindow tw => <String, dynamic>{'tool': tw.descriptor.id},
+              SystemWindow sw => <String, dynamic>{'system': sw.app.name},
+            },
             'x': c.x,
             'y': c.y,
             'w': c.width,
+            'z': c.z,
             if (c.seed != null) 'seed': c.seed,
+            if (c.minimized) 'minimized': true,
+            if (c.maximized) 'maximized': true,
+            if (c.height != null) 'h': c.height,
+            if (c.restoreBounds != null)
+              'rb': <String, dynamic>{
+                'x': c.restoreBounds!.x,
+                'y': c.restoreBounds!.y,
+                'w': c.restoreBounds!.width,
+                if (c.restoreBounds!.height != null)
+                  'h': c.restoreBounds!.height,
+              },
           },
         )
         .toList(),
@@ -230,33 +461,66 @@ class CanvasController extends ChangeNotifier {
   };
 
   /// Replaces the canvas from a [toJson] map. Cards whose tool id no longer
-  /// exists in the catalog are dropped. Notifies but does not re-persist.
+  /// exists in the catalog are dropped. Unknown system app names are dropped.
+  /// Notifies but does not re-persist.
   void applyJson(Map<String, dynamic> json) {
     _cards.clear();
     _groups.clear();
     int maxId = 0;
+    int maxZ = 0;
     for (final dynamic raw
         in (json['cards'] as List<dynamic>? ?? const <dynamic>[])) {
       final Map<String, dynamic> m = raw as Map<String, dynamic>;
-      final UtilityDescriptor? d = UtilityCatalog.byIdOrNull(
-        m['tool'] as String,
-      );
-      if (d == null) continue;
+      final WindowContent? content;
+      if (m.containsKey('system')) {
+        final String name = m['system'] as String;
+        final SystemApp? app = SystemApp.values.cast<SystemApp?>().firstWhere(
+          (SystemApp? a) => a!.name == name,
+          orElse: () => null,
+        );
+        if (app == null) continue;
+        content = SystemWindow(app);
+      } else {
+        final UtilityDescriptor? d = UtilityCatalog.byIdOrNull(
+          m['tool'] as String,
+        );
+        if (d == null) continue;
+        content = ToolWindow(d);
+      }
       final int id = (m['id'] as num).toInt();
+      final int z = (m['z'] as num?)?.toInt() ?? id;
       maxId = id > maxId ? id : maxId;
+      maxZ = z > maxZ ? z : maxZ;
+      RestoreBounds? rb;
+      if (m['rb'] is Map<String, dynamic>) {
+        final Map<String, dynamic> rbm = m['rb'] as Map<String, dynamic>;
+        rb = (
+          x: (rbm['x'] as num).toDouble(),
+          y: (rbm['y'] as num).toDouble(),
+          width: (rbm['w'] as num).toDouble(),
+          height: (rbm['h'] as num?)?.toDouble(),
+        );
+      }
       _cards.add(
         CanvasCard(
           id: id,
-          descriptor: d,
+          content: content,
           x: (m['x'] as num).toDouble(),
           y: (m['y'] as num).toDouble(),
           width: (m['w'] as num).toDouble(),
           seed: m['seed'] as String?,
+          z: z,
+          minimized: m['minimized'] as bool? ?? false,
+          maximized: m['maximized'] as bool? ?? false,
+          height: (m['h'] as num?)?.toDouble(),
+          restoreBounds: rb,
         ),
       );
     }
     _nextId = (json['nextId'] as num?)?.toInt() ?? (maxId + 1);
     if (_nextId <= maxId) _nextId = maxId + 1;
+    _nextZ = (json['nextZ'] as num?)?.toInt() ?? (maxZ + 1);
+    if (_nextZ <= maxZ) _nextZ = maxZ + 1;
     final int? focused = (json['focused'] as num?)?.toInt();
     _focusedId = _cards.any((CanvasCard c) => c.id == focused) ? focused : null;
 

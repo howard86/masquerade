@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/state/canvas_controller.dart';
+import 'package:masquerade/state/window_content.dart';
 import 'package:masquerade/utility_catalog.dart';
 
 void main() {
@@ -118,6 +119,160 @@ void main() {
 
       expect(c.focusedId, a);
     });
+
+    test('focusSlot restores a minimized card', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(timestamp);
+      c.minimize(a);
+
+      c.focusSlot(1);
+
+      expect(c.cards.single.minimized, isFalse);
+      expect(c.focusedId, a);
+    });
+  });
+
+  group('z-order', () {
+    test('focus raises card z while slot order stays stable', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(timestamp);
+      final int b = c.openTool(json);
+      // b was opened last, so it has higher z.
+      expect(c.cards[0].id, a); // slot order unchanged
+      expect(c.cards[1].id, b);
+
+      c.focus(a);
+      // a now has the highest z.
+      final List<CanvasCard> byZ = c.cardsByZ;
+      expect(byZ.last.id, a);
+      // Slot order unchanged.
+      expect(c.cards[0].id, a);
+      expect(c.cards[1].id, b);
+    });
+
+    test('cardsByZ returns cards sorted by z ascending', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(timestamp);
+      final int b = c.openTool(json);
+      final int d = c.openTool(diff);
+      c.focus(a); // a raised to top
+
+      final List<CanvasCard> byZ = c.cardsByZ;
+      expect(byZ[0].id, b);
+      expect(byZ[1].id, d);
+      expect(byZ[2].id, a);
+    });
+  });
+
+  group('minimize / restore', () {
+    test('minimize hides card and shifts focus', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(timestamp);
+      final int b = c.openTool(json);
+      c.focus(a);
+
+      c.minimize(a);
+
+      expect(c.cards[0].minimized, isTrue);
+      expect(c.focusedId, b); // focus fell to next visible
+    });
+
+    test('restore shows card and focuses it', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(timestamp);
+      c.openTool(json);
+      c.minimize(a);
+
+      c.restoreWindow(a);
+
+      expect(c.cards[0].minimized, isFalse);
+      expect(c.focusedId, a);
+    });
+
+    test('minimize all clears focus', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(timestamp);
+      c.minimize(a);
+
+      expect(c.focusedId, isNull);
+    });
+  });
+
+  group('maximize / unmaximize', () {
+    test('maximize saves restoreBounds and sets geometry', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(timestamp);
+      c.moveTo(a, 100, 50);
+
+      c.maximize(a, x: 0, y: 0, width: 1200, height: 800);
+
+      final CanvasCard card = c.cards.single;
+      expect(card.maximized, isTrue);
+      expect(card.x, 0);
+      expect(card.y, 0);
+      expect(card.width, 1200);
+      expect(card.height, 800);
+      expect(card.restoreBounds, isNotNull);
+      expect(card.restoreBounds!.x, 100);
+      expect(card.restoreBounds!.y, 50);
+    });
+
+    test('unmaximize restores saved bounds', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(timestamp);
+      c.moveTo(a, 100, 50);
+      c.maximize(a, x: 0, y: 0, width: 1200, height: 800);
+
+      c.unmaximize(a);
+
+      final CanvasCard card = c.cards.single;
+      expect(card.maximized, isFalse);
+      expect(card.x, 100);
+      expect(card.y, 50);
+      expect(card.restoreBounds, isNull);
+    });
+
+    test('toggleMaximize toggles between states', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(timestamp);
+
+      c.toggleMaximize(a, x: 0, y: 0, width: 1200, height: 800);
+      expect(c.cards.single.maximized, isTrue);
+
+      c.toggleMaximize(a, x: 0, y: 0, width: 1200, height: 800);
+      expect(c.cards.single.maximized, isFalse);
+      expect(c.cards.single.restoreBounds, isNull);
+    });
+  });
+
+  group('snap', () {
+    test('snap sets half-bounds and saves restoreBounds', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(timestamp);
+      c.moveTo(a, 100, 50);
+
+      c.snap(a, x: 0, y: 0, width: 600, height: 800);
+
+      final CanvasCard card = c.cards.single;
+      expect(card.maximized, isFalse);
+      expect(card.x, 0);
+      expect(card.width, 600);
+      expect(card.height, 800);
+      expect(card.restoreBounds!.x, 100);
+    });
+
+    test('unmaximize after snap restores original bounds', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(timestamp);
+      c.moveTo(a, 100, 50);
+      c.snap(a, x: 0, y: 0, width: 600, height: 800);
+
+      c.unmaximize(a);
+
+      expect(c.cards.single.x, 100);
+      expect(c.cards.single.y, 50);
+      expect(c.cards.single.restoreBounds, isNull);
+    });
   });
 
   group('moveTo', () {
@@ -177,7 +332,7 @@ void main() {
       expect(c.length, 2);
       final CanvasCard a = c.cards[0];
       final CanvasCard b = c.cards[1];
-      expect(b.descriptor.id, a.descriptor.id);
+      expect(b.toolDescriptor!.id, a.toolDescriptor!.id);
       expect(b.width, a.width);
       expect(b.seed, a.seed);
       expect(b.x, a.x + 32);
@@ -188,6 +343,52 @@ void main() {
     test('returns null for an unknown id', () {
       final CanvasController c = CanvasController();
       expect(c.duplicate(123), isNull);
+    });
+
+    test('returns null for a system window (singletons)', () {
+      final CanvasController c = CanvasController();
+      final int id = c.openSystem(SystemApp.history);
+      expect(c.duplicate(id), isNull);
+      expect(c.length, 1);
+    });
+  });
+
+  group('openSystem', () {
+    test('opens a system window with default size', () {
+      final CanvasController c = CanvasController();
+      final int id = c.openSystem(SystemApp.history);
+      expect(c.length, 1);
+      expect(c.focusedId, id);
+      expect(c.cards.single.content, isA<SystemWindow>());
+      expect(c.cards.single.width, 440);
+      expect(c.cards.single.height, 600);
+    });
+
+    test('deduplicates: second call focuses existing card', () {
+      final CanvasController c = CanvasController();
+      final int id1 = c.openSystem(SystemApp.settings);
+      c.openTool(timestamp); // open something else to shift focus
+      final int id2 = c.openSystem(SystemApp.settings);
+      expect(id1, id2);
+      expect(c.length, 2); // only 2 cards total (system + tool)
+      expect(c.focusedId, id1);
+    });
+
+    test('dedup restores minimized system window', () {
+      final CanvasController c = CanvasController();
+      final int id = c.openSystem(SystemApp.history);
+      c.minimize(id);
+      expect(c.cards.single.minimized, isTrue);
+      c.openSystem(SystemApp.history);
+      expect(c.cards.single.minimized, isFalse);
+      expect(c.focusedId, id);
+    });
+
+    test('different system apps open separate windows', () {
+      final CanvasController c = CanvasController();
+      c.openSystem(SystemApp.history);
+      c.openSystem(SystemApp.settings);
+      expect(c.length, 2);
     });
   });
 }

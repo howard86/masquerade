@@ -6,7 +6,6 @@ import 'package:masquerade/app.dart';
 import 'package:masquerade/state/view_mode_controller.dart';
 import 'package:masquerade/widgets/desktop/pipe.dart';
 import 'package:masquerade/widgets/desktop/tool_card_frame.dart';
-import 'package:masquerade/widgets/mq/tool_grid_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Past the longest body debounce (JSON 200 ms) so converts settle.
@@ -25,31 +24,32 @@ Future<void> _pumpDesktop(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-/// Opens the first tool card from the desktop home grid by its catalog name.
-/// (The grid is only shown while the canvas is empty.)
+/// Opens the first tool card from the desktop icon grid by its catalog name.
 Future<void> _openFirst(WidgetTester tester, String name) async {
-  final Finder tile = find.widgetWithText(ToolGridCard, name);
+  final Finder tile = find.text(name);
   await tester.ensureVisible(tile);
   await tester.tap(tile);
   await tester.pumpAndSettle();
 }
 
-/// Opens an additional card once the canvas is non-empty, via the ⌘K palette.
-/// [query] filters the list; [resultName] is the exact tool name to tap. Keep
-/// them different so the typed query doesn't collide with the result's Text.
+/// Opens an additional card via the menubar File → New tool… palette.
+/// [query] filters the list; [resultName] is the exact tool name to tap.
 Future<void> _openViaPalette(
   WidgetTester tester,
   String query,
   String resultName,
 ) async {
-  await tester.tap(find.text('⌘K  Open tool'));
+  await tester.tap(find.text('File'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('New tool…  ⌘K'));
   await tester.pumpAndSettle();
   await tester.enterText(
     find.byKey(const ValueKey<String>('command-palette-field')),
     query,
   );
   await tester.pumpAndSettle();
-  await tester.tap(find.text(resultName));
+  // Use .last because the icon grid label also matches the tool name.
+  await tester.tap(find.text(resultName).last);
   await tester.pumpAndSettle();
 }
 

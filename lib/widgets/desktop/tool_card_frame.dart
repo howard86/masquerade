@@ -3,41 +3,54 @@ import 'package:flutter/cupertino.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
-import '../../utility_catalog.dart';
 import '../mq/mq_icons.dart';
 
-/// Card chrome for the desktop canvas: a draggable title bar (grip · name ·
-/// slot tag · duplicate · close) over the embedded tool [child], plus a
+/// Card chrome for the desktop canvas: a draggable title bar (traffic lights ·
+/// name · slot tag · duplicate · link) over the embedded tool [child], plus a
 /// right-edge resize handle. The body inside is the unmodified
 /// `descriptor.builder(...)` output — the frame knows nothing about which tool
 /// it wraps beyond the descriptor's name and tint.
 class ToolCardFrame extends StatelessWidget {
   const ToolCardFrame({
     super.key,
-    required this.descriptor,
+    required this.title,
     required this.slot,
     required this.focused,
     required this.onFocus,
     required this.onClose,
-    required this.onDuplicate,
+    required this.onMinimize,
+    required this.onToggleMaximize,
     required this.onMoveDelta,
     required this.onMoveEnd,
     required this.onResizeDelta,
     required this.onResizeEnd,
     required this.child,
+    this.onDuplicate,
+    this.maximized = false,
+    this.height,
     this.linked = false,
     this.linkTooltip,
     this.onLink,
+    this.scrollBody = true,
   });
 
-  final UtilityDescriptor descriptor;
+  final String title;
 
   /// 1-based slot for the ⌥N tag, or null when beyond slot 9.
   final int? slot;
   final bool focused;
+  final bool maximized;
+
+  /// Explicit height; null = intrinsic (Column mainAxisSize.min).
+  final double? height;
+
   final VoidCallback onFocus;
   final VoidCallback onClose;
-  final VoidCallback onDuplicate;
+  final VoidCallback onMinimize;
+  final VoidCallback onToggleMaximize;
+
+  /// When null, the duplicate button is hidden (system windows).
+  final VoidCallback? onDuplicate;
 
   /// When [onLink] is non-null the header shows a link toggle. [linked] paints
   /// it gold (active) and [linkTooltip] is its accessibility label.
@@ -57,15 +70,36 @@ class ToolCardFrame extends StatelessWidget {
   /// Called once the resize drag settles (persist hook).
   final VoidCallback onResizeEnd;
 
+  /// Whether the frame wraps the child in a SingleChildScrollView when height
+  /// is bounded. Set to false for system windows whose body scrolls itself.
+  final bool scrollBody;
+
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
+    final Widget body;
+    if (height != null) {
+      if (scrollBody) {
+        body = SizedBox(
+          height: height! - _kHeaderHeight,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(MqSpacing.lg),
+            child: child,
+          ),
+        );
+      } else {
+        body = SizedBox(height: height! - _kHeaderHeight, child: child);
+      }
+    } else {
+      body = Padding(padding: const EdgeInsets.all(MqSpacing.lg), child: child);
+    }
     return Stack(
       clipBehavior: Clip.none,
       children: <Widget>[
-        DecoratedBox(
+        Container(
+          height: height,
           decoration: BoxDecoration(
             color: c.surface,
             borderRadius: BorderRadius.circular(MqRadius.md),
@@ -78,14 +112,19 @@ class ToolCardFrame extends StatelessWidget {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(MqRadius.md),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize: height != null
+                  ? MainAxisSize.max
+                  : MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
                 _Header(
-                  descriptor: descriptor,
+                  title: title,
                   slot: slot,
+                  maximized: maximized,
                   onFocus: onFocus,
                   onClose: onClose,
+                  onMinimize: onMinimize,
+                  onToggleMaximize: onToggleMaximize,
                   onDuplicate: onDuplicate,
                   onMoveDelta: onMoveDelta,
                   onMoveEnd: onMoveEnd,
@@ -93,35 +132,39 @@ class ToolCardFrame extends StatelessWidget {
                   linkTooltip: linkTooltip,
                   onLink: onLink,
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(MqSpacing.lg),
-                  child: child,
-                ),
+                if (height != null) Expanded(child: body) else body,
               ],
             ),
           ),
         ),
-        Positioned(
-          top: 0,
-          bottom: 0,
-          right: -2,
-          width: 10,
-          child: _ResizeHandle(
-            onResizeDelta: onResizeDelta,
-            onResizeEnd: onResizeEnd,
+        if (!maximized)
+          Positioned(
+            top: 0,
+            bottom: 0,
+            right: -2,
+            width: 10,
+            child: _ResizeHandle(
+              onResizeDelta: onResizeDelta,
+              onResizeEnd: onResizeEnd,
+            ),
           ),
-        ),
       ],
     );
   }
 }
 
+/// Approximate header height for body height calculation.
+const double _kHeaderHeight = 36;
+
 class _Header extends StatelessWidget {
   const _Header({
-    required this.descriptor,
+    required this.title,
     required this.slot,
+    required this.maximized,
     required this.onFocus,
     required this.onClose,
+    required this.onMinimize,
+    required this.onToggleMaximize,
     required this.onDuplicate,
     required this.onMoveDelta,
     required this.onMoveEnd,
@@ -130,11 +173,14 @@ class _Header extends StatelessWidget {
     required this.onLink,
   });
 
-  final UtilityDescriptor descriptor;
+  final String title;
   final int? slot;
+  final bool maximized;
   final VoidCallback onFocus;
   final VoidCallback onClose;
-  final VoidCallback onDuplicate;
+  final VoidCallback onMinimize;
+  final VoidCallback onToggleMaximize;
+  final VoidCallback? onDuplicate;
   final ValueChanged<Offset> onMoveDelta;
   final VoidCallback onMoveEnd;
   final bool linked;
@@ -147,11 +193,13 @@ class _Header extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onFocus,
-      onPanStart: (_) => onFocus(),
-      onPanUpdate: (DragUpdateDetails d) => onMoveDelta(d.delta),
-      onPanEnd: (_) => onMoveEnd(),
+      onPanStart: maximized ? null : (_) => onFocus(),
+      onPanUpdate: maximized
+          ? null
+          : (DragUpdateDetails d) => onMoveDelta(d.delta),
+      onPanEnd: maximized ? null : (_) => onMoveEnd(),
       child: MouseRegion(
-        cursor: SystemMouseCursors.grab,
+        cursor: maximized ? SystemMouseCursors.basic : SystemMouseCursors.grab,
         child: Container(
           decoration: BoxDecoration(
             color: c.surface2,
@@ -163,11 +211,28 @@ class _Header extends StatelessWidget {
           ),
           child: Row(
             children: <Widget>[
-              _Grip(color: c.textTer),
+              // Traffic lights: close (red), minimize (yellow), maximize (green)
+              _TrafficLight(
+                color: c.danger,
+                tooltip: 'Close (Esc)',
+                onTap: onClose,
+              ),
+              const SizedBox(width: MqSpacing.xs),
+              _TrafficLight(
+                color: c.warning,
+                tooltip: 'Minimize',
+                onTap: onMinimize,
+              ),
+              const SizedBox(width: MqSpacing.xs),
+              _TrafficLight(
+                color: c.success,
+                tooltip: maximized ? 'Restore' : 'Maximize',
+                onTap: onToggleMaximize,
+              ),
               const SizedBox(width: MqSpacing.sm),
               Expanded(
                 child: Text(
-                  descriptor.name,
+                  title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: MqTextStyles.sectionLabel.copyWith(color: c.textPri),
@@ -187,16 +252,12 @@ class _Header extends StatelessWidget {
                   onTap: onLink!,
                   color: linked ? c.warning : null,
                 ),
-              _IconButton(
-                icon: MqIcons.copy,
-                tooltip: 'Duplicate (⌥D)',
-                onTap: onDuplicate,
-              ),
-              _IconButton(
-                icon: MqIcons.xmark,
-                tooltip: 'Close (Esc)',
-                onTap: onClose,
-              ),
+              if (onDuplicate != null)
+                _IconButton(
+                  icon: MqIcons.copy,
+                  tooltip: 'Duplicate (⌥D)',
+                  onTap: onDuplicate!,
+                ),
             ],
           ),
         ),
@@ -205,33 +266,34 @@ class _Header extends StatelessWidget {
   }
 }
 
-/// A 2×3 dot grid that reads as a drag affordance.
-class _Grip extends StatelessWidget {
-  const _Grip({required this.color});
+/// A single traffic-light dot button.
+class _TrafficLight extends StatelessWidget {
+  const _TrafficLight({
+    required this.color,
+    required this.tooltip,
+    required this.onTap,
+  });
+
   final Color color;
+  final String tooltip;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    Widget dot() => Container(
-      width: 2.5,
-      height: 2.5,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-    );
-    Widget col() => Column(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        dot(),
-        const SizedBox(height: 2),
-        dot(),
-        const SizedBox(height: 2),
-        dot(),
-      ],
-    );
-    return Opacity(
-      opacity: 0.7,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[col(), const SizedBox(width: 2), col()],
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Semantics(
+          label: tooltip,
+          button: true,
+          child: Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+        ),
       ),
     );
   }

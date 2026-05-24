@@ -4,16 +4,16 @@ import 'package:flutter/services.dart';
 
 import '../../state/canvas_controller.dart';
 import '../../state/link_group.dart';
-import '../../theme/mq_metrics.dart';
+import '../../state/window_content.dart';
 import '../../theme/mq_theme.dart';
-import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
 import '../../widgets/desktop/command_palette.dart';
+import '../../widgets/desktop/desktop_icon_grid.dart';
 import '../../widgets/desktop/pipe.dart';
 import '../../widgets/desktop/tool_card_frame.dart';
-import '../../widgets/mq/mq_icons.dart';
 import '../../widgets/tool_bodies/seed_source.dart';
-import '../home_screen.dart';
+import '../history_screen.dart';
+import '../settings_screen.dart';
 
 /// Header-toggle link pairings (see docs/adr/0001): a card's link button opens
 /// this fixed partner tool and links the two on one canonical type. Keyed by
@@ -48,9 +48,10 @@ const Map<String, Set<ContentType>> _linkableTypes = <String, Set<ContentType>>{
   'color': <ContentType>{ContentType.color, ContentType.text},
 };
 
-/// The desktop Home surface: a multi-card canvas. When no cards are open it
-/// shows the familiar Home grid (so a tile-tap opens the first card); once a
-/// card is open it switches to the pannable canvas with a compact top bar.
+/// The desktop work surface: a pannable canvas hosting the fixed
+/// [DesktopIconGrid] (single-click an icon to open a tool) with draggable tool
+/// cards floating above it. Menubar items cover ⌘K / paste / close-all, so the
+/// canvas carries no chrome of its own.
 ///
 /// Owns no state itself beyond the pan offset — the open cards live in the
 /// injected [CanvasController] so the shell can keep them across nav switches
@@ -104,17 +105,8 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
   }
 
   Future<void> _openViaPalette() async {
-    final UtilityDescriptor? u = await showCommandPalette(context);
-    if (u != null && mounted) _c.openTool(u);
-  }
-
-  Future<void> _pasteOpen() async {
-    final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
-    final String? text = data?.text;
-    if (text == null || text.isEmpty || !mounted) return;
-    final List<UtilityDescriptor> matches = UtilityCatalog.detectAll(text);
-    if (matches.isEmpty) return;
-    _c.openTool(matches.first, seed: text);
+    final PaletteResult? r = await showCommandPalette(context);
+    if (r != null && mounted) _c.openTool(r.tool, seed: r.seed);
   }
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
@@ -153,38 +145,22 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
       focusNode: _focusNode,
       autofocus: true,
       onKeyEvent: _onKey,
-      child: _c.isEmpty
-          ? HomeScreen(
-              onOpenTool: (UtilityDescriptor u, String seed) =>
-                  _c.openTool(u, seed: seed),
-            )
-          : Column(
-              children: <Widget>[
-                _CanvasTopBar(
-                  count: _c.length,
-                  onPalette: _openViaPalette,
-                  onPaste: _pasteOpen,
-                  onCloseAll: _c.closeAll,
-                ),
-                Expanded(child: _surface(context)),
-              ],
-            ),
+      child: _surface(context),
     );
   }
 
   Widget _surface(BuildContext context) {
     final c = context.mq.colors;
-    final List<CanvasCard> cards = _c.cards;
+    // Paint in z-order; compute slot from open-order index.
+    final List<CanvasCard> zCards = _c.cardsByZ;
+    final List<CanvasCard> openOrder = _c.cards;
     return ClipRect(
       child: ColoredBox(
         key: _surfaceKey,
-        color: c.bg,
+        color: const Color(0x00000000),
         child: Stack(
           children: <Widget>[
             // Background: drag on empty space to pan; dot grid scrolls with it.
-            // A DragTarget overlays the pan gesture so a cell dropped on empty
-            // space opens a new seeded card. DragTarget doesn't consume pans, so
-            // the empty-space pan stays live.
             Positioned.fill(
               child: DragTarget<PipePayload>(
                 onAcceptWithDetails: _onDropOnCanvas,
@@ -203,32 +179,47 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
                     ),
               ),
             ),
+            // Icon grid: fixed (no pan offset), above dot-grid, below cards.
+            Positioned.fill(
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: DesktopIconGrid(
+                  onOpen: (UtilityDescriptor u) => _c.openTool(u),
+                  onOpenSystem: (SystemApp app) => _c.openSystem(app),
+                ),
+              ),
+            ),
             // Gold tether drawn behind the cards for each Link group.
             if (_c.hasLinks)
               Positioned.fill(
                 child: IgnorePointer(
                   child: CustomPaint(
                     painter: _LinkLinePainter(
-                      segments: _linkSegments(cards),
+                      segments: _linkSegments(openOrder),
                       color: c.warning,
                     ),
                   ),
                 ),
               ),
-            for (int i = 0; i < cards.length; i++)
-              Positioned(
-                // Key the Positioned itself (not just the inner SizedBox) so a
-                // card's State survives sibling inserts/removes — the gold-line
-                // painter shifts child indices, and closing a middle card would
-                // otherwise rebind the wrong element.
-                key: ValueKey<int>(cards[i].id),
-                left: cards[i].x + _pan.dx,
-                top: cards[i].y + _pan.dy,
-                child: SizedBox(
-                  width: cards[i].width,
-                  child: _cardFrame(cards[i], slot: i + 1),
+            for (final CanvasCard card in zCards)
+              if (!card.minimized)
+                Positioned(
+                  key: ValueKey<int>(card.id),
+                  left: card.x + _pan.dx,
+                  top: card.y + _pan.dy,
+                  child: SizedBox(
+                    width: card.width,
+                    height: card.height,
+                    child: _cardFrame(
+                      card,
+                      slot:
+                          openOrder.indexWhere(
+                            (CanvasCard c) => c.id == card.id,
+                          ) +
+                          1,
+                    ),
+                  ),
                 ),
-              ),
           ],
         ),
       ),
@@ -253,28 +244,67 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
   }
 
   Widget _cardFrame(CanvasCard card, {required int slot}) {
+    final WindowContent content = card.content;
+    return switch (content) {
+      ToolWindow tw => _toolCardFrame(card, tw, slot: slot),
+      SystemWindow sw => _systemCardFrame(card, sw, slot: slot),
+    };
+  }
+
+  Widget _systemCardFrame(
+    CanvasCard card,
+    SystemWindow sw, {
+    required int slot,
+  }) {
+    final Widget body = switch (sw.app) {
+      SystemApp.history => const HistoryBody(),
+      SystemApp.settings => SettingsBody(isWebOverride: true),
+    };
+    return ToolCardFrame(
+      title: sw.title,
+      slot: slot <= 9 ? slot : null,
+      focused: _c.focusedId == card.id,
+      maximized: card.maximized,
+      height: card.height,
+      scrollBody: false,
+      onFocus: () => _c.focus(card.id),
+      onClose: () => _c.close(card.id),
+      onMinimize: () => _c.minimize(card.id),
+      onToggleMaximize: () => _toggleMax(card),
+      onMoveDelta: (Offset d) =>
+          _c.moveTo(card.id, card.x + d.dx, card.y + d.dy),
+      onMoveEnd: () => _onMoveEnd(card),
+      onResizeDelta: (double dx) => _c.resize(card.id, card.width + dx),
+      onResizeEnd: _c.commit,
+      child: body,
+    );
+  }
+
+  Widget _toolCardFrame(CanvasCard card, ToolWindow tw, {required int slot}) {
+    final UtilityDescriptor descriptor = tw.descriptor;
     final SeedSource src = card.seed != null
         ? SeedSource.paste
         : SeedSource.none;
     final ({String partnerId, ContentType type})? partner =
-        _linkPartners[card.descriptor.id];
+        _linkPartners[descriptor.id];
     final bool linked = _c.groupForCard(card.id) != null;
     final ToolCardFrame frame = ToolCardFrame(
-      descriptor: card.descriptor,
+      title: tw.title,
       slot: slot <= 9 ? slot : null,
       focused: _c.focusedId == card.id,
+      maximized: card.maximized,
+      height: card.height,
       onFocus: () => _c.focus(card.id),
       onClose: () => _c.close(card.id),
+      onMinimize: () => _c.minimize(card.id),
+      onToggleMaximize: () => _toggleMax(card),
       onDuplicate: () => _c.duplicate(card.id),
       onMoveDelta: (Offset d) =>
           _c.moveTo(card.id, card.x + d.dx, card.y + d.dy),
-      onMoveEnd: _c.commit,
+      onMoveEnd: () => _onMoveEnd(card),
       onResizeDelta: (double dx) => _c.resize(card.id, card.width + dx),
       onResizeEnd: _c.commit,
       linked: linked,
-      // A linked card always offers Unlink — even one linked by drop-to-link
-      // with no fixed [partner]. An unlinked card with a partner offers Open.
-      // An unlinked card with no partner has no toggle.
       linkTooltip: linked
           ? 'Unlink'
           : partner == null
@@ -283,11 +313,9 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
       onLink: (linked || partner != null)
           ? () => _toggleLink(card, partner)
           : null,
-      // PipeScope tells this card's output cells their source id and that pipe
-      // mode is active; absent on mobile/Home so cells stay inert there.
       child: PipeScope(
         cardId: card.id,
-        child: card.descriptor.builder(
+        child: descriptor.builder(
           context,
           initialInput: card.seed,
           seedSource: src,
@@ -298,11 +326,10 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
         ),
       ),
     );
-    // Drop a cell onto this card → live link the two (reuses the proven engine).
     return DragTarget<PipePayload>(
       onWillAcceptWithDetails: (DragTargetDetails<PipePayload> d) =>
           d.data.sourceCardId != card.id &&
-          (_linkableTypes[card.descriptor.id]?.contains(d.data.type) ?? false),
+          (_linkableTypes[descriptor.id]?.contains(d.data.type) ?? false),
       onAcceptWithDetails: (DragTargetDetails<PipePayload> d) => _c.linkCards(
         d.data.sourceCardId,
         card.id,
@@ -316,6 +343,65 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
             List<dynamic> rejected,
           ) => frame,
     );
+  }
+
+  /// Edge-snap threshold in logical pixels.
+  static const double _snapThreshold = 16;
+
+  void _onMoveEnd(CanvasCard card) {
+    final Size? size = _canvasSize;
+    if (size != null) {
+      // Check edge-snap: left, right, top.
+      if (card.x <= _snapThreshold) {
+        _c.snap(
+          card.id,
+          x: 0,
+          y: 0,
+          width: size.width / 2,
+          height: size.height,
+        );
+        return;
+      }
+      if (card.x + card.width >= size.width - _snapThreshold) {
+        _c.snap(
+          card.id,
+          x: size.width / 2,
+          y: 0,
+          width: size.width / 2,
+          height: size.height,
+        );
+        return;
+      }
+      if (card.y <= _snapThreshold) {
+        _c.maximize(
+          card.id,
+          x: 0,
+          y: 0,
+          width: size.width,
+          height: size.height,
+        );
+        return;
+      }
+    }
+    _c.commit();
+  }
+
+  void _toggleMax(CanvasCard card) {
+    final Size? size = _canvasSize;
+    if (size == null) return;
+    _c.toggleMaximize(
+      card.id,
+      x: 0,
+      y: 0,
+      width: size.width,
+      height: size.height,
+    );
+  }
+
+  Size? get _canvasSize {
+    final RenderBox? box =
+        _surfaceKey.currentContext?.findRenderObject() as RenderBox?;
+    return box?.size;
   }
 
   /// Toggles the header link on [card]: unlinks if already linked (works even
@@ -356,94 +442,6 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
 
   Offset _anchor(CanvasCard card) =>
       Offset(card.x + _pan.dx + card.width / 2, card.y + _pan.dy + 18);
-}
-
-class _CanvasTopBar extends StatelessWidget {
-  const _CanvasTopBar({
-    required this.count,
-    required this.onPalette,
-    required this.onPaste,
-    required this.onCloseAll,
-  });
-
-  final int count;
-  final VoidCallback onPalette;
-  final VoidCallback onPaste;
-  final VoidCallback onCloseAll;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.mq.colors;
-    return Container(
-      decoration: BoxDecoration(
-        color: c.surface,
-        border: Border(bottom: BorderSide(color: c.border, width: 0.5)),
-      ),
-      padding: const EdgeInsets.symmetric(
-        horizontal: MqSpacing.lg,
-        vertical: MqSpacing.sm,
-      ),
-      child: Row(
-        children: <Widget>[
-          Text(
-            'Canvas',
-            style: MqTextStyles.sectionLabel.copyWith(color: c.textTer),
-          ),
-          const SizedBox(width: MqSpacing.lg),
-          _Pill(icon: MqIcons.search, label: '⌘K  Open tool', onTap: onPalette),
-          const SizedBox(width: MqSpacing.sm),
-          _Pill(icon: MqIcons.paste, label: 'Paste', onTap: onPaste),
-          const Spacer(),
-          Text(
-            '$count ${count == 1 ? 'card' : 'cards'}',
-            style: MqTextStyles.monoSm.copyWith(color: c.textTer),
-          ),
-          const SizedBox(width: MqSpacing.md),
-          _Pill(icon: MqIcons.trash, label: 'Close all', onTap: onCloseAll),
-        ],
-      ),
-    );
-  }
-}
-
-class _Pill extends StatelessWidget {
-  const _Pill({required this.icon, required this.label, required this.onTap});
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.mq.colors;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: MqSpacing.md,
-            vertical: MqSpacing.xs + 2,
-          ),
-          decoration: BoxDecoration(
-            border: Border.all(color: c.borderStrong, width: 0.5),
-            borderRadius: BorderRadius.circular(MqRadius.sm),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Icon(icon, size: 13, color: c.textSec),
-              const SizedBox(width: MqSpacing.xs + 2),
-              Text(
-                label,
-                style: MqTextStyles.caption1.copyWith(color: c.textSec),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 /// Subtle dot grid that scrolls with the canvas pan, echoing the design mock.

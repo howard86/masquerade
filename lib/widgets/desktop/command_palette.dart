@@ -7,13 +7,15 @@ import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
 import '../mq/mq_icons.dart';
 
-/// Shows the ⌘K command palette and resolves to the chosen tool, or null if
-/// the user dismissed it. Searches `UtilityCatalog` by name/synonym — the same
-/// scorer the mobile paste hero uses.
-Future<UtilityDescriptor?> showCommandPalette(BuildContext context) {
-  // MqTheme sits in CupertinoApp.builder, above the Navigator overlay this
-  // dialog mounts into, so `context.mq` resolves inside _CommandPalette.
-  return showGeneralDialog<UtilityDescriptor>(
+/// Result from the Spotlight command palette: the chosen tool and an optional
+/// seed value (non-null when the user's query was detected as a value).
+typedef PaletteResult = ({UtilityDescriptor tool, String? seed});
+
+/// Shows the ⌘K Spotlight palette and resolves to the chosen tool + optional
+/// seed, or null if the user dismissed it. Searches `UtilityCatalog` by
+/// name/synonym and additionally detects pasted values to offer seeded open.
+Future<PaletteResult?> showCommandPalette(BuildContext context) {
+  return showGeneralDialog<PaletteResult>(
     context: context,
     barrierDismissible: true,
     barrierLabel: 'Command palette',
@@ -58,6 +60,7 @@ class _CommandPaletteState extends State<_CommandPalette> {
   final TextEditingController _query = TextEditingController();
   final FocusNode _focus = FocusNode();
   List<UtilityDescriptor> _results = UtilityCatalog.searchByName('');
+  UtilityDescriptor? _detected;
   int _highlight = 0;
 
   @override
@@ -75,13 +78,28 @@ class _CommandPaletteState extends State<_CommandPalette> {
   }
 
   void _recompute() {
+    final String text = _query.text;
+    final List<UtilityDescriptor> detected = UtilityCatalog.detectAll(text);
     setState(() {
-      _results = UtilityCatalog.searchByName(_query.text);
+      _results = UtilityCatalog.searchByName(text);
+      _detected = detected.isNotEmpty ? detected.first : null;
       _highlight = 0;
     });
   }
 
-  void _pick(UtilityDescriptor u) => Navigator.of(context).pop(u);
+  int get _totalRows => (_detected != null ? 1 : 0) + _results.length;
+
+  void _pick(UtilityDescriptor u, {String? seed}) =>
+      Navigator.of(context).pop((tool: u, seed: seed));
+
+  void _pickHighlighted() {
+    if (_detected != null && _highlight == 0) {
+      _pick(_detected!, seed: _query.text);
+    } else {
+      final int idx = _highlight - (_detected != null ? 1 : 0);
+      if (idx >= 0 && idx < _results.length) _pick(_results[idx]);
+    }
+  }
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
@@ -89,22 +107,19 @@ class _CommandPaletteState extends State<_CommandPalette> {
     }
     final LogicalKeyboardKey k = event.logicalKey;
     if (k == LogicalKeyboardKey.arrowDown) {
-      if (_results.isNotEmpty) {
-        setState(() => _highlight = (_highlight + 1) % _results.length);
+      if (_totalRows > 0) {
+        setState(() => _highlight = (_highlight + 1) % _totalRows);
       }
       return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.arrowUp) {
-      if (_results.isNotEmpty) {
-        setState(
-          () =>
-              _highlight = (_highlight - 1 + _results.length) % _results.length,
-        );
+      if (_totalRows > 0) {
+        setState(() => _highlight = (_highlight - 1 + _totalRows) % _totalRows);
       }
       return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.enter || k == LogicalKeyboardKey.numpadEnter) {
-      if (_highlight < _results.length) _pick(_results[_highlight]);
+      if (_totalRows > 0) _pickHighlighted();
       return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.escape) {
@@ -138,9 +153,17 @@ class _CommandPaletteState extends State<_CommandPalette> {
                 child: ListView.builder(
                   shrinkWrap: true,
                   padding: const EdgeInsets.symmetric(vertical: MqSpacing.xs),
-                  itemCount: _results.length,
+                  itemCount: _totalRows,
                   itemBuilder: (BuildContext _, int i) {
-                    final UtilityDescriptor u = _results[i];
+                    if (_detected != null && i == 0) {
+                      return _DetectRow(
+                        descriptor: _detected!,
+                        highlighted: _highlight == 0,
+                        onTap: () => _pick(_detected!, seed: _query.text),
+                      );
+                    }
+                    final int idx = i - (_detected != null ? 1 : 0);
+                    final UtilityDescriptor u = _results[idx];
                     return _ResultRow(
                       descriptor: u,
                       highlighted: i == _highlight,
@@ -243,6 +266,52 @@ class _ResultRow extends StatelessWidget {
                       style: MqTextStyles.caption1.copyWith(color: c.textSec),
                     ),
                   ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DetectRow extends StatelessWidget {
+  const _DetectRow({
+    required this.descriptor,
+    required this.highlighted,
+    required this.onTap,
+  });
+
+  final UtilityDescriptor descriptor;
+  final bool highlighted;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mq.colors;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Container(
+          color: highlighted ? c.accentBg : null,
+          padding: const EdgeInsets.symmetric(
+            horizontal: MqSpacing.md,
+            vertical: MqSpacing.sm + 2,
+          ),
+          child: Row(
+            children: <Widget>[
+              Icon(descriptor.icon, size: 18, color: descriptor.tint),
+              const SizedBox(width: MqSpacing.md),
+              Expanded(
+                child: Text(
+                  'Open ${descriptor.name} with this value',
+                  style: MqTextStyles.body.copyWith(
+                    color: highlighted ? c.accent : c.textPri,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
