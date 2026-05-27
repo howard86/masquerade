@@ -80,3 +80,8 @@ Desktop.ini
 
 # Git worktrees
 .worktrees/
+
+# Tooling and temporary directories
+.antigravitycli/
+.codex/
+
