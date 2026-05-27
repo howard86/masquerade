@@ -32,6 +32,7 @@ class ToolCardFrame extends StatelessWidget {
     this.linkTooltip,
     this.onLink,
     this.scrollBody = true,
+    this.onSecondaryTapDown,
   });
 
   final String title;
@@ -75,6 +76,7 @@ class ToolCardFrame extends StatelessWidget {
   final bool scrollBody;
 
   final Widget child;
+  final GestureTapDownCallback? onSecondaryTapDown;
 
   @override
   Widget build(BuildContext context) {
@@ -131,6 +133,7 @@ class ToolCardFrame extends StatelessWidget {
                   linked: linked,
                   linkTooltip: linkTooltip,
                   onLink: onLink,
+                  onSecondaryTapDown: onSecondaryTapDown,
                 ),
                 if (height != null) Expanded(child: body) else body,
               ],
@@ -171,6 +174,7 @@ class _Header extends StatelessWidget {
     required this.linked,
     required this.linkTooltip,
     required this.onLink,
+    this.onSecondaryTapDown,
   });
 
   final String title;
@@ -186,6 +190,7 @@ class _Header extends StatelessWidget {
   final bool linked;
   final String? linkTooltip;
   final VoidCallback? onLink;
+  final GestureTapDownCallback? onSecondaryTapDown;
 
   @override
   Widget build(BuildContext context) {
@@ -198,6 +203,7 @@ class _Header extends StatelessWidget {
           ? null
           : (DragUpdateDetails d) => onMoveDelta(d.delta),
       onPanEnd: maximized ? null : (_) => onMoveEnd(),
+      onSecondaryTapDown: onSecondaryTapDown,
       child: MouseRegion(
         cursor: maximized ? SystemMouseCursors.basic : SystemMouseCursors.grab,
         child: Container(

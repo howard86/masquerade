@@ -53,4 +53,5 @@ class MqIcons {
   static const IconData key = LucideIcons.key_round;
   static const IconData network = LucideIcons.network;
   static const IconData dices = LucideIcons.dices;
+  static const IconData minus = LucideIcons.minus;
 }
