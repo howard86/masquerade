@@ -14,23 +14,31 @@ Future<void> showShortcutsHUD(BuildContext context) {
     barrierLabel: 'Keyboard shortcuts',
     barrierColor: const Color(0x99000000),
     transitionDuration: const Duration(milliseconds: 200),
-    pageBuilder: (BuildContext ctx, Animation<double> anim, Animation<double> sec) {
-      return const Align(
-        alignment: Alignment.center,
-        child: _ShortcutsHUD(),
-      );
-    },
-    transitionBuilder: (BuildContext ctx, Animation<double> anim, Animation<double> sec, Widget child) {
-      return FadeTransition(
-        opacity: anim,
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 0.95, end: 1.0).animate(
-            CurvedAnimation(parent: anim, curve: Curves.easeOut),
-          ),
-          child: child,
-        ),
-      );
-    },
+    pageBuilder:
+        (BuildContext ctx, Animation<double> anim, Animation<double> sec) {
+          return const Align(
+            alignment: Alignment.center,
+            child: _ShortcutsHUD(),
+          );
+        },
+    transitionBuilder:
+        (
+          BuildContext ctx,
+          Animation<double> anim,
+          Animation<double> sec,
+          Widget child,
+        ) {
+          return FadeTransition(
+            opacity: anim,
+            child: ScaleTransition(
+              scale: Tween<double>(
+                begin: 0.95,
+                end: 1.0,
+              ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOut)),
+              child: child,
+            ),
+          );
+        },
   );
 }
 
@@ -81,9 +89,7 @@ class _ShortcutsHUD extends StatelessWidget {
                   padding: EdgeInsets.symmetric(vertical: MqSpacing.xs),
                   child: SizedBox(
                     height: 0.5,
-                    child: ColoredBox(
-                      color: Color(0x22FFFFFF),
-                    ),
+                    child: ColoredBox(color: Color(0x22FFFFFF)),
                   ),
                 ),
                 const SizedBox(height: MqSpacing.sm),
@@ -173,10 +179,7 @@ class _Keycap extends StatelessWidget {
           ),
         ],
       ),
-      padding: const EdgeInsets.symmetric(
-        horizontal: 8,
-        vertical: 4,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       alignment: Alignment.center,
       child: Text(
         text,
@@ -191,8 +194,6 @@ class _Keycap extends StatelessWidget {
 
 extension on Widget {
   /// Simple helper to align keycap widths.
-  Widget get minWidth => Container(
-        constraints: const BoxConstraints(minWidth: 26),
-        child: this,
-      );
+  Widget get minWidth =>
+      Container(constraints: const BoxConstraints(minWidth: 26), child: this);
 }

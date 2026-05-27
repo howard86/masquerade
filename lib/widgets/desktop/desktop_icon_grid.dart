@@ -6,7 +6,7 @@ import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
 
-/// Always-present launcher icon grid. Aligned vertically on the right edge of 
+/// Always-present launcher icon grid. Aligned vertically on the right edge of
 /// the desktop viewport (macOS style), keeping the center workspace spacious.
 class DesktopIconGrid extends StatelessWidget {
   const DesktopIconGrid({
@@ -29,21 +29,22 @@ class DesktopIconGrid extends StatelessWidget {
       ),
       child: Align(
         alignment: Alignment.topRight,
-          child: SingleChildScrollView(
-            child: SizedBox(
-              width: 84,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  for (final UtilityDescriptor d in UtilityCatalog.all) ...<Widget>[
-                    _DesktopIconTile(descriptor: d, onOpen: () => onOpen(d)),
-                    const SizedBox(height: MqSpacing.sm),
-                  ],
-                  for (final SystemApp app in SystemApp.values) ...<Widget>[
-                    _SystemIconTile(app: app, onOpen: () => onOpenSystem(app)),
-                    const SizedBox(height: MqSpacing.sm),
-                  ],
+        child: SingleChildScrollView(
+          child: SizedBox(
+            width: 84,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                for (final UtilityDescriptor d
+                    in UtilityCatalog.all) ...<Widget>[
+                  _DesktopIconTile(descriptor: d, onOpen: () => onOpen(d)),
+                  const SizedBox(height: MqSpacing.sm),
                 ],
+                for (final SystemApp app in SystemApp.values) ...<Widget>[
+                  _SystemIconTile(app: app, onOpen: () => onOpenSystem(app)),
+                  const SizedBox(height: MqSpacing.sm),
+                ],
+              ],
             ),
           ),
         ),
@@ -63,7 +64,8 @@ class _SystemIconTile extends StatefulWidget {
   State<_SystemIconTile> createState() => _SystemIconTileState();
 }
 
-class _SystemIconTileState extends State<_SystemIconTile> with SingleTickerProviderStateMixin {
+class _SystemIconTileState extends State<_SystemIconTile>
+    with SingleTickerProviderStateMixin {
   bool _hovered = false;
   late final AnimationController _bounceController;
 
@@ -109,10 +111,14 @@ class _SystemIconTileState extends State<_SystemIconTile> with SingleTickerProvi
             width: 78,
             height: 78,
             decoration: BoxDecoration(
-              color: _hovered ? c.surface.withValues(alpha: 0.15) : const Color(0x00000000),
+              color: _hovered
+                  ? c.surface.withValues(alpha: 0.15)
+                  : const Color(0x00000000),
               borderRadius: BorderRadius.circular(MqRadius.md),
               border: Border.all(
-                color: _hovered ? c.border.withValues(alpha: 0.25) : const Color(0x00000000),
+                color: _hovered
+                    ? c.border.withValues(alpha: 0.25)
+                    : const Color(0x00000000),
                 width: 0.5,
               ),
             ),
@@ -150,7 +156,8 @@ class _DesktopIconTile extends StatefulWidget {
   State<_DesktopIconTile> createState() => _DesktopIconTileState();
 }
 
-class _DesktopIconTileState extends State<_DesktopIconTile> with SingleTickerProviderStateMixin {
+class _DesktopIconTileState extends State<_DesktopIconTile>
+    with SingleTickerProviderStateMixin {
   bool _hovered = false;
   late final AnimationController _bounceController;
 
@@ -195,10 +202,14 @@ class _DesktopIconTileState extends State<_DesktopIconTile> with SingleTickerPro
             width: 78,
             height: 78,
             decoration: BoxDecoration(
-              color: _hovered ? c.surface.withValues(alpha: 0.15) : const Color(0x00000000),
+              color: _hovered
+                  ? c.surface.withValues(alpha: 0.15)
+                  : const Color(0x00000000),
               borderRadius: BorderRadius.circular(MqRadius.md),
               border: Border.all(
-                color: _hovered ? c.border.withValues(alpha: 0.25) : const Color(0x00000000),
+                color: _hovered
+                    ? c.border.withValues(alpha: 0.25)
+                    : const Color(0x00000000),
                 width: 0.5,
               ),
             ),

@@ -209,9 +209,20 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     final Size? canvasSize = _canvasSize;
     if (canvasSize != null && draggingCard != null) {
       if (draggingCard.x <= _snapThreshold) {
-        previewRect = Rect.fromLTWH(0, 0, canvasSize.width / 2, canvasSize.height);
-      } else if (draggingCard.x + draggingCard.width >= canvasSize.width - _snapThreshold) {
-        previewRect = Rect.fromLTWH(canvasSize.width / 2, 0, canvasSize.width / 2, canvasSize.height);
+        previewRect = Rect.fromLTWH(
+          0,
+          0,
+          canvasSize.width / 2,
+          canvasSize.height,
+        );
+      } else if (draggingCard.x + draggingCard.width >=
+          canvasSize.width - _snapThreshold) {
+        previewRect = Rect.fromLTWH(
+          canvasSize.width / 2,
+          0,
+          canvasSize.width / 2,
+          canvasSize.height,
+        );
       } else if (draggingCard.y <= _snapThreshold) {
         previewRect = Rect.fromLTWH(0, 0, canvasSize.width, canvasSize.height);
       }
@@ -236,7 +247,10 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
                       onPanUpdate: (DragUpdateDetails d) =>
                           setState(() => _pan += d.delta),
                       onSecondaryTapDown: (TapDownDetails details) =>
-                          _showWallpaperContextMenu(context, details.globalPosition),
+                          _showWallpaperContextMenu(
+                            context,
+                            details.globalPosition,
+                          ),
                       child: CustomPaint(
                         painter: _DotGridPainter(color: c.border, offset: _pan),
                       ),
@@ -335,11 +349,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
       key: ValueKey<int>(card.id),
       left: card.x + _pan.dx,
       top: card.y + _pan.dy,
-      child: SizedBox(
-        width: card.width,
-        height: card.height,
-        child: frame,
-      ),
+      child: SizedBox(width: card.width, height: card.height, child: frame),
     );
   }
 
@@ -570,28 +580,24 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
       Offset(card.x + _pan.dx + card.width / 2, card.y + _pan.dy + 18);
 
   void _showWallpaperContextMenu(BuildContext context, Offset position) {
-    showDesktopContextMenu(
-      context,
-      position,
-      <ContextMenuItem>[
-        ContextMenuItem(
-          label: 'New Window...  ⌘K',
-          icon: MqIcons.plus,
-          action: _openViaPalette,
-        ),
-        ContextMenuItem(
-          label: 'Choose Wallpaper...',
-          icon: MqIcons.setting,
-          action: () => _c.openSystem(SystemApp.settings),
-        ),
-        ContextMenuItem(
-          label: 'Clear Canvas',
-          icon: MqIcons.trash,
-          action: () => _c.closeAll(),
-          destructive: true,
-        ),
-      ],
-    );
+    showDesktopContextMenu(context, position, <ContextMenuItem>[
+      ContextMenuItem(
+        label: 'New Window...  ⌘K',
+        icon: MqIcons.plus,
+        action: _openViaPalette,
+      ),
+      ContextMenuItem(
+        label: 'Choose Wallpaper...',
+        icon: MqIcons.setting,
+        action: () => _c.openSystem(SystemApp.settings),
+      ),
+      ContextMenuItem(
+        label: 'Clear Canvas',
+        icon: MqIcons.trash,
+        action: () => _c.closeAll(),
+        destructive: true,
+      ),
+    ]);
   }
 
   void _showWindowContextMenu(
@@ -601,50 +607,47 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
   ) {
     final bool linked = _c.groupForCard(card.id) != null;
     final UtilityDescriptor? descriptor = card.toolDescriptor;
-    final ({String partnerId, ContentType type})? partner =
-        descriptor != null ? _linkPartners[descriptor.id] : null;
+    final ({String partnerId, ContentType type})? partner = descriptor != null
+        ? _linkPartners[descriptor.id]
+        : null;
 
-    showDesktopContextMenu(
-      context,
-      position,
-      <ContextMenuItem>[
+    showDesktopContextMenu(context, position, <ContextMenuItem>[
+      ContextMenuItem(
+        label: card.maximized ? 'Restore Window' : 'Maximize Window',
+        icon: MqIcons.plus,
+        action: () => _toggleMax(card),
+      ),
+      ContextMenuItem(
+        label: 'Minimize Window',
+        icon: MqIcons.minus,
+        action: () => _c.minimize(card.id),
+      ),
+      if (descriptor != null) ...<ContextMenuItem>[
         ContextMenuItem(
-          label: card.maximized ? 'Restore Window' : 'Maximize Window',
-          icon: MqIcons.plus,
-          action: () => _toggleMax(card),
+          label: 'Duplicate Window  ⌥D',
+          icon: MqIcons.copy,
+          action: () => _c.duplicate(card.id),
         ),
-        ContextMenuItem(
-          label: 'Minimize Window',
-          icon: MqIcons.minus,
-          action: () => _c.minimize(card.id),
-        ),
-        if (descriptor != null) ...<ContextMenuItem>[
+        if (linked)
           ContextMenuItem(
-            label: 'Duplicate Window  ⌥D',
-            icon: MqIcons.copy,
-            action: () => _c.duplicate(card.id),
+            label: 'Unlink Sibling',
+            icon: MqIcons.link,
+            action: () => _c.unlinkCard(card.id),
+          )
+        else if (partner != null)
+          ContextMenuItem(
+            label: 'Open Linked ${UtilityCatalog.byId(partner.partnerId).name}',
+            icon: MqIcons.link,
+            action: () => _toggleLink(card, partner),
           ),
-          if (linked)
-            ContextMenuItem(
-              label: 'Unlink Sibling',
-              icon: MqIcons.link,
-              action: () => _c.unlinkCard(card.id),
-            )
-          else if (partner != null)
-            ContextMenuItem(
-              label: 'Open Linked ${UtilityCatalog.byId(partner.partnerId).name}',
-              icon: MqIcons.link,
-              action: () => _toggleLink(card, partner),
-            ),
-        ],
-        ContextMenuItem(
-          label: 'Close Window  Esc',
-          icon: MqIcons.trash,
-          action: () => _c.close(card.id),
-          destructive: true,
-        ),
       ],
-    );
+      ContextMenuItem(
+        label: 'Close Window  Esc',
+        icon: MqIcons.trash,
+        action: () => _c.close(card.id),
+        destructive: true,
+      ),
+    ]);
   }
 }
 
@@ -738,13 +741,9 @@ class _AnimatedWindow extends StatelessWidget {
           duration: const Duration(milliseconds: 350),
           curve: Curves.easeInOutCubic,
           scale: scale,
-          child: IgnorePointer(
-            ignoring: isMini,
-            child: child,
-          ),
+          child: IgnorePointer(ignoring: isMini, child: child),
         ),
       ),
     );
   }
 }
-

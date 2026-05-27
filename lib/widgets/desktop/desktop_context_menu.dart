@@ -111,8 +111,8 @@ class _MenuItemWidgetState extends State<_MenuItemWidget> {
     final Color textColor = widget.item.destructive
         ? c.danger
         : _hovered
-            ? c.accent
-            : c.textPri;
+        ? c.accent
+        : c.textPri;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -128,11 +128,7 @@ class _MenuItemWidgetState extends State<_MenuItemWidget> {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             if (widget.item.icon != null) ...<Widget>[
-              Icon(
-                widget.item.icon,
-                size: 14,
-                color: textColor,
-              ),
+              Icon(widget.item.icon, size: 14, color: textColor),
               const SizedBox(width: MqSpacing.sm),
             ],
             Expanded(

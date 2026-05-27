@@ -17,48 +17,49 @@ Widget _wrap(Widget child) {
 
 void main() {
   group('ShortcutsHUD', () {
-    testWidgets('shows dialog with correct shortcuts list and handles close action', (
-      WidgetTester tester,
-    ) async {
-      await tester.pumpWidget(
-        _wrap(
-          Builder(
-            builder: (BuildContext context) {
-              return CupertinoButton(
-                child: const Text('Show HUD'),
-                onPressed: () => showShortcutsHUD(context),
-              );
-            },
+    testWidgets(
+      'shows dialog with correct shortcuts list and handles close action',
+      (WidgetTester tester) async {
+        await tester.pumpWidget(
+          _wrap(
+            Builder(
+              builder: (BuildContext context) {
+                return CupertinoButton(
+                  child: const Text('Show HUD'),
+                  onPressed: () => showShortcutsHUD(context),
+                );
+              },
+            ),
           ),
-        ),
-      );
+        );
 
-      // Open HUD
-      await tester.tap(find.text('Show HUD'));
-      await tester.pumpAndSettle();
+        // Open HUD
+        await tester.tap(find.text('Show HUD'));
+        await tester.pumpAndSettle();
 
-      // Check title and labels
-      expect(find.text('Desktop Shortcuts'), findsOneWidget);
-      expect(find.text('Open Spotlight Search'), findsOneWidget);
-      expect(find.text('Focus Window Slot 1-9'), findsOneWidget);
-      expect(find.text('Duplicate Window'), findsOneWidget);
-      expect(find.text('Close Active Window'), findsOneWidget);
-      expect(find.text('Toggle Shortcuts HUD'), findsOneWidget);
+        // Check title and labels
+        expect(find.text('Desktop Shortcuts'), findsOneWidget);
+        expect(find.text('Open Spotlight Search'), findsOneWidget);
+        expect(find.text('Focus Window Slot 1-9'), findsOneWidget);
+        expect(find.text('Duplicate Window'), findsOneWidget);
+        expect(find.text('Close Active Window'), findsOneWidget);
+        expect(find.text('Toggle Shortcuts HUD'), findsOneWidget);
 
-      // Verify keycaps
-      expect(find.text('⌘'), findsOneWidget);
-      expect(find.text('K'), findsOneWidget);
-      expect(find.text('⌥'), findsAtLeast(1));
-      expect(find.text('1..9'), findsOneWidget);
-      expect(find.text('D'), findsOneWidget);
-      expect(find.text('Esc'), findsOneWidget);
-      expect(find.text('/'), findsOneWidget);
+        // Verify keycaps
+        expect(find.text('⌘'), findsOneWidget);
+        expect(find.text('K'), findsOneWidget);
+        expect(find.text('⌥'), findsAtLeast(1));
+        expect(find.text('1..9'), findsOneWidget);
+        expect(find.text('D'), findsOneWidget);
+        expect(find.text('Esc'), findsOneWidget);
+        expect(find.text('/'), findsOneWidget);
 
-      // Close the HUD via the close clear icon
-      await tester.tap(find.byIcon(MqIcons.clear));
-      await tester.pumpAndSettle();
+        // Close the HUD via the close clear icon
+        await tester.tap(find.byIcon(MqIcons.clear));
+        await tester.pumpAndSettle();
 
-      expect(find.text('Desktop Shortcuts'), findsNothing);
-    });
+        expect(find.text('Desktop Shortcuts'), findsNothing);
+      },
+    );
   });
 }

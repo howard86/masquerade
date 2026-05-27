@@ -41,12 +41,15 @@ void main() {
       expect(c.type, MqWallpaperType.slateSolid);
     });
 
-    test('load() falls back to auroraEspresso on missing/invalid values', () async {
-      SharedPreferences.setMockInitialValues(<String, Object>{
-        'mb.wallpaper.type': 'bogus',
-      });
-      final WallpaperController c = await WallpaperController.load();
-      expect(c.type, MqWallpaperType.auroraEspresso);
-    });
+    test(
+      'load() falls back to auroraEspresso on missing/invalid values',
+      () async {
+        SharedPreferences.setMockInitialValues(<String, Object>{
+          'mb.wallpaper.type': 'bogus',
+        });
+        final WallpaperController c = await WallpaperController.load();
+        expect(c.type, MqWallpaperType.auroraEspresso);
+      },
+    );
   });
 }

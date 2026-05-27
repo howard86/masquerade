@@ -95,10 +95,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     if (!mounted) return;
     final String? raw = prefs.getString('mb.wallpaper.type');
     if (raw != null) {
-      final MqWallpaperType? type = MqWallpaperType.values.cast<MqWallpaperType?>().firstWhere(
-        (t) => t!.name == raw,
-        orElse: () => null,
-      );
+      final MqWallpaperType? type = MqWallpaperType.values
+          .cast<MqWallpaperType?>()
+          .firstWhere((t) => t!.name == raw, orElse: () => null);
       if (type != null) {
         _wallpaper.setType(type);
       }
