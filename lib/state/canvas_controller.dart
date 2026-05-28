@@ -118,6 +118,8 @@ class CanvasController extends ChangeNotifier {
   /// Resize bounds for a card's width (logical px).
   static const double minCardWidth = 300;
   static const double maxCardWidth = 880;
+  static const double minCardHeight = 150;
+  static const double maxCardHeight = 1000;
 
   /// Open cards in slot order (the order they were opened). Read-only view.
   List<CanvasCard> get cards => List<CanvasCard>.unmodifiable(_cards);
@@ -243,11 +245,13 @@ class CanvasController extends ChangeNotifier {
   }
 
   /// Moves card [id] to absolute ([x], [y]), clamped to the canvas origin.
+  /// Allows small negative Y values so the window can go partially off-screen at
+  /// the top, but the title bar remains grabbable.
   /// Does not persist per-tick — call [commit] when the drag ends.
   void moveTo(int id, double x, double y) {
     final int i = _cards.indexWhere((CanvasCard c) => c.id == id);
     if (i < 0) return;
-    _cards[i] = _cards[i].copyWith(x: x < 0 ? 0 : x, y: y < 0 ? 0 : y);
+    _cards[i] = _cards[i].copyWith(x: x, y: y < -20 ? -20 : y);
     notifyListeners();
   }
 
@@ -259,6 +263,57 @@ class CanvasController extends ChangeNotifier {
     final double w = width.clamp(minCardWidth, maxCardWidth);
     if (w == _cards[i].width) return;
     _cards[i] = _cards[i].copyWith(width: w);
+    notifyListeners();
+  }
+
+  /// Directionally resizes card [id] by [dx] and [dy] relative to the active edges.
+  /// If the card's current height is null, [measuredHeight] is used as the base height.
+  /// Does not persist per-tick — call [commit] when the drag ends.
+  void resizeEdge(
+    int id, {
+    required double dx,
+    required double dy,
+    required bool left,
+    required bool right,
+    required bool top,
+    required bool bottom,
+    required double measuredHeight,
+  }) {
+    final int i = _cards.indexWhere((CanvasCard c) => c.id == id);
+    if (i < 0) return;
+    final CanvasCard card = _cards[i];
+
+    double nextX = card.x;
+    double nextW = card.width;
+    double nextY = card.y;
+    double nextH = card.height ?? measuredHeight;
+
+    if (left) {
+      final double preferredW = nextW - dx;
+      final double clampedW = preferredW.clamp(minCardWidth, maxCardWidth);
+      final double actualDw = clampedW - nextW;
+      nextW = clampedW;
+      nextX = nextX - actualDw;
+    } else if (right) {
+      nextW = (nextW + dx).clamp(minCardWidth, maxCardWidth);
+    }
+
+    if (top) {
+      final double preferredH = nextH - dy;
+      final double clampedH = preferredH.clamp(minCardHeight, maxCardHeight);
+      final double actualDh = clampedH - nextH;
+      nextH = clampedH;
+      nextY = nextY - actualDh;
+    } else if (bottom) {
+      nextH = (nextH + dy).clamp(minCardHeight, maxCardHeight);
+    }
+
+    _cards[i] = card.copyWith(
+      x: nextX,
+      y: nextY,
+      width: nextW,
+      height: () => nextH,
+    );
     notifyListeners();
   }
 
