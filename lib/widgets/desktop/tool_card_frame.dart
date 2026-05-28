@@ -22,7 +22,7 @@ class ToolCardFrame extends StatelessWidget {
     required this.onToggleMaximize,
     required this.onMoveDelta,
     required this.onMoveEnd,
-    required this.onResizeDelta,
+    required this.onResizeEdge,
     required this.onResizeEnd,
     required this.child,
     this.onDuplicate,
@@ -65,8 +65,16 @@ class ToolCardFrame extends StatelessWidget {
   /// Called once the title-bar drag settles (persist hook).
   final VoidCallback onMoveEnd;
 
-  /// Called with the horizontal drag delta while the resize handle is dragged.
-  final ValueChanged<double> onResizeDelta;
+  /// Called with details when any of the 8 resize handles are dragged.
+  final void Function(
+    double dx,
+    double dy, {
+    required bool left,
+    required bool right,
+    required bool top,
+    required bool bottom,
+    required double measuredHeight,
+  }) onResizeEdge;
 
   /// Called once the resize drag settles (persist hook).
   final VoidCallback onResizeEnd;
@@ -97,6 +105,11 @@ class ToolCardFrame extends StatelessWidget {
     } else {
       body = Padding(padding: const EdgeInsets.all(MqSpacing.lg), child: child);
     }
+    final Widget focusableBody = GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTapDown: (_) => onFocus(),
+      child: body,
+    );
     return Stack(
       clipBehavior: Clip.none,
       children: <Widget>[
@@ -135,22 +148,165 @@ class ToolCardFrame extends StatelessWidget {
                   onLink: onLink,
                   onSecondaryTapDown: onSecondaryTapDown,
                 ),
-                if (height != null) Expanded(child: body) else body,
+                if (height != null) Expanded(child: focusableBody) else focusableBody,
               ],
             ),
           ),
         ),
-        if (!maximized)
+        if (!maximized) ...<Widget>[
+          // Top edge
           Positioned(
-            top: 0,
-            bottom: 0,
-            right: -2,
-            width: 10,
+            top: -4,
+            left: 8,
+            right: 8,
+            height: 8,
             child: _ResizeHandle(
-              onResizeDelta: onResizeDelta,
+              cursor: SystemMouseCursors.resizeUpDown,
+              left: false,
+              right: false,
+              top: true,
+              bottom: false,
+              onResizeDelta: (dx, dy, left, right, top, bottom) {
+                final double measuredHeight = context.size?.height ?? 400.0;
+                onResizeEdge(dx, dy, left: left, right: right, top: top, bottom: bottom, measuredHeight: measuredHeight);
+              },
               onResizeEnd: onResizeEnd,
             ),
           ),
+          // Bottom edge
+          Positioned(
+            bottom: -4,
+            left: 8,
+            right: 8,
+            height: 8,
+            child: _ResizeHandle(
+              cursor: SystemMouseCursors.resizeUpDown,
+              left: false,
+              right: false,
+              top: false,
+              bottom: true,
+              onResizeDelta: (dx, dy, left, right, top, bottom) {
+                final double measuredHeight = context.size?.height ?? 400.0;
+                onResizeEdge(dx, dy, left: left, right: right, top: top, bottom: bottom, measuredHeight: measuredHeight);
+              },
+              onResizeEnd: onResizeEnd,
+            ),
+          ),
+          // Left edge
+          Positioned(
+            left: -4,
+            top: 8,
+            bottom: 8,
+            width: 8,
+            child: _ResizeHandle(
+              cursor: SystemMouseCursors.resizeLeftRight,
+              left: true,
+              right: false,
+              top: false,
+              bottom: false,
+              onResizeDelta: (dx, dy, left, right, top, bottom) {
+                final double measuredHeight = context.size?.height ?? 400.0;
+                onResizeEdge(dx, dy, left: left, right: right, top: top, bottom: bottom, measuredHeight: measuredHeight);
+              },
+              onResizeEnd: onResizeEnd,
+            ),
+          ),
+          // Right edge
+          Positioned(
+            right: -4,
+            top: 8,
+            bottom: 8,
+            width: 8,
+            child: _ResizeHandle(
+              cursor: SystemMouseCursors.resizeLeftRight,
+              left: false,
+              right: true,
+              top: false,
+              bottom: false,
+              onResizeDelta: (dx, dy, left, right, top, bottom) {
+                final double measuredHeight = context.size?.height ?? 400.0;
+                onResizeEdge(dx, dy, left: left, right: right, top: top, bottom: bottom, measuredHeight: measuredHeight);
+              },
+              onResizeEnd: onResizeEnd,
+            ),
+          ),
+          // Top-Left corner
+          Positioned(
+            left: -6,
+            top: -6,
+            width: 14,
+            height: 14,
+            child: _ResizeHandle(
+              cursor: SystemMouseCursors.resizeUpLeftDownRight,
+              left: true,
+              right: false,
+              top: true,
+              bottom: false,
+              onResizeDelta: (dx, dy, left, right, top, bottom) {
+                final double measuredHeight = context.size?.height ?? 400.0;
+                onResizeEdge(dx, dy, left: left, right: right, top: top, bottom: bottom, measuredHeight: measuredHeight);
+              },
+              onResizeEnd: onResizeEnd,
+            ),
+          ),
+          // Top-Right corner
+          Positioned(
+            right: -6,
+            top: -6,
+            width: 14,
+            height: 14,
+            child: _ResizeHandle(
+              cursor: SystemMouseCursors.resizeUpRightDownLeft,
+              left: false,
+              right: true,
+              top: true,
+              bottom: false,
+              onResizeDelta: (dx, dy, left, right, top, bottom) {
+                final double measuredHeight = context.size?.height ?? 400.0;
+                onResizeEdge(dx, dy, left: left, right: right, top: top, bottom: bottom, measuredHeight: measuredHeight);
+              },
+              onResizeEnd: onResizeEnd,
+            ),
+          ),
+          // Bottom-Left corner
+          Positioned(
+            left: -6,
+            bottom: -6,
+            width: 14,
+            height: 14,
+            child: _ResizeHandle(
+              cursor: SystemMouseCursors.resizeUpRightDownLeft,
+              left: true,
+              right: false,
+              top: false,
+              bottom: true,
+              onResizeDelta: (dx, dy, left, right, top, bottom) {
+                final double measuredHeight = context.size?.height ?? 400.0;
+                onResizeEdge(dx, dy, left: left, right: right, top: top, bottom: bottom, measuredHeight: measuredHeight);
+              },
+              onResizeEnd: onResizeEnd,
+            ),
+          ),
+          // Bottom-Right corner
+          Positioned(
+            right: -6,
+            bottom: -6,
+            width: 14,
+            height: 14,
+            child: _ResizeHandle(
+              cursor: SystemMouseCursors.resizeUpLeftDownRight,
+              left: false,
+              right: true,
+              top: false,
+              bottom: true,
+              onResizeDelta: (dx, dy, left, right, top, bottom) {
+                final double measuredHeight = context.size?.height ?? 400.0;
+                onResizeEdge(dx, dy, left: left, right: right, top: top, bottom: bottom, measuredHeight: measuredHeight);
+              },
+              onResizeEnd: onResizeEnd,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -159,7 +315,7 @@ class ToolCardFrame extends StatelessWidget {
 /// Approximate header height for body height calculation.
 const double _kHeaderHeight = 36;
 
-class _Header extends StatelessWidget {
+class _Header extends StatefulWidget {
   const _Header({
     required this.title,
     required this.slot,
@@ -193,19 +349,43 @@ class _Header extends StatelessWidget {
   final GestureTapDownCallback? onSecondaryTapDown;
 
   @override
+  State<_Header> createState() => _HeaderState();
+}
+
+class _HeaderState extends State<_Header> {
+  bool _isDragging = false;
+
+  @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: onFocus,
-      onPanStart: maximized ? null : (_) => onFocus(),
-      onPanUpdate: maximized
+      onTap: widget.onFocus,
+      onPanStart: widget.maximized
           ? null
-          : (DragUpdateDetails d) => onMoveDelta(d.delta),
-      onPanEnd: maximized ? null : (_) => onMoveEnd(),
-      onSecondaryTapDown: onSecondaryTapDown,
+          : (_) {
+              widget.onFocus();
+              setState(() => _isDragging = true);
+            },
+      onPanUpdate: widget.maximized
+          ? null
+          : (DragUpdateDetails d) => widget.onMoveDelta(d.delta),
+      onPanEnd: widget.maximized
+          ? null
+          : (_) {
+              setState(() => _isDragging = false);
+              widget.onMoveEnd();
+            },
+      onPanCancel: widget.maximized
+          ? null
+          : () {
+              setState(() => _isDragging = false);
+            },
+      onSecondaryTapDown: widget.onSecondaryTapDown,
       child: MouseRegion(
-        cursor: maximized ? SystemMouseCursors.basic : SystemMouseCursors.grab,
+        cursor: widget.maximized
+            ? SystemMouseCursors.basic
+            : (_isDragging ? SystemMouseCursors.grabbing : SystemMouseCursors.grab),
         child: Container(
           decoration: BoxDecoration(
             color: c.surface2,
@@ -213,7 +393,7 @@ class _Header extends StatelessWidget {
           ),
           padding: const EdgeInsets.symmetric(
             horizontal: MqSpacing.md,
-            vertical: MqSpacing.sm,
+            vertical: MqSpacing.sm - 2,
           ),
           child: Row(
             children: <Widget>[
@@ -221,48 +401,55 @@ class _Header extends StatelessWidget {
               _TrafficLight(
                 color: c.danger,
                 tooltip: 'Close (Esc)',
-                onTap: onClose,
+                onTap: widget.onClose,
+                icon: CupertinoIcons.xmark,
               ),
-              const SizedBox(width: MqSpacing.xs),
+              const SizedBox(width: MqSpacing.xs - 2),
               _TrafficLight(
                 color: c.warning,
                 tooltip: 'Minimize',
-                onTap: onMinimize,
+                onTap: widget.onMinimize,
+                icon: CupertinoIcons.minus,
               ),
-              const SizedBox(width: MqSpacing.xs),
+              const SizedBox(width: MqSpacing.xs - 2),
               _TrafficLight(
                 color: c.success,
-                tooltip: maximized ? 'Restore' : 'Maximize',
-                onTap: onToggleMaximize,
+                tooltip: widget.maximized ? 'Restore' : 'Maximize',
+                onTap: widget.onToggleMaximize,
+                icon: CupertinoIcons.plus,
               ),
-              const SizedBox(width: MqSpacing.sm),
+              const SizedBox(width: MqSpacing.sm - 2),
               Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: MqTextStyles.sectionLabel.copyWith(color: c.textPri),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onDoubleTap: widget.onToggleMaximize,
+                  child: Text(
+                    widget.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MqTextStyles.sectionLabel.copyWith(color: c.textPri),
+                  ),
                 ),
               ),
-              if (slot != null) ...<Widget>[
+              if (widget.slot != null) ...<Widget>[
                 Text(
-                  '⌥$slot',
+                  '⌥${widget.slot}',
                   style: MqTextStyles.monoSm.copyWith(color: c.textTer),
                 ),
                 const SizedBox(width: MqSpacing.sm),
               ],
-              if (onLink != null)
+              if (widget.onLink != null)
                 _IconButton(
                   icon: MqIcons.link,
-                  tooltip: linkTooltip ?? 'Link',
-                  onTap: onLink!,
-                  color: linked ? c.warning : null,
+                  tooltip: widget.linkTooltip ?? 'Link',
+                  onTap: widget.onLink!,
+                  color: widget.linked ? c.warning : null,
                 ),
-              if (onDuplicate != null)
+              if (widget.onDuplicate != null)
                 _IconButton(
                   icon: MqIcons.copy,
                   tooltip: 'Duplicate (⌥D)',
-                  onTap: onDuplicate!,
+                  onTap: widget.onDuplicate!,
                 ),
             ],
           ),
@@ -272,32 +459,61 @@ class _Header extends StatelessWidget {
   }
 }
 
-/// A single traffic-light dot button.
-class _TrafficLight extends StatelessWidget {
+/// A single traffic-light dot button with hover states.
+class _TrafficLight extends StatefulWidget {
   const _TrafficLight({
     required this.color,
     required this.tooltip,
     required this.onTap,
+    required this.icon,
   });
 
   final Color color;
   final String tooltip;
   final VoidCallback onTap;
+  final IconData icon;
+
+  @override
+  State<_TrafficLight> createState() => _TrafficLightState();
+}
+
+class _TrafficLightState extends State<_TrafficLight> {
+  bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: onTap,
+      onTap: widget.onTap,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
         child: Semantics(
-          label: tooltip,
+          label: widget.tooltip,
           button: true,
           child: Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            width: 16,
+            height: 16,
+            color: const Color(0x00000000), // Padded hit target
+            child: Center(
+              child: Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(color: widget.color, shape: BoxShape.circle),
+                child: Center(
+                  child: AnimatedOpacity(
+                    opacity: _hovered ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 100),
+                    child: Icon(
+                      widget.icon,
+                      size: 8,
+                      color: const Color(0x90000000), // elegant dark semi-transparent glyph
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -342,20 +558,39 @@ class _IconButton extends StatelessWidget {
   }
 }
 
+/// Generic resize handle that reports granular drag updates.
 class _ResizeHandle extends StatelessWidget {
-  const _ResizeHandle({required this.onResizeDelta, required this.onResizeEnd});
-  final ValueChanged<double> onResizeDelta;
+  const _ResizeHandle({
+    required this.cursor,
+    required this.left,
+    required this.right,
+    required this.top,
+    required this.bottom,
+    required this.onResizeDelta,
+    required this.onResizeEnd,
+  });
+
+  final MouseCursor cursor;
+  final bool left;
+  final bool right;
+  final bool top;
+  final bool bottom;
+  final void Function(double dx, double dy, bool left, bool right, bool top, bool bottom) onResizeDelta;
   final VoidCallback onResizeEnd;
 
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
-      cursor: SystemMouseCursors.resizeLeftRight,
+      cursor: cursor,
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
-        onHorizontalDragUpdate: (DragUpdateDetails d) =>
-            onResizeDelta(d.delta.dx),
-        onHorizontalDragEnd: (_) => onResizeEnd(),
+        onPanUpdate: (DragUpdateDetails d) {
+          final double dx = (left || right) ? d.delta.dx : 0.0;
+          final double dy = (top || bottom) ? d.delta.dy : 0.0;
+          onResizeDelta(dx, dy, left, right, top, bottom);
+        },
+        onPanEnd: (_) => onResizeEnd(),
+        onPanCancel: onResizeEnd,
         child: const SizedBox.expand(),
       ),
     );
