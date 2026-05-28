@@ -395,7 +395,24 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
         });
         _onMoveEnd(card);
       },
-      onResizeDelta: (double dx) => _c.resize(card.id, card.width + dx),
+      onResizeEdge: (double dx, double dy, {
+        required bool left,
+        required bool right,
+        required bool top,
+        required bool bottom,
+        required double measuredHeight,
+      }) {
+        _c.resizeEdge(
+          card.id,
+          dx: dx,
+          dy: dy,
+          left: left,
+          right: right,
+          top: top,
+          bottom: bottom,
+          measuredHeight: measuredHeight,
+        );
+      },
       onResizeEnd: _c.commit,
       onSecondaryTapDown: (TapDownDetails details) =>
           _showWindowContextMenu(context, details.globalPosition, card),
@@ -436,7 +453,24 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
         });
         _onMoveEnd(card);
       },
-      onResizeDelta: (double dx) => _c.resize(card.id, card.width + dx),
+      onResizeEdge: (double dx, double dy, {
+        required bool left,
+        required bool right,
+        required bool top,
+        required bool bottom,
+        required double measuredHeight,
+      }) {
+        _c.resizeEdge(
+          card.id,
+          dx: dx,
+          dy: dy,
+          left: left,
+          right: right,
+          top: top,
+          bottom: bottom,
+          measuredHeight: measuredHeight,
+        );
+      },
       onResizeEnd: _c.commit,
       linked: linked,
       linkTooltip: linked
@@ -677,7 +711,7 @@ class _DotGridPainter extends CustomPainter {
       old.offset != offset || old.color != color;
 }
 
-/// Draws the gold tether between linked cards (see docs/adr/0001).
+/// Draws the gold tether between linked cards using orthogonal routing (at most 1 turnaround).
 class _LinkLinePainter extends CustomPainter {
   _LinkLinePainter({required this.segments, required this.color});
 
@@ -690,9 +724,14 @@ class _LinkLinePainter extends CustomPainter {
       ..color = color
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke
+      ..strokeJoin = StrokeJoin.round
       ..strokeCap = StrokeCap.round;
     for (final ({Offset a, Offset b}) s in segments) {
-      canvas.drawLine(s.a, s.b, paint);
+      final Path path = Path()
+        ..moveTo(s.a.dx, s.a.dy)
+        ..lineTo(s.b.dx, s.a.dy)
+        ..lineTo(s.b.dx, s.b.dy);
+      canvas.drawPath(path, paint);
     }
   }
 
