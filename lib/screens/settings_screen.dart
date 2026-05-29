@@ -5,6 +5,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../state/history_controller.dart';
 import '../state/theme_controller.dart';
 import '../state/view_mode_controller.dart';
+import '../state/wallpaper_controller.dart';
 import '../theme/mq_metrics.dart';
 import '../theme/mq_theme.dart';
 import '../theme/mq_typography.dart';
@@ -98,6 +99,43 @@ class SettingsBody extends StatelessWidget {
             ],
           ),
         ),
+        if (showViewToggle) ...<Widget>[
+          const SizedBox(height: MqSpacing.xl),
+          const MqSectionHeader(label: 'Desktop Wallpaper'),
+          MqSurface(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Wallpaper style',
+                  style: MqTextStyles.headline.copyWith(color: c.textPri),
+                ),
+                const SizedBox(height: MqSpacing.sm),
+                Text(
+                  'Choose a generative or solid background style for your desktop.',
+                  style: MqTextStyles.subhead.copyWith(color: c.textSec),
+                ),
+                const SizedBox(height: MqSpacing.md),
+                ListenableBuilder(
+                  listenable: WallpaperScope.of(context),
+                  builder: (context, _) {
+                    final WallpaperController wp = WallpaperScope.of(context);
+                    return MqSegmented<MqWallpaperType>(
+                      options: const <MqWallpaperType, String>{
+                        MqWallpaperType.auroraEspresso: 'Aurora',
+                        MqWallpaperType.parchmentMinimalist: 'Minimalist',
+                        MqWallpaperType.cyberGlass: 'Cyber',
+                        MqWallpaperType.slateSolid: 'Slate',
+                      },
+                      selected: wp.type,
+                      onChanged: wp.setType,
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
         if (showViewToggle) ...<Widget>[
           const SizedBox(height: MqSpacing.xl),
           const MqSectionHeader(label: 'Layout'),

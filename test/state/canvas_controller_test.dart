@@ -286,14 +286,14 @@ void main() {
       expect(c.cards.single.y, 150);
     });
 
-    test('clamps negative coordinates to the origin', () {
+    test('clamps negative coordinates to the grabbable limit', () {
       final CanvasController c = CanvasController();
       final int id = c.openTool(timestamp);
 
-      c.moveTo(id, -50, -20);
+      c.moveTo(id, -50, -30);
 
-      expect(c.cards.single.x, 0);
-      expect(c.cards.single.y, 0);
+      expect(c.cards.single.x, -50);
+      expect(c.cards.single.y, -20);
     });
   });
 

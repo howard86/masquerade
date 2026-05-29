@@ -6,10 +6,12 @@ import 'state/density_controller.dart';
 import 'state/history_controller.dart';
 import 'state/theme_controller.dart';
 import 'state/view_mode_controller.dart';
+import 'state/wallpaper_controller.dart';
 import 'theme/mq_colors.dart';
 import 'theme/mq_theme.dart';
 import 'widgets/iphone_frame.dart';
 import 'widgets/mq/mq_splash_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class MyApp extends StatefulWidget {
   const MyApp({
@@ -53,6 +55,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   late final HistoryController _history;
   late final DensityController _density;
   late final ViewModeController _viewMode;
+  late final WallpaperController _wallpaper;
   late final Listenable _appListenable;
 
   Brightness _platformBrightness = Brightness.light;
@@ -65,6 +68,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _history = widget.historyController ?? HistoryController();
     _density = widget.densityController ?? DensityController();
     _viewMode = widget.viewModeController ?? ViewModeController();
+    _wallpaper = WallpaperController();
+    _attachWallpaperPrefs();
     // _viewMode is intentionally absent: it drives layout solely through
     // ViewModeScope (an InheritedNotifier), so toggling rebuilds only the
     // layout consumers — not the whole CupertinoApp this builder produces.
@@ -82,6 +87,20 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           if (mounted) setState(() => _showSplash = false);
         });
       });
+    }
+  }
+
+  Future<void> _attachWallpaperPrefs() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final String? raw = prefs.getString('mb.wallpaper.type');
+    if (raw != null) {
+      final MqWallpaperType? type = MqWallpaperType.values
+          .cast<MqWallpaperType?>()
+          .firstWhere((t) => t!.name == raw, orElse: () => null);
+      if (type != null) {
+        _wallpaper.setType(type);
+      }
     }
   }
 
@@ -116,42 +135,45 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           controller: _density,
           child: HistoryScope(
             controller: _history,
-            child: ListenableBuilder(
-              listenable: _appListenable,
-              builder: (BuildContext context, _) {
-                final Brightness brightness = _resolveBrightness(_theme.mode);
-                final MqColors colors = brightness == Brightness.dark
-                    ? MqColors.dark()
-                    : MqColors.light();
-                final MqTokens tokens = MqTokens(
-                  colors: colors,
-                  brightness: brightness,
-                  density: _density.density,
-                );
-                return CupertinoApp(
-                  debugShowCheckedModeBanner: false,
-                  title: 'Masquerade',
-                  theme: buildCupertinoTheme(brightness),
-                  builder: (BuildContext context, Widget? child) => MqTheme(
-                    tokens: tokens,
-                    child: ResponsiveLayout(
-                      isWebOverride: widget.isWebOverride,
-                      child: AnimatedSwitcher(
-                        duration: _splashFade,
-                        child: _showSplash
-                            ? const MqSplashScreen(
-                                key: ValueKey<String>('splash'),
-                              )
-                            : KeyedSubtree(
-                                key: const ValueKey<String>('shell'),
-                                child: child ?? const SizedBox.shrink(),
-                              ),
+            child: WallpaperScope(
+              controller: _wallpaper,
+              child: ListenableBuilder(
+                listenable: _appListenable,
+                builder: (BuildContext context, _) {
+                  final Brightness brightness = _resolveBrightness(_theme.mode);
+                  final MqColors colors = brightness == Brightness.dark
+                      ? MqColors.dark()
+                      : MqColors.light();
+                  final MqTokens tokens = MqTokens(
+                    colors: colors,
+                    brightness: brightness,
+                    density: _density.density,
+                  );
+                  return CupertinoApp(
+                    debugShowCheckedModeBanner: false,
+                    title: 'Masquerade',
+                    theme: buildCupertinoTheme(brightness),
+                    builder: (BuildContext context, Widget? child) => MqTheme(
+                      tokens: tokens,
+                      child: ResponsiveLayout(
+                        isWebOverride: widget.isWebOverride,
+                        child: AnimatedSwitcher(
+                          duration: _splashFade,
+                          child: _showSplash
+                              ? const MqSplashScreen(
+                                  key: ValueKey<String>('splash'),
+                                )
+                              : KeyedSubtree(
+                                  key: const ValueKey<String>('shell'),
+                                  child: child ?? const SizedBox.shrink(),
+                                ),
+                        ),
                       ),
                     ),
-                  ),
-                  home: RootTabScaffold(isWebOverride: widget.isWebOverride),
-                );
-              },
+                    home: RootTabScaffold(isWebOverride: widget.isWebOverride),
+                  );
+                },
+              ),
             ),
           ),
         ),

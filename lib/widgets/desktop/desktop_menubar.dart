@@ -12,6 +12,7 @@ import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import 'command_palette.dart';
 import 'layouts_sheet.dart';
+import 'shortcuts_hud.dart';
 
 /// Mac-style menubar pinned to the top of the desktop shell. Full-width, fixed
 /// height ([MqLayout.menubarHeight]). Left: brand glyph + menu titles. Right:
@@ -126,6 +127,12 @@ class _DesktopMenubarState extends State<DesktopMenubar> {
               if (_c.cards.isNotEmpty) _MenuItem('Close All', _closeAll),
             ],
           ),
+          _MenuButton(
+            label: 'Help',
+            items: <_MenuItem>[
+              _MenuItem('Keyboard Shortcuts  ⌥/', _showShortcuts),
+            ],
+          ),
           const Spacer(),
           Text(_time, style: MqTextStyles.caption2.copyWith(color: c.textSec)),
         ],
@@ -189,6 +196,10 @@ class _DesktopMenubarState extends State<DesktopMenubar> {
   void _duplicate() {
     final int? id = _c.focusedId;
     if (id != null) _c.duplicate(id);
+  }
+
+  void _showShortcuts() {
+    showShortcutsHUD(context);
   }
 }
 
