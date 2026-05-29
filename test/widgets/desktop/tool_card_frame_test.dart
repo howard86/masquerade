@@ -39,7 +39,16 @@ void main() {
             onDuplicate: () {},
             onMoveDelta: (_) {},
             onMoveEnd: () {},
-            onResizeEdge: (dx, dy, {required left, required right, required top, required bottom, required measuredHeight}) {},
+            onResizeEdge:
+                (
+                  dx,
+                  dy, {
+                  required left,
+                  required right,
+                  required top,
+                  required bottom,
+                  required measuredHeight,
+                }) {},
             onResizeEnd: () {},
             child: const Text('body'),
           ),
@@ -77,7 +86,16 @@ void main() {
             onDuplicate: () => duplicated = true,
             onMoveDelta: (_) {},
             onMoveEnd: () {},
-            onResizeEdge: (dx, dy, {required left, required right, required top, required bottom, required measuredHeight}) {},
+            onResizeEdge:
+                (
+                  dx,
+                  dy, {
+                  required left,
+                  required right,
+                  required top,
+                  required bottom,
+                  required measuredHeight,
+                }) {},
             onResizeEnd: () {},
             onLink: () => linked = true,
             child: const Text('body'),

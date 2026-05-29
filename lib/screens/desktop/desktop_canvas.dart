@@ -395,24 +395,27 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
         });
         _onMoveEnd(card);
       },
-      onResizeEdge: (double dx, double dy, {
-        required bool left,
-        required bool right,
-        required bool top,
-        required bool bottom,
-        required double measuredHeight,
-      }) {
-        _c.resizeEdge(
-          card.id,
-          dx: dx,
-          dy: dy,
-          left: left,
-          right: right,
-          top: top,
-          bottom: bottom,
-          measuredHeight: measuredHeight,
-        );
-      },
+      onResizeEdge:
+          (
+            double dx,
+            double dy, {
+            required bool left,
+            required bool right,
+            required bool top,
+            required bool bottom,
+            required double measuredHeight,
+          }) {
+            _c.resizeEdge(
+              card.id,
+              dx: dx,
+              dy: dy,
+              left: left,
+              right: right,
+              top: top,
+              bottom: bottom,
+              measuredHeight: measuredHeight,
+            );
+          },
       onResizeEnd: _c.commit,
       onSecondaryTapDown: (TapDownDetails details) =>
           _showWindowContextMenu(context, details.globalPosition, card),
@@ -453,24 +456,27 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
         });
         _onMoveEnd(card);
       },
-      onResizeEdge: (double dx, double dy, {
-        required bool left,
-        required bool right,
-        required bool top,
-        required bool bottom,
-        required double measuredHeight,
-      }) {
-        _c.resizeEdge(
-          card.id,
-          dx: dx,
-          dy: dy,
-          left: left,
-          right: right,
-          top: top,
-          bottom: bottom,
-          measuredHeight: measuredHeight,
-        );
-      },
+      onResizeEdge:
+          (
+            double dx,
+            double dy, {
+            required bool left,
+            required bool right,
+            required bool top,
+            required bool bottom,
+            required double measuredHeight,
+          }) {
+            _c.resizeEdge(
+              card.id,
+              dx: dx,
+              dy: dy,
+              left: left,
+              right: right,
+              top: top,
+              bottom: bottom,
+              measuredHeight: measuredHeight,
+            );
+          },
       onResizeEnd: _c.commit,
       linked: linked,
       linkTooltip: linked

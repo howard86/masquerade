@@ -74,7 +74,8 @@ class ToolCardFrame extends StatelessWidget {
     required bool top,
     required bool bottom,
     required double measuredHeight,
-  }) onResizeEdge;
+  })
+  onResizeEdge;
 
   /// Called once the resize drag settles (persist hook).
   final VoidCallback onResizeEnd;
@@ -148,7 +149,10 @@ class ToolCardFrame extends StatelessWidget {
                   onLink: onLink,
                   onSecondaryTapDown: onSecondaryTapDown,
                 ),
-                if (height != null) Expanded(child: focusableBody) else focusableBody,
+                if (height != null)
+                  Expanded(child: focusableBody)
+                else
+                  focusableBody,
               ],
             ),
           ),
@@ -168,7 +172,15 @@ class ToolCardFrame extends StatelessWidget {
               bottom: false,
               onResizeDelta: (dx, dy, left, right, top, bottom) {
                 final double measuredHeight = context.size?.height ?? 400.0;
-                onResizeEdge(dx, dy, left: left, right: right, top: top, bottom: bottom, measuredHeight: measuredHeight);
+                onResizeEdge(
+                  dx,
+                  dy,
+                  left: left,
+                  right: right,
+                  top: top,
+                  bottom: bottom,
+                  measuredHeight: measuredHeight,
+                );
               },
               onResizeEnd: onResizeEnd,
             ),
@@ -187,7 +199,15 @@ class ToolCardFrame extends StatelessWidget {
               bottom: true,
               onResizeDelta: (dx, dy, left, right, top, bottom) {
                 final double measuredHeight = context.size?.height ?? 400.0;
-                onResizeEdge(dx, dy, left: left, right: right, top: top, bottom: bottom, measuredHeight: measuredHeight);
+                onResizeEdge(
+                  dx,
+                  dy,
+                  left: left,
+                  right: right,
+                  top: top,
+                  bottom: bottom,
+                  measuredHeight: measuredHeight,
+                );
               },
               onResizeEnd: onResizeEnd,
             ),
@@ -206,7 +226,15 @@ class ToolCardFrame extends StatelessWidget {
               bottom: false,
               onResizeDelta: (dx, dy, left, right, top, bottom) {
                 final double measuredHeight = context.size?.height ?? 400.0;
-                onResizeEdge(dx, dy, left: left, right: right, top: top, bottom: bottom, measuredHeight: measuredHeight);
+                onResizeEdge(
+                  dx,
+                  dy,
+                  left: left,
+                  right: right,
+                  top: top,
+                  bottom: bottom,
+                  measuredHeight: measuredHeight,
+                );
               },
               onResizeEnd: onResizeEnd,
             ),
@@ -225,7 +253,15 @@ class ToolCardFrame extends StatelessWidget {
               bottom: false,
               onResizeDelta: (dx, dy, left, right, top, bottom) {
                 final double measuredHeight = context.size?.height ?? 400.0;
-                onResizeEdge(dx, dy, left: left, right: right, top: top, bottom: bottom, measuredHeight: measuredHeight);
+                onResizeEdge(
+                  dx,
+                  dy,
+                  left: left,
+                  right: right,
+                  top: top,
+                  bottom: bottom,
+                  measuredHeight: measuredHeight,
+                );
               },
               onResizeEnd: onResizeEnd,
             ),
@@ -244,7 +280,15 @@ class ToolCardFrame extends StatelessWidget {
               bottom: false,
               onResizeDelta: (dx, dy, left, right, top, bottom) {
                 final double measuredHeight = context.size?.height ?? 400.0;
-                onResizeEdge(dx, dy, left: left, right: right, top: top, bottom: bottom, measuredHeight: measuredHeight);
+                onResizeEdge(
+                  dx,
+                  dy,
+                  left: left,
+                  right: right,
+                  top: top,
+                  bottom: bottom,
+                  measuredHeight: measuredHeight,
+                );
               },
               onResizeEnd: onResizeEnd,
             ),
@@ -263,7 +307,15 @@ class ToolCardFrame extends StatelessWidget {
               bottom: false,
               onResizeDelta: (dx, dy, left, right, top, bottom) {
                 final double measuredHeight = context.size?.height ?? 400.0;
-                onResizeEdge(dx, dy, left: left, right: right, top: top, bottom: bottom, measuredHeight: measuredHeight);
+                onResizeEdge(
+                  dx,
+                  dy,
+                  left: left,
+                  right: right,
+                  top: top,
+                  bottom: bottom,
+                  measuredHeight: measuredHeight,
+                );
               },
               onResizeEnd: onResizeEnd,
             ),
@@ -282,7 +334,15 @@ class ToolCardFrame extends StatelessWidget {
               bottom: true,
               onResizeDelta: (dx, dy, left, right, top, bottom) {
                 final double measuredHeight = context.size?.height ?? 400.0;
-                onResizeEdge(dx, dy, left: left, right: right, top: top, bottom: bottom, measuredHeight: measuredHeight);
+                onResizeEdge(
+                  dx,
+                  dy,
+                  left: left,
+                  right: right,
+                  top: top,
+                  bottom: bottom,
+                  measuredHeight: measuredHeight,
+                );
               },
               onResizeEnd: onResizeEnd,
             ),
@@ -301,7 +361,15 @@ class ToolCardFrame extends StatelessWidget {
               bottom: true,
               onResizeDelta: (dx, dy, left, right, top, bottom) {
                 final double measuredHeight = context.size?.height ?? 400.0;
-                onResizeEdge(dx, dy, left: left, right: right, top: top, bottom: bottom, measuredHeight: measuredHeight);
+                onResizeEdge(
+                  dx,
+                  dy,
+                  left: left,
+                  right: right,
+                  top: top,
+                  bottom: bottom,
+                  measuredHeight: measuredHeight,
+                );
               },
               onResizeEnd: onResizeEnd,
             ),
@@ -385,7 +453,9 @@ class _HeaderState extends State<_Header> {
       child: MouseRegion(
         cursor: widget.maximized
             ? SystemMouseCursors.basic
-            : (_isDragging ? SystemMouseCursors.grabbing : SystemMouseCursors.grab),
+            : (_isDragging
+                  ? SystemMouseCursors.grabbing
+                  : SystemMouseCursors.grab),
         child: Container(
           decoration: BoxDecoration(
             color: c.surface2,
@@ -500,7 +570,10 @@ class _TrafficLightState extends State<_TrafficLight> {
               child: Container(
                 width: 12,
                 height: 12,
-                decoration: BoxDecoration(color: widget.color, shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: widget.color,
+                  shape: BoxShape.circle,
+                ),
                 child: Center(
                   child: AnimatedOpacity(
                     opacity: _hovered ? 1.0 : 0.0,
@@ -508,7 +581,9 @@ class _TrafficLightState extends State<_TrafficLight> {
                     child: Icon(
                       widget.icon,
                       size: 8,
-                      color: const Color(0x90000000), // elegant dark semi-transparent glyph
+                      color: const Color(
+                        0x90000000,
+                      ), // elegant dark semi-transparent glyph
                     ),
                   ),
                 ),
@@ -575,7 +650,15 @@ class _ResizeHandle extends StatelessWidget {
   final bool right;
   final bool top;
   final bool bottom;
-  final void Function(double dx, double dy, bool left, bool right, bool top, bool bottom) onResizeDelta;
+  final void Function(
+    double dx,
+    double dy,
+    bool left,
+    bool right,
+    bool top,
+    bool bottom,
+  )
+  onResizeDelta;
   final VoidCallback onResizeEnd;
 
   @override
