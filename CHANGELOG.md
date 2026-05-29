@@ -1,3 +1,16 @@
+## v1.25.0 (2026-05-29)
+
+### Feat
+
+- **desktop**: wire multi-directional resizing and draw L-shaped orthogonal link lines
+- **desktop**: implement multi-directional resize handles, body tap to focus, and stateful traffic light hovers
+- **desktop**: support grabbable Y-clamping and multi-directional edge resizing in CanvasController
+- **desktop**: introduce tactile shortcuts HUD keycap modal
+- **desktop**: structure right-aligned icon grid with spring bounce clicks
+- **desktop**: add right-click context menu and animate minimized window snapping
+- **desktop**: implement premium generative wallpaper styles
+- **desktop**: add persistent wallpaper controller state management
+
 ## v1.24.0 (2026-05-24)
 
 ### Feat
