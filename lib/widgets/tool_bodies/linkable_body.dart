@@ -16,9 +16,11 @@ import '../../state/link_group.dart';
 ///
 /// So a propagation re-projects each peer at most once, then terminates.
 ///
-/// The body calls [initLink] from `initState`, [didUpdateLink] from
-/// `didUpdateWidget`, [disposeLink] from `dispose`, and [emitToLink] whenever
-/// it recomputes its value.
+/// The mixin self-wires through the [State] lifecycle (`initState`,
+/// `didUpdateWidget`, `dispose`) via the super-chain — compose it alongside
+/// `ToolBodyScaffold` and neither needs a hand-call. The body only implements
+/// the three projection hooks and calls [emitToLink] whenever it recomputes its
+/// value.
 mixin LinkableToolBody<T extends StatefulWidget> on State<T> {
   /// The body's current link channel, or null when its card isn't linked.
   /// Bodies implement this as `widget.link`.
@@ -35,12 +37,16 @@ mixin LinkableToolBody<T extends StatefulWidget> on State<T> {
 
   LinkChannel? _subscribed;
 
-  void initLink() {
+  @override
+  void initState() {
+    super.initState();
     _resubscribe();
     _scheduleAttach();
   }
 
-  void didUpdateLink() {
+  @override
+  void didUpdateWidget(covariant T oldWidget) {
+    super.didUpdateWidget(oldWidget);
     // The canvas hands a fresh LinkChannel each rebuild, but its [inbound]
     // notifier is stable per group — compare that, not the wrapper, to avoid
     // re-subscribing on every unrelated canvas change.
@@ -50,17 +56,19 @@ mixin LinkableToolBody<T extends StatefulWidget> on State<T> {
     if (!wasLinked && linkChannel != null) _scheduleAttach();
   }
 
+  @override
+  void dispose() {
+    _subscribed?.inbound.removeListener(_onInbound);
+    _subscribed = null;
+    super.dispose();
+  }
+
   /// Defers the attach handshake to after the frame so the cross-body emit it
   /// triggers can't land a setState mid-reconciliation.
   void _scheduleAttach() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _onAttach();
     });
-  }
-
-  void disposeLink() {
-    _subscribed?.inbound.removeListener(_onInbound);
-    _subscribed = null;
   }
 
   /// Pushes this body's canonical into the group. A no-op when unlinked or when

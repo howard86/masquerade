@@ -1,14 +1,10 @@
-import 'dart:async';
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
-import '../../state/history_controller.dart';
 import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../utility_catalog.dart';
-import '../../utils/history_recorder.dart';
 import '../../utils/json_parser.dart';
 import '../../utils/toml_parser.dart';
 import '../../utils/yaml_parser.dart';
@@ -25,6 +21,7 @@ import '../mq/tool_action_bar.dart';
 import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
+import 'tool_body_scaffold.dart';
 import 'tool_layout.dart';
 
 enum SourceFormat {
@@ -92,7 +89,7 @@ class _ParseError {
   final String? fixedText;
 }
 
-class JSONBody extends StatefulWidget {
+class JSONBody extends StatefulWidget implements ToolBodyWidget {
   const JSONBody({
     super.key,
     this.initialInput,
@@ -102,9 +99,12 @@ class JSONBody extends StatefulWidget {
     this.link,
   });
 
+  @override
   final String? initialInput;
+  @override
   final SeedSource seedSource;
   final OpenInToolCallback? onSwitchTool;
+  @override
   final ToolActionBarController? actionBar;
 
   /// Non-null when this card is in a canvas Link group. JSON is the group's
@@ -115,93 +115,35 @@ class JSONBody extends StatefulWidget {
   State<JSONBody> createState() => _JSONBodyState();
 }
 
-class _JSONBodyState extends State<JSONBody> with LinkableToolBody<JSONBody> {
-  final TextEditingController _controller = TextEditingController();
-  Timer? _debounce;
+class _JSONBodyState extends State<JSONBody>
+    with ToolBodyScaffold<JSONBody>, LinkableToolBody<JSONBody> {
   SourceFormat _source = SourceFormat.auto;
   TargetFormat _target = TargetFormat.prettyJson;
   _Parsed? _parsed;
   _ParseError? _error;
   String? _output;
   String? _footerMinified;
-  HistoryRecorder? _recorder;
 
   @override
-  void initState() {
-    super.initState();
-    final String? seed = widget.initialInput;
-    if (seed != null && seed.isNotEmpty) {
-      _controller.text = seed;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _parse();
-      });
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      widget.actionBar?.bind(onPaste: _paste, onClear: _clear);
-    });
-    initLink();
-  }
+  String get utilityId => 'json';
 
   @override
-  void didUpdateWidget(JSONBody oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    didUpdateLink();
-  }
+  Duration get debounceDuration => const Duration(milliseconds: 200);
 
   // ─── Canonical-hub link (identity peer) ─────────────────────────────────
   @override
   LinkChannel? get linkChannel => widget.link;
 
   @override
-  String currentCanonical() => _controller.text;
+  String currentCanonical() => controller.text;
 
   @override
   void applyInbound(String canonical) {
-    _controller.text = canonical;
-    _parse();
+    setInput(canonical, asPaste: false);
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_recorder == null) {
-      _recorder = HistoryRecorder(
-        controller: HistoryScope.of(context),
-        utilityId: 'json',
-      );
-      if (widget.seedSource == SeedSource.paste) {
-        _recorder!.markPaste();
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    disposeLink();
-    _debounce?.cancel();
-    _recorder?.dispose();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _onChanged(String _) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 200), _parse);
-  }
-
-  void _parse() {
-    final String input = _controller.text;
-    if (input.trim().isEmpty) {
-      setState(() {
-        _parsed = null;
-        _error = null;
-        _output = null;
-        _footerMinified = null;
-      });
-      emitToLink();
-      return;
-    }
+  void parse(String input) {
     final ({_Parsed? parsed, _ParseError? error}) r = _runParse(input, _source);
     final _Parsed? parsed = r.parsed;
     final String? minified = parsed == null
@@ -218,7 +160,18 @@ class _JSONBodyState extends State<JSONBody> with LinkableToolBody<JSONBody> {
       }
       _output = parsed == null ? null : _renderOutput(parsed.value, _target);
     });
-    if (parsed != null) _recorder?.record(input, minified!);
+    if (parsed != null) recordOutput(input, minified!);
+    emitToLink();
+  }
+
+  @override
+  void reset() {
+    setState(() {
+      _parsed = null;
+      _error = null;
+      _output = null;
+      _footerMinified = null;
+    });
     emitToLink();
   }
 
@@ -331,30 +284,11 @@ class _JSONBodyState extends State<JSONBody> with LinkableToolBody<JSONBody> {
     );
   }
 
-  Future<void> _paste() async {
-    final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
-    if (data?.text == null) return;
-    _controller.text = data!.text!;
-    _recorder?.markPaste();
-    _parse();
-  }
-
-  void _clear() {
-    _controller.clear();
-    setState(() {
-      _parsed = null;
-      _error = null;
-      _output = null;
-      _footerMinified = null;
-    });
-  }
-
   void _applyAutoFix() {
     final _ParseError? err = _error;
     if (err == null || !err.fixable || err.fixedText == null) return;
     HapticFeedback.selectionClick();
-    _controller.text = err.fixedText!;
-    _parse();
+    setInput(err.fixedText!, asPaste: false);
   }
 
   void _setTarget(TargetFormat t) {
@@ -370,12 +304,11 @@ class _JSONBodyState extends State<JSONBody> with LinkableToolBody<JSONBody> {
     if (parsed == null || output == null || !_swapEnabled) return;
     final SourceFormat nextSource = _targetToSource(_target);
     final TargetFormat nextTarget = _sourceToTarget(parsed.detectedFormat);
-    _controller.text = output;
     setState(() {
       _source = nextSource;
       _target = nextTarget;
     });
-    _parse();
+    setInput(output, asPaste: true);
   }
 
   bool get _swapEnabled =>
@@ -451,11 +384,11 @@ class _JSONBodyState extends State<JSONBody> with LinkableToolBody<JSONBody> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         MqInput(
-          controller: _controller,
+          controller: controller,
           label: 'Input',
           placeholder: '{"hello": "world"}',
-          onChanged: _onChanged,
-          onPaste: (_) => _recorder?.markPaste(),
+          onChanged: onInputChanged,
+          onPaste: (_) => markPaste(),
           multiline: true,
           minLines: 4,
           maxLines: 10,
@@ -472,7 +405,7 @@ class _JSONBodyState extends State<JSONBody> with LinkableToolBody<JSONBody> {
           swapEnabled: _swapEnabled,
           onSource: (SourceFormat s) {
             setState(() => _source = s);
-            _parse();
+            reparse();
           },
           onTarget: _setTarget,
           onSwap: _swap,

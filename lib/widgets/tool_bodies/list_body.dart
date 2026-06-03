@@ -1,15 +1,10 @@
-import 'dart:async';
-
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/services.dart';
 
-import '../../state/history_controller.dart';
 import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
-import '../../utils/history_recorder.dart';
 import '../../utils/list_parser.dart';
 import '../mq/mq_button.dart';
 import '../mq/mq_chip.dart';
@@ -24,11 +19,12 @@ import '../mq/tool_action_bar.dart';
 import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
+import 'tool_body_scaffold.dart';
 import 'tool_layout.dart';
 
 enum ListMode { split, join }
 
-class ListToolBody extends StatefulWidget {
+class ListToolBody extends StatefulWidget implements ToolBodyWidget {
   const ListToolBody({
     super.key,
     this.initialInput,
@@ -38,9 +34,12 @@ class ListToolBody extends StatefulWidget {
     this.link,
   });
 
+  @override
   final String? initialInput;
+  @override
   final SeedSource seedSource;
   final OpenInToolCallback? onSwitchTool;
+  @override
   final ToolActionBarController? actionBar;
 
   /// Non-null when this card is in a canvas Link group. The group's canonical
@@ -53,10 +52,7 @@ class ListToolBody extends StatefulWidget {
 }
 
 class _ListToolBodyState extends State<ListToolBody>
-    with LinkableToolBody<ListToolBody> {
-  final TextEditingController _controller = TextEditingController();
-  Timer? _debounce;
-
+    with ToolBodyScaffold<ListToolBody>, LinkableToolBody<ListToolBody> {
   ListMode _mode = ListMode.join;
   ListSeparator _separator = ListSeparator.comma;
   ListCase _caseMode = ListCase.none;
@@ -70,29 +66,8 @@ class _ListToolBodyState extends State<ListToolBody>
   int _parsedCount = 0;
   int _outCount = 0;
 
-  HistoryRecorder? _recorder;
-
   @override
-  void initState() {
-    super.initState();
-    final String? seed = widget.initialInput;
-    if (seed != null && seed.isNotEmpty) {
-      _controller.text = seed;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _convert();
-      });
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _updateActionBar();
-    });
-    initLink();
-  }
-
-  @override
-  void didUpdateWidget(ListToolBody oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    didUpdateLink();
-  }
+  String get utilityId => 'list';
 
   // ─── Canonical-hub link (raw input text canonical) ──────────────────────
   @override
@@ -101,67 +76,39 @@ class _ListToolBodyState extends State<ListToolBody>
   /// The canonical is the raw input text — the list is a transform *of* that
   /// text, so the input (not the joined/split output) is the shared value.
   @override
-  String currentCanonical() => _controller.text;
+  String currentCanonical() => controller.text;
 
   @override
   void applyInbound(String canonical) {
-    _controller.text = canonical;
-    _convert();
-  }
-
-  void _updateActionBar() {
-    widget.actionBar?.bind(
-      onPaste: _paste,
-      onClear: _clear,
-      center: MqButton(
-        label: 'Swap',
-        icon: MqIcons.swap,
-        variant: MqButtonVariant.glass,
-        onPressed: _output == null ? null : _swap,
-        full: true,
-      ),
-    );
+    setInput(canonical, asPaste: false);
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_recorder == null) {
-      _recorder = HistoryRecorder(
-        controller: HistoryScope.of(context),
-        utilityId: 'list',
-      );
-      if (widget.seedSource == SeedSource.paste) {
-        _recorder!.markPaste();
-      }
-    }
+  Widget? actionBarCenter() => MqButton(
+    label: 'Swap',
+    icon: MqIcons.swap,
+    variant: MqButtonVariant.glass,
+    onPressed: _output == null ? null : _swap,
+    full: true,
+  );
+
+  @override
+  void reset() {
+    setState(() {
+      _output = null;
+      _parsedCount = 0;
+      _outCount = 0;
+    });
+    emitToLink();
   }
 
   @override
-  void dispose() {
-    disposeLink();
-    _debounce?.cancel();
-    _recorder?.dispose();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _onChanged(String _) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 150), _convert);
-  }
-
-  void _convert() {
-    final String input = _controller.text;
+  void parse(String input) {
     final List<String> items = ListParser.parse(input);
     if (items.isEmpty) {
-      setState(() {
-        _output = null;
-        _parsedCount = 0;
-        _outCount = 0;
-      });
-      _updateActionBar();
-      emitToLink();
+      // Non-blank text can still parse to zero items (e.g. only delimiters);
+      // fall back to the same cleared state as a blank input.
+      reset();
       return;
     }
     final List<String> transformed = ListParser.transform(
@@ -182,27 +129,8 @@ class _ListToolBodyState extends State<ListToolBody>
       _parsedCount = items.length;
       _outCount = transformed.length;
     });
-    _recorder?.record(input, result);
-    _updateActionBar();
+    recordOutput(input, result);
     emitToLink();
-  }
-
-  Future<void> _paste() async {
-    final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
-    if (data?.text == null) return;
-    _controller.text = data!.text!;
-    _recorder?.markPaste();
-    _convert();
-  }
-
-  void _clear() {
-    _controller.clear();
-    setState(() {
-      _output = null;
-      _parsedCount = 0;
-      _outCount = 0;
-    });
-    _updateActionBar();
   }
 
   void _swap() {
@@ -210,10 +138,8 @@ class _ListToolBodyState extends State<ListToolBody>
     if (out == null) return;
     setState(() {
       _mode = _mode == ListMode.join ? ListMode.split : ListMode.join;
-      _controller.text = out;
     });
-    _recorder?.markPaste();
-    _convert();
+    setInput(out, asPaste: true);
   }
 
   /// Opens the Diff tool seeded with the current list text (side A). Wired
@@ -221,7 +147,7 @@ class _ListToolBodyState extends State<ListToolBody>
   void _diffWith() {
     final OpenInToolCallback? open = widget.onSwitchTool;
     if (open == null) return;
-    open(UtilityCatalog.byId('diff'), _controller.text);
+    open(UtilityCatalog.byId('diff'), controller.text);
   }
 
   void _cycleCase() {
@@ -232,7 +158,7 @@ class _ListToolBodyState extends State<ListToolBody>
         ListCase.lower => ListCase.none,
       };
     });
-    _convert();
+    reparse();
   }
 
   Future<void> _pickSeparator() async {
@@ -256,7 +182,7 @@ class _ListToolBodyState extends State<ListToolBody>
     );
     if (choice != null) {
       setState(() => _separator = choice);
-      _convert();
+      reparse();
     }
   }
 
@@ -286,7 +212,7 @@ class _ListToolBodyState extends State<ListToolBody>
           selected: _mode,
           onChanged: (ListMode m) {
             setState(() => _mode = m);
-            _convert();
+            reparse();
           },
         ),
         if (_mode == ListMode.join) ...<Widget>[
@@ -295,13 +221,13 @@ class _ListToolBodyState extends State<ListToolBody>
         ],
         const SizedBox(height: MqSpacing.md),
         MqInput(
-          controller: _controller,
+          controller: controller,
           label: 'Input',
           placeholder: _mode == ListMode.join
               ? 'Paste a list — one item per line or any delimiter'
               : 'Paste a delimited string to split into lines',
-          onChanged: _onChanged,
-          onPaste: (_) => _recorder?.markPaste(),
+          onChanged: onInputChanged,
+          onPaste: (_) => markPaste(),
           multiline: true,
           minLines: 3,
           maxLines: 8,
@@ -322,7 +248,7 @@ class _ListToolBodyState extends State<ListToolBody>
               mono: false,
               onTap: () {
                 setState(() => _dedupe = !_dedupe);
-                _convert();
+                reparse();
               },
             ),
             MqChip(
@@ -331,7 +257,7 @@ class _ListToolBodyState extends State<ListToolBody>
               mono: false,
               onTap: () {
                 setState(() => _sort = !_sort);
-                _convert();
+                reparse();
               },
             ),
             MqChip(
@@ -340,7 +266,7 @@ class _ListToolBodyState extends State<ListToolBody>
               mono: false,
               onTap: () {
                 setState(() => _quote = !_quote);
-                _convert();
+                reparse();
               },
             ),
             if (_quote)
@@ -353,7 +279,7 @@ class _ListToolBodyState extends State<ListToolBody>
                         ? QuoteStyle.singleQuote
                         : QuoteStyle.doubleQuote,
                   );
-                  _convert();
+                  reparse();
                 },
               ),
             MqChip(
@@ -361,7 +287,7 @@ class _ListToolBodyState extends State<ListToolBody>
               accent: _bracket,
               onTap: () {
                 setState(() => _bracket = !_bracket);
-                _convert();
+                reparse();
               },
             ),
           ],
