@@ -14,6 +14,10 @@ _Avoid_: tool widget, panel, component
 The `UtilityDescriptor.builder` contract (`initialInput`, `seedSource`, `onSwitchTool`, `actionBar`) that lets one **Tool body** drop into any **Shell** without modification.
 _Avoid_: interface, the API
 
+**Body scaffold**:
+The `ToolBodyScaffold` mixin that owns the lifecycle plumbing every single-input transform **Tool body** repeats: the text controller + debounce, seed-on-init, `HistoryRecorder` construction and record/`markPaste` routing, `paste`/`clear` handlers, and the action-bar bind. A body mixes it in (alongside the optional `LinkableToolBody`, which the scaffold composes with but never references) and supplies only `utilityId`, `parse(input)`, `reset()`, an optional `actionBarCenter()`, and its own `build()`. The scaffold guarantees `parse` only ever sees non-empty input — empty input and `clear` both route to `reset()`. It serves the ~13 transform tools; the two-input **Diff**, the input-less generators (UUID, Generator), and the QR scanner keep their own `State`.
+_Avoid_: base class, framework, helper
+
 **Shell**:
 The platform-specific chrome wrapped around **Tool bodies**. The *mobile shell* renders one body filling the screen; the *desktop shell* is a full-bleed macOS-style desktop (menubar + wallpaper + icon grid + windows + dock) that renders many bodies as **Windows** on the **Desktop**.
 _Avoid_: frame, layout, scaffold (—`Scaffold` is a Material widget we don't use)
