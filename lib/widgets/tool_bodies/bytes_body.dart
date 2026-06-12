@@ -1,17 +1,14 @@
-import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-import '../../state/history_controller.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
 import '../../utils/bytes_parser.dart';
-import '../../utils/history_recorder.dart';
 import '../mq/mq_button.dart';
 import '../mq/mq_empty_hint.dart';
 import '../mq/mq_icons.dart';
@@ -22,6 +19,7 @@ import '../mq/mq_segmented.dart';
 import '../mq/tool_action_bar.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
+import 'tool_body_scaffold.dart';
 import 'tool_layout.dart';
 
 enum BytesMode { encode, decode }
@@ -31,7 +29,7 @@ enum BytesMode { encode, decode }
 /// (latin1 ships in dart:convert; UTF-16LE is decoded by hand).
 enum BytesEncoding { utf8, latin1, utf16le }
 
-class BytesBody extends StatefulWidget {
+class BytesBody extends StatefulWidget implements ToolBodyWidget {
   const BytesBody({
     super.key,
     this.initialInput,
@@ -40,18 +38,20 @@ class BytesBody extends StatefulWidget {
     this.actionBar,
   });
 
+  @override
   final String? initialInput;
+  @override
   final SeedSource seedSource;
   final OpenInToolCallback? onSwitchTool;
+  @override
   final ToolActionBarController? actionBar;
 
   @override
   State<BytesBody> createState() => _BytesBodyState();
 }
 
-class _BytesBodyState extends State<BytesBody> {
-  final TextEditingController _controller = TextEditingController();
-  Timer? _debounce;
+class _BytesBodyState extends State<BytesBody>
+    with ToolBodyScaffold<BytesBody> {
   BytesMode _mode = BytesMode.decode;
   BytesEncoding _encoding = BytesEncoding.utf8;
   String? _outSpace;
@@ -66,64 +66,29 @@ class _BytesBodyState extends State<BytesBody> {
   /// re-parsing the input. Null in encode mode or after a parse error.
   Uint8List? _decodedBytes;
 
-  HistoryRecorder? _recorder;
+  @override
+  String get utilityId => 'bytes';
+
+  // Encode of pure whitespace is meaningful, so only a truly empty field counts
+  // as nothing to do.
+  @override
+  bool isBlank(String input) => input.isEmpty;
 
   @override
-  void initState() {
-    super.initState();
-    final String? seed = widget.initialInput;
-    if (seed != null && seed.isNotEmpty) {
-      _controller.text = seed;
-      _mode = BytesMode.decode;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _convert();
-      });
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _updateActionBar();
-    });
-  }
-
-  void _updateActionBar() {
-    widget.actionBar?.bind(
-      onPaste: _paste,
-      onClear: _clear,
-      center: MqButton(
-        label: 'Swap',
-        icon: MqIcons.swap,
-        variant: MqButtonVariant.glass,
-        onPressed: _swapPayload == null ? null : _swap,
-        full: true,
-      ),
-    );
+  void onSeed(String seed) {
+    // Hero detector only suggests Bytes for encoded-looking inputs, so a seed
+    // always enters Decode mode.
+    _mode = BytesMode.decode;
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_recorder == null) {
-      _recorder = HistoryRecorder(
-        controller: HistoryScope.of(context),
-        utilityId: 'bytes',
-      );
-      if (widget.seedSource == SeedSource.paste) {
-        _recorder!.markPaste();
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _debounce?.cancel();
-    _recorder?.dispose();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _onChanged(String _) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 150), _convert);
-  }
+  Widget? actionBarCenter() => MqButton(
+    label: 'Swap',
+    icon: MqIcons.swap,
+    variant: MqButtonVariant.glass,
+    onPressed: _swapPayload == null ? null : _swap,
+    full: true,
+  );
 
   void _resetOutputs() {
     _outSpace = null;
@@ -135,14 +100,8 @@ class _BytesBodyState extends State<BytesBody> {
     _error = null;
   }
 
-  void _convert() {
-    final String input = _controller.text;
-    if (input.isEmpty) {
-      setState(_resetOutputs);
-      _updateActionBar();
-      return;
-    }
-
+  @override
+  void parse(String input) {
     if (_mode == BytesMode.encode) {
       final Uint8List bytes = BytesParser.encodeUtf8(input);
       setState(() {
@@ -151,8 +110,7 @@ class _BytesBodyState extends State<BytesBody> {
         _outBrackets = BytesParser.format(bytes, BytesFormat.brackets);
         _outHex = BytesParser.format(bytes, BytesFormat.hex);
       });
-      _recorder?.record(input, _outSpace!);
-      _updateActionBar();
+      recordOutput(input, _outSpace!);
       return;
     }
 
@@ -172,9 +130,13 @@ class _BytesBodyState extends State<BytesBody> {
           _decodedHex = hex;
           _error = decoded.error;
         });
-        _recorder?.record(input, decoded.text ?? hex);
+        recordOutput(input, decoded.text ?? hex);
     }
-    _updateActionBar();
+  }
+
+  @override
+  void reset() {
+    setState(_resetOutputs);
   }
 
   /// Decodes [bytes] under the currently-selected [_encoding]. UTF-8 is the
@@ -203,20 +165,6 @@ class _BytesBodyState extends State<BytesBody> {
     }
   }
 
-  Future<void> _paste() async {
-    final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
-    if (data?.text == null) return;
-    _controller.text = data!.text!;
-    _recorder?.markPaste();
-    _convert();
-  }
-
-  void _clear() {
-    _controller.clear();
-    setState(_resetOutputs);
-    _updateActionBar();
-  }
-
   String? get _swapPayload => switch (_mode) {
     BytesMode.encode => _outSpace,
     BytesMode.decode => _decodedText,
@@ -227,10 +175,8 @@ class _BytesBodyState extends State<BytesBody> {
     if (payload == null) return;
     setState(() {
       _mode = _mode == BytesMode.encode ? BytesMode.decode : BytesMode.encode;
-      _controller.text = payload;
     });
-    _recorder?.markPaste();
-    _convert();
+    setInput(payload, asPaste: true);
   }
 
   @override
@@ -249,18 +195,18 @@ class _BytesBodyState extends State<BytesBody> {
               selected: _mode,
               onChanged: (BytesMode m) {
                 setState(() => _mode = m);
-                _convert();
+                reparse();
               },
             ),
             const SizedBox(height: MqSpacing.md),
             MqInput(
-              controller: _controller,
+              controller: controller,
               label: 'Input',
               placeholder: _mode == BytesMode.encode
                   ? 'Plain text'
                   : '72 101 108 108 111',
-              onChanged: _onChanged,
-              onPaste: (_) => _recorder?.markPaste(),
+              onChanged: onInputChanged,
+              onPaste: (_) => markPaste(),
               multiline: true,
               minLines: 3,
               maxLines: 8,
@@ -278,7 +224,7 @@ class _BytesBodyState extends State<BytesBody> {
                 selected: _encoding,
                 onChanged: (BytesEncoding e) {
                   setState(() => _encoding = e);
-                  _convert();
+                  reparse();
                 },
               ),
             ],

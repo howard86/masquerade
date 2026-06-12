@@ -1,16 +1,12 @@
-import 'dart:async';
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
-import '../../state/history_controller.dart';
 import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
-import '../../utils/history_recorder.dart';
 import '../../utils/timestamp_parser.dart';
 import '../mq/mq_button.dart';
 import '../mq/mq_empty_hint.dart';
@@ -25,12 +21,13 @@ import '../mq/tool_action_bar.dart';
 import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
+import 'tool_body_scaffold.dart';
 import 'tool_layout.dart';
 
 /// Which timezone the canvas-only date rows are formatted in.
 enum _Zone { utc, local }
 
-class TimestampBody extends StatefulWidget {
+class TimestampBody extends StatefulWidget implements ToolBodyWidget {
   const TimestampBody({
     super.key,
     this.initialInput,
@@ -40,9 +37,12 @@ class TimestampBody extends StatefulWidget {
     this.link,
   });
 
+  @override
   final String? initialInput;
+  @override
   final SeedSource seedSource;
   final OpenInToolCallback? onSwitchTool;
+  @override
   final ToolActionBarController? actionBar;
 
   /// Non-null when this card is in a canvas Link group. The group's canonical
@@ -55,9 +55,7 @@ class TimestampBody extends StatefulWidget {
 }
 
 class _TimestampBodyState extends State<TimestampBody>
-    with LinkableToolBody<TimestampBody> {
-  final TextEditingController _controller = TextEditingController();
-  Timer? _debounce;
+    with ToolBodyScaffold<TimestampBody>, LinkableToolBody<TimestampBody> {
   DateTime? _parsed;
   TimestampFormat _format = TimestampFormat.unknown;
   String? _error;
@@ -72,30 +70,11 @@ class _TimestampBodyState extends State<TimestampBody>
   /// Canvas-only: which timezone the date rows render in. Defaults to UTC.
   _Zone _zone = _Zone.utc;
 
-  HistoryRecorder? _recorder;
+  @override
+  String get utilityId => 'timestamp';
 
   @override
-  void initState() {
-    super.initState();
-    final String? seed = widget.initialInput;
-    if (seed != null && seed.isNotEmpty) {
-      _controller.text = seed;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _parse();
-      });
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      widget.actionBar?.bind(onPaste: _paste, onClear: _clear);
-    });
-    initLink();
-  }
-
-  @override
-  void didUpdateWidget(TimestampBody oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    didUpdateLink();
-  }
+  Duration get debounceDuration => const Duration(milliseconds: 200);
 
   // ─── Canvas-hub link (epoch-seconds canonical) ──────────────────────────
   @override
@@ -113,59 +92,18 @@ class _TimestampBodyState extends State<TimestampBody>
   @override
   void applyInbound(String canonical) {
     // The parser reads a bare integer as an epoch, so re-projecting the seconds
-    // string round-trips back to the same epoch through [_parse].
-    _controller.text = canonical;
-    _parse();
+    // string round-trips back to the same epoch through [parse].
+    setInput(canonical, asPaste: false);
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_recorder == null) {
-      _recorder = HistoryRecorder(
-        controller: HistoryScope.of(context),
-        utilityId: 'timestamp',
-      );
-      if (widget.seedSource == SeedSource.paste) {
-        _recorder!.markPaste();
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    disposeLink();
-    _debounce?.cancel();
-    _recorder?.dispose();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _onChanged(String value) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 200), _parse);
-  }
-
-  void _parse() {
-    final String input = _controller.text.trim();
-    if (input.isEmpty) {
-      setState(() {
-        _parsed = null;
-        _error = null;
-        _ambiguous = false;
-        _naive = false;
-        _forcedUnit = null;
-      });
-      emitToLink();
-      return;
-    }
-    final TimestampParseResult heuristic = TimestampParser.parseAnyFormat(
-      input,
-    );
+  void parse(String input) {
+    final String text = input.trim();
+    final TimestampParseResult heuristic = TimestampParser.parseAnyFormat(text);
     final TimestampFormat? forced = heuristic.isAmbiguous ? _forcedUnit : null;
     final TimestampParseResult result = forced == null
         ? heuristic
-        : TimestampParser.parseAs(input, forced);
+        : TimestampParser.parseAs(text, forced);
     setState(() {
       _parsed = result.timestamp;
       _format = result.format;
@@ -181,8 +119,20 @@ class _TimestampBodyState extends State<TimestampBody>
                 '  or this/last/next + second/minute/hour/day/week/month/year';
     });
     if (result.isSuccess) {
-      _recorder?.record(input, result.timestamp!.toIso8601String());
+      recordOutput(text, result.timestamp!.toIso8601String());
     }
+    emitToLink();
+  }
+
+  @override
+  void reset() {
+    setState(() {
+      _parsed = null;
+      _error = null;
+      _ambiguous = false;
+      _naive = false;
+      _forcedUnit = null;
+    });
     emitToLink();
   }
 
@@ -195,15 +145,10 @@ class _TimestampBodyState extends State<TimestampBody>
         ? TimestampFormat.unixMilliseconds
         : TimestampFormat.unixSeconds;
     setState(() => _forcedUnit = next);
-    _parse();
+    reparse();
   }
 
-  void _applyKeyword(String keyword) {
-    _debounce?.cancel();
-    _controller.text = keyword;
-    _recorder?.markPaste();
-    _parse();
-  }
+  void _applyKeyword(String keyword) => setInput(keyword, asPaste: true);
 
   /// Canvas-only: set the input to the current epoch in seconds.
   void _setNow() {
@@ -224,25 +169,6 @@ class _TimestampBodyState extends State<TimestampBody>
     _applyKeyword('$s');
   }
 
-  Future<void> _paste() async {
-    final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
-    if (data?.text == null) return;
-    _controller.text = data!.text!;
-    _recorder?.markPaste();
-    _parse();
-  }
-
-  void _clear() {
-    _debounce?.cancel();
-    _controller.clear();
-    setState(() {
-      _parsed = null;
-      _error = null;
-      _ambiguous = false;
-      _naive = false;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -252,11 +178,11 @@ class _TimestampBodyState extends State<TimestampBody>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             MqInput(
-              controller: _controller,
+              controller: controller,
               label: 'Input',
               placeholder: 'Unix, ISO 8601, or "now"',
-              onChanged: _onChanged,
-              onPaste: (_) => _recorder?.markPaste(),
+              onChanged: onInputChanged,
+              onPaste: (_) => markPaste(),
               multiline: true,
               minLines: 1,
               maxLines: 3,

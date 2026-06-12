@@ -1,14 +1,9 @@
-import 'dart:async';
-
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-import '../../state/history_controller.dart';
 import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../utility_catalog.dart';
-import '../../utils/history_recorder.dart';
 import '../../utils/ip_parser.dart';
 import '../mq/mq_chip.dart';
 import '../mq/mq_empty_hint.dart';
@@ -18,8 +13,9 @@ import '../mq/mq_section_header.dart';
 import '../mq/tool_action_bar.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
+import 'tool_body_scaffold.dart';
 
-class IpBody extends StatefulWidget {
+class IpBody extends StatefulWidget implements ToolBodyWidget {
   const IpBody({
     super.key,
     this.initialInput,
@@ -29,9 +25,12 @@ class IpBody extends StatefulWidget {
     this.link,
   });
 
+  @override
   final String? initialInput;
+  @override
   final SeedSource seedSource;
   final OpenInToolCallback? onSwitchTool;
+  @override
   final ToolActionBarController? actionBar;
   final LinkChannel? link;
 
@@ -39,91 +38,36 @@ class IpBody extends StatefulWidget {
   State<IpBody> createState() => _IpBodyState();
 }
 
-class _IpBodyState extends State<IpBody> {
-  final TextEditingController _controller = TextEditingController();
-  Timer? _debounce;
+class _IpBodyState extends State<IpBody> with ToolBodyScaffold<IpBody> {
   IpParseResult? _result;
-  HistoryRecorder? _recorder;
 
   @override
-  void initState() {
-    super.initState();
-    final String? seed = widget.initialInput;
-    if (seed != null && seed.isNotEmpty) {
-      _controller.text = seed;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _parse();
-      });
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _updateActionBar();
-    });
-  }
+  String get utilityId => 'ip';
 
   @override
   void didUpdateWidget(IpBody oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.actionBar != oldWidget.actionBar) _updateActionBar();
+    if (widget.actionBar != oldWidget.actionBar) bindActionBar();
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_recorder == null) {
-      _recorder = HistoryRecorder(
-        controller: HistoryScope.of(context),
-        utilityId: 'ip',
-      );
-      if (widget.seedSource == SeedSource.paste) _recorder!.markPaste();
-    }
-  }
-
-  @override
-  void dispose() {
-    _debounce?.cancel();
-    _recorder?.dispose();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _updateActionBar() {
-    widget.actionBar?.bind(onPaste: _paste, onClear: _clear);
-  }
-
-  void _onChanged(String _) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 150), _parse);
-  }
-
-  void _parse() {
-    final String input = _controller.text.trim();
-    if (input.isEmpty) {
-      setState(() => _result = null);
-      return;
-    }
-    final IpParseResult result = IpParser.parse(input);
+  void parse(String input) {
+    final String trimmed = input.trim();
+    final IpParseResult result = IpParser.parse(trimmed);
     setState(() => _result = result);
     if (result is IpOk) {
-      _recorder?.record(input, _formatSummary(result));
+      recordOutput(trimmed, _formatSummary(result));
     }
+  }
+
+  @override
+  void reset() {
+    setState(() => _result = null);
   }
 
   String _formatSummary(IpOk ok) {
     if (ok.family == IpFamily.v4) return IpParser.formatV4(ok.address);
     return IpParser.formatV6(ok.address);
-  }
-
-  Future<void> _paste() async {
-    final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
-    if (data?.text == null) return;
-    _controller.text = data!.text!;
-    _recorder?.markPaste();
-    _parse();
-  }
-
-  void _clear() {
-    _controller.clear();
-    setState(() => _result = null);
   }
 
   String _hexAddress(IpOk ok) {
@@ -139,11 +83,11 @@ class _IpBodyState extends State<IpBody> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         MqInput(
-          controller: _controller,
+          controller: controller,
           label: 'Address',
           placeholder: '192.168.1.0/24 or 2001:db8::1',
-          onChanged: _onChanged,
-          onPaste: (_) => _recorder?.markPaste(),
+          onChanged: onInputChanged,
+          onPaste: (_) => markPaste(),
         ),
         const SizedBox(height: MqSpacing.lg),
         if (_result is IpErr)
@@ -241,7 +185,7 @@ class _IpBodyState extends State<IpBody> {
           ],
         ),
       ],
-      if (_controller.text.isNotEmpty)
+      if (controller.text.isNotEmpty)
         OpenInFooter(
           output: _hexAddress(ok),
           excludeUtilityId: 'ip',

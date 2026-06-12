@@ -1,16 +1,12 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-import '../../state/history_controller.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
-import '../../utils/history_recorder.dart';
 import '../../utils/jwt_parser.dart';
 import '../mq/mq_chip.dart';
 import '../mq/mq_empty_hint.dart';
@@ -21,8 +17,9 @@ import '../mq/mq_status.dart';
 import '../mq/tool_action_bar.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
+import 'tool_body_scaffold.dart';
 
-class JwtBody extends StatefulWidget {
+class JwtBody extends StatefulWidget implements ToolBodyWidget {
   const JwtBody({
     super.key,
     this.initialInput,
@@ -31,97 +28,39 @@ class JwtBody extends StatefulWidget {
     this.actionBar,
   });
 
+  @override
   final String? initialInput;
+  @override
   final SeedSource seedSource;
   final OpenInToolCallback? onSwitchTool;
+  @override
   final ToolActionBarController? actionBar;
 
   @override
   State<JwtBody> createState() => _JwtBodyState();
 }
 
-class _JwtBodyState extends State<JwtBody> {
-  final TextEditingController _controller = TextEditingController();
-  Timer? _debounce;
+class _JwtBodyState extends State<JwtBody> with ToolBodyScaffold<JwtBody> {
   JwtParseResult? _result;
-  HistoryRecorder? _recorder;
 
   @override
-  void initState() {
-    super.initState();
-    final String? seed = widget.initialInput;
-    if (seed != null && seed.isNotEmpty) {
-      _controller.text = seed;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _decode();
-      });
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _updateActionBar();
-    });
-  }
+  String get utilityId => 'jwt';
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_recorder == null) {
-      _recorder = HistoryRecorder(
-        controller: HistoryScope.of(context),
-        utilityId: 'jwt',
-      );
-      if (widget.seedSource == SeedSource.paste) {
-        _recorder!.markPaste();
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _debounce?.cancel();
-    _recorder?.dispose();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _updateActionBar() {
-    widget.actionBar?.bind(onPaste: _paste, onClear: _clear);
-  }
-
-  void _onChanged(String _) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 150), _decode);
-  }
-
-  void _decode() {
-    final String input = _controller.text;
-    if (input.trim().isEmpty) {
-      setState(() => _result = null);
-      _updateActionBar();
-      return;
-    }
+  void parse(String input) {
     final JwtParseResult result = JwtParser.parse(input.trim());
     setState(() => _result = result);
     if (result is JwtOk) {
       final String pretty = const JsonEncoder.withIndent(
         '  ',
       ).convert(result.payload);
-      _recorder?.record(input, pretty);
+      recordOutput(input, pretty);
     }
-    _updateActionBar();
   }
 
-  Future<void> _paste() async {
-    final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
-    if (data?.text == null) return;
-    _controller.text = data!.text!;
-    _recorder?.markPaste();
-    _decode();
-  }
-
-  void _clear() {
-    _controller.clear();
+  @override
+  void reset() {
     setState(() => _result = null);
-    _updateActionBar();
   }
 
   @override
@@ -131,11 +70,11 @@ class _JwtBodyState extends State<JwtBody> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         MqInput(
-          controller: _controller,
+          controller: controller,
           label: 'Token',
           placeholder: 'Paste a JWT (header.payload.signature)',
-          onChanged: _onChanged,
-          onPaste: (_) => _recorder?.markPaste(),
+          onChanged: onInputChanged,
+          onPaste: (_) => markPaste(),
           multiline: true,
           minLines: 3,
           maxLines: 6,

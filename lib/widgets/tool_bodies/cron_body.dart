@@ -1,17 +1,12 @@
-import 'dart:async';
-
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:intl/intl.dart';
 
-import '../../state/history_controller.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
 import '../../utils/cron_parser.dart';
-import '../../utils/history_recorder.dart';
 import '../mq/mq_empty_hint.dart';
 import '../mq/mq_input.dart';
 import '../mq/mq_mono_cell.dart';
@@ -21,9 +16,10 @@ import '../mq/mq_surface.dart';
 import '../mq/tool_action_bar.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
+import 'tool_body_scaffold.dart';
 import 'tool_layout.dart';
 
-class CronBody extends StatefulWidget {
+class CronBody extends StatefulWidget implements ToolBodyWidget {
   const CronBody({
     super.key,
     this.initialInput,
@@ -32,18 +28,19 @@ class CronBody extends StatefulWidget {
     this.actionBar,
   });
 
+  @override
   final String? initialInput;
+  @override
   final SeedSource seedSource;
   final OpenInToolCallback? onSwitchTool;
+  @override
   final ToolActionBarController? actionBar;
 
   @override
   State<CronBody> createState() => _CronBodyState();
 }
 
-class _CronBodyState extends State<CronBody> {
-  final TextEditingController _controller = TextEditingController();
-  Timer? _debounce;
+class _CronBodyState extends State<CronBody> with ToolBodyScaffold<CronBody> {
   CronSchedule? _schedule;
   CronParsedMode? _mode;
   String? _error;
@@ -51,62 +48,14 @@ class _CronBodyState extends State<CronBody> {
   /// Frozen reference time at parse — ensures next-run rows don't tick.
   DateTime? _referenceNow;
 
-  HistoryRecorder? _recorder;
+  @override
+  String get utilityId => 'cron';
 
   @override
-  void initState() {
-    super.initState();
-    final String? seed = widget.initialInput;
-    if (seed != null && seed.isNotEmpty) {
-      _controller.text = seed;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _parse();
-      });
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      widget.actionBar?.bind(onPaste: _paste, onClear: _clear);
-    });
-  }
+  Duration get debounceDuration => const Duration(milliseconds: 200);
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_recorder == null) {
-      _recorder = HistoryRecorder(
-        controller: HistoryScope.of(context),
-        utilityId: 'cron',
-      );
-      if (widget.seedSource == SeedSource.paste) {
-        _recorder!.markPaste();
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _debounce?.cancel();
-    _recorder?.dispose();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _onChanged(String _) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 200), _parse);
-  }
-
-  void _parse() {
-    final String input = _controller.text;
-    if (input.trim().isEmpty) {
-      setState(() {
-        _schedule = null;
-        _mode = null;
-        _error = null;
-        _referenceNow = null;
-      });
-      return;
-    }
+  void parse(String input) {
     final CronParseResult r = CronParser.parse(input);
     setState(() {
       _schedule = r.schedule;
@@ -115,37 +64,28 @@ class _CronBodyState extends State<CronBody> {
       _error = r.isSuccess ? null : _buildErrorMessage(r);
     });
     if (r.isSuccess) {
-      _recorder?.record(input, r.schedule!.canonical);
+      recordOutput(input, r.schedule!.canonical);
     }
   }
 
-  static final RegExp _cronShapeRe = RegExp(r'^[\d*@]');
-
-  String _buildErrorMessage(CronParseResult r) {
-    final String trimmed = _controller.text.trim();
-    final bool looksCron = trimmed.isNotEmpty && _cronShapeRe.hasMatch(trimmed);
-    if (looksCron && r.cronError != null) return r.cronError!;
-    if (r.nlError != null) return r.nlError!;
-    return r.cronError ?? 'Could not parse as cron or natural language.';
-  }
-
-  Future<void> _paste() async {
-    final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
-    if (data?.text == null) return;
-    _controller.text = data!.text!;
-    _recorder?.markPaste();
-    _parse();
-  }
-
-  void _clear() {
-    _debounce?.cancel();
-    _controller.clear();
+  @override
+  void reset() {
     setState(() {
       _schedule = null;
       _mode = null;
       _error = null;
       _referenceNow = null;
     });
+  }
+
+  static final RegExp _cronShapeRe = RegExp(r'^[\d*@]');
+
+  String _buildErrorMessage(CronParseResult r) {
+    final String trimmed = controller.text.trim();
+    final bool looksCron = trimmed.isNotEmpty && _cronShapeRe.hasMatch(trimmed);
+    if (looksCron && r.cronError != null) return r.cronError!;
+    if (r.nlError != null) return r.nlError!;
+    return r.cronError ?? 'Could not parse as cron or natural language.';
   }
 
   String? _firstNextRunIso() {
@@ -175,11 +115,11 @@ class _CronBodyState extends State<CronBody> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         MqInput(
-          controller: _controller,
+          controller: controller,
           label: 'Input',
           placeholder: '*/5 * * * *',
-          onChanged: _onChanged,
-          onPaste: (_) => _recorder?.markPaste(),
+          onChanged: onInputChanged,
+          onPaste: (_) => markPaste(),
           multiline: true,
           minLines: 1,
           maxLines: 3,

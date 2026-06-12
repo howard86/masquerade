@@ -1,17 +1,12 @@
-import 'dart:async';
-
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-import '../../state/history_controller.dart';
 import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
 import '../../utils/color_parser.dart';
-import '../../utils/history_recorder.dart';
 import '../mq/mq_empty_hint.dart';
 import '../mq/mq_input.dart';
 import '../mq/mq_mono_cell.dart';
@@ -21,9 +16,10 @@ import '../mq/tool_action_bar.dart';
 import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
+import 'tool_body_scaffold.dart';
 import 'tool_layout.dart';
 
-class ColorBody extends StatefulWidget {
+class ColorBody extends StatefulWidget implements ToolBodyWidget {
   const ColorBody({
     super.key,
     this.initialInput,
@@ -33,9 +29,12 @@ class ColorBody extends StatefulWidget {
     this.link,
   });
 
+  @override
   final String? initialInput;
+  @override
   final SeedSource seedSource;
   final OpenInToolCallback? onSwitchTool;
+  @override
   final ToolActionBarController? actionBar;
 
   /// Non-null when this card is in a canvas Link group. The group's canonical
@@ -48,12 +47,10 @@ class ColorBody extends StatefulWidget {
 }
 
 class _ColorBodyState extends State<ColorBody>
-    with LinkableToolBody<ColorBody> {
+    with ToolBodyScaffold<ColorBody>, LinkableToolBody<ColorBody> {
   /// Most swatches the session palette strip keeps. Canvas-only; per card.
   static const int _paletteCap = 8;
 
-  final TextEditingController _controller = TextEditingController();
-  Timer? _debounce;
   MqColorValue? _value;
   String? _error;
 
@@ -67,27 +64,32 @@ class _ColorBodyState extends State<ColorBody>
   /// emits on attach until the user actually provides a value.
   bool _userProvided = false;
 
-  HistoryRecorder? _recorder;
+  @override
+  String get utilityId => 'color';
+
+  @override
+  Duration get debounceDuration => const Duration(milliseconds: 200);
 
   @override
   void initState() {
     super.initState();
-    final String? seed = widget.initialInput;
-    final bool hasSeed = seed != null && seed.isNotEmpty;
-    _userProvided = hasSeed;
-    _controller.text = hasSeed ? seed : '#00B8C4';
-    _value = MqColorParser.parse(_controller.text);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      widget.actionBar?.bind(onPaste: _paste, onClear: _clear);
-    });
-    initLink();
+    // The scaffold seeds the controller from a real seed (and schedules its
+    // parse). When there's no seed, fall back to the cold placeholder and parse
+    // it synchronously so the swatch shows on the first frame. The placeholder
+    // stays unrecorded and leaves [_userProvided] false.
+    if (controller.text.isEmpty) {
+      controller.text = '#00B8C4';
+      _value = MqColorParser.parse(controller.text);
+    }
   }
 
   @override
-  void didUpdateWidget(ColorBody oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    didUpdateLink();
+  void onSeed(String seed) {
+    // A real seed counts as user-provided and is parsed synchronously so the
+    // swatch is visible immediately; the scaffold's deferred parse re-runs and
+    // records it.
+    _userProvided = true;
+    _value = MqColorParser.parse(seed);
   }
 
   // ─── Canonical-hub link (canonical-hex canonical) ───────────────────────
@@ -103,60 +105,16 @@ class _ColorBodyState extends State<ColorBody>
   @override
   void applyInbound(String canonical) {
     _userProvided = true;
-    _controller.text = canonical;
-    _parse();
+    setInput(canonical, asPaste: false);
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_recorder == null) {
-      _recorder = HistoryRecorder(
-        controller: HistoryScope.of(context),
-        utilityId: 'color',
-      );
-      if (widget.seedSource == SeedSource.paste) {
-        _recorder!.markPaste();
-      }
-      // Auto-record only when the host actually handed us a seed. The cold
-      // default (#00B8C4) is just placeholder UI — recording it on every
-      // open would spam history with duplicate entries.
-      final String? seed = widget.initialInput;
-      if (seed != null && seed.isNotEmpty && _value != null) {
-        // Notifying HistoryController during build would trip the
-        // "setState during build" assertion via HistoryScope, so defer.
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _recorder?.record(_controller.text, _value!.hex);
-        });
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    disposeLink();
-    _debounce?.cancel();
-    _recorder?.dispose();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _onChanged(String _) {
+  void _onChanged(String text) {
     _userProvided = true;
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 200), _parse);
+    onInputChanged(text);
   }
 
-  void _parse() {
-    final String input = _controller.text;
-    if (input.trim().isEmpty) {
-      setState(() {
-        _value = null;
-        _error = null;
-      });
-      emitToLink();
-      return;
-    }
+  @override
+  void parse(String input) {
     final MqColorValue? parsed = MqColorParser.parse(input);
     setState(() {
       _value = parsed;
@@ -166,8 +124,17 @@ class _ColorBodyState extends State<ColorBody>
       if (parsed != null) _pushPalette(parsed);
     });
     if (parsed != null) {
-      _recorder?.record(input, parsed.hex);
+      recordOutput(input, parsed.hex);
     }
+    emitToLink();
+  }
+
+  @override
+  void reset() {
+    setState(() {
+      _value = null;
+      _error = null;
+    });
     emitToLink();
   }
 
@@ -181,25 +148,15 @@ class _ColorBodyState extends State<ColorBody>
 
   void _loadSwatch(MqColorValue color) {
     _userProvided = true;
-    _controller.text = color.hex;
-    _parse();
+    setInput(color.hex, asPaste: false);
   }
 
-  Future<void> _paste() async {
-    final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
-    if (data?.text == null) return;
+  /// A clipboard paste counts as user-provided, so the parsed color can seed a
+  /// Link group (the cold placeholder must not).
+  @override
+  Future<void> pasteFromClipboard() {
     _userProvided = true;
-    _controller.text = data!.text!;
-    _recorder?.markPaste();
-    _parse();
-  }
-
-  void _clear() {
-    _controller.clear();
-    setState(() {
-      _value = null;
-      _error = null;
-    });
+    return super.pasteFromClipboard();
   }
 
   MqStatusKind _contrastKind(double ratio) {
@@ -226,11 +183,11 @@ class _ColorBodyState extends State<ColorBody>
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         MqInput(
-          controller: _controller,
+          controller: controller,
           label: 'Color',
           placeholder: '#00B8C4 or rgb(0,184,196)',
           onChanged: _onChanged,
-          onPaste: (_) => _recorder?.markPaste(),
+          onPaste: (_) => markPaste(),
         ),
         // Canvas-only: sticky swatches of colors entered this session; tap to
         // reload. Hidden at phone width so the body matches mobile exactly.

@@ -1,16 +1,11 @@
-import 'dart:async';
-
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-import '../../state/history_controller.dart';
 import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
-import '../../utils/history_recorder.dart';
 import '../../utils/number_base_parser.dart';
 import '../mq/mq_empty_hint.dart';
 import '../mq/mq_input.dart';
@@ -21,9 +16,10 @@ import '../mq/tool_action_bar.dart';
 import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
+import 'tool_body_scaffold.dart';
 import 'tool_layout.dart';
 
-class NumberBaseBody extends StatefulWidget {
+class NumberBaseBody extends StatefulWidget implements ToolBodyWidget {
   const NumberBaseBody({
     super.key,
     this.initialInput,
@@ -33,9 +29,12 @@ class NumberBaseBody extends StatefulWidget {
     this.link,
   });
 
+  @override
   final String? initialInput;
+  @override
   final SeedSource seedSource;
   final OpenInToolCallback? onSwitchTool;
+  @override
   final ToolActionBarController? actionBar;
 
   /// Non-null when this card is in a canvas Link group. The group's canonical
@@ -48,36 +47,15 @@ class NumberBaseBody extends StatefulWidget {
 }
 
 class _NumberBaseBodyState extends State<NumberBaseBody>
-    with LinkableToolBody<NumberBaseBody> {
-  final TextEditingController _controller = TextEditingController();
-  Timer? _debounce;
+    with ToolBodyScaffold<NumberBaseBody>, LinkableToolBody<NumberBaseBody> {
   NumberBaseResult? _result;
   String? _error;
 
-  HistoryRecorder? _recorder;
+  @override
+  String get utilityId => 'number_base';
 
   @override
-  void initState() {
-    super.initState();
-    final String? seed = widget.initialInput;
-    if (seed != null && seed.isNotEmpty) {
-      _controller.text = seed;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _parse();
-      });
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      widget.actionBar?.bind(onPaste: _paste, onClear: _clear);
-    });
-    initLink();
-  }
-
-  @override
-  void didUpdateWidget(NumberBaseBody oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    didUpdateLink();
-  }
+  Duration get debounceDuration => const Duration(milliseconds: 200);
 
   // ─── Canonical-hub link (decimal-number canonical) ──────────────────────
   @override
@@ -91,49 +69,12 @@ class _NumberBaseBodyState extends State<NumberBaseBody>
   @override
   void applyInbound(String canonical) {
     // The parser accepts a bare decimal, so re-projecting [canonical] as the
-    // input round-trips back to the same decimal through [_parse].
-    _controller.text = canonical;
-    _parse();
+    // input round-trips back to the same decimal through [parse].
+    setInput(canonical, asPaste: false);
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_recorder == null) {
-      _recorder = HistoryRecorder(
-        controller: HistoryScope.of(context),
-        utilityId: 'number_base',
-      );
-      if (widget.seedSource == SeedSource.paste) {
-        _recorder!.markPaste();
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    disposeLink();
-    _debounce?.cancel();
-    _recorder?.dispose();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _onChanged(String _) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 200), _parse);
-  }
-
-  void _parse() {
-    final String input = _controller.text;
-    if (input.trim().isEmpty) {
-      setState(() {
-        _result = null;
-        _error = null;
-      });
-      emitToLink();
-      return;
-    }
+  void parse(String input) {
     final NumberBaseResult? parsed = NumberBaseParser.parse(input);
     setState(() {
       _result = parsed;
@@ -142,33 +83,24 @@ class _NumberBaseBodyState extends State<NumberBaseBody>
           : null;
     });
     if (parsed != null) {
-      _recorder?.record(input, parsed.decimal);
+      recordOutput(input, parsed.decimal);
     }
     emitToLink();
   }
 
-  Future<void> _paste() async {
-    final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
-    if (data?.text == null) return;
-    _controller.text = data!.text!;
-    _recorder?.markPaste();
-    _parse();
-  }
-
-  void _clear() {
-    _controller.clear();
+  @override
+  void reset() {
     setState(() {
       _result = null;
       _error = null;
     });
+    emitToLink();
   }
 
   /// Re-feeds [value] as a plain decimal through the normal parse/emit path so
   /// the bit grid stays a thin editor over the existing pipeline.
   void _setValue(BigInt value) {
-    _debounce?.cancel();
-    _controller.text = value.toString();
-    _parse();
+    setInput(value.toString(), asPaste: false);
   }
 
   // TODO(phase7): ⇧↑↓ nibble-nudge keyboard accelerator over the bit grid.
@@ -182,11 +114,11 @@ class _NumberBaseBodyState extends State<NumberBaseBody>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             MqInput(
-              controller: _controller,
+              controller: controller,
               label: 'Input',
               placeholder: '0xFF, 0b1010, 255, 0o377…',
-              onChanged: _onChanged,
-              onPaste: (_) => _recorder?.markPaste(),
+              onChanged: onInputChanged,
+              onPaste: (_) => markPaste(),
               keyboardType: TextInputType.text,
             ),
             const SizedBox(height: MqSpacing.lg),

@@ -1,18 +1,13 @@
-import 'dart:async';
-
 import 'package:decimal/decimal.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/services.dart';
 import 'package:rational/rational.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../state/history_controller.dart';
 import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
-import '../../utils/history_recorder.dart';
 import '../../utils/math_parser.dart';
 import '../mq/mq_chip.dart';
 import '../mq/mq_empty_hint.dart';
@@ -26,9 +21,10 @@ import '../mq/tool_action_bar.dart';
 import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
+import 'tool_body_scaffold.dart';
 import 'tool_layout.dart';
 
-class MathBody extends StatefulWidget {
+class MathBody extends StatefulWidget implements ToolBodyWidget {
   const MathBody({
     super.key,
     this.initialInput,
@@ -38,9 +34,12 @@ class MathBody extends StatefulWidget {
     this.link,
   });
 
+  @override
   final String? initialInput;
+  @override
   final SeedSource seedSource;
   final OpenInToolCallback? onSwitchTool;
+  @override
   final ToolActionBarController? actionBar;
 
   /// Non-null when this card is in a canvas Link group. The group's canonical
@@ -53,22 +52,20 @@ class MathBody extends StatefulWidget {
   State<MathBody> createState() => _MathBodyState();
 }
 
-class _MathBodyState extends State<MathBody> with LinkableToolBody<MathBody> {
+class _MathBodyState extends State<MathBody>
+    with ToolBodyScaffold<MathBody>, LinkableToolBody<MathBody> {
   static const String _angleUnitPrefsKey = 'mq.math.angle_unit';
 
   /// Most evaluations the visible tape keeps in memory before dropping the
   /// oldest. Per-card, session-only — not persisted.
   static const int _tapeCap = 50;
 
-  final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
-  Timer? _debounce;
   MathValue? _result;
   MathValue? _lastGood;
   MathError? _error;
   bool _showingStale = false;
   AngleUnit _angleUnit = AngleUnit.radians;
-  HistoryRecorder? _recorder;
 
   /// Visible tape of past `expression = result` evaluations, most-recent last.
   /// Canvas-only (shown above [kToolCanvasWide]); ignored at phone width.
@@ -76,27 +73,15 @@ class _MathBodyState extends State<MathBody> with LinkableToolBody<MathBody> {
       <({String expr, String result})>[];
 
   @override
+  String get utilityId => 'math';
+
+  @override
+  Duration get debounceDuration => const Duration(milliseconds: 200);
+
+  @override
   void initState() {
     super.initState();
     _loadAngleUnit();
-    final String? seed = widget.initialInput;
-    if (seed != null && seed.isNotEmpty) {
-      _controller.text = seed;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _parse();
-      });
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      widget.actionBar?.bind(onPaste: _paste, onClear: _clear);
-    });
-    initLink();
-  }
-
-  @override
-  void didUpdateWidget(MathBody oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    didUpdateLink();
   }
 
   // ─── Canonical-hub link (plain-number canonical) ────────────────────────
@@ -113,32 +98,13 @@ class _MathBodyState extends State<MathBody> with LinkableToolBody<MathBody> {
 
   @override
   void applyInbound(String canonical) {
-    // Re-project a peer's number as a literal expression so [_parse] evaluates
+    // Re-project a peer's number as a literal expression so [parse] evaluates
     // it straight back to [canonical].
-    _controller.text = canonical;
-    _parse();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_recorder == null) {
-      _recorder = HistoryRecorder(
-        controller: HistoryScope.of(context),
-        utilityId: 'math',
-      );
-      if (widget.seedSource == SeedSource.paste) {
-        _recorder!.markPaste();
-      }
-    }
+    setInput(canonical, asPaste: false);
   }
 
   @override
   void dispose() {
-    disposeLink();
-    _debounce?.cancel();
-    _recorder?.dispose();
-    _controller.dispose();
     _focusNode.dispose();
     super.dispose();
   }
@@ -150,13 +116,13 @@ class _MathBodyState extends State<MathBody> with LinkableToolBody<MathBody> {
     );
     if (loaded == null || loaded == _angleUnit || !mounted) return;
     setState(() => _angleUnit = loaded);
-    if (_controller.text.trim().isNotEmpty) _parse();
+    if (controller.text.trim().isNotEmpty) reparse();
   }
 
   Future<void> _setAngleUnit(AngleUnit next) async {
     if (next == _angleUnit) return;
     setState(() => _angleUnit = next);
-    if (_controller.text.trim().isNotEmpty) _parse();
+    if (controller.text.trim().isNotEmpty) reparse();
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setString(_angleUnitPrefsKey, _encodeAngleUnit(next));
   }
@@ -172,23 +138,19 @@ class _MathBodyState extends State<MathBody> with LinkableToolBody<MathBody> {
     _ => null,
   };
 
-  void _onChanged(String _) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 200), _parse);
+  @override
+  void reset() {
+    if (_result == null && _error == null && !_showingStale) return;
+    setState(() {
+      _result = null;
+      _error = null;
+      _showingStale = false;
+    });
+    emitToLink();
   }
 
-  void _parse() {
-    final String input = _controller.text;
-    if (input.trim().isEmpty) {
-      if (_result == null && _error == null && !_showingStale) return;
-      setState(() {
-        _result = null;
-        _error = null;
-        _showingStale = false;
-      });
-      emitToLink();
-      return;
-    }
+  @override
+  void parse(String input) {
     final MathParseResult res = MathParser.parse(
       input,
       ctx: MathContext(angleUnit: _angleUnit, lastAnswer: _lastGood),
@@ -204,7 +166,7 @@ class _MathBodyState extends State<MathBody> with LinkableToolBody<MathBody> {
           });
         }
         _pushTape(input.trim(), _formatPrimary(value));
-        _recorder?.record(input, _formatPrimary(value));
+        recordOutput(input, _formatPrimary(value));
         emitToLink();
       case MathIncomplete():
         final bool nextStale = _result != null;
@@ -240,25 +202,8 @@ class _MathBodyState extends State<MathBody> with LinkableToolBody<MathBody> {
     });
   }
 
-  Future<void> _paste() async {
-    final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
-    if (data?.text == null) return;
-    _controller.text = data!.text!;
-    _recorder?.markPaste();
-    _parse();
-  }
-
-  void _clear() {
-    _controller.clear();
-    setState(() {
-      _result = null;
-      _error = null;
-      _showingStale = false;
-    });
-  }
-
   void _insertAns() {
-    final TextEditingValue v = _controller.value;
+    final TextEditingValue v = controller.value;
     final String before = v.selection.isValid
         ? v.text.substring(0, v.selection.start)
         : v.text;
@@ -266,12 +211,12 @@ class _MathBodyState extends State<MathBody> with LinkableToolBody<MathBody> {
         ? v.text.substring(v.selection.end)
         : '';
     final String joined = '${before}ans$after';
-    _controller.value = TextEditingValue(
+    controller.value = TextEditingValue(
       text: joined,
       selection: TextSelection.collapsed(offset: before.length + 'ans'.length),
     );
     _focusNode.requestFocus();
-    _parse();
+    reparse();
   }
 
   @override
@@ -301,12 +246,12 @@ class _MathBodyState extends State<MathBody> with LinkableToolBody<MathBody> {
   List<Widget> _buildCore(MathValue? result, MathError? error) {
     return <Widget>[
       MqInput(
-        controller: _controller,
+        controller: controller,
         focusNode: _focusNode,
         label: 'Expression',
         placeholder: '2*(3+4) - sin(pi/2)',
-        onChanged: _onChanged,
-        onPaste: (_) => _recorder?.markPaste(),
+        onChanged: onInputChanged,
+        onPaste: (_) => markPaste(),
       ),
       const SizedBox(height: MqSpacing.md),
       MqSegmented<AngleUnit>(

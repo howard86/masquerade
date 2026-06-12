@@ -80,13 +80,6 @@ class _DiffBodyState extends State<DiffBody> with LinkableToolBody<DiffBody> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _updateActionBar();
     });
-    initLink();
-  }
-
-  @override
-  void didUpdateWidget(DiffBody oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    didUpdateLink();
   }
 
   // ─── Canonical-hub link (side-A text canonical) ─────────────────────────
@@ -120,7 +113,6 @@ class _DiffBodyState extends State<DiffBody> with LinkableToolBody<DiffBody> {
 
   @override
   void dispose() {
-    disposeLink();
     _debounce?.cancel();
     _recorder?.dispose();
     _a.dispose();

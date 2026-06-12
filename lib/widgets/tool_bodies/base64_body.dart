@@ -1,17 +1,13 @@
-import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
 
-import '../../state/history_controller.dart';
 import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
-import '../../utils/history_recorder.dart';
 import '../mq/mq_button.dart';
 import '../mq/mq_chip.dart';
 import '../mq/mq_empty_hint.dart';
@@ -24,11 +20,12 @@ import '../mq/tool_action_bar.dart';
 import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
+import 'tool_body_scaffold.dart';
 import 'tool_layout.dart';
 
 enum Base64Mode { encode, decode }
 
-class Base64Body extends StatefulWidget {
+class Base64Body extends StatefulWidget implements ToolBodyWidget {
   const Base64Body({
     super.key,
     this.initialInput,
@@ -38,9 +35,12 @@ class Base64Body extends StatefulWidget {
     this.link,
   });
 
+  @override
   final String? initialInput;
+  @override
   final SeedSource seedSource;
   final OpenInToolCallback? onSwitchTool;
+  @override
   final ToolActionBarController? actionBar;
 
   /// Non-null when this card is in a canvas Link group. The group's canonical
@@ -53,9 +53,7 @@ class Base64Body extends StatefulWidget {
 }
 
 class _Base64BodyState extends State<Base64Body>
-    with LinkableToolBody<Base64Body> {
-  final TextEditingController _controller = TextEditingController();
-  Timer? _debounce;
+    with ToolBodyScaffold<Base64Body>, LinkableToolBody<Base64Body> {
   Base64Mode _mode = Base64Mode.encode;
   bool _urlSafe = false;
   bool _stripPadding = false;
@@ -69,32 +67,29 @@ class _Base64BodyState extends State<Base64Body>
   /// Byte count of the decode input (the trimmed base64 source).
   int? _inputBytes;
 
-  HistoryRecorder? _recorder;
+  @override
+  String get utilityId => 'base64';
+
+  // Base64 encode of pure whitespace is meaningful, so only a truly empty
+  // field counts as nothing to do.
+  @override
+  bool isBlank(String input) => input.isEmpty;
 
   @override
-  void initState() {
-    super.initState();
-    final String? seed = widget.initialInput;
-    if (seed != null && seed.isNotEmpty) {
-      _controller.text = seed;
-      // Hero detector only suggests Base64 for encoded-looking inputs, so
-      // a seed always enters Decode mode.
-      _mode = Base64Mode.decode;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _convert();
-      });
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _updateActionBar();
-    });
-    initLink();
+  void onSeed(String seed) {
+    // Hero detector only suggests Base64 for encoded-looking inputs, so a seed
+    // always enters Decode mode.
+    _mode = Base64Mode.decode;
   }
 
   @override
-  void didUpdateWidget(Base64Body oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    didUpdateLink();
-  }
+  Widget? actionBarCenter() => MqButton(
+    label: 'Swap',
+    icon: MqIcons.swap,
+    variant: MqButtonVariant.glass,
+    onPressed: _output == null ? null : _swap,
+    full: true,
+  );
 
   // ─── Canonical-hub link (plain-text canonical) ──────────────────────────
   @override
@@ -104,20 +99,20 @@ class _Base64BodyState extends State<Base64Body>
   /// output in Decode mode.
   @override
   String currentCanonical() =>
-      _mode == Base64Mode.encode ? _controller.text : (_output ?? '');
+      _mode == Base64Mode.encode ? controller.text : (_output ?? '');
 
   @override
   void applyInbound(String canonical) {
-    // Drive the editable field so a re-[_convert] reproduces [canonical]:
-    // Encode mode edits plain text directly; Decode mode edits base64.
-    _controller.text = _mode == Base64Mode.encode
-        ? canonical
-        : _encodeForDisplay(canonical);
-    _convert();
+    // Drive the editable field so a re-[parse] reproduces [canonical]: Encode
+    // mode edits plain text directly; Decode mode edits base64.
+    setInput(
+      _mode == Base64Mode.encode ? canonical : _encodeForDisplay(canonical),
+      asPaste: false,
+    );
   }
 
   /// Encodes [text] the way the current chips dictate, so the value shown in
-  /// the Decode input round-trips back to [text] through [_convert].
+  /// the Decode input round-trips back to [text] through [parse].
   String _encodeForDisplay(String text) {
     final List<int> bytes = utf8.encode(text);
     String s = _urlSafe ? base64UrlEncode(bytes) : base64Encode(bytes);
@@ -125,61 +120,8 @@ class _Base64BodyState extends State<Base64Body>
     return s;
   }
 
-  void _updateActionBar() {
-    widget.actionBar?.bind(
-      onPaste: _paste,
-      onClear: _clear,
-      center: MqButton(
-        label: 'Swap',
-        icon: MqIcons.swap,
-        variant: MqButtonVariant.glass,
-        onPressed: _output == null ? null : _swap,
-        full: true,
-      ),
-    );
-  }
-
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_recorder == null) {
-      _recorder = HistoryRecorder(
-        controller: HistoryScope.of(context),
-        utilityId: 'base64',
-      );
-      if (widget.seedSource == SeedSource.paste) {
-        _recorder!.markPaste();
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    disposeLink();
-    _debounce?.cancel();
-    _recorder?.dispose();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _onChanged(String _) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 150), _convert);
-  }
-
-  void _convert() {
-    final String input = _controller.text;
-    if (input.isEmpty) {
-      setState(() {
-        _output = null;
-        _error = null;
-        _decodedBytes = null;
-        _inputBytes = null;
-      });
-      _updateActionBar();
-      emitToLink();
-      return;
-    }
+  void parse(String input) {
     try {
       String result;
       Uint8List? decoded;
@@ -206,7 +148,7 @@ class _Base64BodyState extends State<Base64Body>
         _decodedBytes = decoded;
         _inputBytes = inBytes;
       });
-      _recorder?.record(input, result);
+      recordOutput(input, result);
       emitToLink();
     } on FormatException catch (e) {
       setState(() {
@@ -223,26 +165,17 @@ class _Base64BodyState extends State<Base64Body>
         _inputBytes = null;
       });
     }
-    _updateActionBar();
   }
 
-  Future<void> _paste() async {
-    final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
-    if (data?.text == null) return;
-    _controller.text = data!.text!;
-    _recorder?.markPaste();
-    _convert();
-  }
-
-  void _clear() {
-    _controller.clear();
+  @override
+  void reset() {
     setState(() {
       _output = null;
       _error = null;
       _decodedBytes = null;
       _inputBytes = null;
     });
-    _updateActionBar();
+    emitToLink();
   }
 
   void _swap() {
@@ -252,10 +185,8 @@ class _Base64BodyState extends State<Base64Body>
       _mode = _mode == Base64Mode.encode
           ? Base64Mode.decode
           : Base64Mode.encode;
-      _controller.text = out;
     });
-    _recorder?.markPaste();
-    _convert();
+    setInput(out, asPaste: true);
   }
 
   @override
@@ -274,18 +205,18 @@ class _Base64BodyState extends State<Base64Body>
               selected: _mode,
               onChanged: (Base64Mode m) {
                 setState(() => _mode = m);
-                _convert();
+                reparse();
               },
             ),
             const SizedBox(height: MqSpacing.md),
             MqInput(
-              controller: _controller,
+              controller: controller,
               label: 'Input',
               placeholder: _mode == Base64Mode.encode
                   ? 'Plain text'
                   : 'Encoded string',
-              onChanged: _onChanged,
-              onPaste: (_) => _recorder?.markPaste(),
+              onChanged: onInputChanged,
+              onPaste: (_) => markPaste(),
               multiline: true,
               minLines: 3,
               maxLines: 8,
@@ -301,7 +232,7 @@ class _Base64BodyState extends State<Base64Body>
                   mono: false,
                   onTap: () {
                     setState(() => _urlSafe = !_urlSafe);
-                    _convert();
+                    reparse();
                   },
                 ),
                 MqChip(
@@ -310,7 +241,7 @@ class _Base64BodyState extends State<Base64Body>
                   mono: false,
                   onTap: () {
                     setState(() => _stripPadding = !_stripPadding);
-                    _convert();
+                    reparse();
                   },
                 ),
               ],

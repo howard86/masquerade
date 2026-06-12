@@ -1,16 +1,11 @@
-import 'dart:async';
-
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-import '../../state/history_controller.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
 import '../../utils/bps_parser.dart';
-import '../../utils/history_recorder.dart';
 import '../mq/mq_button.dart';
 import '../mq/mq_empty_hint.dart';
 import '../mq/mq_input.dart';
@@ -20,9 +15,10 @@ import '../mq/mq_status.dart';
 import '../mq/tool_action_bar.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
+import 'tool_body_scaffold.dart';
 import 'tool_layout.dart';
 
-class BpsBody extends StatefulWidget {
+class BpsBody extends StatefulWidget implements ToolBodyWidget {
   const BpsBody({
     super.key,
     this.initialInput,
@@ -31,18 +27,19 @@ class BpsBody extends StatefulWidget {
     this.actionBar,
   });
 
+  @override
   final String? initialInput;
+  @override
   final SeedSource seedSource;
   final OpenInToolCallback? onSwitchTool;
+  @override
   final ToolActionBarController? actionBar;
 
   @override
   State<BpsBody> createState() => _BpsBodyState();
 }
 
-class _BpsBodyState extends State<BpsBody> {
-  final TextEditingController _controller = TextEditingController();
-  Timer? _debounce;
+class _BpsBodyState extends State<BpsBody> with ToolBodyScaffold<BpsBody> {
   BpsResult? _result;
   String? _error;
 
@@ -50,80 +47,26 @@ class _BpsBodyState extends State<BpsBody> {
   /// current result against it. Null until the user pins.
   BpsResult? _baseline;
 
-  HistoryRecorder? _recorder;
+  @override
+  String get utilityId => 'bps';
 
   @override
-  void initState() {
-    super.initState();
-    final String? seed = widget.initialInput;
-    if (seed != null && seed.isNotEmpty) {
-      _controller.text = seed;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _parse();
-      });
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      widget.actionBar?.bind(onPaste: _paste, onClear: _clear);
-    });
-  }
+  Duration get debounceDuration => const Duration(milliseconds: 200);
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_recorder == null) {
-      _recorder = HistoryRecorder(
-        controller: HistoryScope.of(context),
-        utilityId: 'bps',
-      );
-      if (widget.seedSource == SeedSource.paste) {
-        _recorder!.markPaste();
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _debounce?.cancel();
-    _recorder?.dispose();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _onChanged(String _) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 200), _parse);
-  }
-
-  void _parse() {
-    final String input = _controller.text;
-    if (input.trim().isEmpty) {
-      setState(() {
-        _result = null;
-        _error = null;
-      });
-      return;
-    }
+  void parse(String input) {
     final BpsResult? parsed = BpsParser.parse(input);
     setState(() {
       _result = parsed;
       _error = parsed == null ? 'Could not parse as bps, % or decimal.' : null;
     });
     if (parsed != null) {
-      _recorder?.record(input, '${parsed.bps.toStringAsFixed(2)} bps');
+      recordOutput(input, '${parsed.bps.toStringAsFixed(2)} bps');
     }
   }
 
-  Future<void> _paste() async {
-    final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
-    if (data?.text == null) return;
-    _controller.text = data!.text!;
-    _recorder?.markPaste();
-    _parse();
-  }
-
-  void _clear() {
-    _controller.clear();
+  @override
+  void reset() {
     setState(() {
       _result = null;
       _error = null;
@@ -147,11 +90,11 @@ class _BpsBodyState extends State<BpsBody> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             MqInput(
-              controller: _controller,
+              controller: controller,
               label: 'Input',
               placeholder: '25 bps · 0.25% · 0.0025',
-              onChanged: _onChanged,
-              onPaste: (_) => _recorder?.markPaste(),
+              onChanged: onInputChanged,
+              onPaste: (_) => markPaste(),
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
                 signed: true,
