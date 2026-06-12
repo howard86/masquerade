@@ -1,3 +1,13 @@
+## v1.25.1 (2026-06-12)
+
+### Fix
+
+- **deps**: pin flutter_native_splash to ^2.4.7 for SDK compatibility
+
+### Refactor
+
+- **tool_bodies**: introduce ToolBodyScaffold mixin and migrate all single-input bodies
+
 ## v1.25.0 (2026-05-29)
 
 ### Feat
