@@ -8,8 +8,15 @@ import '../widgets/mq/mq_icons.dart';
 
 /// Animated copy → check icon. Used inline next to mono values.
 class AnimatedCopyIcon extends StatefulWidget {
-  const AnimatedCopyIcon({super.key, required this.onCopy});
+  const AnimatedCopyIcon({
+    super.key,
+    required this.onCopy,
+    this.semanticsLabel = 'Copy',
+  });
   final VoidCallback onCopy;
+
+  /// Screen-reader label for the tap target.
+  final String semanticsLabel;
 
   @override
   State<AnimatedCopyIcon> createState() => _AnimatedCopyIconState();
@@ -19,6 +26,7 @@ class _AnimatedCopyIconState extends State<AnimatedCopyIcon> {
   bool _copied = false;
 
   void _handle() {
+    HapticFeedback.selectionClick();
     setState(() => _copied = true);
     Future<void>.delayed(const Duration(seconds: 1), () {
       if (mounted) setState(() => _copied = false);
@@ -29,17 +37,21 @@ class _AnimatedCopyIconState extends State<AnimatedCopyIcon> {
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
-    return GestureDetector(
-      onTap: _handle,
-      child: AnimatedCrossFade(
-        duration: const Duration(milliseconds: 250),
-        crossFadeState: _copied
-            ? CrossFadeState.showSecond
-            : CrossFadeState.showFirst,
-        firstChild: Icon(MqIcons.copy, size: 16, color: c.textSec),
-        firstCurve: Curves.easeInOut,
-        secondChild: Icon(MqIcons.check, size: 16, color: c.success),
-        secondCurve: Curves.easeInOut,
+    return Semantics(
+      button: true,
+      label: widget.semanticsLabel,
+      child: GestureDetector(
+        onTap: _handle,
+        child: AnimatedCrossFade(
+          duration: const Duration(milliseconds: 250),
+          crossFadeState: _copied
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
+          firstChild: Icon(MqIcons.copy, size: 16, color: c.textSec),
+          firstCurve: Curves.easeInOut,
+          secondChild: Icon(MqIcons.check, size: 16, color: c.success),
+          secondCurve: Curves.easeInOut,
+        ),
       ),
     );
   }
