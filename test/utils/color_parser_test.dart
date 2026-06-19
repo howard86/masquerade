@@ -53,5 +53,37 @@ void main() {
       expect(MqColorParser.parse('not a color'), isNull);
       expect(MqColorParser.parse(''), isNull);
     });
+
+    test('rejects out-of-range rgb channels instead of clamping', () {
+      expect(MqColorParser.parse('rgb(300, 100, 50)'), isNull);
+      expect(MqColorParser.parse('rgb(-5, 0, 0)'), isNull);
+      expect(MqColorParser.parse('rgb(0, 256, 0)'), isNull);
+    });
+
+    test('rejects out-of-range rgba alpha', () {
+      expect(MqColorParser.parse('rgba(255, 0, 0, 1.5)'), isNull);
+      expect(MqColorParser.parse('rgba(255, 0, 0, -0.1)'), isNull);
+    });
+
+    test('still parses in-range rgb', () {
+      final MqColorValue? white = MqColorParser.parse('rgb(255, 255, 255)');
+      expect(white, isNotNull);
+      expect(white!.r, 255);
+      expect(white.g, 255);
+      expect(white.b, 255);
+      final MqColorValue? black = MqColorParser.parse('rgb(0, 0, 0)');
+      expect(black, isNotNull);
+      expect(black!.r, 0);
+      expect(black.g, 0);
+      expect(black.b, 0);
+    });
+
+    test('rejects out-of-range hsl channels instead of clamping', () {
+      expect(MqColorParser.parse('hsl(400, 50%, 50%)'), isNull);
+      expect(MqColorParser.parse('hsl(-10, 50%, 50%)'), isNull);
+      expect(MqColorParser.parse('hsl(180, 150%, 50%)'), isNull);
+      expect(MqColorParser.parse('hsl(180, 50%, 120%)'), isNull);
+      expect(MqColorParser.parse('hsla(180, 50%, 50%, 1.5)'), isNull);
+    });
   });
 }

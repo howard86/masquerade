@@ -124,14 +124,15 @@ class MqColorParser {
     if (r == null || g == null || b == null) return null;
     double a = 1.0;
     if (parts.length >= 4) {
-      a = double.tryParse(parts[3]) ?? 1.0;
+      final double? parsed = double.tryParse(parts[3]);
+      if (parsed == null) return null;
+      a = parsed;
     }
-    return MqColorValue(
-      r: r.clamp(0, 255),
-      g: g.clamp(0, 255),
-      b: b.clamp(0, 255),
-      a: a.clamp(0.0, 1.0),
-    );
+    // Reject out-of-range channels rather than silently clamping, so a typo
+    // surfaces as invalid input instead of a different valid color.
+    if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255) return null;
+    if (a < 0.0 || a > 1.0) return null;
+    return MqColorValue(r: r, g: g, b: b, a: a);
   }
 
   static MqColorValue? _parseHsl(String input) {
@@ -149,14 +150,17 @@ class MqColorParser {
     if (parts[2].contains('%')) l /= 100;
     double a = 1.0;
     if (parts.length >= 4) {
-      a = double.tryParse(parts[3]) ?? 1.0;
+      final double? parsed = double.tryParse(parts[3]);
+      if (parsed == null) return null;
+      a = parsed;
     }
-    final ({int r, int g, int b}) rgb = _hslToRgb(
-      h,
-      s.clamp(0.0, 1.0),
-      l.clamp(0.0, 1.0),
-    );
-    return MqColorValue(r: rgb.r, g: rgb.g, b: rgb.b, a: a.clamp(0.0, 1.0));
+    // Reject out-of-range channels rather than silently clamping, so a typo
+    // surfaces as invalid input instead of a different valid color.
+    if (h < 0 || h > 360) return null;
+    if (s < 0.0 || s > 1.0 || l < 0.0 || l > 1.0) return null;
+    if (a < 0.0 || a > 1.0) return null;
+    final ({int r, int g, int b}) rgb = _hslToRgb(h, s, l);
+    return MqColorValue(r: rgb.r, g: rgb.g, b: rgb.b, a: a);
   }
 }
 
