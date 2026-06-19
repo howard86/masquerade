@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:masquerade/widgets/mq/mq_input.dart';
+import 'package:masquerade/widgets/mq/mq_mono_cell.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '_helpers.dart';
@@ -52,15 +54,30 @@ void main() {
     expect(find.text('48 69'), findsOneWidget);
   });
 
-  testWidgets('Bytes — out-of-range integer surfaces parser error', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('Bytes — out-of-range integer surfaces parser error via '
+      'MqInput.error, not an Error MqMonoCell', (WidgetTester tester) async {
     await pumpHomeAndOpen(tester, 'Bytes');
 
     await tester.enterText(find.byType(EditableText).last, '300 1 2');
     await tester.pumpAndSettle(kDebouncePump);
 
-    expect(find.textContaining('out of range'), findsOneWidget);
+    // The precise parser message is preserved and rendered inside the MqInput's
+    // error slot (the standard error surface), not a generic string.
+    final Finder error = find.textContaining('out of range');
+    expect(error, findsOneWidget);
+    expect(
+      find.descendant(of: find.byType(MqInput), matching: error),
+      findsOneWidget,
+    );
+
+    // It is no longer shown in an MqMonoCell labelled 'Error'.
+    expect(
+      find.descendant(
+        of: find.byType(MqMonoCell),
+        matching: find.text('Error'),
+      ),
+      findsNothing,
+    );
   });
 
   testWidgets('Bytes — invalid UTF-8 still renders hex preview', (

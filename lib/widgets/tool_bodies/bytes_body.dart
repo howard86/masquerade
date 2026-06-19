@@ -61,6 +61,12 @@ class _BytesBodyState extends State<BytesBody>
   String? _decodedHex;
   String? _error;
 
+  /// Parser-level failure (e.g. out-of-range integer) for a Decode input. Shown
+  /// inline under the input via [MqInput.error] — the standard error surface —
+  /// rather than in an output cell. Distinct from a decode-stage [_error] (valid
+  /// bytes that aren't valid text), which still renders alongside the hex.
+  String? _inputError;
+
   /// Bytes from the last successful decode parse — kept so the wide layout can
   /// re-decode under a different [BytesEncoding] and render a hexdump without
   /// re-parsing the input. Null in encode mode or after a parse error.
@@ -98,6 +104,7 @@ class _BytesBodyState extends State<BytesBody>
     _decodedHex = null;
     _decodedBytes = null;
     _error = null;
+    _inputError = null;
   }
 
   @override
@@ -118,7 +125,7 @@ class _BytesBodyState extends State<BytesBody>
       case BytesParseError(:final message):
         setState(() {
           _resetOutputs();
-          _error = message;
+          _inputError = message;
         });
       case BytesParseOk(:final bytes):
         final String hex = BytesParser.format(bytes, BytesFormat.hex);
@@ -205,6 +212,7 @@ class _BytesBodyState extends State<BytesBody>
               placeholder: _mode == BytesMode.encode
                   ? 'Plain text'
                   : '72 101 108 108 111',
+              error: _inputError,
               onChanged: onInputChanged,
               onPaste: (_) => markPaste(),
               multiline: true,
@@ -258,11 +266,8 @@ class _BytesBodyState extends State<BytesBody>
       ];
     }
     if (_decodedHex == null) {
-      if (_error != null) {
-        return <Widget>[
-          MqMonoCell(label: 'Error', value: _error!, copyable: false),
-        ];
-      }
+      // A parser error is surfaced inline under the input via [MqInput.error],
+      // so the output area just falls back to the empty hint.
       return const <Widget>[
         MqEmptyHint(label: 'Paste integers (0–255) to decode as UTF-8.'),
       ];
