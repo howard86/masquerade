@@ -103,6 +103,32 @@ void main() {
       expect(find.text('OPEN IN'), findsNothing);
     });
 
+    testWidgets('chip exposes an a11y button with an "Open in" label', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        _harness(
+          OpenInFooter(
+            output: '1700000000',
+            excludeUtilityId: 'timestamp',
+            onSwitchTool: (_, _) {},
+          ),
+        ),
+      );
+
+      // The chip announces itself as a button labelled "Open in <tool>" so a
+      // screen reader can find and operate the cross-tool route.
+      expect(
+        find.byWidgetPredicate(
+          (Widget w) =>
+              w is Semantics &&
+              w.properties.button == true &&
+              w.properties.label == 'Open in Number Base',
+        ),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('tap fires onSwitchTool with descriptor and output', (
       WidgetTester tester,
     ) async {

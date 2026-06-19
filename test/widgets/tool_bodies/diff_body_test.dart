@@ -75,4 +75,33 @@ void main() {
     expect(find.text('Swap A↔B'), findsOneWidget);
     expect(find.text('Paste'), findsNothing);
   });
+
+  testWidgets('Diff — collapse divider exposes an operable button to a11y', (
+    WidgetTester tester,
+  ) async {
+    await openDiff(tester);
+
+    // A change at the very top and bottom with many identical lines between
+    // them leaves a gap wider than the 3-line context window, so the middle
+    // unchanged lines collapse behind a `_CollapseDivider`.
+    final List<String> middle = List<String>.generate(20, (int i) => 'line $i');
+    final String a = <String>['top', ...middle, 'bottom'].join('\n');
+    final String b = <String>['TOP', ...middle, 'BOTTOM'].join('\n');
+    await tester.enterText(find.byType(EditableText).first, a);
+    await tester.enterText(find.byType(EditableText).last, b);
+    await tester.pumpAndSettle(kDebouncePump);
+
+    // The collapse control announces itself as a button with a descriptive,
+    // state-aware label so a screen reader can find and operate it.
+    expect(
+      find.byWidgetPredicate(
+        (Widget w) =>
+            w is Semantics &&
+            w.properties.button == true &&
+            (w.properties.label ?? '').startsWith('Expand ') &&
+            (w.properties.label ?? '').endsWith(' unchanged lines'),
+      ),
+      findsOneWidget,
+    );
+  });
 }

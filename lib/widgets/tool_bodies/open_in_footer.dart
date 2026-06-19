@@ -70,19 +70,26 @@ class _OpenInChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => onSwitchTool(descriptor, output),
-      onLongPress: () {
-        CopyToClipboardUtil.copyToClipboard(context, output);
-        HapticFeedback.selectionClick();
-        onSwitchTool(descriptor, output);
-      },
-      child: MqChip(
-        label: descriptor.name,
-        icon: descriptor.icon,
-        accent: true,
-        mono: false,
+    return Semantics(
+      button: true,
+      label: 'Open in ${descriptor.name}',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onSwitchTool(descriptor, output);
+        },
+        onLongPress: () {
+          CopyToClipboardUtil.copyToClipboard(context, output);
+          HapticFeedback.selectionClick();
+          onSwitchTool(descriptor, output);
+        },
+        child: MqChip(
+          label: descriptor.name,
+          icon: descriptor.icon,
+          accent: true,
+          mono: false,
+        ),
       ),
     );
   }
