@@ -169,6 +169,94 @@ void main() {
       });
     });
 
+    group('large-integer precision (web 53-bit guard)', () {
+      // On web, Dart `int` is a 53-bit JS double, so `n * 1000000` etc. can
+      // silently lose precision. The parser computes via BigInt and rejects
+      // anything whose microseconds exceed ±(2^53-1) as unknown rather than
+      // returning a silently-wrong date. These assertions are platform-
+      // independent: in-range values must convert EXACTLY, and over-range
+      // values must yield unknown (not a wrong date, not a crash).
+
+      test('realistic 13/16/19-digit values convert to exact UTC instant', () {
+        // 2023-11-14T22:13:20Z expressed in ms, µs, ns.
+        final DateTime expected = DateTime.utc(2023, 11, 14, 22, 13, 20);
+        final int expectedMicros = expected.microsecondsSinceEpoch;
+
+        final ms = TimestampParser.parseAnyFormat('1700000000000');
+        expect(ms.format, TimestampFormat.unixMilliseconds);
+        expect(ms.timestamp!.microsecondsSinceEpoch, equals(expectedMicros));
+
+        final us = TimestampParser.parseAnyFormat('1700000000000000');
+        expect(us.format, TimestampFormat.unixMicroseconds);
+        expect(us.timestamp!.microsecondsSinceEpoch, equals(expectedMicros));
+
+        final ns = TimestampParser.parseAnyFormat('1700000000000000000');
+        expect(ns.format, TimestampFormat.unixNanoseconds);
+        expect(ns.timestamp!.microsecondsSinceEpoch, equals(expectedMicros));
+      });
+
+      test('seconds via explicit hint convert exactly (no n*1e6 drift)', () {
+        final r = TimestampParser.parseAs(
+          '1700000000',
+          TimestampFormat.unixSeconds,
+        );
+        expect(r.format, TimestampFormat.unixSeconds);
+        expect(
+          r.timestamp!.microsecondsSinceEpoch,
+          equals(DateTime.utc(2023, 11, 14, 22, 13, 20).microsecondsSinceEpoch),
+        );
+      });
+
+      test('value at the 2^53-1 µs boundary still converts', () {
+        // 9007199254740991 µs is exactly 2^53-1 — the largest web-safe value.
+        final r = TimestampParser.parseAs(
+          '9007199254740991',
+          TimestampFormat.unixMicroseconds,
+        );
+        expect(r.format, TimestampFormat.unixMicroseconds);
+        expect(r.timestamp!.microsecondsSinceEpoch, equals(9007199254740991));
+      });
+
+      test('over-range ms input yields unknown, not a wrong date', () {
+        // Max 13-digit ms × 1000 = 9.999e15 µs > 2^53-1 → guarded.
+        final r = TimestampParser.parseAnyFormat('9999999999999');
+        expect(r.format, TimestampFormat.unknown);
+        expect(r.timestamp, isNull);
+      });
+
+      test('over-range µs input yields unknown, not a wrong date', () {
+        // 16-digit µs above 2^53-1 → guarded.
+        final r = TimestampParser.parseAnyFormat('9999999999999999');
+        expect(r.format, TimestampFormat.unknown);
+        expect(r.timestamp, isNull);
+      });
+
+      test('over-range ns input yields unknown, not a wrong date', () {
+        // Max 19-digit ns ÷ 1000 = 9.99e15 µs > 2^53-1 → guarded.
+        final r = TimestampParser.parseAnyFormat('9999999999999999999');
+        expect(r.format, TimestampFormat.unknown);
+        expect(r.timestamp, isNull);
+      });
+
+      test('over-range seconds via explicit hint yields unknown', () {
+        final r = TimestampParser.parseAs(
+          '99999999999',
+          TimestampFormat.unixSeconds,
+        );
+        expect(r.format, TimestampFormat.unknown);
+        expect(r.timestamp, isNull);
+      });
+
+      test('one µs past the boundary yields unknown', () {
+        final r = TimestampParser.parseAs(
+          '9007199254740992',
+          TimestampFormat.unixMicroseconds,
+        );
+        expect(r.format, TimestampFormat.unknown);
+        expect(r.timestamp, isNull);
+      });
+    });
+
     group('parseAnyFormat — ISO naïve detection', () {
       test('ISO with Z suffix is not naïve', () {
         final r = TimestampParser.parseAnyFormat('2023-11-14T22:13:20Z');

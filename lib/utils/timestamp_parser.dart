@@ -272,16 +272,27 @@ class TimestampParser {
     return _unixFor(n, hint);
   }
 
+  /// Largest microseconds magnitude that a JS `double` (web `int`) can hold
+  /// exactly: 2^53 - 1. Beyond this, the seconds/ms/ns multiplications below
+  /// silently lose precision on web (dart2js), yielding a wrong date with no
+  /// error. We compute the conversion in [BigInt] (exact on every platform)
+  /// then reject anything outside this range as [unknown] rather than return a
+  /// silently-wrong instant. This bound is tighter than `DateTime`'s own
+  /// ±8.64e15 ms limit, so it also keeps us within supported `DateTime`s.
+  static final BigInt _maxSafeMicros = (BigInt.one << 53) - BigInt.one;
+
   static TimestampParseResult _unixFor(int n, TimestampFormat hint) {
-    final int micros = switch (hint) {
-      TimestampFormat.unixSeconds => n * 1000000,
-      TimestampFormat.unixMilliseconds => n * 1000,
-      TimestampFormat.unixMicroseconds => n,
-      TimestampFormat.unixNanoseconds => n ~/ 1000,
-      _ => 0,
+    final BigInt bn = BigInt.from(n);
+    final BigInt micros = switch (hint) {
+      TimestampFormat.unixSeconds => bn * BigInt.from(1000000),
+      TimestampFormat.unixMilliseconds => bn * BigInt.from(1000),
+      TimestampFormat.unixMicroseconds => bn,
+      TimestampFormat.unixNanoseconds => bn ~/ BigInt.from(1000),
+      _ => BigInt.zero,
     };
+    if (micros.abs() > _maxSafeMicros) return _unknown;
     return TimestampParseResult(
-      timestamp: DateTime.fromMicrosecondsSinceEpoch(micros),
+      timestamp: DateTime.fromMicrosecondsSinceEpoch(micros.toInt()),
       format: hint,
     );
   }
