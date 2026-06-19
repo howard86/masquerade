@@ -61,12 +61,15 @@ class MqStatus extends StatelessWidget {
               Icon(style.icon, size: 11, color: style.fg),
               const SizedBox(width: 5),
             ],
-            Text(
-              label.toUpperCase(),
-              style: MqTextStyles.caption2.copyWith(
-                color: style.fg,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.4,
+            Flexible(
+              child: Text(
+                label.toUpperCase(),
+                softWrap: true,
+                style: MqTextStyles.caption2.copyWith(
+                  color: style.fg,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.4,
+                ),
               ),
             ),
           ],
