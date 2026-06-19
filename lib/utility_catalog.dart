@@ -36,6 +36,7 @@ import 'widgets/tool_bodies/number_base_body.dart';
 import 'widgets/tool_bodies/qr_code_body.dart';
 import 'widgets/tool_bodies/seed_source.dart';
 import 'widgets/tool_bodies/timestamp_body.dart';
+import 'widgets/tool_bodies/url_body.dart';
 import 'widgets/tool_bodies/uuid_body.dart';
 
 /// Routes a cross-tool "Open in X" tap from any tool body's footer back to
@@ -316,6 +317,39 @@ class UtilityCatalog {
             link: link,
           ),
       detect: _detectBase64,
+    ),
+    UtilityDescriptor(
+      id: 'url',
+      name: 'URL',
+      description: 'Percent encode / decode · query string',
+      icon: MqIcons.globe,
+      tint: const Color(0xFF06B6D4),
+      synonyms: <String>[
+        'url',
+        'uri',
+        'percent',
+        'encode',
+        'decode',
+        'query',
+        'querystring',
+        'escape',
+      ],
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            SeedSource seedSource = SeedSource.none,
+            OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
+            LinkChannel? link,
+          }) => UrlBody(
+            initialInput: initialInput,
+            seedSource: seedSource,
+            onSwitchTool: onSwitchTool,
+            actionBar: actionBar,
+            link: link,
+          ),
+      detect: _detectUrl,
     ),
     UtilityDescriptor(
       id: 'color',
@@ -776,6 +810,28 @@ bool _detectBase64(String input) {
 bool _isPrintableByte(int b) =>
     b == 0x09 || b == 0x0A || b == 0x0D || (b >= 0x20 && b <= 0x7E);
 
+// A `%XX` percent-encoding run — the clearest URL-encoded signal.
+final RegExp _percentEscape = RegExp(r'%[0-9A-Fa-f]{2}');
+// A query string carrying ≥2 `key=value` pairs joined by `&`, or any pair
+// behind a leading `?`. Narrow on purpose so it never poaches a single
+// `KEY = value` env line (owned by JSON/TOML) or a bare `0.25%`.
+final RegExp _queryShapeUrl = RegExp(r'^[^\s?#&=]*\?[^\s]*=[^\s]*$');
+final RegExp _kvPair = RegExp(r'^[^\s&=]+=[^\s&]*$');
+
+bool _detectUrl(String input) {
+  final String t = input.trim();
+  if (t.isEmpty) return false;
+  if (_percentEscape.hasMatch(t)) return true;
+  if (_queryShapeUrl.hasMatch(t)) return true;
+  // Bare `a=b&c=d`: every `&`-segment must be a clean key=value pair, and there
+  // must be at least two — a single `k=v` is too ambiguous to claim.
+  if (t.contains('&') && !t.contains(' ')) {
+    final List<String> parts = t.split('&');
+    if (parts.length >= 2 && parts.every(_kvPair.hasMatch)) return true;
+  }
+  return false;
+}
+
 bool _detectBps(String input) {
   final String t = input.trim().toLowerCase();
   if (t.isEmpty) return false;
@@ -843,6 +899,8 @@ bool _detectMath(String input) {
   // A bulleted/numbered list reads as subtraction across line breaks
   // (`…T\n- E…`); defer those to the List tool.
   if (_detectList(input)) return false;
+  // A URL or query string reads `%` / `/` as operators; the URL tool owns it.
+  if (_detectUrl(input)) return false;
   if (_mathBinaryOp.hasMatch(t)) return true;
   for (final RegExpMatch m in _mathIdent.allMatches(t.toLowerCase())) {
     final String w = m.group(0)!;
