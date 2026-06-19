@@ -13,6 +13,7 @@ import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_status.dart';
 import '../mq/tool_action_bar.dart';
+import 'copy_all_button.dart';
 import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
@@ -136,6 +137,17 @@ class _ColorBodyState extends State<ColorBody>
       _error = null;
     });
     emitToLink();
+  }
+
+  /// Copies every color form (HEX/RGB/HSL/OKLCH) at once. Hidden until a color
+  /// parses, so the action bar shows it only when there is output to copy.
+  @override
+  Widget? actionBarCenter() {
+    final MqColorValue? v = _value;
+    if (v == null) return null;
+    return CopyAllButton(
+      payload: <String>[v.hex, v.rgb, v.hsl, v.oklch].join('\n'),
+    );
   }
 
   /// Records [color] at the head of the session palette, deduping by hex and
