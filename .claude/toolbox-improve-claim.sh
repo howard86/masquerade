@@ -2,8 +2,9 @@
 # toolbox-improve-claim.sh — mkdir-atomic claim + lock helper for the
 # /toolbox-improve loop. LOCAL + gitignored. Lets several loops run at once
 # (and lets a crashed loop self-heal) by coordinating ONLY through files in a
-# claims dir next to this script. Generate an OWNER token once per run and pass
-# the SAME literal string to every call:  OWNER="tb-$(hostname -s)-$(date +%s)-$$"
+# GLOBAL claims dir under ~/.claude, shared across all git worktrees. Generate an
+# OWNER token once per run and pass the SAME literal string to every call:
+#   OWNER="tb-$(hostname -s)-$(date +%s)-$$"
 #
 # Usage:
 #   claim list
@@ -12,8 +13,11 @@
 #   claim lock "$OWNER"  / claim unlock "$OWNER"   wrap every backlog read-modify-write
 set -u
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CLAIMS_DIR="${TOOLBOX_CLAIMS_DIR:-$SCRIPT_DIR/.toolbox-claims}"
+# Resolve state from $HOME/.claude (NOT relative to this script): the helper is a
+# TRACKED file copied into every git worktree, so a script-relative path would
+# fork the claims/lock per worktree. The global path keeps every loop on one set.
+BASE="${TOOLBOX_BASE:-$HOME/.claude}"
+CLAIMS_DIR="${TOOLBOX_CLAIMS_DIR:-$BASE/toolbox-improve-claims}"
 LOCK_DIR="$CLAIMS_DIR/.lock"
 CLAIM_TTL="${TOOLBOX_CLAIM_TTL:-3600}"   # 60 min — a worker run can be long; reclaim a dead one after this
 LOCK_TTL="${TOOLBOX_LOCK_TTL:-120}"      # 2 min — locks only wrap quick backlog edits

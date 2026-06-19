@@ -13,7 +13,8 @@ EXECUTION MODEL — orchestrator + worker (keeps the loop's context small):
   PR — in ITS OWN context, returning only a small structured result. No build output reaches you.
 - The worker is a fresh `general-purpose` Agent, `isolation: worktree` (NOT a fork — a fork inherits
   your whole context). Hand it the PLAN, REPO FACTS, VERIFY GATE, HARD RULES, and the item's detail
-  block INLINE. NEVER tell it to read the backlog (gitignored, absent from its worktree).
+  block INLINE. NEVER tell it to read the backlog (the orchestrator's GLOBAL shared state at
+  `~/.claude/toolbox-improvement-backlog.md` — the worker gets only its item's detail block, inline).
 - CONCURRENCY: many loops may run at once, coordinating ONLY via local files — a per-item CLAIM and a
   global backlog LOCK. CLAIM an item BEFORE delegating (the long pre-PR window is the race); the
   `gh pr list` dedupe is a backstop, not the gate.
@@ -49,9 +50,10 @@ REPO FACTS (pass relevant ones to the worker verbatim):
 - Worktrees at `.worktrees/<branch>` (gitignored — `git worktree list` first). PostToolUse hook runs
   `dart format` on edited `*.dart`; fix format errors, don't silence.
 - NEVER commit generated/gitignored paths (`build/`, `coverage/`, `.dart_tool/`, `*.symbols`) or the
-  loop's runtime state (`.claude/toolbox-improvement-backlog.md`, `.claude/.toolbox-claims/`,
-  `.claude/toolbox-verify-*.log`). The command + claim helper ARE tracked, but a WORKER never restages
-  them.
+  loop's verify logs (`.claude/toolbox-verify-*.log`). The shared runtime state — backlog
+  (`~/.claude/toolbox-improvement-backlog.md`) + claims (`~/.claude/toolbox-improve-claims/`) — now lives
+  GLOBALLY under ~/.claude (outside the repo, reachable from every worktree). The command + claim helper
+  ARE tracked, but a WORKER never restages them.
 
 VERIFY GATE (all pass before any commit; what CI gates on):
     flutter pub get                                  # must resolve (see DEP GOTCHA)
@@ -78,7 +80,8 @@ PROCEDURE — all seven steps, then end:
 0. ORIENT: generate + print OWNER once; `git fetch origin main`. PRECONDITION `flutter pub get` — if
    it fails on the meta/native_splash conflict, this run's item is: re-pin `^2.4.7`, regen lock,
    verify, ship a `fix:` PR (skip the rest of SELECT). Read ONLY the `## Index` table (small `limit`,
-   ~70 lines) — not the detail blocks. If the backlog file is missing, BOOTSTRAP under the lock:
+   ~70 lines) of the GLOBAL backlog at `~/.claude/toolbox-improvement-backlog.md` (shared across all
+   worktrees) — not the detail blocks. If that file is missing, BOOTSTRAP under the lock:
    survey `lib/`, write 10-15 ranked candidates across the five categories + the Index, save, unlock,
    STOP. Then `claim list` AND `gh pr list --label toolbox-autoimprove --state open` (create the label
    once if missing: `gh label create toolbox-autoimprove -c "#1d76db" -d "Automated toolbox-improve

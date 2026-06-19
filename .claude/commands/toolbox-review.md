@@ -16,8 +16,9 @@ EXECUTION MODEL — orchestrator + worker (keeps the loop's context small):
 - The worker is a fresh `general-purpose` Agent, `isolation: worktree` (NOT a fork). Hand it the PR
   number + branch, PR body, REVIEW + MERGE GATES, REPO FACTS, and (if found) the backlog detail block,
   all INLINE. It checks out the EXISTING PR branch inside its worktree (`git fetch origin <branch>` +
-  `git checkout <branch>`; the harness branch is abandoned). NEVER tell it to read the backlog
-  (gitignored, absent from its worktree).
+  `git checkout <branch>`; the harness branch is abandoned). NEVER tell it to read the backlog (the
+  orchestrator's GLOBAL shared state at `~/.claude/toolbox-improvement-backlog.md` — the worker gets
+  only the detail block, inline).
 - CONCURRENCY: many loops (improve AND review) run at once, coordinating ONLY via local files. Reuse
   the improve loop's helper `.claude/toolbox-improve-claim.sh` so the global backlog LOCK is SHARED
   across both loops (REQUIRED — a second lock corrupts the backlog). Review CLAIMS are `pr-<N>` (never
@@ -25,7 +26,8 @@ EXECUTION MODEL — orchestrator + worker (keeps the loop's context small):
 
 RELATIONSHIP TO `/toolbox-improve`: improve marks the backlog row `done (#PR)` when the PR is CREATED
 — `done` = PR open, NOT merged. Your job turns `done (#PR)` → `merged (#PR)`. The loops share the
-backlog, the lock, and the `toolbox-autoimprove` label, nothing else.
+backlog (`~/.claude/toolbox-improvement-backlog.md`, GLOBAL — reachable from every worktree), the lock,
+and the `toolbox-autoimprove` label, nothing else.
 
 REPO FACTS (pass relevant ones to the worker verbatim; fuller list in
 `.claude/commands/toolbox-improve.md`):
@@ -53,8 +55,9 @@ REPO FACTS (pass relevant ones to the worker verbatim; fuller list in
 - Worktrees at `.worktrees/<branch>` (gitignored). PostToolUse hook runs `dart format` on edited
   `*.dart` — fix format errors.
 - NEVER commit generated/gitignored paths (`build/`, `coverage/`, `.dart_tool/`, `*.symbols`) or
-  apparatus (`.claude/toolbox-improvement-backlog.md`, `.claude/.toolbox-claims/`,
-  `.claude/toolbox-verify-*.log`). A PR that committed any is a review finding — strip it as a fix.
+  apparatus — verify logs (`.claude/toolbox-verify-*.log`) in-repo, plus the GLOBAL shared state under
+  ~/.claude (backlog `~/.claude/toolbox-improvement-backlog.md`, claims `~/.claude/toolbox-improve-claims/`).
+  A PR that committed any is a review finding — strip it as a fix.
 
 VERIFY GATE (worker runs LOCALLY before pushing ANY fix; never push red):
     flutter pub get                                  # must resolve (see DEP GOTCHA)
