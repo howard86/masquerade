@@ -9,6 +9,19 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 10
+    # Group all pub bumps into ONE weekly PR (no more one-PR-per-dep churn, and
+    # grouped PRs are reviewed rather than blindly auto-merged).
+    groups:
+      pub-dependencies:
+        patterns:
+          - "*"
+    # flutter_native_splash >= 2.4.8 requires meta ^1.18.0, but flutter_test from
+    # the pinned Flutter SDK (3.41.8) holds meta at 1.17.0 — so any bump to >= 2.4.8
+    # makes `flutter pub get` unsolvable (recurred via #90, #93). Block it until a
+    # future SDK upgrade moves the meta pin, then remove this ignore.
+    ignore:
+      - dependency-name: "flutter_native_splash"
+        versions: [">=2.4.8"]
     assignees:
       - "howard"
     commit-message:
@@ -27,6 +40,11 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 5
+    # One weekly PR for all GitHub Actions bumps.
+    groups:
+      github-actions:
+        patterns:
+          - "*"
     assignees:
       - "howard"
     commit-message:

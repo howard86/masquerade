@@ -84,3 +84,8 @@ Desktop.ini
 # Tooling and temporary directories
 .antigravitycli/
 .codex/
+
+# /toolbox-improve loop runtime state (the command + claim helper ARE tracked)
+.claude/toolbox-improvement-backlog.md
+.claude/.toolbox-claims/
+.claude/toolbox-verify-*.log
