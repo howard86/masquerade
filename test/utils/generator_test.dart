@@ -160,6 +160,74 @@ void main() {
       };
       expect(seen.length, 100);
     });
+
+    test('seeded Random yields a stable hex token', () {
+      final String t = Generator.token(
+        byteCount: 8,
+        format: TokenFormat.hex,
+        random: Random(42),
+      );
+      expect(t, '33aec45db5688f3d');
+      expect(t.length, 16);
+      expect(RegExp(r'^[0-9a-f]+$').hasMatch(t), isTrue);
+    });
+
+    test('seeded Random yields a stable base64url token', () {
+      final String t = Generator.token(
+        byteCount: 8,
+        format: TokenFormat.base64url,
+        random: Random(42),
+      );
+      expect(t, 'M67EXbVojz0');
+      expect(t.contains('='), isFalse);
+      expect(RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(t), isTrue);
+    });
+
+    test('seeded Random yields a stable alphanumeric token', () {
+      final String t = Generator.token(
+        byteCount: 12,
+        format: TokenFormat.alphanumeric,
+        random: Random(42),
+      );
+      expect(t, 'P6i7ziZpaqNE');
+      expect(t.length, 12);
+      expect(RegExp(r'^[A-Za-z0-9]+$').hasMatch(t), isTrue);
+    });
+
+    test(
+      'byteCount <= 0 returns empty for every format and does not crash',
+      () {
+        for (final TokenFormat f in TokenFormat.values) {
+          expect(
+            Generator.token(byteCount: 0, format: f, random: Random(7)),
+            '',
+          );
+          expect(
+            Generator.token(byteCount: -3, format: f, random: Random(7)),
+            '',
+          );
+        }
+      },
+    );
+
+    test('byteCount of 1 produces a minimal token per format', () {
+      expect(
+        Generator.token(
+          byteCount: 1,
+          format: TokenFormat.hex,
+          random: Random(1),
+        ).length,
+        2,
+      );
+      expect(
+        Generator.token(
+          byteCount: 1,
+          format: TokenFormat.alphanumeric,
+          random: Random(1),
+        ).length,
+        1,
+      );
+    });
   });
 
   group('Generator.uuid (reuses UuidParser)', () {
