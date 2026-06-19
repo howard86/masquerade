@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 
 import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
@@ -364,34 +365,41 @@ class _SeparatorField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: MqSurface(
-        radius: MqRadius.sm,
-        padding: const EdgeInsets.symmetric(
-          horizontal: MqSpacing.md,
-          vertical: 12,
-        ),
-        child: Row(
-          children: <Widget>[
-            Text(
-              'Separator',
-              style: MqTextStyles.subhead.copyWith(color: c.textSec),
-            ),
-            const SizedBox(width: MqSpacing.sm),
-            Expanded(
-              child: Text(
-                value,
-                textAlign: TextAlign.right,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: MqTextStyles.subhead.copyWith(color: c.textPri),
+    return Semantics(
+      button: true,
+      label: 'Separator: $value',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: MqSurface(
+          radius: MqRadius.sm,
+          padding: const EdgeInsets.symmetric(
+            horizontal: MqSpacing.md,
+            vertical: 12,
+          ),
+          child: Row(
+            children: <Widget>[
+              Text(
+                'Separator',
+                style: MqTextStyles.subhead.copyWith(color: c.textSec),
               ),
-            ),
-            const SizedBox(width: 4),
-            Icon(MqIcons.chevD, size: 16, color: c.textTer),
-          ],
+              const SizedBox(width: MqSpacing.sm),
+              Expanded(
+                child: Text(
+                  value,
+                  textAlign: TextAlign.right,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: MqTextStyles.subhead.copyWith(color: c.textPri),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(MqIcons.chevD, size: 16, color: c.textTer),
+            ],
+          ),
         ),
       ),
     );

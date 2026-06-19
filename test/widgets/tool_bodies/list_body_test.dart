@@ -52,6 +52,24 @@ void main() {
     expect(find.text('"BTC","ETH"'), findsOneWidget);
   });
 
+  testWidgets('List — separator field exposes an a11y button label', (
+    WidgetTester tester,
+  ) async {
+    await pumpHomeAndOpen(tester, 'List');
+
+    // Join mode (the default) shows the tappable separator picker; it must
+    // announce itself as a button with its current value for screen readers.
+    expect(
+      find.byWidgetPredicate(
+        (Widget w) =>
+            w is Semantics &&
+            w.properties.button == true &&
+            w.properties.label == 'Separator: Comma',
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('List — Split mode joins items with newline', (
     WidgetTester tester,
   ) async {

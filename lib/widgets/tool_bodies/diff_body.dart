@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 
 import '../../state/history_controller.dart';
 import '../../state/link_group.dart';
@@ -435,25 +436,33 @@ class _CollapseDivider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        color: c.surface2,
-        padding: const EdgeInsets.symmetric(
-          horizontal: MqSpacing.md,
-          vertical: 6,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Icon(MqIcons.chevD, size: 13, color: c.textTer),
-            const SizedBox(width: 6),
-            Text(
-              '$count unchanged ${count == 1 ? 'line' : 'lines'}',
-              style: MqTextStyles.caption1.copyWith(color: c.textTer),
-            ),
-          ],
+    final String lines = count == 1 ? 'line' : 'lines';
+    return Semantics(
+      button: true,
+      label: 'Expand $count unchanged $lines',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: Container(
+          color: c.surface2,
+          padding: const EdgeInsets.symmetric(
+            horizontal: MqSpacing.md,
+            vertical: 6,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Icon(MqIcons.chevD, size: 13, color: c.textTer),
+              const SizedBox(width: 6),
+              Text(
+                '$count unchanged $lines',
+                style: MqTextStyles.caption1.copyWith(color: c.textTer),
+              ),
+            ],
+          ),
         ),
       ),
     );
