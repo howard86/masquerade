@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/utils/uuid_parser.dart';
 
@@ -116,6 +118,21 @@ void main() {
         isTrue,
       );
     });
+
+    test('seeded Random yields a stable, valid v4 UUID', () {
+      final String uuid = UuidParser.generateV4(random: Random(7));
+      // Deterministic for seed 7 (version nibble 4, variant bits 10xx).
+      expect(uuid, '1c65be15-925e-4a17-bbd4-77b6d81ae550');
+      expect(
+        RegExp(
+          r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        ).hasMatch(uuid),
+        isTrue,
+      );
+      final UuidOk ok = UuidParser.parse(uuid) as UuidOk;
+      expect(ok.version, 4);
+      expect(ok.variant, 2);
+    });
   });
 
   group('generateV7', () {
@@ -146,6 +163,25 @@ void main() {
       final DateTime at = DateTime.utc(2025, 6, 15, 12, 0, 0);
       final String uuid = UuidParser.generateV7(at: at);
       final UuidOk ok = UuidParser.parse(uuid) as UuidOk;
+      expect(ok.timestamp!.millisecondsSinceEpoch, at.millisecondsSinceEpoch);
+    });
+
+    test('seeded Random + fixed timestamp yields a stable, valid v7 UUID', () {
+      final DateTime at = DateTime.utc(2024, 1, 1); // 1704067200000 ms
+      final String uuid = UuidParser.generateV7(at: at, random: Random(42));
+      // Deterministic for seed 42 at the fixed timestamp. High 48 bits
+      // (018cc251-f400) encode the millis; version nibble 7, variant bits 10xx.
+      expect(uuid, '018cc251-f400-7f3d-b0b8-ffe433734d1a');
+      expect(uuid.startsWith('018cc251-f400'), isTrue);
+      expect(
+        RegExp(
+          r'^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        ).hasMatch(uuid),
+        isTrue,
+      );
+      final UuidOk ok = UuidParser.parse(uuid) as UuidOk;
+      expect(ok.version, 7);
+      expect(ok.variant, 2);
       expect(ok.timestamp!.millisecondsSinceEpoch, at.millisecondsSinceEpoch);
     });
   });
