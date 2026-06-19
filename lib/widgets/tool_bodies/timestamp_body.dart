@@ -18,6 +18,7 @@ import '../mq/mq_segmented.dart';
 import '../mq/mq_status.dart';
 import '../mq/mq_surface.dart';
 import '../mq/tool_action_bar.dart';
+import 'copy_all_button.dart';
 import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
@@ -134,6 +135,27 @@ class _TimestampBodyState extends State<TimestampBody>
       _forcedUnit = null;
     });
     emitToLink();
+  }
+
+  /// Copies every derived form (UTC/Local/Unix s/Unix ms/ISO/Relative) at once.
+  /// Hidden until something parses, so the action bar shows it only when there
+  /// is output to copy.
+  @override
+  Widget? actionBarCenter() {
+    final DateTime? t = _parsed;
+    if (t == null) return null;
+    final int ms = t.millisecondsSinceEpoch;
+    final int s = (ms / 1000).round();
+    return CopyAllButton(
+      payload: <String>[
+        DateFormat('yyyy-MM-dd HH:mm:ss').format(t.toUtc()),
+        DateFormat('yyyy-MM-dd HH:mm:ss').format(t.toLocal()),
+        '$s',
+        '$ms',
+        t.toUtc().toIso8601String(),
+        _relative(t),
+      ].join('\n'),
+    );
   }
 
   void _toggleAmbiguousUnit() {

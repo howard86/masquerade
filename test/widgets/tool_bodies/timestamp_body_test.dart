@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -198,5 +199,64 @@ void main() {
     await tester.pumpAndSettle(const Duration(milliseconds: 300));
 
     expect(find.text('KEYWORD'), findsOneWidget);
+  });
+
+  testWidgets(
+    'Timestamp — Copy all writes every derived form to the clipboard',
+    (WidgetTester tester) async {
+      final List<String> clipboardWrites = <String>[];
+      final TestDefaultBinaryMessenger messenger =
+          tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(SystemChannels.platform, (
+        MethodCall call,
+      ) async {
+        if (call.method == 'Clipboard.setData') {
+          final Map<dynamic, dynamic> args = call.arguments as Map;
+          clipboardWrites.add(args['text'] as String);
+        }
+        return null;
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+
+      await openTimestamp(tester);
+
+      await tester.enterText(find.byType(EditableText).last, '1700000000000');
+      await tester.pumpAndSettle(const Duration(milliseconds: 300));
+
+      await tester.tap(find.text('Copy all'));
+      await tester.pump();
+
+      expect(clipboardWrites, hasLength(1));
+      final String written = clipboardWrites.single;
+      expect(written, contains('1700000000')); // Unix seconds
+      expect(written, contains('1700000000000')); // Unix ms
+      expect(written, contains('2023-11-14T22:13:20.000Z')); // ISO 8601
+      expect(written, contains('2023-11-14 22:13:20')); // UTC date row
+
+      // Drain the copy toast's 3s auto-dismiss timer so the test ends clean.
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets('Timestamp — Copy all is hidden when there is no output', (
+    WidgetTester tester,
+  ) async {
+    await openTimestamp(tester);
+
+    // Empty input → nothing parsed → the center action stays hidden.
+    expect(find.text('Copy all'), findsNothing);
+
+    // It appears once something parses…
+    await tester.enterText(find.byType(EditableText).last, '1700000000000');
+    await tester.pumpAndSettle(const Duration(milliseconds: 300));
+    expect(find.text('Copy all'), findsOneWidget);
+
+    // …and disappears again when the input is cleared.
+    await tester.enterText(find.byType(EditableText).last, '');
+    await tester.pumpAndSettle(const Duration(milliseconds: 300));
+    expect(find.text('Copy all'), findsNothing);
   });
 }
