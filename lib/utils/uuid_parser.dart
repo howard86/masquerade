@@ -123,8 +123,8 @@ class UuidParser {
     return 0;
   }
 
-  static String generateV4() {
-    final Random rng = Random.secure();
+  static String generateV4({Random? random}) {
+    final Random rng = random ?? Random.secure();
     final List<int> bytes = List<int>.generate(16, (_) => rng.nextInt(256));
     // Set version 4: byte 6 high nibble = 0100
     bytes[6] = (bytes[6] & 0x0F) | 0x40;
@@ -133,9 +133,9 @@ class UuidParser {
     return _formatUuid(bytes);
   }
 
-  static String generateV7({DateTime? at}) {
+  static String generateV7({DateTime? at, Random? random}) {
     final int ms = (at ?? DateTime.now()).millisecondsSinceEpoch;
-    final Random rng = Random.secure();
+    final Random rng = random ?? Random.secure();
     final List<int> bytes = List<int>.generate(16, (_) => rng.nextInt(256));
     // High 48 bits = ms timestamp
     bytes[0] = (ms >> 40) & 0xFF;
