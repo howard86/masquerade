@@ -150,6 +150,25 @@ class _GeneratorBodyState extends State<GeneratorBody> {
     return parts.isEmpty ? 'none' : parts.join(' ');
   }
 
+  /// Size of the merged character pool for the enabled password classes.
+  int get _poolSize =>
+      (_lower ? Generator.lowerChars.length : 0) +
+      (_upper ? Generator.upperChars.length : 0) +
+      (_digits ? Generator.digitChars.length : 0) +
+      (_symbols ? Generator.symbolChars.length : 0);
+
+  /// One-line strength readout shown under a generated password, e.g.
+  /// "≈ 119 bits · strong".
+  String _entropyHint() {
+    final double bits = Generator.entropyBits(_length, _poolSize);
+    final String label = bits < 40
+        ? 'weak'
+        : bits < 80
+        ? 'fair'
+        : 'strong';
+    return '≈ ${bits.round()} bits · $label';
+  }
+
   void _reset() {
     setState(() {
       _mode = GenMode.password;
@@ -189,7 +208,11 @@ class _GeneratorBodyState extends State<GeneratorBody> {
         if (_output.isEmpty)
           const MqEmptyHint(label: 'Enable at least one character set.')
         else
-          MqMonoCell(label: _outputLabel(), value: _output),
+          MqMonoCell(
+            label: _outputLabel(),
+            value: _output,
+            hint: _mode == GenMode.password ? _entropyHint() : null,
+          ),
         const SizedBox(height: MqSpacing.md),
         MqButton(
           label: 'Regenerate',
