@@ -1,3 +1,4 @@
+import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -199,4 +200,46 @@ void main() {
 
     expect(find.text('KEYWORD'), findsOneWidget);
   });
+
+  testWidgets(
+    'keyword picker _SelectRows expose state-aware button semantics',
+    (WidgetTester tester) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+
+      await openTimestamp(tester);
+
+      // Open the keyword picker modal holding the three _SelectRow pickers.
+      await tester.tap(find.bySemanticsLabel('Insert keyword'));
+      await tester.pumpAndSettle();
+
+      // Each picker row announces its purpose + current value as a button so a
+      // screen reader can name and operate it (not a bare GestureDetector).
+      // The explicit Semantics label leads the merged node label (descendant
+      // Text merges after it), so match on the leading curated string.
+      const List<String> expectedLabels = <String>[
+        'Anchor, now / today / yesterday / tomorrow',
+        'Relative, this',
+        'Unit, hour',
+      ];
+      for (final String label in expectedLabels) {
+        final Finder row = find.byWidgetPredicate(
+          (Widget w) => w is Semantics && w.properties.label == label,
+        );
+        expect(row, findsOneWidget, reason: 'missing button label: $label');
+        final SemanticsData data = tester.getSemantics(row).getSemanticsData();
+        expect(
+          data.flagsCollection.isButton,
+          isTrue,
+          reason: '"$label" should expose the button role',
+        );
+        expect(
+          data.label,
+          startsWith(label),
+          reason: '"$label" should lead the announced label',
+        );
+      }
+
+      handle.dispose();
+    },
+  );
 }

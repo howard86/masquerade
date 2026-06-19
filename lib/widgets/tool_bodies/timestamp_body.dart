@@ -628,31 +628,38 @@ class _SelectRow extends StatelessWidget {
         Icon(MqIcons.chevD, size: 14, color: c.textTer),
       ],
     );
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: MqSurface(
-        padding: const EdgeInsets.symmetric(
-          horizontal: MqSpacing.md,
-          vertical: MqSpacing.md,
+    return Semantics(
+      button: true,
+      label: '$label, $value',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: MqSurface(
+          padding: const EdgeInsets.symmetric(
+            horizontal: MqSpacing.md,
+            vertical: MqSpacing.md,
+          ),
+          radius: MqRadius.md,
+          child: compact
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    labelText,
+                    const SizedBox(height: MqSpacing.xs),
+                    valueRow,
+                  ],
+                )
+              : Row(
+                  children: <Widget>[
+                    SizedBox(width: 72, child: labelText),
+                    Expanded(child: valueRow),
+                  ],
+                ),
         ),
-        radius: MqRadius.md,
-        child: compact
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  labelText,
-                  const SizedBox(height: MqSpacing.xs),
-                  valueRow,
-                ],
-              )
-            : Row(
-                children: <Widget>[
-                  SizedBox(width: 72, child: labelText),
-                  Expanded(child: valueRow),
-                ],
-              ),
       ),
     );
   }
