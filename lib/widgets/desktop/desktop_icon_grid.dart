@@ -30,21 +30,39 @@ class DesktopIconGrid extends StatelessWidget {
       child: Align(
         alignment: Alignment.topRight,
         child: SingleChildScrollView(
-          child: SizedBox(
-            width: 84,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                for (final UtilityDescriptor d
-                    in UtilityCatalog.all) ...<Widget>[
-                  _DesktopIconTile(descriptor: d, onOpen: () => onOpen(d)),
-                  const SizedBox(height: MqSpacing.sm),
+          // Keyboard users Tab/Shift-Tab through the launcher in visual order.
+          child: FocusTraversalGroup(
+            child: SizedBox(
+              width: 84,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  for (final UtilityDescriptor d
+                      in UtilityCatalog.all) ...<Widget>[
+                    _LauncherTile(
+                      icon: d.icon,
+                      tint: d.tint,
+                      label: d.name,
+                      onOpen: () => onOpen(d),
+                    ),
+                    const SizedBox(height: MqSpacing.sm),
+                  ],
+                  for (final SystemApp app in SystemApp.values) ...<Widget>[
+                    Builder(
+                      builder: (BuildContext context) {
+                        final SystemWindow sw = SystemWindow(app);
+                        return _LauncherTile(
+                          icon: sw.icon,
+                          tint: sw.tint,
+                          label: sw.title,
+                          onOpen: () => onOpenSystem(app),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: MqSpacing.sm),
+                  ],
                 ],
-                for (final SystemApp app in SystemApp.values) ...<Widget>[
-                  _SystemIconTile(app: app, onOpen: () => onOpenSystem(app)),
-                  const SizedBox(height: MqSpacing.sm),
-                ],
-              ],
+              ),
             ),
           ),
         ),
@@ -53,20 +71,31 @@ class DesktopIconGrid extends StatelessWidget {
   }
 }
 
-/// A single system-app icon tile (History / Settings) with visual spring bounce.
-class _SystemIconTile extends StatefulWidget {
-  const _SystemIconTile({required this.app, required this.onOpen});
+/// A single 78×78 launcher tile: icon + label with hover scale, spring click,
+/// and keyboard operability. Focusable via Tab; Enter/Space activate it through
+/// the same [onOpen] path as a click, and it is announced as a button labelled
+/// with the tool name to screen readers.
+class _LauncherTile extends StatefulWidget {
+  const _LauncherTile({
+    required this.icon,
+    required this.tint,
+    required this.label,
+    required this.onOpen,
+  });
 
-  final SystemApp app;
+  final IconData icon;
+  final Color tint;
+  final String label;
   final VoidCallback onOpen;
 
   @override
-  State<_SystemIconTile> createState() => _SystemIconTileState();
+  State<_LauncherTile> createState() => _LauncherTileState();
 }
 
-class _SystemIconTileState extends State<_SystemIconTile>
+class _LauncherTileState extends State<_LauncherTile>
     with SingleTickerProviderStateMixin {
   bool _hovered = false;
+  bool _focused = false;
   late final AnimationController _bounceController;
 
   @override
@@ -96,142 +125,67 @@ class _SystemIconTileState extends State<_SystemIconTile>
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
-    final SystemWindow sw = SystemWindow(widget.app);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: _handleTap,
-        child: ScaleTransition(
-          scale: _bounceController,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            width: 78,
-            height: 78,
-            decoration: BoxDecoration(
-              color: _hovered
-                  ? c.surface.withValues(alpha: 0.15)
-                  : const Color(0x00000000),
-              borderRadius: BorderRadius.circular(MqRadius.md),
-              border: Border.all(
-                color: _hovered
-                    ? c.border.withValues(alpha: 0.25)
-                    : const Color(0x00000000),
-                width: 0.5,
-              ),
+    final bool highlighted = _hovered || _focused;
+    return Semantics(
+      container: true,
+      button: true,
+      label: widget.label,
+      onTap: _handleTap,
+      child: ExcludeSemantics(
+        child: FocusableActionDetector(
+          mouseCursor: SystemMouseCursors.click,
+          onShowHoverHighlight: (bool v) => setState(() => _hovered = v),
+          onShowFocusHighlight: (bool v) => setState(() => _focused = v),
+          actions: <Type, Action<Intent>>{
+            ActivateIntent: CallbackAction<ActivateIntent>(
+              onInvoke: (_) {
+                _handleTap();
+                return null;
+              },
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                Icon(sw.icon, size: 24, color: sw.tint),
-                const SizedBox(height: MqSpacing.xs),
-                Text(
-                  sw.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: MqTextStyles.caption2.copyWith(
-                    color: c.textPri,
-                    fontWeight: _hovered ? FontWeight.w600 : FontWeight.w400,
+          },
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _handleTap,
+            child: ScaleTransition(
+              scale: _bounceController,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: 78,
+                height: 78,
+                decoration: BoxDecoration(
+                  color: highlighted
+                      ? c.surface.withValues(alpha: 0.15)
+                      : const Color(0x00000000),
+                  borderRadius: BorderRadius.circular(MqRadius.md),
+                  border: Border.all(
+                    color: _focused
+                        ? c.accent
+                        : _hovered
+                        ? c.border.withValues(alpha: 0.25)
+                        : const Color(0x00000000),
+                    width: _focused ? 1.5 : 0.5,
                   ),
                 ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// A single 78×78 utility icon tile: icon + label with interactive hover scale and spring click.
-class _DesktopIconTile extends StatefulWidget {
-  const _DesktopIconTile({required this.descriptor, required this.onOpen});
-
-  final UtilityDescriptor descriptor;
-  final VoidCallback onOpen;
-
-  @override
-  State<_DesktopIconTile> createState() => _DesktopIconTileState();
-}
-
-class _DesktopIconTileState extends State<_DesktopIconTile>
-    with SingleTickerProviderStateMixin {
-  bool _hovered = false;
-  late final AnimationController _bounceController;
-
-  @override
-  void initState() {
-    super.initState();
-    _bounceController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 150),
-      lowerBound: 0.88,
-      upperBound: 1.0,
-      value: 1.0,
-    );
-  }
-
-  @override
-  void dispose() {
-    _bounceController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _handleTap() async {
-    await _bounceController.animateTo(0.88, curve: Curves.easeOut);
-    await _bounceController.animateTo(1.0, curve: Curves.elasticOut);
-    widget.onOpen();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.mq.colors;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: _handleTap,
-        child: ScaleTransition(
-          scale: _bounceController,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            width: 78,
-            height: 78,
-            decoration: BoxDecoration(
-              color: _hovered
-                  ? c.surface.withValues(alpha: 0.15)
-                  : const Color(0x00000000),
-              borderRadius: BorderRadius.circular(MqRadius.md),
-              border: Border.all(
-                color: _hovered
-                    ? c.border.withValues(alpha: 0.25)
-                    : const Color(0x00000000),
-                width: 0.5,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    Icon(widget.icon, size: 24, color: widget.tint),
+                    const SizedBox(height: MqSpacing.xs),
+                    Text(
+                      widget.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: MqTextStyles.caption2.copyWith(
+                        color: c.textPri,
+                        fontWeight: highlighted
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                Icon(
-                  widget.descriptor.icon,
-                  size: 24,
-                  color: widget.descriptor.tint,
-                ),
-                const SizedBox(height: MqSpacing.xs),
-                Text(
-                  widget.descriptor.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: MqTextStyles.caption2.copyWith(
-                    color: c.textPri,
-                    fontWeight: _hovered ? FontWeight.w600 : FontWeight.w400,
-                  ),
-                ),
-              ],
             ),
           ),
         ),
