@@ -228,7 +228,7 @@ class _Base64BodyState extends State<Base64Body>
               children: <Widget>[
                 MqChip(
                   label: 'URL-safe',
-                  accent: _urlSafe,
+                  selected: _urlSafe,
                   mono: false,
                   onTap: () {
                     setState(() => _urlSafe = !_urlSafe);
@@ -237,7 +237,7 @@ class _Base64BodyState extends State<Base64Body>
                 ),
                 MqChip(
                   label: 'Strip padding',
-                  accent: _stripPadding,
+                  selected: _stripPadding,
                   mono: false,
                   onTap: () {
                     setState(() => _stripPadding = !_stripPadding);

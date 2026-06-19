@@ -302,7 +302,7 @@ class _DiffBodyState extends State<DiffBody> with LinkableToolBody<DiffBody> {
             MqChip(
               label: 'Word highlight',
               mono: false,
-              accent: _wordHighlight,
+              selected: _wordHighlight,
               onTap: () {
                 _wordHighlight = !_wordHighlight;
                 _convert();
@@ -311,7 +311,7 @@ class _DiffBodyState extends State<DiffBody> with LinkableToolBody<DiffBody> {
             MqChip(
               label: 'Ignore whitespace',
               mono: false,
-              accent: _ignoreWhitespace,
+              selected: _ignoreWhitespace,
               onTap: () {
                 _ignoreWhitespace = !_ignoreWhitespace;
                 _convert();
