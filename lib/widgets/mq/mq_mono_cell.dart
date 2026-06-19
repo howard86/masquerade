@@ -173,15 +173,26 @@ class _CopyButtonState extends State<_CopyButton> {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: _handle,
-        child: Padding(
-          padding: const EdgeInsets.all(4),
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            child: Icon(
-              _copied ? MqIcons.check : MqIcons.copy,
-              key: ValueKey<bool>(_copied),
-              size: 14,
-              color: _copied ? tokens.colors.success : widget.color,
+        // Grow the tappable region to the 44×44 iOS HIG minimum without
+        // enlarging the glyph: a min-size box centers the unchanged icon so a
+        // tap anywhere in the 44×44 area copies, while the visual stays put.
+        child: ConstrainedBox(
+          key: const ValueKey<String>('mqMonoCellCopyTarget'),
+          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+          child: Center(
+            widthFactor: 1,
+            heightFactor: 1,
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: Icon(
+                  _copied ? MqIcons.check : MqIcons.copy,
+                  key: ValueKey<bool>(_copied),
+                  size: 14,
+                  color: _copied ? tokens.colors.success : widget.color,
+                ),
+              ),
             ),
           ),
         ),
