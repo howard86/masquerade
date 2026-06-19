@@ -1,54 +1,28 @@
 name: Release
 
+# Manual-only. After changes are merged to main, run this workflow from the
+# Actions tab. release-please maintains a release PR (version bump + changelog
+# from Conventional Commits); merge that PR, then run this workflow again to
+# tag and publish the GitHub Release.
 on:
-  workflow_run:
-    workflows: ["Flutter CI"]
-    types: [completed]
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  bump:
-    name: Bump version and changelog
+  release-please:
+    name: Release Please
     runs-on: ubuntu-latest
-    # Only run when CI passed on main, and skip the bump commit itself
-    if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'main' &&
-      !startsWith(github.event.workflow_run.head_commit.message, 'bump:')
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: googleapis/release-please-action@v4
         with:
-          fetch-depth: 0
-          ref: ${{ github.event.workflow_run.head_branch }}
           token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create bump and changelog
-        id: cz
-        uses: commitizen-tools/commitizen-action@0.27.1
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          commitizen_version: 4.13.9
-          changelog_increment_filename: _changelog_fragment.md
-          push: true
-          commit: true
-          changelog: true
-          check_consistency: true
-
-      - name: Create GitHub Release
-        if: steps.cz.outputs.version != ''
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: v${{ steps.cz.outputs.version }}
-          name: v${{ steps.cz.outputs.version }}
-          body_path: _changelog_fragment.md
-          draft: false
-          prerelease: false
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
