@@ -67,6 +67,25 @@ void main() {
       expect(opacity.opacity, 0.4);
     });
 
+    testWidgets('exposes Semantics labels with title and minimized state', (
+      WidgetTester tester,
+    ) async {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(json);
+      c.openTool(timestamp);
+      c.minimize(a);
+      await tester.pumpWidget(_wrap(c));
+
+      // Open tile announces its title as a button-labelled window.
+      expect(find.bySemanticsLabel('${timestamp.name} window'), findsOneWidget);
+      // Minimized tile announces its title plus the minimized state.
+      expect(
+        find.bySemanticsLabel('${json.name} window, minimized'),
+        findsOneWidget,
+      );
+      expect(find.bySemanticsLabel(RegExp('minimized')), findsOneWidget);
+    });
+
     testWidgets('click focuses/restores a minimized window', (
       WidgetTester tester,
     ) async {

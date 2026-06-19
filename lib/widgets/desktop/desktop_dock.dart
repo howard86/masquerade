@@ -70,48 +70,56 @@ class _DockTileState extends State<_DockTile> {
   Widget build(BuildContext context) {
     final c = context.mq.colors;
     final double opacity = widget.card.minimized ? 0.4 : 1.0;
+    final String title = widget.card.content.title;
+    final String label = widget.card.minimized
+        ? '$title window, minimized'
+        : '$title window';
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        child: AnimatedScale(
-          scale: _hovered ? 1.1 : 1.0,
-          duration: MqMotion.fast,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: MqSpacing.xs),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Opacity(
-                  opacity: opacity,
-                  child: Container(
-                    width: 36,
-                    height: 36,
+      child: Semantics(
+        button: true,
+        label: label,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: AnimatedScale(
+            scale: _hovered ? 1.1 : 1.0,
+            duration: MqMotion.fast,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: MqSpacing.xs),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Opacity(
+                    opacity: opacity,
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: _hovered ? c.accentBg : c.surface2,
+                        borderRadius: BorderRadius.circular(MqRadius.sm),
+                      ),
+                      child: Icon(
+                        widget.card.content.icon,
+                        size: 18,
+                        color: widget.card.content.tint,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  // Running indicator dot.
+                  Container(
+                    width: 4,
+                    height: 4,
                     decoration: BoxDecoration(
-                      color: _hovered ? c.accentBg : c.surface2,
-                      borderRadius: BorderRadius.circular(MqRadius.sm),
-                    ),
-                    child: Icon(
-                      widget.card.content.icon,
-                      size: 18,
-                      color: widget.card.content.tint,
+                      color: widget.focused ? c.accent : c.textTer,
+                      shape: BoxShape.circle,
                     ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                // Running indicator dot.
-                Container(
-                  width: 4,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: widget.focused ? c.accent : c.textTer,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
