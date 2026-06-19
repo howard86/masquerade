@@ -179,10 +179,11 @@ echo "Pre-commit test completed successfully!"
 
 ### ⚠️ Known Issues
 
-- **Release Workflow** (`release.yml`): Has YAML validation issues with `act`
-  - The workflow is syntactically valid YAML
-  - `act` seems to have issues with certain GitHub Actions features
-  - This is likely a limitation of `act` rather than the workflow itself
+- **Release Workflow** (`release.yml`): release-please, `workflow_dispatch`-only
+  - Not exercised by `act` — it is triggered manually from the Actions tab
+    after merging to main, not on push/PR
+  - Maintains a release PR (version bump + changelog); merge it, then re-run
+    the workflow to tag and publish the GitHub Release
 
 ### 🔧 Fixed Issues
 
