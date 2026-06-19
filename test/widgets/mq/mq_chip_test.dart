@@ -38,21 +38,38 @@ void main() {
     );
   });
 
-  testWidgets('accent reflects as the selected Semantics flag', (
+  testWidgets('selected drives the selected Semantics flag', (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      _wrap(MqChip(label: 'URL-safe', accent: true, onTap: () {})),
+      _wrap(MqChip(label: 'URL-safe', selected: true, onTap: () {})),
     );
     expect(
       tester.getSemantics(find.bySemanticsLabel('URL-safe')),
       isSemantics(isButton: true, isSelected: true),
     );
 
-    await tester.pumpWidget(_wrap(MqChip(label: 'URL-safe', onTap: () {})));
+    await tester.pumpWidget(
+      _wrap(MqChip(label: 'URL-safe', selected: false, onTap: () {})),
+    );
     expect(
       tester.getSemantics(find.bySemanticsLabel('URL-safe')),
       isSemantics(isSelected: false),
+    );
+  });
+
+  testWidgets('decorative accent chip does NOT announce selected', (
+    WidgetTester tester,
+  ) async {
+    // An always-accent ACTION chip (e.g. open_in_footer's "Diff with…") is
+    // decorative emphasis, not a toggle — it must not claim the selected state
+    // to screen readers even though it paints the accent visual.
+    await tester.pumpWidget(
+      _wrap(MqChip(label: 'Diff with…', accent: true, onTap: () {})),
+    );
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('Diff with…')),
+      isSemantics(isButton: true, isSelected: false),
     );
   });
 

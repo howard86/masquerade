@@ -292,7 +292,7 @@ class _GeneratorBodyState extends State<GeneratorBody> {
 
   Widget _classChip(String label, bool on, VoidCallback toggle) => MqChip(
     label: label,
-    accent: on,
+    selected: on,
     mono: false,
     onTap: () {
       toggle();

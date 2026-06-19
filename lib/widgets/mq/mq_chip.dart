@@ -11,13 +11,23 @@ class MqChip extends StatelessWidget {
     required this.label,
     this.icon,
     this.accent = false,
+    this.selected = false,
     this.mono = true,
     this.onTap,
   });
 
   final String label;
   final IconData? icon;
+
+  /// Decorative emphasis only. Paints the accent background/border/text.
+  /// Does NOT claim the selected a11y state — use [selected] for toggles.
   final bool accent;
+
+  /// Toggle/selection state. Drives `Semantics(selected:)` so screen readers
+  /// announce the on/off choice, and also turns on the accent visual (a
+  /// selected chip looks accented). Leave `false` on decorative/action chips
+  /// so they don't wrongly announce "selected".
+  final bool selected;
   final bool mono;
   final VoidCallback? onTap;
 
@@ -25,26 +35,28 @@ class MqChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = context.mq;
     final c = tokens.colors;
+    // Either a deliberate selection or decorative accent paints the emphasis.
+    final bool emphasized = selected || accent;
     final TextStyle base = MqTextStyles.caption1.copyWith(
       fontFamily: mono ? MqTextStyles.monoFamily : MqTextStyles.sansFamily,
       fontFamilyFallback: mono
           ? MqTextStyles.monoFallback
           : MqTextStyles.sansFallback,
       fontWeight: FontWeight.w500,
-      color: accent ? c.accent : c.textPri,
+      color: emphasized ? c.accent : c.textPri,
     );
     final Widget chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: accent ? c.accentBg : const Color(0x00000000),
+        color: emphasized ? c.accentBg : const Color(0x00000000),
         borderRadius: BorderRadius.circular(MqRadius.pill),
-        border: Border.all(color: accent ? c.accent : c.border, width: 0.5),
+        border: Border.all(color: emphasized ? c.accent : c.border, width: 0.5),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           if (icon != null) ...<Widget>[
-            Icon(icon, size: 12, color: accent ? c.accent : c.textSec),
+            Icon(icon, size: 12, color: emphasized ? c.accent : c.textSec),
             const SizedBox(width: 6),
           ],
           // Loose Flexible: short chips size to content; a chip whose label is
@@ -65,13 +77,14 @@ class MqChip extends StatelessWidget {
 
     if (onTap == null) return chip;
     // Tappable chips are buttons: announce the role + label so screen readers
-    // describe them as such across every call site. `accent` doubles as the
-    // selected/toggle state for the option chips that flip it on tap.
+    // describe them as such across every call site. `selected` (NOT `accent`)
+    // drives the toggle/selected state — decorative-accent action chips leave
+    // it `false` so they don't wrongly announce "selected".
     // `excludeSemantics` keeps the announcement to a single node (the explicit
     // label) instead of also reading the inner Text.
     return Semantics(
       button: true,
-      selected: accent,
+      selected: selected,
       label: label,
       excludeSemantics: true,
       child: GestureDetector(

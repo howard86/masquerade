@@ -240,12 +240,12 @@ class _ListToolBodyState extends State<ListToolBody>
           children: <Widget>[
             MqChip(
               label: _caseLabel,
-              accent: _caseMode != ListCase.none,
+              selected: _caseMode != ListCase.none,
               onTap: _cycleCase,
             ),
             MqChip(
               label: 'Dedupe',
-              accent: _dedupe,
+              selected: _dedupe,
               mono: false,
               onTap: () {
                 setState(() => _dedupe = !_dedupe);
@@ -254,7 +254,7 @@ class _ListToolBodyState extends State<ListToolBody>
             ),
             MqChip(
               label: 'Sort A→Z',
-              accent: _sort,
+              selected: _sort,
               mono: false,
               onTap: () {
                 setState(() => _sort = !_sort);
@@ -263,7 +263,7 @@ class _ListToolBodyState extends State<ListToolBody>
             ),
             MqChip(
               label: 'Quote',
-              accent: _quote,
+              selected: _quote,
               mono: false,
               onTap: () {
                 setState(() => _quote = !_quote);
@@ -285,7 +285,7 @@ class _ListToolBodyState extends State<ListToolBody>
               ),
             MqChip(
               label: '[ ]',
-              accent: _bracket,
+              selected: _bracket,
               onTap: () {
                 setState(() => _bracket = !_bracket);
                 reparse();
