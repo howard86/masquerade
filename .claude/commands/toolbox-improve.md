@@ -135,14 +135,15 @@ PROCEDURE — all seven steps, then end:
 
 6. META — improve THIS prompt (rare; only on concrete friction THIS run: a stale REPO FACT — a
    path/command/anchor that moved; an instruction that forced a guess; a missing guardrail). Make a
-   SMALL surgical edit to `.claude/commands/toolbox-improve.md` and append one dated line to the
-   revision log. This file is tracked, but META edits are LOCAL working-tree changes in the
+   SMALL surgical edit to `.claude/commands/toolbox-improve.md` and append one dated line to this
+   command's section of the revision log at `.claude/toolbox-revision-log.md` (a separate tracked
+   file — NOT in this prompt). This file is tracked, but META edits are LOCAL working-tree changes in the
    orchestrator's main checkout — NEVER bundle into a product PR (the maintainer commits prompt tweaks
    separately). IMMUTABLE — never remove, weaken, or reword to loosen: the VERIFY GATE; the HARD
    RULES; "never push/merge main"; "never merge your own PR"; "Cupertino-only / no new UI deps";
    "never bump flutter_native_splash"; one-improvement-per-run; the orchestrator+worker model; this
    META step. Preserve the file's section structure (frontmatter `description`, MISSION, EXECUTION
-   MODEL, REPO FACTS, VERIFY GATE, CONCURRENCY, all seven steps, HARD RULES, revision log). Back up
+   MODEL, REPO FACTS, VERIFY GATE, CONCURRENCY, all seven steps, HARD RULES). Back up
    first; if any required section goes missing or the net change exceeds ~15 lines, RESTORE and skip.
    Never revert/block the improvement already shipped this run.
 
@@ -157,13 +158,4 @@ dependency; never bump `flutter_native_splash` off `^2.4.7`; keep diffs small, r
 style-matched; tests required for new functionality; if nothing is genuinely worth doing, say so and
 stop.
 
-## Prompt revision log
-
-Newest last; one line each, capped at the last ~20 entries.
-Format: `YYYY-MM-DD — <change> (<why>)`.
-
-- 2026-06-19 — Initial adaptation of `engine-improve` for the Masquerade Flutter toolbox: Cupertino/UX
-  mission, Flutter VERIFY GATE, tool-catalog + ToolBodyScaffold facts, `flutter_native_splash ^2.4.7`
-  pin as a step-0 precondition, claim+lock helper. (From the hft-market-server template.)
-- 2026-06-19 — Condensed the whole file for lower per-iteration token cost; no rule, gate, or step
-  removed or weakened. (Maintainer request.)
+Prompt revision history lives in `.claude/toolbox-revision-log.md` (a separate tracked file), not here.

@@ -152,15 +152,17 @@ PROCEDURE — all seven steps, then end:
 
 6. META — improve THIS prompt (rare; only on concrete friction THIS run: a stale REPO
    FACT/check-name/merge-flag, an instruction that forced a guess, a missing guardrail). SMALL
-   surgical edit to `.claude/commands/toolbox-review.md` + one dated revision-log line. This file is
-   tracked, but META edits are LOCAL working-tree changes — NEVER bundle into a product PR. IMMUTABLE
+   surgical edit to `.claude/commands/toolbox-review.md` + one dated line in this command's section of
+   the revision log at `.claude/toolbox-revision-log.md` (a separate tracked file — NOT in this
+   prompt). This file is tracked, but META edits are LOCAL working-tree changes — NEVER bundle into a
+   product PR. IMMUTABLE
    — never remove, weaken, or reword to loosen: the MERGE GATE; the VERIFY GATE; the HARD RULES;
    "merge only when CI is green AND the diff matches the description"; "never touch/merge main
    directly"; "never force-push/rewrite a published branch"; "never close a PR"; "never merge a PR
    touching `.github/workflows/*`"; "Cupertino-only / no new UI deps"; "never bump
    flutter_native_splash"; one-PR-per-run; the orchestrator+worker model; this META step. Preserve the
    section structure (frontmatter `description`, MISSION, EXECUTION MODEL, RELATIONSHIP, REPO FACTS,
-   VERIFY GATE, REVIEW CRITERIA, MERGE GATE, CONCURRENCY, all seven steps, HARD RULES, revision log).
+   VERIFY GATE, REVIEW CRITERIA, MERGE GATE, CONCURRENCY, all seven steps, HARD RULES).
    Back up first; if a required section goes missing or the net change exceeds ~15 lines, RESTORE and
    skip. Never undo a merge done this run.
 
@@ -178,15 +180,4 @@ files or the apparatus; never introduce `Material*`/`Scaffold`/`MaterialApp` or 
 dep, or let one through review; never bump `flutter_native_splash` off `^2.4.7`; keep fixes surgical,
 in-scope, style-matched; if nothing is mergeable or fixable, say so and stop.
 
-## Prompt revision log
-
-Newest last; one line each, capped at the last ~20 entries.
-Format: `YYYY-MM-DD — <change> (<why>)`.
-
-- 2026-06-19 — Initial creation, modeled on `/toolbox-improve`: orchestrator+worker review loop
-  driving `toolbox-autoimprove` PRs to a verified merge. Merge gate = live CI green + diff matches PR
-  description + mergeable + no workflow files + review-clean; reuses the shared
-  `toolbox-improve-claim.sh` lock with `pr-<N>` / `tr-` namespacing; flips backlog `done (#PR)` →
-  `merged (#PR)`. Encodes the verified repo merge config and the gh-token workflow-scope guard.
-- 2026-06-19 — Condensed the whole file for lower per-iteration token cost; no rule, gate, or step
-  removed or weakened. (Maintainer request.)
+Prompt revision history lives in `.claude/toolbox-revision-log.md` (a separate tracked file), not here.
