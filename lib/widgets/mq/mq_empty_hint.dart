@@ -17,26 +17,32 @@ class MqEmptyHint extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.mq.colors;
     final String? d = detail;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: MqSpacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Text(
-            label,
-            style: MqTextStyles.body.copyWith(
-              fontFamily: MqTextStyles.serifFamily,
-              fontFamilyFallback: MqTextStyles.serifFallback,
-              fontStyle: FontStyle.italic,
-              color: c.textSec,
+    // Expose the hint as a single semantic label so a screen reader reads the
+    // empty state as one line rather than two unrelated text nodes.
+    return Semantics(
+      label: d != null ? '$label. $d' : label,
+      excludeSemantics: true,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: MqSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text(
+              label,
+              style: MqTextStyles.body.copyWith(
+                fontFamily: MqTextStyles.serifFamily,
+                fontFamilyFallback: MqTextStyles.serifFallback,
+                fontStyle: FontStyle.italic,
+                color: c.textSec,
+              ),
             ),
-          ),
-          if (d != null) ...<Widget>[
-            const SizedBox(height: 4),
-            Text(d, style: MqTextStyles.footnote.copyWith(color: c.textTer)),
+            if (d != null) ...<Widget>[
+              const SizedBox(height: 4),
+              Text(d, style: MqTextStyles.footnote.copyWith(color: c.textTer)),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
