@@ -1,10 +1,33 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 
 import '../../state/window_content.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
+
+/// Arrow keys → spatial focus moves across the launcher tiles. Bound on the
+/// grid itself (an explicit, intended contract — not an accidental inheritance
+/// of [WidgetsApp.defaultShortcuts]) so its 2D traversal holds regardless of
+/// the host shell's key handling or platform/web shortcut differences. The
+/// app-wide [DirectionalFocusAction] resolves the geometrically-adjacent tile
+/// from the focus tree, so no manual geometry math is needed here.
+const Map<ShortcutActivator, Intent> _arrowTraversal =
+    <ShortcutActivator, Intent>{
+      SingleActivator(LogicalKeyboardKey.arrowUp): DirectionalFocusIntent(
+        TraversalDirection.up,
+      ),
+      SingleActivator(LogicalKeyboardKey.arrowDown): DirectionalFocusIntent(
+        TraversalDirection.down,
+      ),
+      SingleActivator(LogicalKeyboardKey.arrowLeft): DirectionalFocusIntent(
+        TraversalDirection.left,
+      ),
+      SingleActivator(LogicalKeyboardKey.arrowRight): DirectionalFocusIntent(
+        TraversalDirection.right,
+      ),
+    };
 
 /// Always-present launcher icon grid. Aligned vertically on the right edge of
 /// the desktop viewport (macOS style), keeping the center workspace spacious.
@@ -30,38 +53,42 @@ class DesktopIconGrid extends StatelessWidget {
       child: Align(
         alignment: Alignment.topRight,
         child: SingleChildScrollView(
-          // Keyboard users Tab/Shift-Tab through the launcher in visual order.
-          child: FocusTraversalGroup(
-            child: SizedBox(
-              width: 84,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  for (final UtilityDescriptor d
-                      in UtilityCatalog.all) ...<Widget>[
-                    _LauncherTile(
-                      icon: d.icon,
-                      tint: d.tint,
-                      label: d.name,
-                      onOpen: () => onOpen(d),
-                    ),
-                    const SizedBox(height: MqSpacing.sm),
+          // Keyboard users Tab/Shift-Tab through the launcher in visual order;
+          // the arrow keys move focus to the spatially-adjacent tile.
+          child: Shortcuts(
+            shortcuts: _arrowTraversal,
+            child: FocusTraversalGroup(
+              child: SizedBox(
+                width: 84,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    for (final UtilityDescriptor d
+                        in UtilityCatalog.all) ...<Widget>[
+                      _LauncherTile(
+                        icon: d.icon,
+                        tint: d.tint,
+                        label: d.name,
+                        onOpen: () => onOpen(d),
+                      ),
+                      const SizedBox(height: MqSpacing.sm),
+                    ],
+                    for (final SystemApp app in SystemApp.values) ...<Widget>[
+                      Builder(
+                        builder: (BuildContext context) {
+                          final SystemWindow sw = SystemWindow(app);
+                          return _LauncherTile(
+                            icon: sw.icon,
+                            tint: sw.tint,
+                            label: sw.title,
+                            onOpen: () => onOpenSystem(app),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: MqSpacing.sm),
+                    ],
                   ],
-                  for (final SystemApp app in SystemApp.values) ...<Widget>[
-                    Builder(
-                      builder: (BuildContext context) {
-                        final SystemWindow sw = SystemWindow(app);
-                        return _LauncherTile(
-                          icon: sw.icon,
-                          tint: sw.tint,
-                          label: sw.title,
-                          onOpen: () => onOpenSystem(app),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: MqSpacing.sm),
-                  ],
-                ],
+                ),
               ),
             ),
           ),
