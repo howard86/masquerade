@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:masquerade/widgets/mq/mq_input.dart';
 import 'package:masquerade/widgets/mq/mq_mono_cell.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -7,6 +8,15 @@ import '_helpers.dart';
 
 Finder _outputCell(String value) =>
     find.descendant(of: find.byType(MqMonoCell), matching: find.text(value));
+
+/// The expression input's currently-rendered error message, or null.
+String? _inputError(WidgetTester tester) =>
+    tester.widget<MqInput>(find.byType(MqInput)).error;
+
+/// True when any [MqMonoCell] is labelled 'Error' — the old outlier surface
+/// this tool no longer uses.
+Finder _errorCellLabel() =>
+    find.descendant(of: find.byType(MqMonoCell), matching: find.text('Error'));
 
 void main() {
   setUp(() {
@@ -51,7 +61,7 @@ void main() {
     expect(find.textContaining('APPROXIMATE'), findsOneWidget);
   });
 
-  testWidgets('Math — division by zero surfaces error', (
+  testWidgets('Math — division by zero surfaces error via MqInput.error', (
     WidgetTester tester,
   ) async {
     await pumpHomeAndOpen(tester, 'Math');
@@ -59,7 +69,11 @@ void main() {
     await tester.enterText(find.byType(EditableText).last, '1/0');
     await tester.pumpAndSettle(kDebouncePump);
 
+    // Standard house surface: the precise message rides on the expression
+    // input's error, not an outlier MqMonoCell labelled 'Error'.
+    expect(_inputError(tester), contains('Division by zero'));
     expect(find.textContaining('Division by zero'), findsOneWidget);
+    expect(_errorCellLabel(), findsNothing);
   });
 
   testWidgets('Math — incomplete syntax keeps last good result dimmed', (
@@ -131,7 +145,7 @@ void main() {
     expect(_outputCell('0.5'), findsOneWidget);
   });
 
-  testWidgets('Math — unknown function shows error', (
+  testWidgets('Math — unknown function shows error via MqInput.error', (
     WidgetTester tester,
   ) async {
     await pumpHomeAndOpen(tester, 'Math');
@@ -139,6 +153,25 @@ void main() {
     await tester.enterText(find.byType(EditableText).last, 'frobnicate(3)');
     await tester.pumpAndSettle(kDebouncePump);
 
-    expect(find.textContaining('Unknown function'), findsOneWidget);
+    // Precise MathErrorKind message preserved on the standard input surface.
+    expect(_inputError(tester), contains('Unknown function'));
+    expect(_errorCellLabel(), findsNothing);
+  });
+
+  testWidgets('Math — fixing a bad expression clears the input error and '
+      'restores the result cell', (WidgetTester tester) async {
+    await pumpHomeAndOpen(tester, 'Math');
+
+    final Finder field = find.byType(EditableText).last;
+    await tester.enterText(field, '1/0');
+    await tester.pumpAndSettle(kDebouncePump);
+    expect(_inputError(tester), contains('Division by zero'));
+
+    // A valid expression clears the input error and shows the result cell.
+    await tester.enterText(field, '6*7');
+    await tester.pumpAndSettle(kDebouncePump);
+    expect(_inputError(tester), isNull);
+    expect(_outputCell('42'), findsOneWidget);
+    expect(_errorCellLabel(), findsNothing);
   });
 }

@@ -250,6 +250,10 @@ class _MathBodyState extends State<MathBody>
         focusNode: _focusNode,
         label: 'Expression',
         placeholder: '2*(3+4) - sin(pi/2)',
+        // Surface the precise MathErrorKind message on the expression input —
+        // the house error surface (matches MqInput.error elsewhere) rather
+        // than an outlier 'Error' result cell.
+        error: error?.message,
         onChanged: onInputChanged,
         onPaste: (_) => markPaste(),
       ),
@@ -276,9 +280,9 @@ class _MathBodyState extends State<MathBody>
         ),
       ],
       const SizedBox(height: MqSpacing.lg),
-      if (error != null)
-        MqMonoCell(label: 'Error', value: error.message, copyable: false)
-      else if (result != null)
+      // The error is shown inline on the input above; here only the result or
+      // the empty hint renders.
+      if (result != null)
         Opacity(
           opacity: _showingStale ? 0.5 : 1.0,
           child: _buildResults(result),
