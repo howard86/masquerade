@@ -85,7 +85,9 @@ Desktop.ini
 .antigravitycli/
 .codex/
 
-# /toolbox-improve loop runtime state (the command + claim helper ARE tracked)
+# /toolbox-improve loop runtime state. The backlog + claims now live GLOBALLY under ~/.claude
+# (so every git worktree shares one set); these in-repo paths are ignored only as a safety net
+# for the transition symlinks + any stray bootstrap. Command + claim helper ARE tracked.
 .claude/toolbox-improvement-backlog.md
-.claude/.toolbox-claims/
+.claude/.toolbox-claims
 .claude/toolbox-verify-*.log

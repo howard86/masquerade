@@ -17,6 +17,10 @@ Format: `YYYY-MM-DD — <change> (<why>)`.
   removed or weakened. (Maintainer request.)
 - 2026-06-19 — Moved the revision log out of the command file into this shared file. (Maintainer
   request — keep the per-iteration prompt lean.)
+- 2026-06-19 — Moved the backlog + claims out of `.claude/` to GLOBAL `~/.claude/`
+  (`toolbox-improvement-backlog.md`, `toolbox-improve-claims/`) and repointed the claim helper to
+  `$HOME/.claude` instead of `$SCRIPT_DIR`. (The tracked helper was forking claims/lock per git
+  worktree; a global path keeps every loop on one shared backlog + claim set. Maintainer request.)
 
 ## /toolbox-review
 
@@ -29,3 +33,5 @@ Format: `YYYY-MM-DD — <change> (<why>)`.
   removed or weakened. (Maintainer request.)
 - 2026-06-19 — Moved the revision log out of the command file into this shared file. (Maintainer
   request — keep the per-iteration prompt lean.)
+- 2026-06-19 — Backlog + claims relocated to GLOBAL `~/.claude/`; updated the shared-backlog and
+  apparatus path references. (Same worktree-shared-state migration as `/toolbox-improve`.)
