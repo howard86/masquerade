@@ -199,6 +199,28 @@ void main() {
       expect(ids('not a real input ~~~'), isEmpty);
     });
 
+    test('percent-encoded text only suggests URL', () {
+      expect(ids('hello%20world%26more'), <String>['url']);
+    });
+
+    test('query string with multiple pairs only suggests URL', () {
+      expect(ids('a=1&b=2&c=3'), <String>['url']);
+    });
+
+    test('full URL with query only suggests URL', () {
+      expect(ids('https://x.com/s?q=cats&n=10'), <String>['url']);
+    });
+
+    test('percent suffix stays bps, not URL', () {
+      // `0.25%` has a trailing % but no %XX escape — URL must not poach it.
+      expect(ids('0.25%'), isNot(contains('url')));
+    });
+
+    test('single env-style key=value does not suggest URL', () {
+      expect(ids('FOO = bar'), isNot(contains('url')));
+      expect(ids('FOO=bar'), isNot(contains('url')));
+    });
+
     test('bulleted multi-line list only suggests List', () {
       expect(ids('- BTCUSDT\n- ETHUSDT\n- SOLUSDT'), <String>['list']);
     });
