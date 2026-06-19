@@ -27,15 +27,19 @@ jobs:
       with:
         github-token: "${{ secrets.GITHUB_TOKEN }}"
 
+    # Never auto-merge pub (Flutter) updates: they can conflict with the SDK's
+    # pinned transitive constraints (e.g. flutter_native_splash raising its meta
+    # floor above the SDK's meta pin), which silently broke main. Pub bumps now
+    # arrive as one grouped weekly PR and go through human/CI review instead.
     - name: Auto-merge Dependabot PRs for semver-patch updates
-      if: ${{steps.metadata.outputs.update-type == 'version-update:semver-patch'}}
+      if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-patch' && steps.metadata.outputs.package-ecosystem != 'pub' }}
       run: gh pr merge --auto --merge "$PR_URL"
       env:
         PR_URL: ${{github.event.pull_request.html_url}}
         GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
     - name: Auto-merge Dependabot PRs for semver-minor updates
-      if: ${{steps.metadata.outputs.update-type == 'version-update:semver-minor'}}
+      if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-minor' && steps.metadata.outputs.package-ecosystem != 'pub' }}
       run: gh pr merge --auto --merge "$PR_URL"
       env:
         PR_URL: ${{github.event.pull_request.html_url}}
