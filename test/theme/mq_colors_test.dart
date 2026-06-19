@@ -128,4 +128,20 @@ void main() {
       }
     });
   });
+
+  group('MqColors keycap tokens', () {
+    test('light exposes the moved keycap hex values', () {
+      final MqColors c = MqColors.light();
+      expect(c.keycapBg, const Color(0xFFF0F0F3));
+      expect(c.keycapBorder, const Color(0xFFD1D1D6));
+      expect(c.keycapShadow, const Color(0xFFC0C0C6));
+    });
+
+    test('dark exposes the moved keycap hex values', () {
+      final MqColors c = MqColors.dark();
+      expect(c.keycapBg, const Color(0xFF2A2A2E));
+      expect(c.keycapBorder, const Color(0xFF3C3C40));
+      expect(c.keycapShadow, const Color(0xFF18181A));
+    });
+  });
 }

@@ -33,6 +33,9 @@ class MqColors {
     required this.monoNumber,
     required this.monoKey,
     required this.monoPunc,
+    required this.keycapBg,
+    required this.keycapBorder,
+    required this.keycapShadow,
     required this.shadow,
     required this.shadowLg,
   });
@@ -66,6 +69,9 @@ class MqColors {
     monoNumber: Color(0xFFB07A1F),
     monoKey: Color(0xFF2D4A7A),
     monoPunc: Color(0xFF5C544A),
+    keycapBg: Color(0xFFF0F0F3),
+    keycapBorder: Color(0xFFD1D1D6),
+    keycapShadow: Color(0xFFC0C0C6),
     shadow: <BoxShadow>[
       BoxShadow(color: Color(0x141B1813), blurRadius: 12, offset: Offset(0, 4)),
       BoxShadow(color: Color(0x0A1B1813), blurRadius: 2, offset: Offset(0, 1)),
@@ -109,6 +115,9 @@ class MqColors {
     monoNumber: Color(0xFFE0B872),
     monoKey: Color(0xFF8FB3E8),
     monoPunc: Color(0xFFA89B86),
+    keycapBg: Color(0xFF2A2A2E),
+    keycapBorder: Color(0xFF3C3C40),
+    keycapShadow: Color(0xFF18181A),
     shadow: <BoxShadow>[
       BoxShadow(color: Color(0x66000000), blurRadius: 12, offset: Offset(0, 4)),
       BoxShadow(color: Color(0x33000000), blurRadius: 2, offset: Offset(0, 1)),
@@ -157,6 +166,12 @@ class MqColors {
   final Color monoKey;
   final Color monoPunc;
 
+  /// Skeuomorphic keycap chips (shortcuts HUD). Light/dark neutral grays that
+  /// read as physical key tops, distinct from the editorial surface tones.
+  final Color keycapBg;
+  final Color keycapBorder;
+  final Color keycapShadow;
+
   /// Reserved for floating modal/toast surfaces only. Cards use a hairline
   /// border instead.
   final List<BoxShadow> shadow;
@@ -191,6 +206,9 @@ class MqColors {
     monoNumber: Color.lerp(a.monoNumber, b.monoNumber, t)!,
     monoKey: Color.lerp(a.monoKey, b.monoKey, t)!,
     monoPunc: Color.lerp(a.monoPunc, b.monoPunc, t)!,
+    keycapBg: Color.lerp(a.keycapBg, b.keycapBg, t)!,
+    keycapBorder: Color.lerp(a.keycapBorder, b.keycapBorder, t)!,
+    keycapShadow: Color.lerp(a.keycapShadow, b.keycapShadow, t)!,
     shadow: t < 0.5 ? a.shadow : b.shadow,
     shadowLg: t < 0.5 ? a.shadowLg : b.shadowLg,
   );

@@ -161,19 +161,15 @@ class _Keycap extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
-    final bool isDark = context.mq.isDark;
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF2A2A2E) : const Color(0xFFF0F0F3),
+        color: c.keycapBg,
         borderRadius: BorderRadius.circular(MqRadius.xs),
-        border: Border.all(
-          color: isDark ? const Color(0xFF3C3C40) : const Color(0xFFD1D1D6),
-          width: 1.0,
-        ),
+        border: Border.all(color: c.keycapBorder, width: 1.0),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: isDark ? const Color(0xFF18181A) : const Color(0xFFC0C0C6),
+            color: c.keycapShadow,
             offset: const Offset(0, 1.5),
             blurRadius: 0.5,
           ),
