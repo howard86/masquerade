@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../state/link_group.dart';
@@ -276,16 +277,23 @@ class _PaletteStrip extends StatelessWidget {
       runSpacing: MqSpacing.sm,
       children: <Widget>[
         for (final MqColorValue color in swatches)
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => onTap(color),
-            child: Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: color.toFlutter,
-                borderRadius: BorderRadius.circular(MqRadius.sm),
-                border: Border.all(color: c.border, width: 0.5),
+          Semantics(
+            button: true,
+            label: 'Select ${color.hex}',
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                HapticFeedback.selectionClick();
+                onTap(color);
+              },
+              child: Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: color.toFlutter,
+                  borderRadius: BorderRadius.circular(MqRadius.sm),
+                  border: Border.all(color: c.border, width: 0.5),
+                ),
               ),
             ),
           ),

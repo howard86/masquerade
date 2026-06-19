@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:masquerade/widgets/mq/mq_mono_cell.dart';
+import 'package:masquerade/widgets/tool_bodies/color_body.dart';
 
 import '_helpers.dart';
 
@@ -61,5 +62,21 @@ void main() {
     await tester.pumpAndSettle(kDebouncePump);
 
     expect(find.textContaining('Could not parse color'), findsOneWidget);
+  });
+
+  testWidgets('Color — each palette swatch exposes a "Select #…" semantics '
+      'label for screen readers', (WidgetTester tester) async {
+    // Palette strip is canvas-only (wide width); pump at 640 so it renders.
+    await pumpBodyAtWidth(tester, const ColorBody(), 640);
+
+    await tester.enterText(find.byType(EditableText).last, '#FF0000');
+    await tester.pumpAndSettle(kDebouncePump);
+    await tester.enterText(find.byType(EditableText).last, '#00FF00');
+    await tester.pumpAndSettle(kDebouncePump);
+
+    // Two distinct colors entered -> two semantically-labelled swatches.
+    expect(find.bySemanticsLabel(RegExp('Select #')), findsNWidgets(2));
+    expect(find.bySemanticsLabel('Select #FF0000'), findsOneWidget);
+    expect(find.bySemanticsLabel('Select #00FF00'), findsOneWidget);
   });
 }

@@ -614,18 +614,17 @@ class _IconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: MqSpacing.xs),
-          child: Icon(
-            icon,
-            size: 15,
-            color: color ?? c.textTer,
-            semanticLabel: tooltip,
+    return Semantics(
+      button: true,
+      label: tooltip,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: MqSpacing.xs),
+            child: Icon(icon, size: 15, color: color ?? c.textTer),
           ),
         ),
       ),
