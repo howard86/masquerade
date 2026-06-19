@@ -5,6 +5,7 @@ import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
+import '../mq/mq_empty_hint.dart';
 import '../mq/mq_icons.dart';
 
 /// Result from the Spotlight command palette: the chosen tool and an optional
@@ -149,29 +150,38 @@ class _CommandPaletteState extends State<_CommandPalette> {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               _SearchField(controller: _query, focusNode: _focus),
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  padding: const EdgeInsets.symmetric(vertical: MqSpacing.xs),
-                  itemCount: _totalRows,
-                  itemBuilder: (BuildContext _, int i) {
-                    if (_detected != null && i == 0) {
-                      return _DetectRow(
-                        descriptor: _detected!,
-                        highlighted: _highlight == 0,
-                        onTap: () => _pick(_detected!, seed: _query.text),
+              if (_totalRows == 0)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: MqSpacing.md),
+                  child: MqEmptyHint(
+                    label: 'No tools found',
+                    detail: 'Nothing matched “${_query.text}”.',
+                  ),
+                )
+              else
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(vertical: MqSpacing.xs),
+                    itemCount: _totalRows,
+                    itemBuilder: (BuildContext _, int i) {
+                      if (_detected != null && i == 0) {
+                        return _DetectRow(
+                          descriptor: _detected!,
+                          highlighted: _highlight == 0,
+                          onTap: () => _pick(_detected!, seed: _query.text),
+                        );
+                      }
+                      final int idx = i - (_detected != null ? 1 : 0);
+                      final UtilityDescriptor u = _results[idx];
+                      return _ResultRow(
+                        descriptor: u,
+                        highlighted: i == _highlight,
+                        onTap: () => _pick(u),
                       );
-                    }
-                    final int idx = i - (_detected != null ? 1 : 0);
-                    final UtilityDescriptor u = _results[idx];
-                    return _ResultRow(
-                      descriptor: u,
-                      highlighted: i == _highlight,
-                      onTap: () => _pick(u),
-                    );
-                  },
+                    },
+                  ),
                 ),
-              ),
             ],
           ),
         ),

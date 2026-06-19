@@ -5,6 +5,7 @@ import 'package:masquerade/state/view_mode_controller.dart';
 import 'package:masquerade/utility_catalog.dart';
 import 'package:masquerade/widgets/desktop/desktop_icon_grid.dart';
 import 'package:masquerade/widgets/desktop/tool_card_frame.dart';
+import 'package:masquerade/widgets/mq/mq_empty_hint.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -74,6 +75,42 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(ToolCardFrame), findsOneWidget);
+    });
+
+    testWidgets('a query matching no tool shows the empty-state hint', (
+      WidgetTester tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(1200, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        MyApp(
+          isWebOverride: true,
+          viewModeController: ViewModeController(initial: MqViewMode.desktop),
+          skipSplash: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Open the palette via File → New tool…
+      await tester.tap(find.text('File'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('New tool…  ⌘K'));
+      await tester.pumpAndSettle();
+
+      // Type a nonsense query that matches no tool name/synonym/shape.
+      await tester.enterText(
+        find.byKey(const ValueKey<String>('command-palette-field')),
+        'zzzzz',
+      );
+      await tester.pumpAndSettle();
+
+      // The empty-state hint is shown…
+      expect(find.byType(MqEmptyHint), findsOneWidget);
+      expect(find.text('No tools found'), findsOneWidget);
+
+      // …and zero result rows render (the ListView is replaced by the hint).
+      expect(find.byType(ListView), findsNothing);
+      expect(find.byType(ToolCardFrame), findsNothing);
     });
 
     testWidgets('typing a detectable value shows "Open X with this value"', (
