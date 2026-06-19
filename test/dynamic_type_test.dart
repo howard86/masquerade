@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:masquerade/app.dart';
 import 'package:masquerade/utility_catalog.dart';
+import 'package:masquerade/widgets/mq/mq_mono_cell.dart';
 
 /// Inventory test for Dynamic Type (xxxLarge ≈ TextScaler 2.0).
 ///
@@ -76,6 +77,49 @@ void main() {
         );
       },
       // QR Code body opens the camera; skip in this smoke test.
+      skip: u.id == 'qr_code',
+    );
+  }
+
+  // Accessibility teeth for the overflow guard above: a tool body could ship a
+  // bare output cell (an `MqMonoCell` with no copy affordance label) and still
+  // pass the overflow checks. Every copyable cell wraps its copy button in a
+  // `Semantics(label: 'Copy …')` (see `MqMonoCell`), so for every copyable cell
+  // a body renders there must be at least one matching copy label. This locks
+  // in the merged Semantics work (TB-01/TB-05) across the whole catalog: a
+  // future copyable cell that drops its label would leave fewer `Copy …` labels
+  // than copyable cells and fail here.
+  for (final UtilityDescriptor u in UtilityCatalog.all) {
+    testWidgets(
+      '${u.name} output cells expose copy Semantics labels',
+      (WidgetTester tester) async {
+        await pumpApp(tester);
+        final Finder tile = find.text(u.name).last;
+        await tester.ensureVisible(tile);
+        await tester.pumpAndSettle();
+        await tester.tap(tile);
+        await tester.pumpAndSettle();
+
+        // Count only the cells that advertise a copy affordance; cells built
+        // with `copyable: false` (errors, hints) legitimately have no label.
+        final Iterable<MqMonoCell> copyableCells = tester
+            .widgetList<MqMonoCell>(find.byType(MqMonoCell))
+            .where((MqMonoCell cell) => cell.copyable);
+
+        // Bodies that render no copyable output at their initial state have
+        // nothing to assert — the guard is over the cells that ARE present.
+        if (copyableCells.isEmpty) return;
+
+        final Finder copyLabels = find.bySemanticsLabel(RegExp(r'^Copy '));
+        expect(
+          copyLabels,
+          findsAtLeastNWidgets(copyableCells.length),
+          reason:
+              '${u.name} rendered ${copyableCells.length} copyable MqMonoCell(s) '
+              'but fewer carried a "Copy …" Semantics label',
+        );
+      },
+      // QR Code body opens the camera; skip as in the overflow smoke test.
       skip: u.id == 'qr_code',
     );
   }
