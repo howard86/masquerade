@@ -56,23 +56,27 @@ class Generator {
 
   /// A random token rendered in [format]. [byteCount] random bytes back the
   /// hex and base64url forms; the alphanumeric form emits [byteCount] random
-  /// characters from a 62-symbol alphabet (unbiased, no modulo).
+  /// characters from a 62-symbol alphabet (unbiased, no modulo). Pass [random]
+  /// to inject a seeded [Random] for deterministic tests; defaults to the
+  /// secure RNG.
   static String token({
     required int byteCount,
     TokenFormat format = TokenFormat.hex,
+    Random? random,
   }) {
+    final Random rng = random ?? _rng;
     if (byteCount <= 0) return '';
     switch (format) {
       case TokenFormat.hex:
-        final List<int> bytes = _randomBytes(byteCount);
+        final List<int> bytes = _randomBytes(byteCount, rng);
         return bytes.map((int b) => b.toRadixString(16).padLeft(2, '0')).join();
       case TokenFormat.base64url:
-        final List<int> bytes = _randomBytes(byteCount);
+        final List<int> bytes = _randomBytes(byteCount, rng);
         return base64Url.encode(bytes).replaceAll('=', '');
       case TokenFormat.alphanumeric:
         return List<String>.generate(
           byteCount,
-          (_) => _alnum[_rng.nextInt(_alnum.length)],
+          (_) => _alnum[rng.nextInt(_alnum.length)],
         ).join();
     }
   }
@@ -83,6 +87,6 @@ class Generator {
     GenUuidVersion.v7 => UuidParser.generateV7(),
   };
 
-  static List<int> _randomBytes(int n) =>
-      List<int>.generate(n, (_) => _rng.nextInt(256));
+  static List<int> _randomBytes(int n, Random rng) =>
+      List<int>.generate(n, (_) => rng.nextInt(256));
 }
