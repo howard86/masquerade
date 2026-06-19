@@ -23,6 +23,8 @@ class AnimatedCopyIcon extends StatefulWidget {
 }
 
 class _AnimatedCopyIconState extends State<AnimatedCopyIcon> {
+  /// Identifies the 44×44 min-size hit region (the visible glyph stays 16px).
+  final GlobalKey _hitTargetKey = GlobalKey();
   bool _copied = false;
 
   void _handle() {
@@ -41,16 +43,25 @@ class _AnimatedCopyIconState extends State<AnimatedCopyIcon> {
       button: true,
       label: widget.semanticsLabel,
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: _handle,
-        child: AnimatedCrossFade(
-          duration: const Duration(milliseconds: 250),
-          crossFadeState: _copied
-              ? CrossFadeState.showSecond
-              : CrossFadeState.showFirst,
-          firstChild: Icon(MqIcons.copy, size: 16, color: c.textSec),
-          firstCurve: Curves.easeInOut,
-          secondChild: Icon(MqIcons.check, size: 16, color: c.success),
-          secondCurve: Curves.easeInOut,
+        // Grow the tap target to the 44×44 iOS HIG minimum without resizing the
+        // glyph: the icon stays 16px, centred inside a 44×44 hit region.
+        child: ConstrainedBox(
+          key: _hitTargetKey,
+          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+          child: Center(
+            child: AnimatedCrossFade(
+              duration: const Duration(milliseconds: 250),
+              crossFadeState: _copied
+                  ? CrossFadeState.showSecond
+                  : CrossFadeState.showFirst,
+              firstChild: Icon(MqIcons.copy, size: 16, color: c.textSec),
+              firstCurve: Curves.easeInOut,
+              secondChild: Icon(MqIcons.check, size: 16, color: c.success),
+              secondCurve: Curves.easeInOut,
+            ),
+          ),
         ),
       ),
     );
