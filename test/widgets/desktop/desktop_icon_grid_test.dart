@@ -48,6 +48,25 @@ Future<void> _pumpGrid(
   await tester.pumpAndSettle();
 }
 
+/// The tool name of the currently-focused launcher tile, read off the
+/// [Semantics] wrapper enclosing the focused node, or null if no tile is
+/// focused. Lets arrow-traversal assertions name the spatially-adjacent tile
+/// without relying on anonymous tile [FocusNode]s.
+String? _focusedTileLabel() {
+  final BuildContext? ctx = FocusManager.instance.primaryFocus?.context;
+  if (ctx == null) return null;
+  String? label;
+  ctx.visitAncestorElements((Element e) {
+    final Widget w = e.widget;
+    if (w is Semantics && w.properties.label != null) {
+      label = w.properties.label;
+      return false;
+    }
+    return true;
+  });
+  return label;
+}
+
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -137,5 +156,39 @@ void main() {
 
       expect(opened, <UtilityDescriptor>[UtilityCatalog.all.first]);
     });
+
+    testWidgets(
+      'Arrow Down/Up move focus between spatially-adjacent tiles; Enter '
+      'launches the focused tool',
+      (WidgetTester tester) async {
+        final List<UtilityDescriptor> opened = <UtilityDescriptor>[];
+        await _pumpGrid(tester, opened);
+
+        // Tab onto the first tile (visual order).
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+        expect(_focusedTileLabel(), UtilityCatalog.all[0].name);
+
+        // ArrowDown steps to the tile directly below (the next column entry).
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+        expect(_focusedTileLabel(), UtilityCatalog.all[1].name);
+
+        // A second ArrowDown continues spatially down the grid.
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+        expect(_focusedTileLabel(), UtilityCatalog.all[2].name);
+
+        // ArrowUp reverses, returning focus to the tile above.
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+        await tester.pumpAndSettle();
+        expect(_focusedTileLabel(), UtilityCatalog.all[1].name);
+
+        // Enter still activates the now-focused tile through the onOpen path.
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        expect(opened, <UtilityDescriptor>[UtilityCatalog.all[1]]);
+      },
+    );
   });
 }
