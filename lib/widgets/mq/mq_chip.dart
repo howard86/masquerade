@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../theme/mq_metrics.dart';
@@ -63,10 +64,24 @@ class MqChip extends StatelessWidget {
     );
 
     if (onTap == null) return chip;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: chip,
+    // Tappable chips are buttons: announce the role + label so screen readers
+    // describe them as such across every call site. `accent` doubles as the
+    // selected/toggle state for the option chips that flip it on tap.
+    // `excludeSemantics` keeps the announcement to a single node (the explicit
+    // label) instead of also reading the inner Text.
+    return Semantics(
+      button: true,
+      selected: accent,
+      label: label,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap!();
+        },
+        child: chip,
+      ),
     );
   }
 }
