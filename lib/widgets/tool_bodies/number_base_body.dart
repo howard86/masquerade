@@ -13,6 +13,7 @@ import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_status.dart';
 import '../mq/tool_action_bar.dart';
+import 'copy_all_button.dart';
 import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
@@ -95,6 +96,17 @@ class _NumberBaseBodyState extends State<NumberBaseBody>
       _error = null;
     });
     emitToLink();
+  }
+
+  /// Copies all four base representations at once. Hidden until something
+  /// parses, so the action bar shows it only when there is output to copy.
+  @override
+  Widget? actionBarCenter() {
+    final NumberBaseResult? r = _result;
+    if (r == null) return null;
+    return CopyAllButton(
+      payload: <String>[r.decimal, r.hex, r.octal, r.binary].join('\n'),
+    );
   }
 
   /// Re-feeds [value] as a plain decimal through the normal parse/emit path so
