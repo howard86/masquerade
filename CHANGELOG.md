@@ -1,3 +1,9 @@
+## v1.25.2 (2026-06-19)
+
+### Fix
+
+- **deps**: pin flutter_native_splash to ^2.4.7 for SDK compatibility
+
 ## v1.25.1 (2026-06-12)
 
 ### Fix
