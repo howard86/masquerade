@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 
 import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
+import '../../theme/mq_theme.dart';
 import '../../utility_catalog.dart';
 import '../../utils/url_parser.dart';
 import '../mq/mq_button.dart';
@@ -49,7 +50,16 @@ class _UrlBodyState extends State<UrlBody>
   UrlMode _mode = UrlMode.encode;
   String? _output;
   List<QueryPair> _pairs = const <QueryPair>[];
+
+  /// The live re-encoded query string for the (possibly edited) [_pairs], kept
+  /// in sync via [UrlParser.buildQuery]. Null until a parse yields pairs.
+  String? _query;
   String? _error;
+
+  /// Bumped on every fresh parse so the editable query table re-keys (and
+  /// rebuilds its row controllers from the new pairs); in-place edits leave it
+  /// untouched so the user's cursor and controllers survive an edit.
+  int _parseSeq = 0;
 
   @override
   String get utilityId => 'url';
@@ -99,7 +109,9 @@ class _UrlBodyState extends State<UrlBody>
         setState(() {
           _output = output;
           _pairs = pairs;
+          _query = pairs.isEmpty ? null : UrlParser.buildQuery(pairs);
           _error = null;
+          _parseSeq++;
         });
         recordOutput(input, output);
         emitToLink();
@@ -107,6 +119,7 @@ class _UrlBodyState extends State<UrlBody>
         setState(() {
           _output = null;
           _pairs = const <QueryPair>[];
+          _query = null;
           _error = message;
         });
     }
@@ -117,9 +130,21 @@ class _UrlBodyState extends State<UrlBody>
     setState(() {
       _output = null;
       _pairs = const <QueryPair>[];
+      _query = null;
       _error = null;
     });
     emitToLink();
+  }
+
+  /// Applies an in-place edit to a query pair from the editable table, then
+  /// re-encodes the whole query via [UrlParser.buildQuery] so the displayed
+  /// query string updates live and round-trips. Edits are UI-only — they do not
+  /// touch the input controller or history.
+  void _onPairEdited(List<QueryPair> pairs) {
+    setState(() {
+      _pairs = pairs;
+      _query = UrlParser.buildQuery(pairs);
+    });
   }
 
   void _swap() {
@@ -174,12 +199,16 @@ class _UrlBodyState extends State<UrlBody>
           if (_pairs.isNotEmpty) ...<Widget>[
             const SizedBox(height: MqSpacing.lg),
             const MqSectionHeader(label: 'Query'),
-            for (int i = 0; i < _pairs.length; i++) ...<Widget>[
-              if (i > 0) const SizedBox(height: MqSpacing.sm),
-              MqMonoCell(
-                label: _pairs[i].key.isEmpty ? '(empty key)' : _pairs[i].key,
-                value: _pairs[i].value,
-              ),
+            _QueryEditor(
+              // Re-key per parse so a fresh parse rebuilds the row controllers;
+              // an in-place edit keeps the same key (and the user's cursor).
+              key: ValueKey<int>(_parseSeq),
+              pairs: _pairs,
+              onChanged: _onPairEdited,
+            ),
+            if (_query != null) ...<Widget>[
+              const SizedBox(height: MqSpacing.md),
+              MqMonoCell(label: 'Rebuilt query', value: _query!, accent: true),
             ],
           ],
           OpenInFooter(
@@ -193,6 +222,104 @@ class _UrlBodyState extends State<UrlBody>
                 ? 'Type text to percent-encode.'
                 : 'Paste a percent-encoded string to decode.',
           ),
+      ],
+    );
+  }
+}
+
+/// Editable two-way table of the parsed query [pairs]. Each pair gets a key and
+/// a value field; editing either rebuilds the [QueryPair] list and calls
+/// [onChanged] so the parent re-encodes the query via [UrlParser.buildQuery].
+///
+/// Owns its row controllers (the editing source of truth) and seeds them once
+/// from [pairs]. The parent re-keys this widget per parse, so a fresh parse
+/// constructs a new state with controllers reseeded from the new pairs while an
+/// in-place edit preserves the user's cursor.
+class _QueryEditor extends StatefulWidget {
+  const _QueryEditor({super.key, required this.pairs, required this.onChanged});
+
+  final List<QueryPair> pairs;
+  final ValueChanged<List<QueryPair>> onChanged;
+
+  @override
+  State<_QueryEditor> createState() => _QueryEditorState();
+}
+
+class _QueryEditorState extends State<_QueryEditor> {
+  late final List<TextEditingController> _keys;
+  late final List<TextEditingController> _values;
+
+  @override
+  void initState() {
+    super.initState();
+    _keys = <TextEditingController>[
+      for (final QueryPair p in widget.pairs)
+        TextEditingController(text: p.key),
+    ];
+    _values = <TextEditingController>[
+      for (final QueryPair p in widget.pairs)
+        TextEditingController(text: p.value),
+    ];
+  }
+
+  @override
+  void dispose() {
+    for (final TextEditingController c in _keys) {
+      c.dispose();
+    }
+    for (final TextEditingController c in _values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  void _emit() {
+    widget.onChanged(<QueryPair>[
+      for (int i = 0; i < _keys.length; i++)
+        QueryPair(_keys[i].text, _values[i].text),
+    ]);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mq.colors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        for (int i = 0; i < widget.pairs.length; i++) ...<Widget>[
+          if (i > 0) const SizedBox(height: MqSpacing.sm),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: c.monoBg,
+              borderRadius: BorderRadius.circular(MqRadius.sm),
+              border: Border.all(color: c.border, width: 0.5),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: MqSpacing.md,
+                vertical: 10,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  MqInput(
+                    controller: _keys[i],
+                    label: 'Key',
+                    placeholder: '(empty key)',
+                    onChanged: (_) => _emit(),
+                  ),
+                  const SizedBox(height: MqSpacing.sm),
+                  MqInput(
+                    controller: _values[i],
+                    label: 'Value',
+                    placeholder: '(empty value)',
+                    onChanged: (_) => _emit(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
