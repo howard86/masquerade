@@ -11,6 +11,7 @@ import '../mq/mq_input.dart';
 import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/tool_action_bar.dart';
+import 'copy_all_button.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 import 'tool_body_scaffold.dart';
@@ -63,6 +64,37 @@ class _IpBodyState extends State<IpBody> with ToolBodyScaffold<IpBody> {
   @override
   void reset() {
     setState(() => _result = null);
+  }
+
+  /// Copies every output cell (Canonical/Family/subnet rows/…) at once, in the
+  /// order they render. Hidden until a valid address parses, so the action bar
+  /// shows it only when there is output to copy.
+  @override
+  Widget? actionBarCenter() {
+    final IpParseResult? r = _result;
+    if (r is! IpOk) return null;
+    return CopyAllButton(payload: _outputValues(r).join('\n'));
+  }
+
+  /// The copyable mono-cell values for [ok], in display order — mirrors the
+  /// rows built by [_buildOk] (scope chips are labels, not output, so omitted).
+  List<String> _outputValues(IpOk ok) {
+    final bool v4 = ok.family == IpFamily.v4;
+    String fmt(BigInt n) => v4 ? IpParser.formatV4(n) : IpParser.formatV6(n);
+    return <String>[
+      fmt(ok.address),
+      v4 ? 'IPv4' : 'IPv6',
+      if (ok.prefix != null) '/${ok.prefix}',
+      if (!v4) IpParser.formatV6(ok.address, compress: false),
+      if (ok.prefix != null) ...<String>[
+        fmt(ok.network!),
+        if (v4) IpParser.formatV4(ok.broadcast!),
+        fmt(ok.firstHost!),
+        fmt(ok.lastHost!),
+        ok.hostCount.toString(),
+        if (ok.netmask != null) ok.netmask!,
+      ],
+    ];
   }
 
   String _formatSummary(IpOk ok) {
