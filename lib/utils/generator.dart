@@ -34,24 +34,53 @@ class Generator {
 
   /// A random password of [length] drawn from the enabled character classes.
   /// Returns an empty string when no class is enabled or [length] <= 0.
+  ///
+  /// Guarantees at least one character from each ENABLED class so "must contain
+  /// a digit/symbol" policies always hold: one char per class is reserved, the
+  /// remaining slots are filled from the merged pool, then the whole result is
+  /// shuffled so the reserved chars aren't positionally predictable. When
+  /// [length] < the number of enabled classes, only the first [length] classes
+  /// get a guaranteed char (no crash); the shortfall is unavoidable.
+  ///
+  /// [random] is the RNG seam — pass a seeded [Random] for deterministic tests;
+  /// it defaults to a cryptographically secure source.
   static String password({
     required int length,
     bool lower = true,
     bool upper = true,
     bool digits = true,
     bool symbols = true,
+    Random? random,
   }) {
-    final StringBuffer pool = StringBuffer();
-    if (lower) pool.write(lowerChars);
-    if (upper) pool.write(upperChars);
-    if (digits) pool.write(digitChars);
-    if (symbols) pool.write(symbolChars);
-    final String chars = pool.toString();
-    if (chars.isEmpty || length <= 0) return '';
-    return List<String>.generate(
-      length,
-      (_) => chars[_rng.nextInt(chars.length)],
-    ).join();
+    final Random rng = random ?? _rng;
+    final List<String> classes = <String>[
+      if (lower) lowerChars,
+      if (upper) upperChars,
+      if (digits) digitChars,
+      if (symbols) symbolChars,
+    ];
+    if (classes.isEmpty || length <= 0) return '';
+    final String pool = classes.join();
+
+    // One guaranteed char per enabled class (capped at [length] when too short).
+    final List<String> chars = <String>[
+      for (final String cls in classes.take(length))
+        cls[rng.nextInt(cls.length)],
+    ];
+    // Fill the remaining slots from the merged pool.
+    while (chars.length < length) {
+      chars.add(pool[rng.nextInt(pool.length)]);
+    }
+    chars.shuffle(rng);
+    return chars.join();
+  }
+
+  /// Shannon entropy in bits for a password of [length] drawn from a pool of
+  /// [poolSize] symbols: `length * log2(poolSize)`. Returns 0 when either input
+  /// is non-positive (an empty pool or zero-length carries no entropy).
+  static double entropyBits(int length, int poolSize) {
+    if (length <= 0 || poolSize <= 0) return 0;
+    return length * (log(poolSize) / ln2);
   }
 
   /// A random token rendered in [format]. [byteCount] random bytes back the
