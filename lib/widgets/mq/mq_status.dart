@@ -40,28 +40,37 @@ class MqStatus extends StatelessWidget {
       MqStatusKind.info => (bg: c.accentBg, fg: c.accent, icon: MqIcons.info),
       MqStatusKind.neutral => (bg: c.surface2, fg: c.textSec, icon: null),
     };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(
-        color: style.bg,
-        borderRadius: BorderRadius.circular(MqRadius.pill),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          if (showIcon && style.icon != null) ...<Widget>[
-            Icon(style.icon, size: 11, color: style.fg),
-            const SizedBox(width: 5),
-          ],
-          Text(
-            label.toUpperCase(),
-            style: MqTextStyles.caption2.copyWith(
-              color: style.fg,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.4,
+    // Errors and warnings must announce as they appear — every tool routes its
+    // parse failures through this pill, so a live region here covers them all.
+    final bool isLive =
+        kind == MqStatusKind.danger || kind == MqStatusKind.warning;
+    return Semantics(
+      liveRegion: isLive,
+      label: label,
+      excludeSemantics: true,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+        decoration: BoxDecoration(
+          color: style.bg,
+          borderRadius: BorderRadius.circular(MqRadius.pill),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            if (showIcon && style.icon != null) ...<Widget>[
+              Icon(style.icon, size: 11, color: style.fg),
+              const SizedBox(width: 5),
+            ],
+            Text(
+              label.toUpperCase(),
+              style: MqTextStyles.caption2.copyWith(
+                color: style.fg,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.4,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
