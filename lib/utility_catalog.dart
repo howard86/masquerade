@@ -769,7 +769,7 @@ bool _detectTimestamp(String input) {
 }
 
 bool _detectNumberBase(String input) =>
-    NumberBaseParser.parse(input.trim()) != null;
+    NumberBaseParser.parse(input.trim()) is NumberBaseOk;
 
 bool _detectCron(String input) {
   final String t = input.trim();

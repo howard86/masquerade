@@ -53,17 +53,16 @@ void main() {
     expect(_outputCell('10'), findsOneWidget);
   });
 
-  testWidgets('Number Base — non-numeric input surfaces error cell', (
+  testWidgets('Number Base — invalid hex digit surfaces a precise reason', (
     WidgetTester tester,
   ) async {
     await pumpHomeAndOpen(tester, 'Number Base');
 
-    await tester.enterText(find.byType(EditableText).last, 'xyz!');
+    await tester.enterText(find.byType(EditableText).last, '0xG1');
     await tester.pumpAndSettle(kDebouncePump);
 
-    expect(
-      find.textContaining('Could not parse as a number in any base'),
-      findsOneWidget,
-    );
+    // The precise reason names the offending digit and its base, surfaced
+    // inline via MqInput.error instead of a generic "invalid" state.
+    expect(find.text('"g" is not a valid hexadecimal digit.'), findsOneWidget);
   });
 }

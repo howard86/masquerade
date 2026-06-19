@@ -75,15 +75,19 @@ class _NumberBaseBodyState extends State<NumberBaseBody>
 
   @override
   void parse(String input) {
-    final NumberBaseResult? parsed = NumberBaseParser.parse(input);
+    final NumberBaseParseResult parsed = NumberBaseParser.parse(input);
     setState(() {
-      _result = parsed;
-      _error = parsed == null
-          ? 'Could not parse as a number in any base.'
-          : null;
+      switch (parsed) {
+        case NumberBaseOk(:final result):
+          _result = result;
+          _error = null;
+        case NumberBaseError(:final message):
+          _result = null;
+          _error = message;
+      }
     });
-    if (parsed != null) {
-      recordOutput(input, parsed.decimal);
+    if (parsed is NumberBaseOk) {
+      recordOutput(input, parsed.result.decimal);
     }
     emitToLink();
   }
@@ -120,11 +124,10 @@ class _NumberBaseBodyState extends State<NumberBaseBody>
               onChanged: onInputChanged,
               onPaste: (_) => markPaste(),
               keyboardType: TextInputType.text,
+              error: _error,
             ),
             const SizedBox(height: MqSpacing.lg),
-            if (_error != null)
-              MqMonoCell(label: 'Error', value: _error!, copyable: false)
-            else if (_result != null) ...<Widget>[
+            if (_result != null) ...<Widget>[
               const MqSectionHeader(label: 'Detected base'),
               MqStatus(
                 label: 'Base ${_result!.detectedBase}',
@@ -160,7 +163,7 @@ class _NumberBaseBodyState extends State<NumberBaseBody>
                 excludeUtilityId: 'number_base',
                 onSwitchTool: widget.onSwitchTool,
               ),
-            ] else
+            ] else if (_error == null)
               const MqEmptyHint(
                 label: 'Paste a number to convert across bases.',
               ),
