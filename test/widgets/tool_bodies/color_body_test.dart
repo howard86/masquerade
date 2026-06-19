@@ -2,7 +2,9 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:masquerade/widgets/mq/mq_input.dart';
 import 'package:masquerade/widgets/mq/mq_mono_cell.dart';
+import 'package:masquerade/widgets/mq/mq_status.dart';
 
 import '_helpers.dart';
 
@@ -52,14 +54,50 @@ void main() {
     expect(find.text('AA'), findsWidgets);
   });
 
-  testWidgets('Color — unparseable input surfaces error cell', (
+  testWidgets(
+    'Color — unparseable input surfaces error via MqInput.error/MqStatus, '
+    'not an MqMonoCell',
+    (WidgetTester tester) async {
+      await pumpHomeAndOpen(tester, 'Color');
+
+      await tester.enterText(find.byType(EditableText).last, 'not a color');
+      await tester.pumpAndSettle(kDebouncePump);
+
+      // Precise parser message is preserved and routed to the standard surface:
+      // the MqInput's `error` slot and an MqStatus(danger) banner.
+      expect(find.textContaining('Could not parse color'), findsWidgets);
+
+      final MqInput input = tester.widget<MqInput>(find.byType(MqInput));
+      expect(input.error, contains('Could not parse color'));
+
+      expect(find.byType(MqStatus), findsWidgets);
+
+      // The error is no longer rendered in an MqMonoCell labeled 'Error'.
+      expect(find.text('Error'), findsNothing);
+
+      // Output cells are gone while errored.
+      expect(find.text('HEX'), findsNothing);
+    },
+  );
+
+  testWidgets('Color — recovering from an error restores the output cells', (
     WidgetTester tester,
   ) async {
     await pumpHomeAndOpen(tester, 'Color');
 
     await tester.enterText(find.byType(EditableText).last, 'not a color');
     await tester.pumpAndSettle(kDebouncePump);
+    expect(find.byType(MqStatus), findsWidgets);
 
-    expect(find.textContaining('Could not parse color'), findsOneWidget);
+    await tester.enterText(find.byType(EditableText).last, '#FF0000');
+    await tester.pumpAndSettle(kDebouncePump);
+
+    final MqInput input = tester.widget<MqInput>(find.byType(MqInput));
+    expect(input.error, isNull);
+    expect(_outputCell('#FF0000'), findsOneWidget);
+    expect(find.text('HEX'), findsOneWidget);
+    expect(find.text('RGB'), findsOneWidget);
+    expect(find.text('HSL'), findsOneWidget);
+    expect(find.text('OKLCH'), findsOneWidget);
   });
 }
