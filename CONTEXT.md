@@ -30,7 +30,7 @@ _Avoid_: board, workspace, pane, dashboard, sidebar
 
 **Window**:
 A single **Tool body** or **System window** instance on the **Desktop**, wrapped in window chrome — traffic-light controls (close/minimize/maximize), title bar, slot tag, duplicate, and link toggle (code: `CanvasCard` + `ToolCardFrame`). The window manager (`CanvasController`) provides z-order bring-to-front, minimize, maximize, and edge-snap/half-tiling. Multiple windows of one tool can be open, each with independent state.
-_Avoid_: tile, panel — (*tile* is reserved for the mobile Home grid's `InlineToolCard`)
+_Avoid_: tile, panel — (*tile* is reserved for the mobile Home grid's `ToolGridCard`)
 
 **Menubar**:
 The top Mac-style menu strip pinned to the top of the desktop shell (`DesktopMenubar`). Full-width, fixed height. Left: brand glyph + File / Edit / View / Window menus. Right: live clock. Rehomes the former sidebar functions (Settings, History, Mobile-view, Layouts, New tool, Paste & Detect, Duplicate, Close all, density, window switching).
