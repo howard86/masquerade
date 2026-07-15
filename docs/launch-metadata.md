@@ -1,6 +1,6 @@
 # Launch Metadata — App Store, Web, README, Brand Prompts
 
-Status: locked spec, drafted via /grill-me on 2026-05-11.
+Status: locked spec, drafted via /grill-me on 2026-05-11. Refreshed 2026-07-16 for the current app (tool set grew 9 → 18, version now tracks `pubspec.yaml` `1.25.x`); positioning anchors in §1 unchanged.
 Scope this round: App Store (iOS), web PWA + meta tags, GitHub social card / README hero, brand asset prompts. Play Store metadata deliberately deferred (see §7).
 
 ## 1. Positioning anchors (load-bearing for everything below)
@@ -22,7 +22,7 @@ subtitle:            "A quiet toolbox for builders."       # 29/30
 primary_category:    Utilities
 secondary_category:  Developer Tools
 age_rating:          4+
-keywords:            "json,base64,cron,hex,binary,encode,decode,timestamp,epoch,bps,color,oklch,wcag,qr,scanner,bytes,utf8"   # 100/100
+keywords:            "json,base64,cron,hex,timestamp,epoch,uuid,jwt,hash,diff,cidr,color,oklch,wcag,qr,bytes,url,encode"   # 97/100
 support_url:         https://github.com/howard86/masquerade/issues
 marketing_url:       https://github.com/howard86/masquerade
 privacy_policy_url:  https://github.com/howard86/masquerade/blob/main/docs/privacy.md
@@ -31,23 +31,25 @@ privacy_label:       Data Not Collected
 
 App name on store ≠ home-screen name. `CFBundleDisplayName` stays `Masquerade` so the home-screen label does not truncate.
 
-### Promotional text (170/170, editable post-release without re-review)
+### Promotional text (~150/170, editable post-release without re-review)
 
-> A pocket of conversions for the data you carry — timestamps, JSON, color, base64, cron, basis points, bytes, QR. Offline. No tracking. No noise.
+> A pocket of conversions for the data you carry — timestamps, JSON, JWT, UUID, color, base64, cron, hashes, diffs, QR. Offline. No tracking. No noise.
 
-### Description (~360 chars, lead 250 visible without "more")
+### Description (lead 250 visible without "more")
 
 > Masquerade is a quiet toolbox for builders.
 >
-> Convert timestamps between epoch and ISO. Reformat JSON. Decode base64. Read cron schedules in plain English. Move between hex, binary, decimal, and bytes. Translate colors across HEX, RGB, HSL, and OKLCH with WCAG contrast. Convert basis points to percent and back. Scan or generate QR.
+> Convert timestamps between epoch and ISO. Reformat JSON, YAML, and TOML. Decode base64 and JWTs. Read cron schedules in plain English. Move between hex, binary, decimal, and bytes. Translate colors across HEX, RGB, HSL, and OKLCH with WCAG contrast. Convert basis points to percent and back. Scan or generate QR.
+>
+> Then the deeper drawer: generate and inspect UUIDs and ULIDs. Hash with MD5 through SHA-512. Diff two texts. Subnet IPv4/IPv6 and CIDR blocks. Percent-encode URLs and edit query strings. Evaluate math expressions. Split and join lists. Generate passwords and tokens.
 >
 > Everything runs on-device. Nothing is collected, tracked, or sent anywhere. No accounts. No ads. No telemetry.
 >
 > Built with Cupertino. Typeset in IBM Plex.
 
-### What's New (draft for v1.7.0)
+### What's New (draft for first public release, version from `pubspec.yaml`)
 
-> First public release. Nine tools, one quiet desk.
+> First public release. Eighteen tools, one quiet desk.
 
 ## 3. Web PWA — `web/manifest.json`
 
@@ -188,11 +190,31 @@ and QR — on-device, offline, untracked. Cupertino. IBM Plex.
 
 ## 8. Open issues / pre-submission checklist
 
-- [ ] `docs/privacy.md` exists and the URL returns 200 — App Store rejects otherwise.
-- [ ] `web/favicon.png` (currently the default Flutter favicon, 343 B) regenerated as a 32×32 monogram crop from `assets/brand/source/monogram-light-1024.png`.
+Statuses verified 2026-07-16.
+
+Repo state:
+
+- [x] `docs/privacy.md` exists. Confirm the URL returns 200 for reviewers (repo must be public) — App Store rejects otherwise.
+- [x] `web/favicon.png` regenerated as the monogram (no longer the 343 B Flutter default).
+- [x] Web manifest + OG/Twitter meta tags applied per §3/§4.
+- [x] iOS app icons generated (`flutter_launcher_icons`, light + dark).
+- [x] `NSCameraUsageDescription` set in `Info.plist` (QR scanner).
+- [x] Bundle ID `dev.howardism.Masquerade` (fixed 2026-07-16 — Runner shipped the template's `com.example.howardism` until then; App Store rejects `com.example`); home-screen `CFBundleDisplayName` stays `Masquerade`.
+- [x] `pubspec.yaml` `flutter_launcher_icons.android` left disabled — Android shipping deferred. Re-open with Play Store metadata + adaptive icon source when revisited.
+- [x] ~~Blocker: stray Xcode-generated "Masquerade" SwiftUI target + broken `Debug.xcconfig` include~~ — resolved 2026-07-16: template target removed, `Debug.xcconfig` and `project.pbxproj` restored, bundle-ID fix re-applied surgically.
+- [x] Release archive verified 2026-07-16: `flutter build ipa --release` exports an App Store IPA signed `Apple Distribution` (team `9KRJ83FMAF`) with an App Store provisioning profile (`get-task-allow` false); Flutter app-settings validation green (1.25.2 build 1, Masquerade, `dev.howardism.Masquerade`).
 - [ ] `web/og-banner.png` (1200×630 center crop of generated banner) committed.
-- [ ] `pubspec.yaml` `flutter_launcher_icons.android` left disabled — Android shipping deferred. Re-open with Play Store metadata + adaptive icon source when revisited.
-- [ ] App Store name string entered in App Store Connect, not in `Info.plist`. Home-screen `CFBundleDisplayName` stays `Masquerade`.
+
+Privacy manifests: no app-level `PrivacyInfo.xcprivacy` is needed — the Dart app code uses no required-reason APIs directly; the Flutter engine and plugin pods (`shared_preferences` etc.) ship their own manifests, and the app collects nothing (`Data Not Collected`).
+
+Submission (App Store Connect):
+
+- [ ] Create the app record; enter §2 name/subtitle/keywords/categories/URLs there (not in `Info.plist`).
+- [ ] Privacy label: Data Not Collected.
+- [ ] Screenshots — 6.9″ and 6.5″ iPhone sets minimum; static only (no preview video this round, §9).
+- [ ] Upload the verified IPA (`build/ios/ipa/masquerade.ipa`) via Transporter, or `xcrun altool --upload-app --type ios -f build/ios/ipa/masquerade.ipa --apiKey … --apiIssuer …` — no ASC API key is stored on this machine.
+- [ ] TestFlight pass on a physical device (camera/QR path needs real hardware).
+- [ ] Submit for review with the §2 description + promotional text and the What's New line.
 
 ## 9. Decisions deferred / out of scope
 
