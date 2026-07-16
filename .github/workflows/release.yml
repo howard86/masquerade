@@ -1,14 +1,31 @@
 name: Release
 
-# Manual-only. After changes are merged to main, run this workflow from the
-# Actions tab. release-please maintains a release PR (version bump + changelog
-# from Conventional Commits); merge that PR, then run this workflow again to
-# tag and publish the GitHub Release.
+# release-please on a gitflow layout (develop → main).
+#
+# Flow:
+#   push to develop
+#     → release-please opens/updates a Release PR (version bump + CHANGELOG)
+#     → that PR is retargeted so base = main, making one PR that both promotes
+#       develop and cuts the release
+#   merge the Release PR into main
+#     → release-please tags vX.Y.Z + publishes the GitHub Release on main
+#     → main is merged back into develop so the version + manifest stay in sync
+#     → CI on main goes green and deploys to TestFlight (see ci.yml)
+#
+# release-please cannot open a PR whose base differs from the branch it scans --
+# target-branch is both -- so the develop run opens against develop and the
+# retarget step below moves the base to main afterwards.
+#
+# Requires repo Settings → Actions → General →
+#   "Allow GitHub Actions to create and approve pull requests" = enabled.
 on:
+  push:
+    branches: [develop, main]
   workflow_dispatch:
 
 permissions:
   contents: write
+  issues: write
   pull-requests: write
 
 concurrency:
@@ -21,8 +38,64 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # develop: open/update the Release PR. main: tag + publish the release.
       - uses: googleapis/release-please-action@v4
+        id: release
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # Scan develop's commits so the changelog covers work not yet promoted
+          # to main; on main, only tag and release what the merged PR carried.
+          target-branch: ${{ github.ref_name == 'main' && 'main' || 'develop' }}
+          skip-github-pull-request: ${{ github.ref_name == 'main' }}
+          skip-github-release: ${{ github.ref_name == 'develop' }}
+          # A PAT makes the Release PR trigger CI and lets the sync step push to
+          # develop. Anything created with the default GITHUB_TOKEN cannot trigger
+          # other workflows (GitHub's recursion guard), so on the fallback path the
+          # Release PR opens without checks and may sit unmergeable.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+      # release-please opened the PR against develop; point it at main so merging
+      # promotes the code and cuts the release in a single PR.
+      - name: Retarget Release PR to main
+        if: github.ref_name == 'develop'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          pr=$(gh pr list --state open --json number,baseRefName,headRefName \
+            --jq '[.[] | select(.headRefName | startswith("release-please--branches--develop"))
+                       | select(.baseRefName != "main")] | .[0].number // empty')
+          if [ -z "$pr" ]; then
+            echo "Nothing to retarget: no release PR, or it already targets main."
+            exit 0
+          fi
+          gh pr edit "$pr" --base main
+          echo "Retargeted PR #$pr onto main."
+
+      # The version bump and CHANGELOG land on main via the Release PR, so develop
+      # needs them merged back or the next cycle starts from a stale version.
+      - name: Checkout for main → develop sync
+        if: github.ref_name == 'main' && steps.release.outputs.release_created == 'true'
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Sync main back into develop
+        if: github.ref_name == 'main' && steps.release.outputs.release_created == 'true'
+        env:
+          TAG: ${{ steps.release.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main develop
+          git checkout -B develop origin/develop
+          if git merge-base --is-ancestor origin/main develop; then
+            echo "develop already contains main; nothing to sync."
+            exit 0
+          fi
+          git merge origin/main -m "chore: sync release $TAG from main"
+          git push origin develop
