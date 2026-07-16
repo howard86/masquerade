@@ -1,12 +1,14 @@
 # Masquerade
 
-A Flutter utility-toolbox app — a digital toolbox for the small everyday conversions you keep googling. iOS-styled (Cupertino) and built to run on Android, iOS, web, macOS, Linux, and Windows from one codebase.
+> A quiet toolbox for builders.
+
+A Flutter utility-toolbox app — a digital toolbox for the small everyday conversions you keep googling. On-device, offline, untracked. iOS-styled (Cupertino) and built to run on Android, iOS, web, macOS, Linux, and Windows from one codebase.
 
 [![CI](https://github.com/howard86/masquerade/actions/workflows/ci.yml/badge.svg)](https://github.com/howard86/masquerade/actions/workflows/ci.yml)
 
 ## What's in the toolbox today
 
-Seventeen tools, each reachable from the Home screen's inline cards or via search:
+Eighteen tools, each reachable from the Home screen's grid or via search:
 
 - **UUID** — generate v4 / v7, validate any UUID, inspect version & variant, parse ULID; v1/v7/ULID timestamps cross-link into Timestamp.
 - **IP / CIDR** — parse IPv4 / IPv6 and CIDR blocks; subnet network, broadcast, host range and count, netmask, and scope flags (private / loopback / link-local / multicast / documentation).
@@ -16,6 +18,7 @@ Seventeen tools, each reachable from the Home screen's inline cards or via searc
 - **JSON / YAML / TOML** — pretty-print, minify, browse as an interactive tree, and convert between JSON, YAML, and TOML.
 - **JWT** — decode header, payload, and standard claims from a JSON Web Token. Flags expired / not-yet-valid. Decode-only — no signature verification.
 - **Base64** — encode/decode with URL-safe variant; auto-detects which way you meant.
+- **URL** — percent-encode / decode, and break a URL into editable query parameters.
 - **Color** — HEX / RGB / HSL / OKLCH conversion with WCAG contrast scoring.
 - **Math** — expression evaluator with constants and functions (`pi`, `sin`, `log`, …).
 - **bps · % · decimal** — basis points ↔ percent ↔ decimal.
@@ -30,7 +33,7 @@ Plus, across every tool:
 
 - **Live, debounced parsing** — results update as you type with a 200 ms debounce; unrecognized input surfaces an inline error banner instead of silent failure.
 - **Light / dark / system theme + searchable history** — theme choice and per-tool history persist via `shared_preferences`.
-- **Desktop web canvas** — on wide web (≥ 900 px) the app opens a multi-card canvas: tools open as draggable cards found through a ⌘K command palette, with live links that pipe one tool's output into the next and saved layouts that persist. A sidebar toggle drops back to the mobile view.
+- **Desktop OS on wide web** — at ≥ 900 px the app becomes a full-bleed macOS-style desktop: menubar, wallpaper, desktop icons, a dock, and a ⌘K Spotlight palette. Tools open as windows (traffic-light chrome, minimize / maximize / edge-snap) with live links that pipe one window's output into the next and saved layouts that persist. History and Settings open as system windows; a menu item drops back to the mobile view.
 
 ## Requirements
 

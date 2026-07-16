@@ -4,22 +4,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Masquerade is a Flutter utility-toolbox app. iOS-first (`CupertinoApp`). Tab scaffold (`lib/screens/root_tab_scaffold.dart`) with three tabs — home / history / settings (search is a field on Home, not a tab). Tools render inline on Home as `InlineToolCard`s and open full-screen through the shared `lib/screens/detail/tool_detail_route.dart`. Every tool is registered in `lib/utility_catalog.dart`:
+Masquerade is a Flutter utility-toolbox app. iOS-first (`CupertinoApp`). Tab scaffold (`lib/screens/root_tab_scaffold.dart`) with three tabs — home / history / settings (search is a field on Home, not a tab). Tools render on Home as `ToolGridCard` tiles and open full-screen through the shared `lib/screens/detail/tool_detail_route.dart`. Every tool is registered in `lib/utility_catalog.dart`:
 
+- UUID (generate v4/v7, validate, inspect, ULID)
+- IP / CIDR (IPv4/IPv6, subnet math, scope flags)
 - Number Base (hex/binary/octal/decimal)
 - Timestamp (Unix s/ms, ISO 8601)
 - Cron (cron expressions ↔ natural language)
 - JSON (pretty/minify/tree, plus YAML/TOML conversion)
+- JWT (decode header/payload/claims — no signature verification)
 - Base64 (encode/decode, URL-safe)
+- URL (percent encode/decode, editable query params)
 - Color (HEX/RGB/HSL/OKLCH, WCAG contrast)
 - Math (expression evaluator)
 - bps (basis points ↔ % ↔ decimal)
 - Bytes (byte array ↔ text, UTF-8)
 - List (split ↔ join)
 - Diff (compare two texts, line/word)
+- Hash (MD5/SHA-1/SHA-256/SHA-512, verify mode)
 - QR Code (scan / generate)
+- Generator (passwords, random tokens, UUIDs)
 
-Add new tools by registering in `UtilityCatalog` plus an embeddable body widget under `lib/widgets/tool_bodies/<tool>_body.dart`. Home reads the catalog directly and renders each entry as an `InlineToolCard` — there is no manual wiring elsewhere.
+Add new tools by registering in `UtilityCatalog` plus an embeddable body widget under `lib/widgets/tool_bodies/<tool>_body.dart`. Home reads the catalog directly and renders each entry as a `ToolGridCard` — there is no manual wiring elsewhere.
 
 On wide web (≥ 900 px) the same catalog tools also open on a **desktop OS** (`lib/screens/desktop/`) — a full-bleed, skeuomorphic macOS-style desktop with a menubar, wallpaper, desktop icon grid, windowed cards (traffic-light chrome + a window manager with z-order, minimize/maximize, edge-snap), a dock, a Spotlight ⌘K palette, and History/Settings as system windows. Live links pipe one window's output into another. See `CONTEXT.md` for the domain language and `docs/adr/` (0001 for the link engine, 0002 for the desktop OS metaphor).
 
@@ -27,8 +33,8 @@ On wide web (≥ 900 px) the same catalog tools also open on a **desktop OS** (`
 
 - Flutter `3.41.8` (pinned in `.github/workflows/ci.yml`).
 - UI: Cupertino widgets only (`uses-material-design: false` in `pubspec.yaml`). Do not introduce `Material*` widgets, `Scaffold`, or `MaterialApp`.
-- Runtime deps: `cupertino_icons`, `intl`, `package_info_plus`, `shared_preferences`. No third-party UI packages — `lib/widgets/iphone_frame.dart` is hand-rolled.
-- Dev deps are minimal: `flutter_test` + `flutter_lints` only. No codegen, no mock framework. If you reach for `build_runner`/`mockito`/`json_serializable`, add the dep AND wire the generator/CI step in the same change.
+- Runtime deps: `crypto`, `cupertino_icons`, `intl`, `package_info_plus`, `shared_preferences`, `mobile_scanner`, `qr_flutter`, `share_plus`, `cross_file`, `flutter_lucide`, `flutter_svg`, `flutter_native_splash` (keep `^2.4.7` — 2.4.8 conflicts with the flutter_test `meta` pin), `decimal`/`rational`, and `yaml`/`yaml_writer`/`toml`. No third-party UI kits — `lib/widgets/iphone_frame.dart` is hand-rolled.
+- Dev deps: `flutter_test`, `flutter_lints`, `fake_async`, `flutter_launcher_icons` (run-once icon generator, output committed). No codegen, no mock framework. If you reach for `build_runner`/`mockito`/`json_serializable`, add the dep AND wire the generator/CI step in the same change.
 
 ## Layout
 
