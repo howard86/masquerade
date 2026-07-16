@@ -16,6 +16,10 @@ enum MqShellLayout {
 
   /// Mobile UI scaled inside the hand-drawn iPhone silhouette (large viewport
   /// running the mobile presentation).
+  ///
+  /// Deliberately NOT gated on `isWeb` — a wide browser window previewing the
+  /// mobile UI is the point. Native iOS only reaches this on iPad, which the
+  /// App Store build no longer targets (see `docs/adr/0003`).
   framedMobile,
 
   /// Full desktop layout: sidebar nav + multi-column content (web only).
