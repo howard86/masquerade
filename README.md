@@ -2,7 +2,7 @@
 
 > A quiet toolbox for builders.
 
-A Flutter utility-toolbox app — a digital toolbox for the small everyday conversions you keep googling. On-device, offline, untracked. iOS-styled (Cupertino) and built to run on Android, iOS, web, macOS, Linux, and Windows from one codebase.
+A Flutter utility-toolbox app — a digital toolbox for the small everyday conversions you keep googling. On-device, offline, untracked. iOS-styled (Cupertino) and built to run on Android, iOS, web, macOS, Linux, and Windows from one codebase. The App Store build ships iPhone-only — iPad has no layout of its own ([ADR 0003](docs/adr/0003-iphone-only-ios-target.md)).
 
 [![CI](https://github.com/howard86/masquerade/actions/workflows/ci.yml/badge.svg)](https://github.com/howard86/masquerade/actions/workflows/ci.yml)
 
