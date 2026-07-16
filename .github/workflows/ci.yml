@@ -146,3 +146,64 @@ jobs:
         if: always()
         with:
           sarif_file: "trivy-results.sarif"
+
+  # main only ever receives release-please's Release PR, retargeted from develop
+  # (see release.yml), so a green main means a new version just landed -- ship it.
+  # Skipped entirely on develop and on PRs.
+  #
+  # Requires these repository secrets (none are set yet -- the job fails at the
+  # signing step until they are):
+  #   ASC_KEY_ID, ASC_ISSUER_ID  -- App Store Connect API key identifiers
+  #   ASC_KEY_P8                 -- the .p8 private key, base64-encoded
+  #   IOS_DIST_CERT_P12          -- Apple Distribution cert + key, base64-encoded
+  #   IOS_DIST_CERT_PASSWORD     -- password protecting that .p12
+  deploy-ios:
+    name: Deploy to TestFlight
+    runs-on: macos-latest
+    needs: [analyze-and-test, security]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Import signing certificate
+        uses: apple-actions/import-codesign-certs@v5
+        with:
+          p12-file-base64: ${{ secrets.IOS_DIST_CERT_P12 }}
+          p12-password: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+
+      # `flutter build ipa` has no --no-codesign and would try to sign the archive
+      # with automatic signing, which needs an Xcode account this runner lacks --
+      # and it exits 0 when the export fails, hiding it. Build unsigned and let
+      # fastlane archive/sign/export instead.
+      #
+      # --build-number overrides pubspec's +N: release-please rewrites that line
+      # every release, and TestFlight rejects a build number it has already seen.
+      # run_number is monotonic and is already past the builds uploaded by hand.
+      - name: Build (unsigned)
+        run: flutter build ios --release --no-codesign --build-number=${{ github.run_number }}
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          working-directory: ios
+          bundler-cache: true
+
+      - name: Upload to TestFlight
+        run: bundle exec fastlane beta
+        working-directory: ios
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
