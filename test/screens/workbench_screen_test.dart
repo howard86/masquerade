@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
 import 'package:masquerade/models/artifact.dart';
 import 'package:masquerade/screens/detail/tool_detail_route.dart';
+import 'package:masquerade/state/detection_preference_controller.dart';
 import 'package:masquerade/utility_catalog.dart';
 import 'package:masquerade/widgets/mq/tool_grid_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,13 +14,18 @@ const Size _phone = Size(393, 852);
 Future<void> _pumpWorkbench(
   WidgetTester tester, {
   TextScaler textScaler = TextScaler.noScaling,
+  DetectionPreferenceController? detectionPreferenceController,
 }) async {
   await tester.binding.setSurfaceSize(_phone);
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
     MediaQuery(
       data: MediaQueryData(size: _phone, textScaler: textScaler),
-      child: const MyApp(isWebOverride: false, skipSplash: true),
+      child: MyApp(
+        isWebOverride: false,
+        skipSplash: true,
+        detectionPreferenceController: detectionPreferenceController,
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -150,6 +156,44 @@ void main() {
     expect(route.initialArtifact?.kind, ArtifactKind.timestamp);
     expect(route.initialArtifact?.provenance, ArtifactProvenance.typed);
     expect(route.initialArtifact?.parserResult, isNotNull);
+  });
+
+  testWidgets('explicit correction changes the selected destination', (
+    WidgetTester tester,
+  ) async {
+    final DetectionPreferenceController preferences =
+        DetectionPreferenceController();
+    await _pumpWorkbench(tester, detectionPreferenceController: preferences);
+    await _enter(tester, '1700000000');
+
+    await tester.tap(
+      find.bySemanticsLabel('Make Number Base the primary interpretation'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(_semanticsStarts('Open Number Base. Primary'), findsOneWidget);
+    expect(_semanticsStarts('Open Timestamp. Alternative'), findsOneWidget);
+    await tester.tap(_semanticsStarts('Open Number Base. Primary'));
+    await tester.pumpAndSettle();
+    final ToolDetailRoute route = tester.widget(find.byType(ToolDetailRoute));
+    expect(route.descriptor.id, 'number_base');
+    expect(route.initialArtifact?.kind, ArtifactKind.number);
+  });
+
+  testWidgets('opening an alternate does not save a preference', (
+    WidgetTester tester,
+  ) async {
+    await _pumpWorkbench(tester);
+    await _enter(tester, '1700000000');
+
+    await tester.tap(_semanticsStarts('Open Number Base. Alternative'));
+    await tester.pumpAndSettle();
+
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    expect(
+      prefs.containsKey(DetectionPreferenceController.storageKey),
+      isFalse,
+    );
   });
 
   testWidgets('JWT offers Base64 as a lower-confidence interpretation', (

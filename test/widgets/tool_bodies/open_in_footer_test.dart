@@ -1,21 +1,32 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:masquerade/models/artifact.dart';
+import 'package:masquerade/state/detection_preference_controller.dart';
 import 'package:masquerade/state/history_controller.dart';
 import 'package:masquerade/theme/mq_colors.dart';
 import 'package:masquerade/theme/mq_theme.dart';
 import 'package:masquerade/utility_catalog.dart';
+import 'package:masquerade/widgets/mq/mq_chip.dart';
 import 'package:masquerade/widgets/tool_bodies/open_in_footer.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-Widget _harness(Widget child) {
+Widget _harness(
+  Widget child, {
+  DetectionPreferenceController? detectionPreferenceController,
+}) {
   return CupertinoApp(
     // MqTheme must wrap the navigator/overlay so the copy toast (inserted
     // via Overlay) can read tokens via `context.mq`.
     builder: (BuildContext _, Widget? root) => MqTheme(
       tokens: MqTokens(colors: MqColors.light(), brightness: Brightness.light),
-      child: HistoryScope(
-        controller: HistoryController(),
-        child: root ?? const SizedBox.shrink(),
+      child: DetectionPreferenceScope(
+        controller:
+            detectionPreferenceController ?? DetectionPreferenceController(),
+        child: HistoryScope(
+          controller: HistoryController(),
+          child: root ?? const SizedBox.shrink(),
+        ),
       ),
     ),
     home: CupertinoPageScaffold(child: child),
@@ -23,6 +34,8 @@ Widget _harness(Widget child) {
 }
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues(<String, Object>{}));
+
   group('OpenInFooter', () {
     testWidgets('renders nothing when output is null', (
       WidgetTester tester,
@@ -120,6 +133,35 @@ void main() {
       expect(find.text('OPEN IN'), findsOneWidget);
       expect(find.text('Number Base'), findsOneWidget);
       expect(find.text('Timestamp'), findsNothing);
+    });
+
+    testWidgets('saved preference reorders compatible Open in targets', (
+      WidgetTester tester,
+    ) async {
+      final DetectionPreferenceController preferences =
+          DetectionPreferenceController();
+      await preferences.prefer(
+        UtilityCatalog.detectArtifacts('1700000000'),
+        ArtifactKind.number,
+      );
+      await tester.pumpWidget(
+        _harness(
+          OpenInFooter(
+            output: '1700000000',
+            excludeUtilityId: 'generator',
+            onSwitchTool: (_, _) {},
+          ),
+          detectionPreferenceController: preferences,
+        ),
+      );
+
+      expect(
+        tester
+            .widgetList<MqChip>(find.byType(MqChip))
+            .map((MqChip chip) => chip.label)
+            .toList(),
+        <String>['Number Base', 'Timestamp'],
+      );
     });
 
     testWidgets('renders nothing when only self detects', (

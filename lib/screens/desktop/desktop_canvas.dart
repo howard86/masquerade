@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../../models/artifact.dart';
 import '../../state/canvas_controller.dart';
+import '../../state/detection_preference_controller.dart';
 import '../../state/link_group.dart';
 import '../../state/window_content.dart';
 import '../../theme/mq_theme.dart';
@@ -302,9 +303,11 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
 
   void _onDropOnCanvas(DragTargetDetails<PipePayload> details) {
     final List<DetectionMatch<Object?>> matches =
-        UtilityCatalog.detectArtifacts(
-          details.data.value,
-          provenance: ArtifactProvenance.liveLink,
+        DetectionPreferenceScope.of(context).rank(
+          UtilityCatalog.detectArtifacts(
+            details.data.value,
+            provenance: ArtifactProvenance.liveLink,
+          ),
         );
     if (matches.isEmpty) return;
     final RenderBox? box =

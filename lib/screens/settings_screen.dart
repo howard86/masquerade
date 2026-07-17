@@ -5,6 +5,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'acknowledgements_screen.dart';
 import 'privacy_policy_screen.dart';
 import '../state/history_controller.dart';
+import '../state/detection_preference_controller.dart';
 import '../state/sensitive_session_controller.dart';
 import '../state/theme_controller.dart';
 import '../state/view_mode_controller.dart';
@@ -57,6 +58,8 @@ class SettingsBody extends StatelessWidget {
     final c = context.mq.colors;
     final ThemeController theme = ThemeScope.of(context);
     final HistoryController history = HistoryScope.of(context);
+    final DetectionPreferenceController detectionPreferences =
+        DetectionPreferenceScope.of(context);
     final ViewModeController viewMode = ViewModeScope.of(context);
     final bool showViewToggle = toggleAvailable(
       isWeb: isWebOverride ?? kIsWeb,
@@ -74,6 +77,37 @@ class SettingsBody extends StatelessWidget {
         Text(
           'Settings',
           style: MqTextStyles.largeTitle.copyWith(color: c.textPri),
+        ),
+        const SizedBox(height: MqSpacing.xl),
+        const MqSectionHeader(label: 'Detection'),
+        MqSurface(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                'Artifact interpretations',
+                style: MqTextStyles.headline.copyWith(color: c.textPri),
+              ),
+              const SizedBox(height: MqSpacing.sm),
+              Text(
+                detectionPreferences.hasPreferences
+                    ? 'Your type-only detection choices are active.'
+                    : 'No detection choices have been saved.',
+                style: MqTextStyles.subhead.copyWith(color: c.textSec),
+              ),
+              const SizedBox(height: MqSpacing.md),
+              MqButton(
+                label: 'Reset detection choices',
+                icon: MqIcons.clear,
+                variant: MqButtonVariant.glass,
+                full: true,
+                onPressed: detectionPreferences.hasPreferences
+                    ? () =>
+                          _confirmResetDetection(context, detectionPreferences)
+                    : null,
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: MqSpacing.xl),
         const MqSectionHeader(label: 'Appearance'),
@@ -311,6 +345,36 @@ class SettingsBody extends StatelessWidget {
               Navigator.of(ctx).pop();
             },
             child: const Text('Clear'),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmResetDetection(
+    BuildContext context,
+    DetectionPreferenceController preferences,
+  ) {
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (BuildContext ctx) => CupertinoAlertDialog(
+        title: const Text('Reset detection choices?'),
+        content: const Text(
+          'Ambiguous values will use their default interpretation again.',
+        ),
+        actions: <Widget>[
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await preferences.reset();
+            },
+            child: const Text('Reset'),
           ),
           CupertinoDialogAction(
             isDefaultAction: true,

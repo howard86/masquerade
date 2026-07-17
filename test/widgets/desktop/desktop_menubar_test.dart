@@ -1,7 +1,9 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
+import 'package:masquerade/models/artifact.dart';
 import 'package:masquerade/screens/desktop/desktop_shell.dart';
+import 'package:masquerade/state/detection_preference_controller.dart';
 import 'package:masquerade/state/view_mode_controller.dart';
 import 'package:masquerade/utility_catalog.dart';
 import 'package:masquerade/widgets/desktop/desktop_icon_grid.dart';
@@ -11,7 +13,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const Size _desktop = Size(1200, 900);
 
-Future<void> _pump(WidgetTester tester) async {
+Future<void> _pump(
+  WidgetTester tester, {
+  DetectionPreferenceController? detectionPreferenceController,
+}) async {
   await tester.binding.setSurfaceSize(_desktop);
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
@@ -19,6 +24,7 @@ Future<void> _pump(WidgetTester tester) async {
       isWebOverride: true,
       viewModeController: ViewModeController(initial: MqViewMode.desktop),
       skipSplash: true,
+      detectionPreferenceController: detectionPreferenceController,
     ),
   );
   await tester.pumpAndSettle();
@@ -45,6 +51,39 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(ToolCardFrame), findsNothing);
       expect(find.byType(DesktopIconGrid), findsOneWidget);
+    });
+
+    testWidgets('Paste & Detect honors a saved type preference', (
+      WidgetTester tester,
+    ) async {
+      final TestDefaultBinaryMessenger messenger =
+          tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (MethodCall call) async => call.method == 'Clipboard.getData'
+            ? <String, Object>{'text': '1700000000'}
+            : null,
+      );
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+      final DetectionPreferenceController preferences =
+          DetectionPreferenceController();
+      await preferences.prefer(
+        UtilityCatalog.detectArtifacts('1700000000'),
+        ArtifactKind.number,
+      );
+      await _pump(tester, detectionPreferenceController: preferences);
+
+      await tester.tap(find.text('Edit'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Paste & Detect  ⌘V'));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<ToolCardFrame>(find.byType(ToolCardFrame)).title,
+        'Number Base',
+      );
     });
 
     testWidgets('Paste & Detect opens the highest-ranked interpretation', (

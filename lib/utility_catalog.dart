@@ -1117,13 +1117,16 @@ class UtilityCatalog {
   /// Unknown sources fail closed rather than bypassing typed routing.
   static List<UtilityDescriptor> compatibleNextSteps(
     String sourceUtilityId,
-    String output,
-  ) {
+    String output, {
+    List<DetectionMatch<Object?>> Function(List<DetectionMatch<Object?>>)? rank,
+  }) {
     final UtilityDescriptor? source = byIdOrNull(sourceUtilityId);
     if (source == null) return const <UtilityDescriptor>[];
-    return detectedTools(
-          detectArtifacts(output, provenance: ArtifactProvenance.generated),
-        )
+    final List<DetectionMatch<Object?>> matches = detectArtifacts(
+      output,
+      provenance: ArtifactProvenance.generated,
+    );
+    return detectedTools(rank?.call(matches) ?? matches)
         .where(
           (UtilityDescriptor target) =>
               source.producedTypes.any(target.acceptedTypes.contains),

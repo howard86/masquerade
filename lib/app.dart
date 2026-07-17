@@ -3,6 +3,7 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 
 import 'screens/root_tab_scaffold.dart';
 import 'state/density_controller.dart';
+import 'state/detection_preference_controller.dart';
 import 'state/history_controller.dart';
 import 'state/library_controller.dart';
 import 'state/sensitive_session_controller.dart';
@@ -22,6 +23,7 @@ class MyApp extends StatefulWidget {
     this.historyController,
     this.libraryController,
     this.densityController,
+    this.detectionPreferenceController,
     this.viewModeController,
     this.isWebOverride,
     this.skipSplash = false,
@@ -31,6 +33,7 @@ class MyApp extends StatefulWidget {
   final HistoryController? historyController;
   final LibraryController? libraryController;
   final DensityController? densityController;
+  final DetectionPreferenceController? detectionPreferenceController;
   final ViewModeController? viewModeController;
 
   /// Test seam for the web-gated desktop shell. `kIsWeb` is always false under
@@ -60,6 +63,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   late final LibraryController _library;
   late final SensitiveSessionController _sensitiveSession;
   late final DensityController _density;
+  late final DetectionPreferenceController _detectionPreference;
   late final ViewModeController _viewMode;
   late final WallpaperController _wallpaper;
   late final Listenable _appListenable;
@@ -75,6 +79,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _library = widget.libraryController ?? LibraryController();
     _sensitiveSession = SensitiveSessionController(_history);
     _density = widget.densityController ?? DensityController();
+    _detectionPreference =
+        widget.detectionPreferenceController ?? DetectionPreferenceController();
     _viewMode = widget.viewModeController ?? ViewModeController();
     _wallpaper = WallpaperController();
     _attachWallpaperPrefs();
@@ -142,56 +148,61 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         controller: _theme,
         child: DensityScope(
           controller: _density,
-          child: HistoryScope(
-            controller: _history,
-            child: WallpaperScope(
-              controller: _wallpaper,
-              child: ListenableBuilder(
-                listenable: _appListenable,
-                builder: (BuildContext context, _) {
-                  final Brightness brightness = _resolveBrightness(_theme.mode);
-                  final MqColors colors = brightness == Brightness.dark
-                      ? MqColors.dark()
-                      : MqColors.light();
-                  final MqTokens tokens = MqTokens(
-                    colors: colors,
-                    brightness: brightness,
-                    density: _density.density,
-                  );
-                  return CupertinoApp(
-                    debugShowCheckedModeBanner: false,
-                    title: 'Masquerade',
-                    theme: buildCupertinoTheme(brightness),
-                    builder: (BuildContext context, Widget? child) => MqTheme(
-                      tokens: tokens,
-                      child: ResponsiveLayout(
-                        isWebOverride: widget.isWebOverride,
-                        child: AnimatedSwitcher(
-                          duration: _splashFade,
-                          child: _showSplash
-                              ? const MqSplashScreen(
-                                  key: ValueKey<String>('splash'),
-                                )
-                              : KeyedSubtree(
-                                  key: const ValueKey<String>('shell'),
-                                  child: child ?? const SizedBox.shrink(),
-                                ),
-                        ),
-                      ),
-                    ),
-                    home: SensitiveSessionScope(
-                      controller: _sensitiveSession,
-                      child: ListenableBuilder(
-                        listenable: _sensitiveSession,
-                        builder: (BuildContext context, _) => RootTabScaffold(
-                          key: ValueKey<int>(_sensitiveSession.revision),
+          child: DetectionPreferenceScope(
+            controller: _detectionPreference,
+            child: HistoryScope(
+              controller: _history,
+              child: WallpaperScope(
+                controller: _wallpaper,
+                child: ListenableBuilder(
+                  listenable: _appListenable,
+                  builder: (BuildContext context, _) {
+                    final Brightness brightness = _resolveBrightness(
+                      _theme.mode,
+                    );
+                    final MqColors colors = brightness == Brightness.dark
+                        ? MqColors.dark()
+                        : MqColors.light();
+                    final MqTokens tokens = MqTokens(
+                      colors: colors,
+                      brightness: brightness,
+                      density: _density.density,
+                    );
+                    return CupertinoApp(
+                      debugShowCheckedModeBanner: false,
+                      title: 'Masquerade',
+                      theme: buildCupertinoTheme(brightness),
+                      builder: (BuildContext context, Widget? child) => MqTheme(
+                        tokens: tokens,
+                        child: ResponsiveLayout(
                           isWebOverride: widget.isWebOverride,
-                          libraryController: _library,
+                          child: AnimatedSwitcher(
+                            duration: _splashFade,
+                            child: _showSplash
+                                ? const MqSplashScreen(
+                                    key: ValueKey<String>('splash'),
+                                  )
+                                : KeyedSubtree(
+                                    key: const ValueKey<String>('shell'),
+                                    child: child ?? const SizedBox.shrink(),
+                                  ),
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                },
+                      home: SensitiveSessionScope(
+                        controller: _sensitiveSession,
+                        child: ListenableBuilder(
+                          listenable: _sensitiveSession,
+                          builder: (BuildContext context, _) => RootTabScaffold(
+                            key: ValueKey<int>(_sensitiveSession.revision),
+                            isWebOverride: widget.isWebOverride,
+                            libraryController: _library,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
           ),
