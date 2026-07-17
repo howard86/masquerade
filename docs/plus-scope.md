@@ -3,6 +3,13 @@
 **Status:** Draft, no decision yet. Revisit before v2.0. ADR owed once the
 decision is made.
 
+> **Superseded in part, 2026-07-17.** v1 ships as a **one-time purchase** with
+> no IAP (`docs/launch-metadata.md` §2). That settles the near-term question in
+> the same direction this doc proposed — defer Plus — but it also means any
+> future Plus tier arrives as an IAP layered onto an already-paid app, not as
+> the free→paid upgrade path assumed below. Re-derive the pricing section
+> before acting on it.
+
 **Decision (proposed):** Defer Plus tier entirely until the catalog stabilises
 post-v1.0. Masquerade's three tools that would plausibly justify pricing
 (regex tester, JWT verify, large-file mode) are not yet built; shipping them

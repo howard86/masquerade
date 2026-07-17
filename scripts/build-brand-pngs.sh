@@ -4,6 +4,12 @@
 #
 # Usage: ./scripts/build-brand-pngs.sh
 #
+# Full regeneration, after editing any assets/brand/*.svg:
+#   brew install librsvg                       # one-time
+#   ./scripts/build-brand-pngs.sh              # SVG -> PNG sources
+#   dart run flutter_launcher_icons            # iOS + web icons
+#   dart run flutter_native_splash:create      # iOS + web splash
+#
 # Inputs (committed):
 #   assets/brand/monogram-{light,dark}.svg            — square mark with hairline border
 #   assets/brand/monogram-{light,dark}-maskable.svg   — square mark with 10% safe-zone inset (no border)

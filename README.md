@@ -50,7 +50,11 @@ flutter run -d chrome          # web
 flutter run -d macos           # desktop
 ```
 
-CI does not produce release builds; run `flutter build <target> --release` locally only when you need to debug a specific platform.
+CI builds and ships the iOS release itself: a green `main` uploads to TestFlight automatically. Run `flutter build <target> --release` locally only when you need to debug a specific platform.
+
+## Releases
+
+`develop` is the default branch. [release-please](.github/workflows/release.yml) opens a Release PR from it (version bump + CHANGELOG) and retargets it to `main`; merging that PR promotes `develop`, tags `vX.Y.Z`, and deploys to TestFlight in one hop. Don't tag by hand.
 
 ## Test and lint
 
@@ -72,8 +76,14 @@ dart format --output=none --set-exit-if-changed .
 
    Hooks enforce `dart format`, `flutter analyze`, and Conventional Commits via `commitizen`.
 
-2. Branch from `main` using `feature/<slug>` and use Conventional Commit prefixes (`feat:`, `fix:`, `docs:`, `chore:`).
+2. Branch from `develop` using `feature/<slug>` and use Conventional Commit prefixes (`feat:`, `fix:`, `docs:`, `chore:`). PRs target `develop`; `main` only receives Release PRs.
 
 3. Cupertino widgets only — `pubspec.yaml` has `uses-material-design: false`. Don't introduce `Material*` widgets without team discussion.
 
 4. Mirror `lib/` structure under `test/` and add tests for new functionality.
+
+## License
+
+Source-available, **not** open-source — see [LICENSE](LICENSE). You may read, fork, and build it locally; you may not redistribute it or publish a derived app. Masquerade is sold as a one-time purchase on the App Store, and that listing is the only authorised distribution of the compiled app. Contributions are welcome under the terms in `LICENSE`.
+
+The bundled IBM Plex fonts are licensed separately under the [SIL Open Font License 1.1](assets/fonts/OFL.txt).
