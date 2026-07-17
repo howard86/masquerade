@@ -1,9 +1,8 @@
 import 'package:flutter/foundation.dart';
 
-/// The closed set of value kinds a [LinkGroup] can be keyed on, shared with the
-/// drag pipeline's content-type hints. A card can join a group only if its tool
-/// body can project/parse the group's [ContentType].
-enum ContentType { text, bytes, number, epoch, json, color, lines }
+import '../models/content_type.dart';
+
+export '../models/content_type.dart';
 
 /// A set of cards sharing one canonical value — the unit a live link operates
 /// on (see docs/adr/0001). The group owns the single source of truth
