@@ -18,6 +18,8 @@
 		A10000000000000000000002 /* ShareInboxStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000011 /* ShareInboxStore.swift */; };
 		A10000000000000000000003 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000012 /* ShareViewController.swift */; };
 		A10000000000000000000004 /* ShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A10000000000000000000016 /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A20000000000000000000001 /* AppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* AppIntents.swift */; };
+		A20000000000000000000002 /* AppIntentRequestStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000012 /* AppIntentRequestStore.swift */; };
 		CADDDF424D83DD48401CABE1 /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2ECA12BA32F77FCF486CB02A /* Pods_Runner.framework */; };
 /* End PBXBuildFile section */
 
@@ -89,6 +91,8 @@
 		A10000000000000000000015 /* Runner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Runner.entitlements; sourceTree = "<group>"; };
 		A10000000000000000000016 /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000017 /* ShareExtension.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = ShareExtension.xcconfig; path = Flutter/ShareExtension.xcconfig; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000011 /* AppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIntents.swift; sourceTree = "<group>"; };
+		A20000000000000000000012 /* AppIntentRequestStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIntentRequestStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -164,6 +168,7 @@
 				1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */,
 				1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */,
 				74858FAE1ED2DC5600515810 /* AppDelegate.swift */,
+				A20000000000000000000011 /* AppIntents.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 				A10000000000000000000015 /* Runner.entitlements */,
 			);
@@ -174,6 +179,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000011 /* ShareInboxStore.swift */,
+				A20000000000000000000012 /* AppIntentRequestStore.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -428,6 +434,8 @@
 				74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				A10000000000000000000001 /* ShareInboxStore.swift in Sources */,
+				A20000000000000000000001 /* AppIntents.swift in Sources */,
+				A20000000000000000000002 /* AppIntentRequestStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -470,7 +470,10 @@ void main() {
           },
         ];
       }
-      return call.method == 'list' ? <Object?>[] : true;
+      if (call.method == 'list' || call.method == 'consumeIntents') {
+        return <Object?>[];
+      }
+      return true;
     });
     addTearDown(
       () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
@@ -514,6 +517,8 @@ void main() {
                 'payload': 'hello',
               },
             ]
+          : call.method == 'consumeIntents'
+          ? <Object?>[]
           : false,
     );
     addTearDown(
