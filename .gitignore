@@ -83,7 +83,9 @@ Desktop.ini
 
 # Tooling and temporary directories
 .antigravitycli/
-.codex/
+!.codex/
+.codex/*
+!.codex/hooks.json
 
 # /toolbox-improve loop runtime state. The backlog + claims now live GLOBALLY under ~/.claude
 # (so every git worktree shares one set); these in-repo paths are ignored only as a safety net
