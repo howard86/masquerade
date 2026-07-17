@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/state/canvas_controller.dart';
 import 'package:masquerade/state/history_controller.dart';
 import 'package:masquerade/state/sensitive_session_controller.dart';
+import 'package:masquerade/state/tool_draft_controller.dart';
 import 'package:masquerade/state/work_session_controller.dart';
 import 'package:masquerade/models/artifact.dart';
 import 'package:masquerade/utility_catalog.dart';
@@ -54,9 +55,16 @@ void main() {
           provenance: ArtifactProvenance.clipboard,
         ),
       );
+    final ToolDraftController toolDrafts = await ToolDraftController.load();
+    await toolDrafts.saveJson(
+      input: '{"safe":true}',
+      source: 'json',
+      target: 'prettyJson',
+    );
     final SensitiveSessionController session = SensitiveSessionController(
       history,
       workSession: workSession,
+      toolDrafts: toolDrafts,
     );
 
     await session.clear();
@@ -64,6 +72,14 @@ void main() {
     expect(session.revision, 1);
     expect(history.entries, isEmpty);
     expect(workSession.session, isNull);
+    expect(toolDrafts.json, isNull);
+    expect(prefs.containsKey(ToolDraftController.storageKey), isFalse);
+    await toolDrafts.saveJson(
+      input: '{"new":true}',
+      source: 'json',
+      target: 'prettyJson',
+    );
+    expect(toolDrafts.json!.input, '{"new":true}');
     expect(prefs.getString(CanvasController.currentKey), isNull);
     final String savedLayouts = prefs.getString(CanvasController.layoutsKey)!;
     expect(savedLayouts, isNot(contains(raw)));

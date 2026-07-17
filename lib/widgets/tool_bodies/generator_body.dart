@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../state/history_controller.dart';
 import '../../state/link_group.dart';
+import '../../state/tool_draft_controller.dart';
 import '../../theme/mq_metrics.dart';
 import '../../utility_catalog.dart';
 import '../../utils/generator.dart';
@@ -58,6 +61,9 @@ class _GeneratorBodyState extends State<GeneratorBody> {
 
   String _output = '';
   HistoryRecorder? _recorder;
+  ToolDraftController? _drafts;
+  bool _draftRestored = false;
+  int? _draftRevision;
 
   @override
   void initState() {
@@ -77,6 +83,28 @@ class _GeneratorBodyState extends State<GeneratorBody> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _drafts ??= ToolDraftScope.maybeOf(context);
+    final MobileSessionRouteScope? route = MobileSessionRouteScope.maybeOf(
+      context,
+    );
+    final ToolDraftController? drafts = _drafts;
+    if (!_draftRestored && route != null && drafts != null && drafts.ready) {
+      _draftRevision = drafts.revision;
+      _draftRestored = true;
+      final GeneratorToolDraft? draft = drafts.generator;
+      if (draft != null) {
+        _mode = GenMode.values.byName(draft.mode);
+        _lengthCtrl.text = draft.length.toString();
+        _bytesCtrl.text = draft.bytes.toString();
+        _lower = draft.lower;
+        _upper = draft.upper;
+        _digits = draft.digits;
+        _symbols = draft.symbols;
+        _tokenFormat = TokenFormat.values.byName(draft.tokenFormat);
+        _uuidVersion = GenUuidVersion.values.byName(draft.uuidVersion);
+        _output = _build();
+      }
+    }
     if (_recorder == null) {
       _recorder = HistoryRecorder(
         controller: HistoryScope.of(context),
@@ -128,6 +156,38 @@ class _GeneratorBodyState extends State<GeneratorBody> {
   void _generate() {
     setState(() => _output = _build());
     _record();
+    _saveDraft();
+  }
+
+  void _saveDraft() {
+    final ToolDraftController? drafts = _drafts;
+    final int? revision = _draftRevision;
+    final MobileSessionRouteScope? route = MobileSessionRouteScope.maybeOf(
+      context,
+    );
+    if (drafts == null ||
+        !drafts.ready ||
+        route == null ||
+        route.protectedSession ||
+        revision == null) {
+      return;
+    }
+    unawaited(
+      drafts.saveGenerator(
+        GeneratorToolDraft(
+          mode: _mode.name,
+          length: _length,
+          bytes: _bytes,
+          lower: _lower,
+          upper: _upper,
+          digits: _digits,
+          symbols: _symbols,
+          tokenFormat: _tokenFormat.name,
+          uuidVersion: _uuidVersion.name,
+        ),
+        revision: revision,
+      ),
+    );
   }
 
   void _record() {
@@ -185,6 +245,7 @@ class _GeneratorBodyState extends State<GeneratorBody> {
       _output = _build();
     });
     _record();
+    _saveDraft();
   }
 
   @override
