@@ -124,5 +124,28 @@ void main() {
         recorder.dispose();
       });
     });
+
+    test('disabled tool policy blocks paste and typing paths', () {
+      fakeAsync((FakeAsync async) {
+        final HistoryController controller = HistoryController();
+        final HistoryRecorder jwt = HistoryRecorder(
+          controller: controller,
+          utilityId: 'jwt',
+        );
+        final HistoryRecorder generator = HistoryRecorder(
+          controller: controller,
+          utilityId: 'generator',
+        );
+
+        jwt.recordPaste('header.payload.signature', 'decoded');
+        generator.recordTyping('password config', '');
+        async.elapse(const Duration(seconds: 5));
+        async.flushMicrotasks();
+
+        expect(controller.entries, isEmpty);
+        jwt.dispose();
+        generator.dispose();
+      });
+    });
   });
 }
