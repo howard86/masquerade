@@ -202,7 +202,8 @@ Repo state:
 - [x] Bundle ID `dev.howardism.Masquerade` (fixed 2026-07-16 — Runner shipped the template's `com.example.howardism` until then; App Store rejects `com.example`); home-screen `CFBundleDisplayName` stays `Masquerade`.
 - [x] `pubspec.yaml` `flutter_launcher_icons.android` left disabled — Android shipping deferred. Re-open with Play Store metadata + adaptive icon source when revisited.
 - [x] ~~Blocker: stray Xcode-generated "Masquerade" SwiftUI target + broken `Debug.xcconfig` include~~ — resolved 2026-07-16: template target removed, `Debug.xcconfig` and `project.pbxproj` restored, bundle-ID fix re-applied surgically.
-- [x] Release archive verified 2026-07-16: `flutter build ipa --release` exports an App Store IPA signed `Apple Distribution` (team `9KRJ83FMAF`) with an App Store provisioning profile (`get-task-allow` false); Flutter app-settings validation green (1.25.2 build 1, Masquerade, `dev.howardism.Masquerade`).
+- [x] Release archive verified 2026-07-16: `flutter build ipa --release` exports an App Store IPA signed `Apple Distribution` (team `9KRJ83FMAF`) with an App Store provisioning profile (`get-task-allow` false); Flutter app-settings validation green (1.25.2 build 3, Masquerade, `dev.howardism.Masquerade`).
+- [x] iPhone-only: `TARGETED_DEVICE_FAMILY = 1` in all three build configs (2026-07-16). iPad was the Flutter template default and was never designed for — see `docs/adr/0003`. Keeps the 13″ iPad screenshot set off the submission.
 - [ ] `web/og-banner.png` (1200×630 center crop of generated banner) committed.
 
 Privacy manifests: no app-level `PrivacyInfo.xcprivacy` is needed — the Dart app code uses no required-reason APIs directly; the Flutter engine and plugin pods (`shared_preferences` etc.) ship their own manifests, and the app collects nothing (`Data Not Collected`).
@@ -211,10 +212,24 @@ Submission (App Store Connect):
 
 - [ ] Create the app record; enter §2 name/subtitle/keywords/categories/URLs there (not in `Info.plist`).
 - [ ] Privacy label: Data Not Collected.
-- [ ] Screenshots — 6.9″ and 6.5″ iPhone sets minimum; static only (no preview video this round, §9).
+- [ ] Screenshots — 6.9″ and 6.5″ iPhone sets minimum; static only. No iPad set required (iPhone-only target, §8 gotchas).
+- [ ] Copyright field (ASC → App Information) — required, blocks "Add for Review" with no obvious pointer to it.
+- [ ] App Privacy section completed (Data Not Collected) — Admin-only, also blocks "Add for Review".
+- [ ] Export compliance: no non-exempt encryption. Declare in ASC or pre-empt with `ITSAppUsesNonExemptEncryption = false` in `Info.plist`.
 - [ ] Upload the verified IPA (`build/ios/ipa/masquerade.ipa`) via Transporter, or `xcrun altool --upload-app --type ios -f build/ios/ipa/masquerade.ipa --apiKey … --apiIssuer …` — no ASC API key is stored on this machine.
 - [ ] TestFlight pass on a physical device (camera/QR path needs real hardware).
 - [ ] Submit for review with the §2 description + promotional text and the What's New line.
+
+### Gotchas (learned the hard way, 2026-07-16 submission)
+
+Every one of these cost a round-trip. Read before the next release.
+
+- **`flutter build ipa` exits 0 when the export fails.** It only means the `.xcarchive` built. The export step logs `No signing certificate 'iOS Distribution' found` and gives up — this machine's keychain has only an Apple *Development* identity. Never infer success from the exit code; confirm `build/ios/ipa/*.ipa` exists and its mtime is *this* build. Export the archive from Xcode (Organizer → Distribute) when the CLI can't sign.
+- **A stale IPA is the real hazard of that.** When export fails, the *previous* IPA sits at the canonical path looking valid, and Transporter will happily upload it. That is how a build-1, iPad-enabled binary nearly shipped after the iPhone-only fix. Delete or rename the old IPA *before* rebuilding, not after.
+- **Xcode's "Manage Version and Build Number" silently bumps `CFBundleVersion` on export.** The uploaded build was 3 while `pubspec.yaml` said 1. ASC then rejects the next upload with *"build must be higher than previously uploaded version '3'"*. After any Xcode-driven export, read the built `Info.plist` and sync `pubspec.yaml` to whatever actually shipped.
+- **Verify the device family in the archive, not the diff.** `TARGETED_DEVICE_FAMILY` lives in three separate configs in `project.pbxproj` (Debug/Release/Profile) and it is easy to change one. Ground truth is `UIDeviceFamily` in `Runner.xcarchive/Products/Applications/Runner.app/Info.plist` — `Array { 1 }` means iPhone-only landed.
+- **Simulator screenshots are not App Store dimensions.** The iPhone 17 Pro Max simulator captures 1320×2868; ASC's 6.5″ slot accepts 1284×2778. Resample width, then center-crop height (`sips -z` then `sips -c`). Check the accepted list per slot before capturing a whole set.
+- **"Add for Review" blockers are metadata, not binary.** Copyright and App Privacy are both required and neither is surfaced on the build page. Fill them before uploading, or the green build sits unsubmittable.
 
 ## 9. Decisions deferred / out of scope
 
