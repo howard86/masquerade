@@ -32,7 +32,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('Home renders at default scale without overflow', (
+  testWidgets('Workbench renders at default scale without overflow', (
     WidgetTester tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(500, 1400));
@@ -42,7 +42,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  for (final String tab in <String>['Home', 'History', 'Settings']) {
+  for (final String tab in <String>['Workbench', 'Library', 'Activity']) {
     testWidgets('$tab tab renders at TextScaler 2.0 without overflow', (
       WidgetTester tester,
     ) async {
@@ -56,6 +56,15 @@ void main() {
       );
     });
   }
+
+  testWidgets('Settings route renders at TextScaler 2.0 without overflow', (
+    WidgetTester tester,
+  ) async {
+    await pumpApp(tester);
+    await tester.tap(find.bySemanticsLabel('Open Settings'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
 
   for (final UtilityDescriptor u in UtilityCatalog.all) {
     testWidgets(

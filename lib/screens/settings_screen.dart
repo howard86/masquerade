@@ -36,6 +36,7 @@ class SettingsScreen extends StatelessWidget {
     final c = context.mq.colors;
     return CupertinoPageScaffold(
       backgroundColor: c.bg,
+      navigationBar: const CupertinoNavigationBar(middle: Text('Settings')),
       child: SafeArea(
         bottom: false,
         child: SettingsBody(isWebOverride: isWebOverride),

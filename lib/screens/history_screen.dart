@@ -13,14 +13,18 @@ import '../widgets/mq/mq_section_header.dart';
 import '../widgets/mq/mq_status.dart';
 
 class HistoryScreen extends StatelessWidget {
-  const HistoryScreen({super.key});
+  const HistoryScreen({super.key, this.title = 'History', this.navigationBar});
+
+  final String title;
+  final ObstructingPreferredSizeWidget? navigationBar;
 
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
     return CupertinoPageScaffold(
       backgroundColor: c.bg,
-      child: const SafeArea(bottom: false, child: HistoryBody()),
+      navigationBar: navigationBar,
+      child: SafeArea(bottom: false, child: HistoryBody(title: title)),
     );
   }
 }
@@ -28,7 +32,9 @@ class HistoryScreen extends StatelessWidget {
 /// The inner content of the History screen, reusable without a scaffold.
 /// Used directly by the desktop window manager.
 class HistoryBody extends StatelessWidget {
-  const HistoryBody({super.key});
+  const HistoryBody({super.key, this.title = 'History'});
+
+  final String title;
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +58,7 @@ class HistoryBody extends StatelessWidget {
             children: <Widget>[
               Expanded(
                 child: Text(
-                  'History',
+                  title,
                   style: MqTextStyles.largeTitle.copyWith(color: c.textPri),
                 ),
               ),

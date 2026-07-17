@@ -24,7 +24,7 @@ void main() {
           widget.placeholder == 'Paste timestamp, JSON, hex, base64, color…',
     );
     await tester.enterText(hero, '{"password":"live-credential-fixture"}');
-    await tester.tap(find.text('Settings'));
+    await tester.tap(find.bySemanticsLabel('Open Settings'));
     await tester.pumpAndSettle();
     final Finder clear = find.text('Clear sensitive session now');
     await tester.ensureVisible(clear);
