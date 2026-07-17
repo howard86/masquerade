@@ -1,37 +1,27 @@
-import 'dart:async';
-
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import '../state/history_controller.dart';
-import '../theme/mq_density.dart';
 import '../theme/mq_metrics.dart';
 import '../theme/mq_theme.dart';
+import '../theme/mq_typography.dart';
 import '../utility_catalog.dart';
-import '../utils/copy_util.dart';
 import '../widgets/mq/compact_paste_bar.dart';
+import '../widgets/mq/mq_button.dart';
+import '../widgets/mq/mq_empty_hint.dart';
+import '../widgets/mq/mq_icons.dart';
+import '../widgets/mq/mq_surface.dart';
 import '../widgets/mq/section_rule.dart';
-import '../widgets/mq/tool_grid_card.dart';
 import 'detail/qr_scanner_route.dart';
 import 'detail/tool_detail_route.dart';
 
-/// Workbench content — compact paste bar and a responsive tool grid sorted
-/// matched → recently-used → idle. [catalogOnly] reuses the same grid in
-/// stable catalog order for the provisional Library shell.
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({
-    super.key,
-    this.onOpenTool,
-    this.catalogOnly = false,
-    this.navigationBar,
-  });
+enum _WorkbenchState { empty, artifact, search, unknown }
 
-  /// When non-null, tapping a tool card calls this instead of pushing a route.
-  /// The desktop shell uses it to swap its content pane. The `input` arg is the
-  /// current hero text (may be empty).
+/// Mobile capture surface. Library owns catalog browsing; Workbench only
+/// suggests tools for the current explicit input.
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key, this.onOpenTool, this.navigationBar});
+
   final OpenInToolCallback? onOpenTool;
-  final bool catalogOnly;
   final ObstructingPreferredSizeWidget? navigationBar;
 
   @override
@@ -41,109 +31,99 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _hero = TextEditingController();
   final FocusNode _heroFocus = FocusNode();
-  Timer? _debounce;
-  List<UtilityDescriptor> _matches = const <UtilityDescriptor>[];
+  bool _showRawText = false;
 
   @override
   void initState() {
     super.initState();
     _hero.addListener(_onHeroChange);
-    _heroFocus.addListener(_onFocusChange);
+    _heroFocus.addListener(_rebuild);
   }
 
   @override
   void dispose() {
-    _debounce?.cancel();
     _hero.removeListener(_onHeroChange);
-    _heroFocus.removeListener(_onFocusChange);
+    _heroFocus.removeListener(_rebuild);
     _hero.dispose();
     _heroFocus.dispose();
     super.dispose();
   }
 
-  void _onFocusChange() {
+  void _rebuild() {
     if (mounted) setState(() {});
   }
 
   void _onHeroChange() {
     if (!mounted) return;
-    setState(() {});
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 200), _recomputeMatches);
-  }
-
-  void _recomputeMatches() {
-    if (!mounted) return;
-    final List<UtilityDescriptor> next = UtilityCatalog.detectAll(_hero.text);
-    if (listEquals(next, _matches)) return;
-    setState(() => _matches = next);
+    setState(() => _showRawText = false);
   }
 
   Future<void> _paste() async {
     final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
     final String? text = data?.text;
-    if (text == null || text.isEmpty) return;
-    _hero.text = text;
-    _recomputeMatches();
+    if (text != null && text.isNotEmpty) _hero.text = text;
   }
 
-  void _clear() {
-    _debounce?.cancel();
-    _hero.clear();
-    setState(() => _matches = const <UtilityDescriptor>[]);
-  }
+  void _clear() => _hero.clear();
 
   Future<void> _scan() async {
     final String? result = await pushQrScanner(context);
-    if (!mounted || result == null || result.isEmpty) return;
-    _hero.text = result;
-    _recomputeMatches();
+    if (mounted && result != null && result.isNotEmpty) _hero.text = result;
   }
 
-  void _open(UtilityDescriptor u) {
-    final String text = _hero.text;
+  void _open(UtilityDescriptor tool) {
+    final String input = _hero.text;
     final OpenInToolCallback? open = widget.onOpenTool;
     if (open != null) {
-      open(u, text);
-      return;
+      open(tool, input);
+    } else {
+      ToolDetailRoute.push(context, tool, seed: input);
     }
-    ToolDetailRoute.push(context, u, seed: text.isNotEmpty ? text : null);
   }
 
-  void _longPressCopy(BuildContext ctx, HistoryEntry entry) {
-    if (entry.protected) return;
-    HapticFeedback.mediumImpact();
-    CopyToClipboardUtil.copyToClipboard(ctx, entry.output);
+  Future<void> _chooseTool() async {
+    final UtilityDescriptor? choice =
+        await showCupertinoModalPopup<UtilityDescriptor>(
+          context: context,
+          builder: (BuildContext context) => CupertinoActionSheet(
+            title: const Text('Send to tool'),
+            actions: <Widget>[
+              for (final UtilityDescriptor tool in UtilityCatalog.all)
+                CupertinoActionSheetAction(
+                  onPressed: () => Navigator.of(context).pop(tool),
+                  child: Text(tool.name),
+                ),
+            ],
+            cancelButton: CupertinoActionSheetAction(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+          ),
+        );
+    if (mounted && choice != null) _open(choice);
   }
 
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
-    final HistoryController history = HistoryScope.of(context);
-    final bool retentionOff = history.retention == Duration.zero;
-
-    // Dart's LinkedHashMap preserves insertion order, so the keys ARE the
-    // recency-ordered list of recently-used tool ids.
-    final Map<String, HistoryEntry> lastByTool = <String, HistoryEntry>{};
-    if (!widget.catalogOnly && !retentionOff) {
-      for (final HistoryEntry e in history.entries) {
-        lastByTool.putIfAbsent(e.utilityId, () => e);
-      }
-    }
-
-    final Set<String> matchedIds = widget.catalogOnly
-        ? const <String>{}
-        : _matches.map((UtilityDescriptor u) => u.id).toSet();
-    final List<UtilityDescriptor> sorted = widget.catalogOnly
-        ? UtilityCatalog.all
-        : _sortCatalog(matchedIds, lastByTool.keys);
-    final MqDensity d = context.density;
-    // Cards have a fixed cross-axis width, so a fixed aspect ratio also fixes
-    // their height. At large Dynamic Type the tile text needs more vertical
-    // room, so shrink the ratio in step with the text scale to grow the cards.
-    final double textScale = MediaQuery.textScalerOf(
-      context,
-    ).scale(1.0).clamp(1.0, 2.0);
+    final String input = _hero.text.trim();
+    final List<UtilityDescriptor> detected = UtilityCatalog.detectAll(input);
+    final bool hasShape = detected.any(
+      (UtilityDescriptor tool) => tool.detect(input),
+    );
+    final List<UtilityDescriptor> nameMatches = hasShape
+        ? const <UtilityDescriptor>[]
+        : UtilityCatalog.searchStable(input);
+    final _WorkbenchState state = input.isEmpty
+        ? _WorkbenchState.empty
+        : hasShape
+        ? _WorkbenchState.artifact
+        : nameMatches.isNotEmpty
+        ? _WorkbenchState.search
+        : _WorkbenchState.unknown;
+    final List<UtilityDescriptor> suggestions = hasShape
+        ? detected
+        : nameMatches;
 
     return CupertinoPageScaffold(
       backgroundColor: c.bg,
@@ -158,70 +138,164 @@ class _HomeScreenState extends State<HomeScreen> {
             MqLayout.tabBarClearance,
           ),
           children: <Widget>[
-            if (!widget.catalogOnly) ...<Widget>[
-              CompactPasteBar(
-                controller: _hero,
-                focusNode: _heroFocus,
-                onPaste: _paste,
-                onClear: _clear,
-                onScan: _scan,
-              ),
-              const SectionRule(),
-            ],
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: MqLayout.tileMaxExtent,
-                mainAxisSpacing: d.cardGap,
-                crossAxisSpacing: d.cardGap,
-                childAspectRatio: d.cardAspectRatio / textScale,
-              ),
-              itemCount: sorted.length,
-              itemBuilder: (BuildContext _, int i) {
-                final UtilityDescriptor u = sorted[i];
-                final HistoryEntry? entry = lastByTool[u.id];
-                return ToolGridCard(
-                  descriptor: u,
-                  matched: matchedIds.contains(u.id),
-                  lastEntry: entry,
-                  onTap: () => _open(u),
-                  onLongPress: entry == null || entry.protected
-                      ? null
-                      : () => _longPressCopy(context, entry),
-                );
-              },
+            CompactPasteBar(
+              controller: _hero,
+              focusNode: _heroFocus,
+              onPaste: _paste,
+              onClear: _clear,
+              onScan: _scan,
             ),
+            _result(context, state, suggestions),
+            const SectionRule(label: 'Current session'),
+            const MqEmptyHint(label: 'No current session'),
+            const SectionRule(label: 'Saved workflows'),
+            const MqEmptyHint(label: 'No saved workflows'),
           ],
         ),
       ),
     );
   }
 
-  /// Sort priority: matched (catalog order) → recently-used (recency order)
-  /// → remainder (catalog order).
-  List<UtilityDescriptor> _sortCatalog(
-    Set<String> matchedIds,
-    Iterable<String> recentIds,
+  Widget _result(
+    BuildContext context,
+    _WorkbenchState state,
+    List<UtilityDescriptor> suggestions,
   ) {
-    final List<UtilityDescriptor> matched = <UtilityDescriptor>[];
-    final List<UtilityDescriptor> rest = <UtilityDescriptor>[];
-    final Map<String, UtilityDescriptor> remaining =
-        <String, UtilityDescriptor>{};
-    for (final UtilityDescriptor u in UtilityCatalog.all) {
-      if (matchedIds.contains(u.id)) {
-        matched.add(u);
-      } else {
-        remaining[u.id] = u;
-        rest.add(u);
-      }
+    final c = context.mq.colors;
+    if (state == _WorkbenchState.empty) {
+      return Semantics(
+        container: true,
+        liveRegion: true,
+        label: 'Empty Workbench',
+        child: const MqEmptyHint(
+          label: 'Capture something to begin',
+          detail: 'Type, paste, or scan a QR code.',
+        ),
+      );
     }
-    final List<UtilityDescriptor> recents = <UtilityDescriptor>[];
-    for (final String id in recentIds) {
-      final UtilityDescriptor? u = remaining.remove(id);
-      if (u != null) recents.add(u);
+
+    if (state == _WorkbenchState.unknown) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          const SectionRule(label: 'Result'),
+          Semantics(
+            container: true,
+            liveRegion: true,
+            label: 'Unknown text. Open as text or send to a tool.',
+            child: MqSurface(
+              background: c.warningBg,
+              borderColor: c.warning,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  Text(
+                    'Unknown text',
+                    style: MqTextStyles.headline.copyWith(color: c.textPri),
+                  ),
+                  const SizedBox(height: MqSpacing.xs),
+                  Text(
+                    'No tool matched this value.',
+                    style: MqTextStyles.body.copyWith(color: c.textSec),
+                  ),
+                  const SizedBox(height: MqSpacing.md),
+                  MqButton(
+                    label: 'Open as text',
+                    variant: MqButtonVariant.glass,
+                    onPressed: () => setState(() => _showRawText = true),
+                    full: true,
+                  ),
+                  const SizedBox(height: MqSpacing.sm),
+                  MqButton(
+                    label: 'Send to tool',
+                    variant: MqButtonVariant.tinted,
+                    onPressed: _chooseTool,
+                    full: true,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_showRawText) ...<Widget>[
+            const SectionRule(label: 'Text'),
+            Semantics(
+              container: true,
+              label: 'Opened text: ${_hero.text}',
+              child: MqSurface(
+                child: Text(
+                  _hero.text,
+                  style: MqTextStyles.monoMd.copyWith(color: c.monoText),
+                ),
+              ),
+            ),
+          ],
+        ],
+      );
     }
-    rest.removeWhere((UtilityDescriptor u) => !remaining.containsKey(u.id));
-    return <UtilityDescriptor>[...matched, ...recents, ...rest];
+
+    final bool artifact = state == _WorkbenchState.artifact;
+    final String title = artifact ? 'Artifact detected' : 'Tool search';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const SectionRule(label: 'Tool suggestions'),
+        Semantics(
+          container: true,
+          liveRegion: true,
+          label: '$title. ${suggestions.length} suggestions.',
+          child: MqSurface(
+            background: artifact ? c.successBg : c.accentBg,
+            borderColor: artifact ? c.success : c.info,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Text(
+                  title,
+                  style: MqTextStyles.headline.copyWith(color: c.textPri),
+                ),
+                const SizedBox(height: MqSpacing.sm),
+                for (final UtilityDescriptor tool in suggestions)
+                  _SuggestionRow(tool: tool, onTap: () => _open(tool)),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SuggestionRow extends StatelessWidget {
+  const _SuggestionRow({required this.tool, required this.onTap});
+
+  final UtilityDescriptor tool;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mq.colors;
+    return Semantics(
+      label: 'Open ${tool.name}',
+      button: true,
+      excludeSemantics: true,
+      child: CupertinoButton(
+        padding: const EdgeInsets.symmetric(vertical: MqSpacing.sm),
+        minimumSize: const Size.fromHeight(44),
+        onPressed: onTap,
+        child: Row(
+          children: <Widget>[
+            Icon(tool.icon, size: 18, color: tool.tint),
+            const SizedBox(width: MqSpacing.sm),
+            Expanded(
+              child: Text(
+                tool.name,
+                style: MqTextStyles.body.copyWith(color: c.textPri),
+              ),
+            ),
+            Icon(MqIcons.chevR, size: 16, color: c.textTer),
+          ],
+        ),
+      ),
+    );
   }
 }
