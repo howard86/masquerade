@@ -2,6 +2,9 @@
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
 
+# Vendored third-party text is reproduced verbatim; our formatters must not touch it.
+exclude: ^assets/fonts/OFL\.txt$
+
 repos:
   # General hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
