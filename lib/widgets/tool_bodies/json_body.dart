@@ -154,10 +154,28 @@ class _JSONBodyState extends State<JSONBody>
     _draftRevision = drafts.revision;
     _draftRestored = true;
     final JsonToolDraft? draft = drafts.json;
-    if (draft == null) return;
-    _source = SourceFormat.values.byName(draft.source);
-    _target = TargetFormat.values.byName(draft.target);
-    if ((widget.initialInput == null || widget.initialInput!.isEmpty) &&
+    final Object? rawSource = route.settings['source'];
+    final Object? rawTarget = route.settings['target'];
+    final String? savedSource = rawSource is String ? rawSource : null;
+    final String? savedTarget = rawTarget is String ? rawTarget : null;
+    if (savedSource != null &&
+        SourceFormat.values.any(
+          (SourceFormat value) => value.name == savedSource,
+        )) {
+      _source = SourceFormat.values.byName(savedSource);
+    } else if (draft != null) {
+      _source = SourceFormat.values.byName(draft.source);
+    }
+    if (savedTarget != null &&
+        TargetFormat.values.any(
+          (TargetFormat value) => value.name == savedTarget,
+        )) {
+      _target = TargetFormat.values.byName(savedTarget);
+    } else if (draft != null) {
+      _target = TargetFormat.values.byName(draft.target);
+    }
+    if (draft != null &&
+        (widget.initialInput == null || widget.initialInput!.isEmpty) &&
         !route.protectedSession) {
       controller.text = draft.input;
     }
@@ -396,6 +414,10 @@ class _JSONBodyState extends State<JSONBody>
     final MobileSessionRouteScope? route = MobileSessionRouteScope.maybeOf(
       context,
     );
+    route?.onSettingsChanged?.call(<String, Object?>{
+      'source': _source.name,
+      'target': _target.name,
+    });
     if (drafts == null ||
         !drafts.ready ||
         route == null ||

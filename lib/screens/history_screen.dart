@@ -1,7 +1,9 @@
 import 'package:flutter/cupertino.dart';
 import 'package:intl/intl.dart';
 
+import '../models/work_session.dart';
 import '../state/history_controller.dart';
+import '../state/work_session_controller.dart';
 import '../theme/mq_metrics.dart';
 import '../theme/mq_theme.dart';
 import '../theme/mq_typography.dart';
@@ -15,10 +17,16 @@ import '../widgets/mq/mq_section_header.dart';
 import '../widgets/mq/mq_status.dart';
 
 class HistoryScreen extends StatelessWidget {
-  const HistoryScreen({super.key, this.title = 'History', this.navigationBar});
+  const HistoryScreen({
+    super.key,
+    this.title = 'History',
+    this.navigationBar,
+    this.onResume,
+  });
 
   final String title;
   final ObstructingPreferredSizeWidget? navigationBar;
+  final VoidCallback? onResume;
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +34,10 @@ class HistoryScreen extends StatelessWidget {
     return CupertinoPageScaffold(
       backgroundColor: c.bg,
       navigationBar: navigationBar,
-      child: SafeArea(bottom: false, child: HistoryBody(title: title)),
+      child: SafeArea(
+        bottom: false,
+        child: HistoryBody(title: title, onResume: onResume),
+      ),
     );
   }
 }
@@ -34,9 +45,10 @@ class HistoryScreen extends StatelessWidget {
 /// The inner content of the History screen, reusable without a scaffold.
 /// Used directly by the desktop window manager.
 class HistoryBody extends StatefulWidget {
-  const HistoryBody({super.key, this.title = 'History'});
+  const HistoryBody({super.key, this.title = 'History', this.onResume});
 
   final String title;
+  final VoidCallback? onResume;
 
   @override
   State<HistoryBody> createState() => _HistoryBodyState();
@@ -65,6 +77,10 @@ class _HistoryBodyState extends State<HistoryBody> {
     final Map<String, List<HistoryEntry>> grouped = _groupByDay(
       filtered.where((HistoryEntry entry) => !entry.pinned).toList(),
     );
+    final List<WorkSession> recent = widget.title == 'Activity'
+        ? WorkSessionScope.maybeOf(context)?.recentSessions ??
+              const <WorkSession>[]
+        : const <WorkSession>[];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -84,18 +100,50 @@ class _HistoryBodyState extends State<HistoryBody> {
                   style: MqTextStyles.largeTitle.copyWith(color: c.textPri),
                 ),
               ),
-              if (history.entries.isNotEmpty)
+              if (history.entries.isNotEmpty || recent.isNotEmpty)
                 MqButton(
                   label: 'Clear',
                   icon: MqIcons.trash,
                   variant: MqButtonVariant.glass,
                   size: MqButtonSize.sm,
                   destructive: true,
-                  onPressed: () => _confirmClear(context, history),
+                  onPressed: () => _confirmClear(
+                    context,
+                    history,
+                    WorkSessionScope.maybeOf(context),
+                  ),
                 ),
             ],
           ),
         ),
+        if (recent.isNotEmpty) ...<Widget>[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: MqSpacing.lg),
+            child: Semantics(
+              header: true,
+              child: Text(
+                'RESUMABLE SESSIONS',
+                style: MqTextStyles.caption1.copyWith(
+                  color: c.textSec,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+          Flexible(
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: MqSpacing.lg),
+              itemCount: recent.length,
+              separatorBuilder: (_, _) => const SizedBox(height: MqSpacing.xs),
+              itemBuilder: (BuildContext context, int index) =>
+                  _RecentSessionRow(
+                    session: recent[index],
+                    onResume: widget.onResume,
+                  ),
+            ),
+          ),
+          const SizedBox(height: MqSpacing.sm),
+        ],
         Expanded(
           child: history.entries.isEmpty
               ? Center(
@@ -223,7 +271,11 @@ String _toolName(String utilityId) {
   }
 }
 
-void _confirmClear(BuildContext context, HistoryController history) {
+void _confirmClear(
+  BuildContext context,
+  HistoryController history,
+  WorkSessionController? sessions,
+) {
   showCupertinoDialog<void>(
     context: context,
     builder: (BuildContext ctx) => CupertinoAlertDialog(
@@ -234,8 +286,10 @@ void _confirmClear(BuildContext context, HistoryController history) {
       actions: <Widget>[
         CupertinoDialogAction(
           isDestructiveAction: true,
-          onPressed: () {
-            history.clear();
+          onPressed: () async {
+            await history.clear();
+            await sessions?.clearRecentSessions();
+            if (!ctx.mounted) return;
             Navigator.of(ctx).pop();
           },
           child: const Text('Clear'),
@@ -248,6 +302,64 @@ void _confirmClear(BuildContext context, HistoryController history) {
       ],
     ),
   );
+}
+
+class _RecentSessionRow extends StatelessWidget {
+  const _RecentSessionRow({required this.session, this.onResume});
+
+  final WorkSession session;
+  final VoidCallback? onResume;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mq.colors;
+    final String tools = session.steps
+        .map((WorkflowStep step) => _toolName(step.toolId))
+        .join(' → ');
+    return Semantics(
+      button: true,
+      label: 'Resume ${session.name}',
+      excludeSemantics: true,
+      child: CupertinoButton(
+        padding: const EdgeInsets.symmetric(
+          horizontal: MqSpacing.md,
+          vertical: MqSpacing.sm,
+        ),
+        minimumSize: const Size.fromHeight(56),
+        color: c.surface,
+        borderRadius: BorderRadius.circular(MqRadius.md),
+        onPressed: () {
+          if (WorkSessionScope.of(context).resume(session)) onResume?.call();
+        },
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    session.name,
+                    style: MqTextStyles.subhead.copyWith(color: c.textPri),
+                  ),
+                  Text(
+                    tools,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MqTextStyles.caption1.copyWith(color: c.textSec),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: MqSpacing.sm),
+            Text(
+              'Resume',
+              style: MqTextStyles.caption1.copyWith(color: c.accent),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _HistoryRow extends StatelessWidget {

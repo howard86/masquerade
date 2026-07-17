@@ -126,9 +126,15 @@ class _DiffBodyState extends State<DiffBody> with LinkableToolBody<DiffBody> {
       _draftRevision = drafts.revision;
       _draftRestored = true;
       final DiffToolDraft? draft = drafts.diff;
+      final Object? savedWordHighlight = route.settings['wordHighlight'];
+      final Object? savedIgnoreWhitespace = route.settings['ignoreWhitespace'];
+      _wordHighlight = savedWordHighlight is bool
+          ? savedWordHighlight
+          : draft?.wordHighlight ?? _wordHighlight;
+      _ignoreWhitespace = savedIgnoreWhitespace is bool
+          ? savedIgnoreWhitespace
+          : draft?.ignoreWhitespace ?? _ignoreWhitespace;
       if (draft != null) {
-        _wordHighlight = draft.wordHighlight;
-        _ignoreWhitespace = draft.ignoreWhitespace;
         if ((widget.initialInput == null || widget.initialInput!.isEmpty) &&
             !route.protectedSession) {
           _a.text = draft.a;
@@ -280,6 +286,10 @@ class _DiffBodyState extends State<DiffBody> with LinkableToolBody<DiffBody> {
     final MobileSessionRouteScope? route = MobileSessionRouteScope.maybeOf(
       context,
     );
+    route?.onSettingsChanged?.call(<String, Object?>{
+      'wordHighlight': _wordHighlight,
+      'ignoreWhitespace': _ignoreWhitespace,
+    });
     if (drafts == null ||
         !drafts.ready ||
         route == null ||

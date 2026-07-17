@@ -128,11 +128,15 @@ class MobileSessionRouteScope extends InheritedWidget {
     super.key,
     required this.addNext,
     required this.protectedSession,
+    this.settings = const <String, Object?>{},
+    this.onSettingsChanged,
     required super.child,
   });
 
   final bool addNext;
   final bool protectedSession;
+  final Map<String, Object?> settings;
+  final ValueChanged<Map<String, Object?>>? onSettingsChanged;
 
   static MobileSessionRouteScope? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<MobileSessionRouteScope>();
@@ -140,5 +144,7 @@ class MobileSessionRouteScope extends InheritedWidget {
   @override
   bool updateShouldNotify(MobileSessionRouteScope oldWidget) =>
       addNext != oldWidget.addNext ||
-      protectedSession != oldWidget.protectedSession;
+      protectedSession != oldWidget.protectedSession ||
+      settings != oldWidget.settings ||
+      onSettingsChanged != oldWidget.onSettingsChanged;
 }

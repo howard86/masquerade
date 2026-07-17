@@ -117,7 +117,11 @@ class _RootTabScaffoldState extends State<RootTabScaffold> {
                 controller: widget.libraryController,
                 child: LibraryScreen(navigationBar: navigationBar),
               ),
-              _ => HistoryScreen(title: title, navigationBar: navigationBar),
+              _ => HistoryScreen(
+                title: title,
+                navigationBar: navigationBar,
+                onResume: () => _tabController.index = 0,
+              ),
             };
           },
         );

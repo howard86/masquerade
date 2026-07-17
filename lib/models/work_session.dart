@@ -60,7 +60,7 @@ class WorkSession {
       <String, Object?>{
         'schemaVersion': schemaVersion,
         'id': id,
-        'name': _protectedString(name) ? 'Untitled session' : name,
+        'name': isProtectedWorkflowString(name) ? 'Untitled session' : name,
         'createdAt': createdAt.millisecondsSinceEpoch,
         'updatedAt': updatedAt.millisecondsSinceEpoch,
         'steps': steps
@@ -93,7 +93,7 @@ class WorkSession {
 
       return WorkSession(
         id: value['id'] as String,
-        name: _protectedString(value['name'] as String)
+        name: isProtectedWorkflowString(value['name'] as String)
             ? 'Untitled session'
             : value['name'] as String,
         createdAt: DateTime.fromMillisecondsSinceEpoch(
@@ -117,15 +117,16 @@ Map<String, Object?> _stepToJson(
   final bool protectArtifacts =
       !canPersistTool(step.toolId) ||
       step.input.isSensitive ||
-      _protectedString(step.input.rawValue) ||
-      (step.output != null && _protectedString(step.output!.rawValue)) ||
+      isProtectedWorkflowString(step.input.rawValue) ||
+      (step.output != null &&
+          isProtectedWorkflowString(step.output!.rawValue)) ||
       (step.output?.isSensitive ?? false);
   return <String, Object?>{
     'toolId': step.toolId,
     'input': _artifactToJson(step.input, redact: protectArtifacts),
     'settings': protectArtifacts
         ? const <String, Object?>{}
-        : _sanitizeSettings(step.settings),
+        : sanitizeWorkflowSettings(step.settings),
     if (step.output case final Artifact<Object?> output)
       'output': _artifactToJson(output, redact: protectArtifacts),
     'status': step.status.name,
@@ -164,7 +165,7 @@ WorkflowStep? _stepFromJson(Object? value, {required ToolPolicy? isKnownTool}) {
     toolId: toolId,
     input: input,
     settings: toolAvailable
-        ? _sanitizeSettings(
+        ? sanitizeWorkflowSettings(
             Map<String, Object?>.from(
               value['settings'] as Map<String, dynamic>,
             ),
@@ -216,7 +217,7 @@ Artifact<Object?>? _artifactFromJson(
         ? ArtifactSensitivity.sensitive
         : ArtifactSensitivity.standard,
   );
-  if (!restored.isSensitive && !_protectedString(restored.rawValue)) {
+  if (!restored.isSensitive && !isProtectedWorkflowString(restored.rawValue)) {
     return restored;
   }
   return Artifact<Object?>(
@@ -236,25 +237,26 @@ T? _enumByName<T extends Enum>(List<T> values, String name) {
 
 final Object _omitted = Object();
 
-Map<String, Object?> _sanitizeSettings(Map<String, Object?> settings) {
+/// Returns a deeply frozen settings snapshot with payload-like values removed.
+Map<String, Object?> sanitizeWorkflowSettings(Map<String, Object?> settings) {
   final Map<String, Object?> safe = <String, Object?>{};
   for (final MapEntry<String, Object?> entry in settings.entries) {
     if (_protectedSettingKey(entry.key, entry.value)) continue;
     final Object? value = _sanitizeSettingValue(entry.value);
     if (!identical(value, _omitted)) safe[entry.key] = value;
   }
-  return safe;
+  return _freezeSettings(safe);
 }
 
 Object? _sanitizeSettingValue(Object? value) {
   if (value == null || value is num || value is bool) return value;
   if (value is String) {
-    return _protectedString(value) ? _omitted : value;
+    return isProtectedWorkflowString(value) ? _omitted : value;
   }
   if (value is List<Object?>) {
     if (value.isNotEmpty &&
         value.every((Object? item) => item is num) &&
-        _protectedString(jsonEncode(value))) {
+        isProtectedWorkflowString(jsonEncode(value))) {
       return _omitted;
     }
     return <Object?>[
@@ -265,13 +267,13 @@ Object? _sanitizeSettingValue(Object? value) {
     ];
   }
   if (value is Map<String, Object?>) {
-    return _sanitizeSettings(value);
+    return sanitizeWorkflowSettings(value);
   }
   return _omitted;
 }
 
 bool _protectedSettingKey(String key, Object? value) {
-  if (_protectedString(key)) return true;
+  if (isProtectedWorkflowString(key)) return true;
   final String normalized = key.trim().replaceAll(RegExp(r'[-_. ]'), '');
   if (RegExp(
     r'^(?:generated(?:payload|value|token|password)?|output|payload|result)$',
@@ -324,7 +326,7 @@ void _validateIdentifier(String value, String name) {
   if (!_validIdentifier(value)) throw ArgumentError.value(value, name);
 }
 
-bool _protectedString(String value) =>
+bool isProtectedWorkflowString(String value) =>
     <String?>[null, 'base64', 'bytes', 'url'].any(
       (String? utilityId) => SensitiveDataPolicy.protects(
         utilityId: utilityId,

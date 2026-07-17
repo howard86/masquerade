@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../models/artifact.dart';
+import '../models/saved_workflow.dart';
 import '../models/work_session.dart';
 import '../state/detection_preference_controller.dart';
 import '../state/work_session_controller.dart';
@@ -191,8 +192,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             _result(context, state, detected, nameMatches),
             _currentSession(context),
-            const SectionRule(label: 'Saved workflows'),
-            const MqEmptyHint(label: 'No saved workflows'),
+            _savedWorkflows(context),
           ],
         ),
       ),
@@ -230,6 +230,16 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
+        if (sessions.canSaveCurrent) ...<Widget>[
+          const SizedBox(height: MqSpacing.sm),
+          MqButton(
+            label: 'Save workflow',
+            icon: MqIcons.plus,
+            variant: MqButtonVariant.glass,
+            onPressed: _saveWorkflow,
+            full: true,
+          ),
+        ],
         if (sessions.branchOrigin case final WorkSession original) ...<Widget>[
           const SizedBox(height: MqSpacing.sm),
           Semantics(
@@ -244,6 +254,134 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ],
+    );
+  }
+
+  Widget _savedWorkflows(BuildContext context) {
+    final WorkSessionController sessions = WorkSessionScope.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const SectionRule(label: 'Saved workflows'),
+        if (sessions.workflowError case final String error) ...<Widget>[
+          Semantics(
+            liveRegion: true,
+            label: error,
+            child: MqSurface(
+              background: context.mq.colors.warningBg,
+              borderColor: context.mq.colors.warning,
+              child: Text(
+                error,
+                style: MqTextStyles.subhead.copyWith(
+                  color: context.mq.colors.textPri,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: MqSpacing.sm),
+        ],
+        if (sessions.savedWorkflows.isEmpty)
+          const MqEmptyHint(label: 'No saved workflows')
+        else
+          for (final SavedWorkflow workflow
+              in sessions.savedWorkflows) ...<Widget>[
+            _SavedWorkflowCard(
+              workflow: workflow,
+              canRun: _hero.text.trim().isNotEmpty,
+              onRun: () => _runWorkflow(workflow),
+              onRename: () => _renameWorkflow(workflow),
+              onDelete: () => _deleteWorkflow(workflow),
+            ),
+            const SizedBox(height: MqSpacing.sm),
+          ],
+      ],
+    );
+  }
+
+  Future<void> _saveWorkflow() async {
+    final WorkSessionController sessions = WorkSessionScope.of(context);
+    final WorkSession? captured = sessions.session;
+    if (captured == null) return;
+    final TextEditingController name = TextEditingController(
+      text: captured.name.replaceFirst(RegExp(r' session$'), ''),
+    );
+    final String? value = await _nameDialog('Save workflow', name);
+    name.dispose();
+    if (mounted && value != null && identical(sessions.session, captured)) {
+      await sessions.saveCurrent(value);
+    }
+  }
+
+  Future<void> _renameWorkflow(SavedWorkflow workflow) async {
+    final WorkSessionController sessions = WorkSessionScope.of(context);
+    final TextEditingController name = TextEditingController(
+      text: workflow.name,
+    );
+    final String? value = await _nameDialog('Rename workflow', name);
+    name.dispose();
+    if (mounted && value != null) {
+      await sessions.renameWorkflow(workflow.id, value);
+    }
+  }
+
+  Future<String?> _nameDialog(String title, TextEditingController controller) =>
+      showCupertinoDialog<String>(
+        context: context,
+        builder: (BuildContext dialogContext) => CupertinoAlertDialog(
+          title: Text(title),
+          content: CupertinoTextField(controller: controller, maxLength: 80),
+          actions: <Widget>[
+            CupertinoDialogAction(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () => Navigator.of(dialogContext).pop(controller.text),
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      );
+
+  Future<void> _deleteWorkflow(SavedWorkflow workflow) async {
+    final WorkSessionController sessions = WorkSessionScope.of(context);
+    final bool? confirmed = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => CupertinoAlertDialog(
+        title: const Text('Delete workflow?'),
+        content: Text('${workflow.name} will be removed from this device.'),
+        actions: <Widget>[
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (mounted && confirmed == true) {
+      await sessions.deleteWorkflow(workflow.id);
+    }
+  }
+
+  void _runWorkflow(SavedWorkflow workflow) {
+    final WorkSessionController sessions = WorkSessionScope.of(context);
+    final int? index = sessions.rerun(workflow, _hero.text);
+    if (index == null) return;
+    final WorkflowStep step = sessions.session!.steps[index];
+    final UtilityDescriptor? tool = UtilityCatalog.byIdOrNull(step.toolId);
+    if (tool == null) return;
+    ToolDetailRoute.push(
+      context,
+      tool,
+      seed: step.input.rawValue,
+      initialArtifact: step.input,
+      sessionStepIndex: index,
     );
   }
 
@@ -565,6 +703,75 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
     return suggestions;
+  }
+}
+
+class _SavedWorkflowCard extends StatelessWidget {
+  const _SavedWorkflowCard({
+    required this.workflow,
+    required this.canRun,
+    required this.onRun,
+    required this.onRename,
+    required this.onDelete,
+  });
+
+  final SavedWorkflow workflow;
+  final bool canRun;
+  final VoidCallback onRun;
+  final VoidCallback onRename;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mq.colors;
+    final String sequence = workflow.steps
+        .map(
+          (SavedWorkflowStep step) =>
+              UtilityCatalog.byIdOrNull(step.toolId)?.name ??
+              '${step.toolId} (unavailable)',
+        )
+        .join(' → ');
+    return MqSurface(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Text(
+            workflow.name,
+            style: MqTextStyles.headline.copyWith(color: c.textPri),
+          ),
+          const SizedBox(height: MqSpacing.xs),
+          Text(
+            sequence,
+            style: MqTextStyles.caption1.copyWith(color: c.textSec),
+          ),
+          const SizedBox(height: MqSpacing.sm),
+          Wrap(
+            spacing: MqSpacing.xs,
+            runSpacing: MqSpacing.xs,
+            children: <Widget>[
+              MqButton(
+                label: 'Run',
+                size: MqButtonSize.sm,
+                onPressed: canRun ? onRun : null,
+              ),
+              MqButton(
+                label: 'Rename',
+                size: MqButtonSize.sm,
+                variant: MqButtonVariant.glass,
+                onPressed: onRename,
+              ),
+              MqButton(
+                label: 'Delete',
+                size: MqButtonSize.sm,
+                variant: MqButtonVariant.plain,
+                destructive: true,
+                onPressed: onDelete,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 
