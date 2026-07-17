@@ -2,19 +2,26 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../state/view_mode_controller.dart';
+import '../state/library_controller.dart';
 import '../theme/mq_theme.dart';
 import '../utils/shell_layout.dart';
 import '../widgets/mq/mq_icons.dart';
 import 'desktop/desktop_shell.dart';
 import 'history_screen.dart';
 import 'home_screen.dart';
+import 'library_screen.dart';
 import 'settings_screen.dart';
 
 class RootTabScaffold extends StatefulWidget {
-  const RootTabScaffold({super.key, this.isWebOverride});
+  const RootTabScaffold({
+    super.key,
+    this.isWebOverride,
+    required this.libraryController,
+  });
 
   /// See `MyApp.isWebOverride`. Null in production → reads [kIsWeb].
   final bool? isWebOverride;
+  final LibraryController libraryController;
 
   @override
   State<RootTabScaffold> createState() => _RootTabScaffoldState();
@@ -106,7 +113,10 @@ class _RootTabScaffoldState extends State<RootTabScaffold> {
             );
             return switch (index) {
               0 => HomeScreen(navigationBar: navigationBar),
-              1 => HomeScreen(catalogOnly: true, navigationBar: navigationBar),
+              1 => LibraryScope(
+                controller: widget.libraryController,
+                child: LibraryScreen(navigationBar: navigationBar),
+              ),
               _ => HistoryScreen(title: title, navigationBar: navigationBar),
             };
           },

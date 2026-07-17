@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/cupertino.dart';
 
 import '../../state/history_controller.dart';
 import '../../theme/mq_density.dart';
@@ -7,6 +7,7 @@ import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
 import '../../utils/sensitive_data_policy.dart';
+import 'mq_icons.dart';
 
 /// Editorial home-grid tile. Hairline border resting; accent border + pulsing
 /// dot when [matched]; mono preview line when [lastEntry] is present
@@ -19,6 +20,8 @@ class ToolGridCard extends StatelessWidget {
     required this.lastEntry,
     required this.onTap,
     this.onLongPress,
+    this.favorite = false,
+    this.onToggleFavorite,
   });
 
   final UtilityDescriptor descriptor;
@@ -26,6 +29,8 @@ class ToolGridCard extends StatelessWidget {
   final HistoryEntry? lastEntry;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
+  final bool favorite;
+  final VoidCallback? onToggleFavorite;
 
   static const int _previewMax = 24;
 
@@ -75,6 +80,23 @@ class ToolGridCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  if (onToggleFavorite != null)
+                    Semantics(
+                      label: 'Favorite ${descriptor.name}',
+                      button: true,
+                      toggled: favorite,
+                      excludeSemantics: true,
+                      child: CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size.square(44),
+                        onPressed: onToggleFavorite,
+                        child: Icon(
+                          MqIcons.star,
+                          size: 18,
+                          color: favorite ? c.accent : c.textTer,
+                        ),
+                      ),
+                    ),
                   if (matched) ...<Widget>[
                     const SizedBox(width: MqSpacing.xs),
                     _MatchDot(color: c.accent),
