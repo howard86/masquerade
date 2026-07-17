@@ -27,9 +27,28 @@ support_url:         https://github.com/howard86/masquerade/issues
 marketing_url:       https://github.com/howard86/masquerade
 privacy_policy_url:  https://github.com/howard86/masquerade/blob/main/docs/privacy.md
 privacy_label:       Data Not Collected
+business_model:      Paid (one-time purchase) — no IAP, no subscription, no ads
+eula:                Apple standard Licensed Application EULA (no custom EULA)
 ```
 
 App name on store ≠ home-screen name. `CFBundleDisplayName` stays `Masquerade` so the home-screen label does not truncate.
+
+Both `support_url` and `privacy_policy_url` resolve into the public GitHub repo. The live listing therefore depends on that repo staying public — taking it private 404s the privacy policy, which Apple rejects on the next review. If the repo ever goes private, both URLs must be rehosted first.
+
+### Pricing (one-time purchase)
+
+Masquerade sells for a single up-front price. No in-app purchases, so **Guideline 3.1.1 does not apply** and no StoreKit integration ships.
+
+| Item | Value |
+|---|---|
+| Model | Paid, one-time purchase |
+| Price point | **TBD** — pick the tier in ASC → Pricing and Availability |
+| Territories | **TBD** — default is all territories |
+| Free trial | Not possible. A trial needs IAP; a one-time-purchase app has no trial mechanism. The alternative is the free web build as the try-before-buy surface. |
+
+The source is published under a source-available license (`LICENSE`, proprietary — see §8), not an open-source one. That is deliberate: a permissive license would let anyone compile and republish the paid binary.
+
+**Schedule 2 is the long pole.** Everything else in §8 takes minutes; the Paid Apps Agreement needs bank-account and tax-form verification and takes days. Start it first — until it is active, no price can be set and the app cannot reach *Ready for Sale* no matter how green the build is.
 
 ### Promotional text (~150/170, editable post-release without re-review)
 
@@ -190,10 +209,12 @@ and QR — on-device, offline, untracked. Cupertino. IBM Plex.
 
 ## 8. Open issues / pre-submission checklist
 
-Statuses verified 2026-07-16.
+Statuses verified 2026-07-16; licensing + paid-app rows added 2026-07-17.
 
 Repo state:
 
+- [x] `LICENSE` — proprietary source-available (2026-07-17). The repo is public and had no license at all, which defaults to all-rights-reserved: adequate for the paid model by accident, but it left README's Contributing section soliciting PRs with no stated terms. Permissive licensing was rejected — it would let anyone compile and republish the paid binary. Confirm the copyright holder name matches the ASC → App Information → Copyright field exactly.
+- [x] IBM Plex OFL-1.1 notice bundled (`assets/fonts/OFL.txt`, listed under `flutter.assets` 2026-07-17). The fonts shipped in the IPA with no license text anywhere in the repo — an OFL violation, which requires the notice to travel with the font in every copy. Apple does not check this; the Paid Apps Agreement still makes you warrant you hold the rights. `flutter_lucide` and the pub packages carry their own `LICENSE` files and are collected automatically by Flutter's `LicenseRegistry`.
 - [x] `docs/privacy.md` exists. Confirm the URL returns 200 for reviewers (repo must be public) — App Store rejects otherwise.
 - [x] `web/favicon.png` regenerated as the monogram (no longer the 343 B Flutter default).
 - [x] Web manifest + OG/Twitter meta tags applied per §3/§4.
@@ -205,17 +226,21 @@ Repo state:
 - [x] Release archive verified 2026-07-16: `flutter build ipa --release` exports an App Store IPA signed `Apple Distribution` (team `9KRJ83FMAF`) with an App Store provisioning profile (`get-task-allow` false); Flutter app-settings validation green (1.25.2 build 3, Masquerade, `dev.howardism.Masquerade`).
 - [x] iPhone-only: `TARGETED_DEVICE_FAMILY = 1` in all three build configs (2026-07-16). iPad was the Flutter template default and was never designed for — see `docs/adr/0003`. Keeps the 13″ iPad screenshot set off the submission.
 - [ ] `web/og-banner.png` (1200×630 center crop of generated banner) committed.
+- [ ] **Privacy policy reachable inside the app.** Guideline 5.1.1(i) wants the link in the ASC metadata field *and* "within the app in an easily accessible manner" — unconditional, including for `Data Not Collected` apps. Settings has a Privacy section (posture blurb, retention, clear-history) but nothing that opens the policy. Needs either `url_launcher` + a row linking `privacy_policy_url`, or the policy text rendered as a page (no dep, works offline, but duplicates `docs/privacy.md` unless it reads it from an asset).
+- [ ] **Acknowledgements screen.** Nothing in the app surfaces third-party licenses. Bundling `OFL.txt` satisfies OFL's letter (the text ships in the IPA); a Settings → Acknowledgements page is what makes it discoverable, and is table stakes for a paid app. `LicenseRegistry.addLicense` for the fonts + a Cupertino page over `LicenseRegistry.licenses` — Flutter's `showLicensePage` is Material-only, so it cannot be used here (`uses-material-design: false`).
 
 Privacy manifests: no app-level `PrivacyInfo.xcprivacy` is needed — the Dart app code uses no required-reason APIs directly; the Flutter engine and plugin pods (`shared_preferences` etc.) ship their own manifests, and the app collects nothing (`Data Not Collected`).
 
 Submission (App Store Connect):
 
+- [ ] **Paid Apps Agreement (Schedule 2) active** — ASC → Business. Requires a bank account and tax forms (W-9 / W-8BEN as applicable). **Start this first:** it is the only item here measured in days rather than minutes, and until it is active no price can be set and the app cannot go *Ready for Sale*.
+- [ ] Price point + territory availability set (ASC → Pricing and Availability). See §2.
 - [ ] Create the app record; enter §2 name/subtitle/keywords/categories/URLs there (not in `Info.plist`).
 - [ ] Privacy label: Data Not Collected.
 - [ ] Screenshots — 6.9″ and 6.5″ iPhone sets minimum; static only. No iPad set required (iPhone-only target, §8 gotchas).
 - [ ] Copyright field (ASC → App Information) — required, blocks "Add for Review" with no obvious pointer to it.
 - [ ] App Privacy section completed (Data Not Collected) — Admin-only, also blocks "Add for Review".
-- [ ] Export compliance: no non-exempt encryption. Declare in ASC or pre-empt with `ITSAppUsesNonExemptEncryption = false` in `Info.plist`.
+- [x] Export compliance: `ITSAppUsesNonExemptEncryption = false` set in `Info.plist` (2026-07-17). The app only hashes (`crypto` — MD5/SHA), which is exempt. Pre-empting this in the plist is now load-bearing rather than cosmetic: with TestFlight uploads automated on every green `main`, a missing key parks each build in *Missing Compliance* until someone answers the questionnaire by hand, which defeats the point of the pipeline.
 - [ ] Upload the verified IPA (`build/ios/ipa/masquerade.ipa`) via Transporter, or `xcrun altool --upload-app --type ios -f build/ios/ipa/masquerade.ipa --apiKey … --apiIssuer …` — no ASC API key is stored on this machine.
 - [ ] TestFlight pass on a physical device (camera/QR path needs real hardware).
 - [ ] Submit for review with the §2 description + promotional text and the What's New line.

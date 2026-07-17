@@ -81,3 +81,9 @@ dart format --output=none --set-exit-if-changed .
 3. Cupertino widgets only — `pubspec.yaml` has `uses-material-design: false`. Don't introduce `Material*` widgets without team discussion.
 
 4. Mirror `lib/` structure under `test/` and add tests for new functionality.
+
+## License
+
+Source-available, **not** open-source — see [LICENSE](LICENSE). You may read, fork, and build it locally; you may not redistribute it or publish a derived app. Masquerade is sold as a one-time purchase on the App Store, and that listing is the only authorised distribution of the compiled app. Contributions are welcome under the terms in `LICENSE`.
+
+The bundled IBM Plex fonts are licensed separately under the [SIL Open Font License 1.1](assets/fonts/OFL.txt).
