@@ -72,6 +72,8 @@ class _UuidBodyState extends State<UuidBody> {
       _recorder = HistoryRecorder(
         controller: HistoryScope.of(context),
         utilityId: 'uuid',
+        sensitive:
+            MobileSessionRouteScope.maybeOf(context)?.protectedSession ?? false,
       );
       if (widget.seedSource == SeedSource.paste) _recorder!.markPaste();
     }

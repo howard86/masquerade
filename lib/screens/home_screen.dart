@@ -2,7 +2,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
 import '../models/artifact.dart';
+import '../models/work_session.dart';
 import '../state/detection_preference_controller.dart';
+import '../state/work_session_controller.dart';
 import '../theme/mq_metrics.dart';
 import '../theme/mq_theme.dart';
 import '../theme/mq_typography.dart';
@@ -12,6 +14,7 @@ import '../widgets/mq/mq_button.dart';
 import '../widgets/mq/mq_empty_hint.dart';
 import '../widgets/mq/mq_icons.dart';
 import '../widgets/mq/mq_surface.dart';
+import '../widgets/mq/mq_status.dart';
 import '../widgets/mq/section_rule.dart';
 import 'detail/qr_scanner_route.dart';
 import 'detail/tool_detail_route.dart';
@@ -98,11 +101,15 @@ class _HomeScreenState extends State<HomeScreen> {
     if (open != null) {
       open(tool, input);
     } else {
+      final int? stepIndex = artifact == null
+          ? null
+          : WorkSessionScope.of(context).start(tool, artifact);
       ToolDetailRoute.push(
         context,
         tool,
         seed: input,
         initialArtifact: artifact,
+        sessionStepIndex: stepIndex,
       );
     }
   }
@@ -171,13 +178,42 @@ class _HomeScreenState extends State<HomeScreen> {
               onScan: _scan,
             ),
             _result(context, state, detected, nameMatches),
-            const SectionRule(label: 'Current session'),
-            const MqEmptyHint(label: 'No current session'),
+            _currentSession(context),
             const SectionRule(label: 'Saved workflows'),
             const MqEmptyHint(label: 'No saved workflows'),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _currentSession(BuildContext context) {
+    final WorkSession? session = WorkSessionScope.of(context).session;
+    if (session == null) {
+      return const Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          SectionRule(label: 'Current session'),
+          MqEmptyHint(label: 'No current session'),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const SectionRule(label: 'Current session'),
+        MqSurface(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              for (int i = 0; i < session.steps.length; i++) ...<Widget>[
+                if (i > 0) const SizedBox(height: MqSpacing.md),
+                _SessionStepRow(index: i, step: session.steps[i]),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -333,6 +369,72 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
     return suggestions;
+  }
+}
+
+class _SessionStepRow extends StatelessWidget {
+  const _SessionStepRow({required this.index, required this.step});
+
+  final int index;
+  final WorkflowStep step;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mq.colors;
+    final UtilityDescriptor? tool = UtilityCatalog.byIdOrNull(step.toolId);
+    final String name = tool?.name ?? 'Unavailable tool';
+    final String status = switch (step.status) {
+      WorkflowStepStatus.pending => 'Pending',
+      WorkflowStepStatus.running => 'Running',
+      WorkflowStepStatus.completed => 'Completed',
+      WorkflowStepStatus.failed => 'Failed',
+    };
+    final String input = step.input.safePreview;
+    final String? output = step.output?.safePreview;
+    return Semantics(
+      container: true,
+      label:
+          'Step ${index + 1}, $name, $status. Input $input.${output == null ? '' : ' Output $output.'}',
+      excludeSemantics: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  '${index + 1}. $name',
+                  style: MqTextStyles.headline.copyWith(color: c.textPri),
+                ),
+              ),
+              MqStatus(
+                label: status,
+                kind: switch (step.status) {
+                  WorkflowStepStatus.completed => MqStatusKind.success,
+                  WorkflowStepStatus.failed => MqStatusKind.danger,
+                  WorkflowStepStatus.running => MqStatusKind.info,
+                  WorkflowStepStatus.pending => MqStatusKind.neutral,
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: MqSpacing.xs),
+          Text(
+            'Input · $input',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: MqTextStyles.monoSm.copyWith(color: c.monoText),
+          ),
+          if (output != null)
+            Text(
+              'Output · $output',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: MqTextStyles.monoSm.copyWith(color: c.monoText),
+            ),
+        ],
+      ),
+    );
   }
 }
 

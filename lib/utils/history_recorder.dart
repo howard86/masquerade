@@ -13,11 +13,13 @@ class HistoryRecorder {
   HistoryRecorder({
     required this.controller,
     required this.utilityId,
+    this.sensitive = false,
     Duration typingDelay = const Duration(seconds: 5),
   }) : _typingDelay = typingDelay;
 
   final HistoryController controller;
   final String utilityId;
+  final bool sensitive;
   final Duration _typingDelay;
 
   Timer? _timer;
@@ -75,6 +77,7 @@ class HistoryRecorder {
         input: input,
         output: output,
         timestamp: DateTime.now(),
+        sensitive: sensitive,
       ),
     );
   }

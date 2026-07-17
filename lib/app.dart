@@ -10,6 +10,7 @@ import 'state/sensitive_session_controller.dart';
 import 'state/theme_controller.dart';
 import 'state/view_mode_controller.dart';
 import 'state/wallpaper_controller.dart';
+import 'state/work_session_controller.dart';
 import 'theme/mq_colors.dart';
 import 'theme/mq_theme.dart';
 import 'widgets/iphone_frame.dart';
@@ -25,6 +26,7 @@ class MyApp extends StatefulWidget {
     this.densityController,
     this.detectionPreferenceController,
     this.viewModeController,
+    this.workSessionController,
     this.isWebOverride,
     this.skipSplash = false,
   });
@@ -35,6 +37,7 @@ class MyApp extends StatefulWidget {
   final DensityController? densityController;
   final DetectionPreferenceController? detectionPreferenceController;
   final ViewModeController? viewModeController;
+  final WorkSessionController? workSessionController;
 
   /// Test seam for the web-gated desktop shell. `kIsWeb` is always false under
   /// `flutter test`, so widget tests pass `true` here to exercise the desktop
@@ -66,6 +69,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   late final DetectionPreferenceController _detectionPreference;
   late final ViewModeController _viewMode;
   late final WallpaperController _wallpaper;
+  late final WorkSessionController _workSession;
   late final Listenable _appListenable;
 
   Brightness _platformBrightness = Brightness.light;
@@ -77,7 +81,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _theme = widget.themeController ?? ThemeController();
     _history = widget.historyController ?? HistoryController();
     _library = widget.libraryController ?? LibraryController();
-    _sensitiveSession = SensitiveSessionController(_history);
+    _workSession = widget.workSessionController ?? WorkSessionController();
+    _sensitiveSession = SensitiveSessionController(
+      _history,
+      workSession: _workSession,
+    );
     _density = widget.densityController ?? DensityController();
     _detectionPreference =
         widget.detectionPreferenceController ?? DetectionPreferenceController();
@@ -189,14 +197,20 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                           ),
                         ),
                       ),
-                      home: SensitiveSessionScope(
-                        controller: _sensitiveSession,
-                        child: ListenableBuilder(
-                          listenable: _sensitiveSession,
-                          builder: (BuildContext context, _) => RootTabScaffold(
-                            key: ValueKey<int>(_sensitiveSession.revision),
-                            isWebOverride: widget.isWebOverride,
-                            libraryController: _library,
+                      home: WorkSessionScope(
+                        controller: _workSession,
+                        child: SensitiveSessionScope(
+                          controller: _sensitiveSession,
+                          child: ListenableBuilder(
+                            listenable: _sensitiveSession,
+                            builder: (BuildContext context, _) =>
+                                RootTabScaffold(
+                                  key: ValueKey<int>(
+                                    _sensitiveSession.revision,
+                                  ),
+                                  isWebOverride: widget.isWebOverride,
+                                  libraryController: _library,
+                                ),
                           ),
                         ),
                       ),

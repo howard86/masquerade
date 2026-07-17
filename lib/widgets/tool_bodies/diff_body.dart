@@ -19,6 +19,7 @@ import '../mq/mq_input.dart';
 import '../mq/mq_surface.dart';
 import '../mq/tool_action_bar.dart';
 import 'linkable_body.dart';
+import 'open_in_footer.dart';
 import 'seed_source.dart';
 import 'tool_layout.dart';
 
@@ -105,6 +106,8 @@ class _DiffBodyState extends State<DiffBody> with LinkableToolBody<DiffBody> {
       _recorder = HistoryRecorder(
         controller: HistoryScope.of(context),
         utilityId: 'diff',
+        sensitive:
+            MobileSessionRouteScope.maybeOf(context)?.protectedSession ?? false,
       );
       if (widget.seedSource == SeedSource.paste) {
         _recorder!.markPaste();

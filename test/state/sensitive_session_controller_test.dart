@@ -4,6 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/state/canvas_controller.dart';
 import 'package:masquerade/state/history_controller.dart';
 import 'package:masquerade/state/sensitive_session_controller.dart';
+import 'package:masquerade/state/work_session_controller.dart';
+import 'package:masquerade/models/artifact.dart';
+import 'package:masquerade/utility_catalog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -42,14 +45,25 @@ void main() {
         timestamp: DateTime.now(),
       ),
     );
+    final WorkSessionController workSession = WorkSessionController()
+      ..start(
+        UtilityCatalog.byId('jwt'),
+        Artifact<Object?>(
+          kind: ArtifactKind.jwt,
+          rawValue: encoded,
+          provenance: ArtifactProvenance.clipboard,
+        ),
+      );
     final SensitiveSessionController session = SensitiveSessionController(
       history,
+      workSession: workSession,
     );
 
     await session.clear();
 
     expect(session.revision, 1);
     expect(history.entries, isEmpty);
+    expect(workSession.session, isNull);
     expect(prefs.getString(CanvasController.currentKey), isNull);
     final String savedLayouts = prefs.getString(CanvasController.layoutsKey)!;
     expect(savedLayouts, isNot(contains(raw)));

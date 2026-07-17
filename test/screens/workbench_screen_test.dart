@@ -3,8 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
 import 'package:masquerade/models/artifact.dart';
+import 'package:masquerade/models/work_session.dart';
 import 'package:masquerade/screens/detail/tool_detail_route.dart';
 import 'package:masquerade/state/detection_preference_controller.dart';
+import 'package:masquerade/state/work_session_controller.dart';
 import 'package:masquerade/utility_catalog.dart';
 import 'package:masquerade/widgets/mq/tool_grid_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -15,6 +17,7 @@ Future<void> _pumpWorkbench(
   WidgetTester tester, {
   TextScaler textScaler = TextScaler.noScaling,
   DetectionPreferenceController? detectionPreferenceController,
+  WorkSessionController? workSessionController,
 }) async {
   await tester.binding.setSurfaceSize(_phone);
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -25,6 +28,7 @@ Future<void> _pumpWorkbench(
         isWebOverride: false,
         skipSplash: true,
         detectionPreferenceController: detectionPreferenceController,
+        workSessionController: workSessionController,
       ),
     ),
   );
@@ -120,12 +124,16 @@ void main() {
   testWidgets('suggestions open the detected tool with the captured input', (
     WidgetTester tester,
   ) async {
-    await _pumpWorkbench(tester);
+    final WorkSessionController sessions = WorkSessionController();
+    await _pumpWorkbench(tester, workSessionController: sessions);
     await _enter(tester, '{"ok":true}');
 
     await tester.tap(find.text('JSON / YAML / TOML'));
     await tester.pumpAndSettle();
     expect(find.byType(ToolDetailRoute), findsOneWidget);
+    final ToolDetailRoute route = tester.widget(find.byType(ToolDetailRoute));
+    expect(route.sessionStepIndex, 0);
+    expect(sessions.session!.steps.single.toolId, 'json');
     expect(
       tester
           .widgetList<CupertinoTextField>(find.byType(CupertinoTextField))
@@ -247,5 +255,53 @@ void main() {
     expect(route.seed, raw);
     expect(route.initialArtifact?.rawValue, raw);
     expect(route.initialArtifact?.provenance, ArtifactProvenance.clipboard);
+  });
+
+  testWidgets('renders an ordered safe session at large text scale', (
+    WidgetTester tester,
+  ) async {
+    const String jwt = 'eyJhbGciOiJub25lIn0.eyJhdCI6MTcwMDAwMDAwMH0.';
+    final WorkSessionController sessions = WorkSessionController();
+    sessions.start(
+      UtilityCatalog.byId('jwt'),
+      Artifact<Object?>(
+        kind: ArtifactKind.jwt,
+        rawValue: jwt,
+        provenance: ArtifactProvenance.typed,
+      ),
+    );
+    sessions.addNext(0, UtilityCatalog.byId('json'), '{"at":1700000000}');
+    sessions.addNext(1, UtilityCatalog.byId('timestamp'), '1700000000');
+
+    await _pumpWorkbench(
+      tester,
+      textScaler: const TextScaler.linear(2),
+      workSessionController: sessions,
+    );
+
+    expect(find.text('1. JWT'), findsOneWidget);
+    expect(find.text('2. JSON / YAML / TOML'), findsOneWidget);
+    expect(find.text('3. Timestamp'), findsOneWidget);
+    expect(find.text('COMPLETED'), findsNWidgets(2));
+    expect(find.text('RUNNING'), findsOneWidget);
+    expect(_semanticsStarts('Step 1, JWT, Completed. Input'), findsOneWidget);
+    expect(
+      _semanticsStarts('Step 3, Timestamp, Running. Input'),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (Widget widget) =>
+            widget is Semantics &&
+            (widget.properties.label?.contains(jwt) ?? false),
+      ),
+      findsNothing,
+    );
+    expect(find.textContaining(jwt), findsNothing);
+    expect(find.textContaining('1700000000'), findsNothing);
+    for (final WorkflowStep step in sessions.session!.steps) {
+      expect(step.input.safePreview, isNot(step.input.rawValue));
+    }
+    expect(tester.takeException(), isNull);
   });
 }

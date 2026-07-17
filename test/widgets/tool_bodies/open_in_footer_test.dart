@@ -254,6 +254,101 @@ void main() {
       );
     });
 
+    testWidgets('current mobile session uses Add next step semantics', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        _harness(
+          MobileSessionRouteScope(
+            addNext: true,
+            protectedSession: false,
+            child: OpenInFooter(
+              output: '1700000000',
+              excludeUtilityId: 'timestamp',
+              onSwitchTool: (_, _) {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('ADD NEXT STEP'), findsOneWidget);
+      expect(find.text('OPEN IN'), findsNothing);
+      expect(
+        find.byWidgetPredicate(
+          (Widget widget) =>
+              widget is Semantics &&
+              widget.properties.label == 'Add next step Number Base',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('protected session routes safely without clipboard copy', (
+      WidgetTester tester,
+    ) async {
+      final List<String> clipboardWrites = <String>[];
+      final TestDefaultBinaryMessenger messenger =
+          tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(SystemChannels.platform, (
+        MethodCall call,
+      ) async {
+        if (call.method == 'Clipboard.setData') {
+          final Map<dynamic, dynamic> args = call.arguments as Map;
+          clipboardWrites.add(args['text'] as String);
+        }
+        return null;
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+      int routes = 0;
+      await tester.pumpWidget(
+        _harness(
+          MobileSessionRouteScope(
+            addNext: true,
+            protectedSession: true,
+            child: OpenInFooter(
+              output: '{"at":1700000000}',
+              excludeUtilityId: 'jwt',
+              protectedSource: true,
+              onSwitchTool: (_, _) => routes++,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('ADD NEXT STEP'), findsOneWidget);
+      await tester.longPress(find.text('JSON / YAML / TOML'));
+      await tester.pump();
+      expect(clipboardWrites, isEmpty);
+      expect(routes, 1);
+      await tester.tap(find.text('JSON / YAML / TOML'));
+      await tester.pump();
+      expect(routes, 2);
+    });
+
+    testWidgets('credential content stays hidden in a mobile session', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        _harness(
+          MobileSessionRouteScope(
+            addNext: true,
+            protectedSession: true,
+            child: OpenInFooter(
+              output: '{"password":"raw-credential-fixture"}',
+              excludeUtilityId: 'jwt',
+              protectedSource: true,
+              onSwitchTool: (_, _) {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('ADD NEXT STEP'), findsNothing);
+      expect(find.textContaining('raw-credential-fixture'), findsNothing);
+    });
+
     testWidgets('tap fires onSwitchTool with descriptor and output', (
       WidgetTester tester,
     ) async {
@@ -280,7 +375,7 @@ void main() {
       expect(receivedInput, '1700000000');
     });
 
-    testWidgets('long-press copies to clipboard and fires onSwitchTool', (
+    testWidgets('safe session long-press copies and adds next step', (
       WidgetTester tester,
     ) async {
       UtilityDescriptor? tapped;
@@ -304,10 +399,14 @@ void main() {
 
       await tester.pumpWidget(
         _harness(
-          OpenInFooter(
-            output: '1700000000',
-            excludeUtilityId: 'timestamp',
-            onSwitchTool: (UtilityDescriptor u, _) => tapped = u,
+          MobileSessionRouteScope(
+            addNext: true,
+            protectedSession: false,
+            child: OpenInFooter(
+              output: '1700000000',
+              excludeUtilityId: 'timestamp',
+              onSwitchTool: (UtilityDescriptor u, _) => tapped = u,
+            ),
           ),
         ),
       );
