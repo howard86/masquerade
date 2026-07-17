@@ -73,7 +73,9 @@ flutter test test/path/to/file_test.dart
 
 CI does NOT currently filter by tag; `flutter test` picks up everything in `test/`. There are no integration tests, but the pre-commit `[manual]` hook in `.pre-commit-config.yaml` does pass `--exclude-tags=integration` if you ever add some.
 
-CI does not produce release artifacts — it only runs format, analyze, tests, and Trivy. `flutter build <target>` is local-only.
+CI runs format, analyze, tests, and Trivy on every push and PR. On a direct push to `main` it additionally runs `deploy-ios`, which archives and signs via fastlane and uploads to TestFlight — gated on `analyze-and-test` and `security` passing first. Every other `flutter build <target>` is local-only.
+
+Releases follow gitflow: `develop` is the default branch, release-please opens a Release PR from it, and that PR is retargeted to `main`. Merging it promotes `develop`, cuts the tag, and ships to TestFlight in one hop. `main` only ever receives Release PRs, so a green `main` means ship it. See `.github/workflows/release.yml` for the flow.
 
 ## Pre-commit (required, Python-based)
 

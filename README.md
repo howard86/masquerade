@@ -50,7 +50,11 @@ flutter run -d chrome          # web
 flutter run -d macos           # desktop
 ```
 
-CI does not produce release builds; run `flutter build <target> --release` locally only when you need to debug a specific platform.
+CI builds and ships the iOS release itself: a green `main` uploads to TestFlight automatically. Run `flutter build <target> --release` locally only when you need to debug a specific platform.
+
+## Releases
+
+`develop` is the default branch. [release-please](.github/workflows/release.yml) opens a Release PR from it (version bump + CHANGELOG) and retargets it to `main`; merging that PR promotes `develop`, tags `vX.Y.Z`, and deploys to TestFlight in one hop. Don't tag by hand.
 
 ## Test and lint
 
@@ -72,7 +76,7 @@ dart format --output=none --set-exit-if-changed .
 
    Hooks enforce `dart format`, `flutter analyze`, and Conventional Commits via `commitizen`.
 
-2. Branch from `main` using `feature/<slug>` and use Conventional Commit prefixes (`feat:`, `fix:`, `docs:`, `chore:`).
+2. Branch from `develop` using `feature/<slug>` and use Conventional Commit prefixes (`feat:`, `fix:`, `docs:`, `chore:`). PRs target `develop`; `main` only receives Release PRs.
 
 3. Cupertino widgets only — `pubspec.yaml` has `uses-material-design: false`. Don't introduce `Material*` widgets without team discussion.
 
