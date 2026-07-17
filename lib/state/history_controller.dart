@@ -3,36 +3,15 @@ import 'dart:convert';
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../utils/sensitive_data_policy.dart';
+
 enum HistoryPolicy { enabled, disabled }
 
 HistoryPolicy historyPolicyFor(String utilityId) => switch (utilityId) {
-  'jwt' || 'generator' => HistoryPolicy.disabled,
+  _ when SensitiveDataPolicy.isSensitiveTool(utilityId) =>
+    HistoryPolicy.disabled,
   _ => HistoryPolicy.enabled,
 };
-
-final RegExp _credentialKey = RegExp(
-  r'''(?:^|[,\[{?&])\s*(?:-\s+)?["']?(?:[A-Za-z0-9]+[-_.])*(?:access[-_.]?key(?:[-_.]?id)?|access[-_.]?token|api[-_.]?key|auth[-_.]?token|authorization|client[-_.]?secret|consumer[-_.]?secret|credential(?:s)?|pass(?:word|wd)?|private[-_.]?key|proxy[-_.]?authorization|pwd|refresh[-_.]?token|secret[-_.]?access[-_.]?key|secret(?:[-_.]?key)?|session[-_.]?token|token)["']?\s*[:=]''',
-  caseSensitive: false,
-  multiLine: true,
-);
-// key=value is also valid TOML; treat it as .env until recording carries
-// source-format metadata that can distinguish the two safely.
-final RegExp _environmentEntry = RegExp(
-  r'^\s*(?:export\s+)?[A-Za-z_][A-Za-z0-9_]*\s*=',
-  multiLine: true,
-);
-final RegExp _privateKey = RegExp(
-  r'-----BEGIN (?:[A-Z0-9]+ )?PRIVATE KEY-----',
-);
-final RegExp _jwt = RegExp(
-  r'eyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*',
-);
-
-bool _containsSensitiveArtifact(String value) =>
-    _credentialKey.hasMatch(value) ||
-    _environmentEntry.hasMatch(value) ||
-    _privateKey.hasMatch(value) ||
-    _jwt.hasMatch(value);
 
 /// One captured utility action.
 @immutable
@@ -51,13 +30,22 @@ class HistoryEntry {
   final DateTime timestamp;
   final bool sensitive;
 
-  Map<String, dynamic> toJson() => <String, dynamic>{
-    'utilityId': utilityId,
-    'input': input,
-    'output': output,
-    'ts': timestamp.millisecondsSinceEpoch,
-    'sensitive': sensitive,
-  };
+  bool get protected => SensitiveDataPolicy.protects(
+    utilityId: utilityId,
+    sensitive: sensitive,
+    values: <String>[input, output],
+  );
+
+  Map<String, dynamic> toJson() {
+    final bool redact = protected;
+    return <String, dynamic>{
+      'utilityId': utilityId,
+      'input': redact ? '' : input,
+      'output': redact ? '' : output,
+      'ts': timestamp.millisecondsSinceEpoch,
+      'sensitive': redact,
+    };
+  }
 
   static HistoryEntry fromJson(Map<String, dynamic> json) => HistoryEntry(
     utilityId: json['utilityId'] as String,
@@ -111,6 +99,7 @@ class HistoryController extends ChangeNotifier {
         if (c._entries.length != loadedCount) await c._persist();
       } catch (_) {
         c._entries = <HistoryEntry>[];
+        await c._persist();
       }
     }
     return c;
@@ -140,9 +129,7 @@ class HistoryController extends ChangeNotifier {
 
   bool _allows(HistoryEntry entry) =>
       historyPolicyFor(entry.utilityId) == HistoryPolicy.enabled &&
-      !entry.sensitive &&
-      !_containsSensitiveArtifact(entry.input) &&
-      !_containsSensitiveArtifact(entry.output);
+      !entry.protected;
 
   Future<void> clear() async {
     _entries = <HistoryEntry>[];

@@ -148,5 +148,43 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(ToolCardFrame), findsOneWidget);
     });
+
+    testWidgets('a private key is neither echoed nor offered as a seed', (
+      WidgetTester tester,
+    ) async {
+      const String pem = '''-----BEGIN PRIVATE KEY-----
+raw-private-key-fixture
+-----END PRIVATE KEY-----''';
+      await tester.binding.setSurfaceSize(const Size(1200, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        MyApp(
+          isWebOverride: true,
+          viewModeController: ViewModeController(initial: MqViewMode.desktop),
+          skipSplash: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('File'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('New tool…  ⌘K'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey<String>('command-palette-field')),
+        pem,
+      );
+      await tester.pumpAndSettle();
+
+      final MqEmptyHint hint = tester.widget(find.byType(MqEmptyHint));
+      expect(hint.detail, 'Sensitive values stay out of search results.');
+      expect(hint.detail, isNot(contains('raw-private-key-fixture')));
+      expect(
+        find.textContaining('with this value', findRichText: true),
+        findsNothing,
+      );
+      expect(find.byType(ListView), findsNothing);
+      expect(find.byType(ToolCardFrame), findsNothing);
+    });
   });
 }

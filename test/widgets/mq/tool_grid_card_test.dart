@@ -96,6 +96,20 @@ void main() {
     expect(find.text('••••'), findsOneWidget);
   });
 
+  testWidgets('credential-shaped entry masks without a sensitive flag', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      _harness(
+        descriptor: sample,
+        matched: false,
+        lastEntry: _entry('base64', '{"password":"raw-credential-fixture"}'),
+      ),
+    );
+    expect(find.textContaining('raw-credential-fixture'), findsNothing);
+    expect(find.text('••••'), findsOneWidget);
+  });
+
   testWidgets('matched=true paints accent border', (WidgetTester tester) async {
     final MqColors light = MqColors.light();
     await tester.pumpWidget(_harness(descriptor: sample, matched: true));

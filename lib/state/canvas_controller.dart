@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utility_catalog.dart';
+import '../utils/sensitive_data_policy.dart';
 import 'link_group.dart';
 import 'window_content.dart';
 
@@ -467,6 +468,7 @@ class CanvasController extends ChangeNotifier {
   void attachPrefs(SharedPreferences prefs) {
     _prefs = prefs;
     restore();
+    unawaited(_sanitizePersistedLayouts(prefs));
   }
 
   /// Serializes the open cards for persistence. Card ids are kept so focus and
@@ -476,44 +478,62 @@ class CanvasController extends ChangeNotifier {
     'nextGroupId': _nextGroupId,
     'nextZ': _nextZ,
     'focused': _focusedId,
-    'cards': _cards
-        .map(
-          (CanvasCard c) => <String, dynamic>{
-            'id': c.id,
-            ...switch (c.content) {
-              ToolWindow tw => <String, dynamic>{'tool': tw.descriptor.id},
-              SystemWindow sw => <String, dynamic>{'system': sw.app.name},
-            },
-            'x': c.x,
-            'y': c.y,
-            'w': c.width,
-            'z': c.z,
-            if (c.seed != null) 'seed': c.seed,
-            if (c.minimized) 'minimized': true,
-            if (c.maximized) 'maximized': true,
-            if (c.height != null) 'h': c.height,
-            if (c.restoreBounds != null)
-              'rb': <String, dynamic>{
-                'x': c.restoreBounds!.x,
-                'y': c.restoreBounds!.y,
-                'w': c.restoreBounds!.width,
-                if (c.restoreBounds!.height != null)
-                  'h': c.restoreBounds!.height,
-              },
-          },
-        )
-        .toList(),
-    'groups': _groups
-        .map(
-          (LinkGroup g) => <String, dynamic>{
-            'id': g.id,
-            'type': g.type.name,
-            'canonical': g.canonical.value,
-            'members': g.members.toList(),
-          },
-        )
-        .toList(),
+    'cards': _cards.map(_cardToJson).toList(),
+    'groups': _groups.map(_groupToJson).toList(),
   };
+
+  static Map<String, dynamic> _cardToJson(CanvasCard c) {
+    final String? utilityId = c.toolDescriptor?.id;
+    final String? seed = SensitiveDataPolicy.persistedValue(
+      c.seed,
+      utilityId: utilityId,
+    );
+    return <String, dynamic>{
+      'id': c.id,
+      ...switch (c.content) {
+        ToolWindow tw => <String, dynamic>{'tool': tw.descriptor.id},
+        SystemWindow sw => <String, dynamic>{'system': sw.app.name},
+      },
+      'x': c.x,
+      'y': c.y,
+      'w': c.width,
+      'z': c.z,
+      'seed': ?seed,
+      if (c.minimized) 'minimized': true,
+      if (c.maximized) 'maximized': true,
+      if (c.height != null) 'h': c.height,
+      if (c.restoreBounds != null)
+        'rb': <String, dynamic>{
+          'x': c.restoreBounds!.x,
+          'y': c.restoreBounds!.y,
+          'w': c.restoreBounds!.width,
+          if (c.restoreBounds!.height != null) 'h': c.restoreBounds!.height,
+        },
+    };
+  }
+
+  Map<String, dynamic> _groupToJson(LinkGroup group) {
+    final bool hasSensitiveMember = _membersContainSensitiveTool(group.members);
+    return <String, dynamic>{
+      'id': group.id,
+      'type': group.type.name,
+      'canonical':
+          SensitiveDataPolicy.persistedValue(
+            group.canonical.value,
+            sensitive: hasSensitiveMember,
+          ) ??
+          '',
+      'members': group.members.toList(),
+    };
+  }
+
+  bool _membersContainSensitiveTool(Iterable<int> members) => members.any(
+    (int id) => _cards.any(
+      (CanvasCard card) =>
+          card.id == id &&
+          SensitiveDataPolicy.isSensitiveTool(card.toolDescriptor?.id),
+    ),
+  );
 
   /// Replaces the canvas from a [toJson] map. Cards whose tool id no longer
   /// exists in the catalog are dropped. Unknown system app names are dropped.
@@ -563,7 +583,10 @@ class CanvasController extends ChangeNotifier {
           x: (m['x'] as num).toDouble(),
           y: (m['y'] as num).toDouble(),
           width: (m['w'] as num).toDouble(),
-          seed: m['seed'] as String?,
+          seed: SensitiveDataPolicy.persistedValue(
+            m['seed'] as String?,
+            utilityId: content is ToolWindow ? content.descriptor.id : null,
+          ),
           z: z,
           minimized: m['minimized'] as bool? ?? false,
           maximized: m['maximized'] as bool? ?? false,
@@ -596,7 +619,12 @@ class CanvasController extends ChangeNotifier {
         LinkGroup(
           id: gid,
           type: type,
-          canonical: m['canonical'] as String? ?? '',
+          canonical:
+              SensitiveDataPolicy.persistedValue(
+                m['canonical'] as String?,
+                sensitive: _membersContainSensitiveTool(members),
+              ) ??
+              '',
         )..members.addAll(members),
       );
     }
@@ -620,8 +648,11 @@ class CanvasController extends ChangeNotifier {
     if (raw == null) return;
     try {
       applyJson(jsonDecode(raw) as Map<String, dynamic>);
+      _persist();
     } catch (_) {
       // Corrupt snapshot — start clean rather than crash.
+      final SharedPreferences? prefs = _prefs;
+      if (prefs != null) unawaited(prefs.remove(currentKey));
     }
   }
 
@@ -629,6 +660,35 @@ class CanvasController extends ChangeNotifier {
     final SharedPreferences? prefs = _prefs;
     if (prefs == null) return;
     unawaited(prefs.setString(currentKey, jsonEncode(toJson())));
+  }
+
+  /// Clears the auto-restored session and scrubs legacy saved layouts.
+  static Future<void> clearPersistedSensitiveSession() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.remove(currentKey);
+    await _sanitizePersistedLayouts(prefs);
+  }
+
+  static Future<void> _sanitizePersistedLayouts(SharedPreferences prefs) async {
+    final String? raw = prefs.getString(layoutsKey);
+    if (raw == null) return;
+    try {
+      final Map<String, dynamic> stored =
+          jsonDecode(raw) as Map<String, dynamic>;
+      final Map<String, dynamic> safe = <String, dynamic>{};
+      for (final MapEntry<String, dynamic> entry in stored.entries) {
+        if (SensitiveDataPolicy.containsSensitiveArtifact(entry.key) ||
+            entry.value is! Map<String, dynamic>) {
+          continue;
+        }
+        final CanvasController controller = CanvasController()
+          ..applyJson(entry.value as Map<String, dynamic>);
+        safe[entry.key] = controller.toJson();
+      }
+      await prefs.setString(layoutsKey, jsonEncode(safe));
+    } catch (_) {
+      await prefs.remove(layoutsKey);
+    }
   }
 
   // ─── Named saved layouts ────────────────────────────────────────────────
@@ -644,12 +704,23 @@ class CanvasController extends ChangeNotifier {
   }
 
   /// Names of saved layouts, alphabetically.
-  List<String> get layoutNames => _layouts().keys.toList()..sort();
+  List<String> get layoutNames =>
+      _layouts().keys
+          .where(
+            (String name) =>
+                !SensitiveDataPolicy.containsSensitiveArtifact(name),
+          )
+          .toList()
+        ..sort();
 
   /// Saves the current canvas under [name] (overwriting any same-named layout).
   void saveLayout(String name) {
     final String trimmed = name.trim();
-    if (trimmed.isEmpty || _prefs == null) return;
+    if (trimmed.isEmpty ||
+        SensitiveDataPolicy.containsSensitiveArtifact(trimmed) ||
+        _prefs == null) {
+      return;
+    }
     final Map<String, dynamic> all = _layouts()..[trimmed] = toJson();
     unawaited(_prefs!.setString(layoutsKey, jsonEncode(all)));
   }

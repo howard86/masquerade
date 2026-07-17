@@ -68,6 +68,41 @@ void main() {
       expect(find.text('OPEN IN'), findsNothing);
     });
 
+    testWidgets('renders nothing for a protected source', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        _harness(
+          OpenInFooter(
+            output: '1700000000',
+            excludeUtilityId: 'generator',
+            protectedSource: true,
+            onSwitchTool: (_, _) {},
+          ),
+        ),
+      );
+
+      expect(find.text('OPEN IN'), findsNothing);
+      expect(find.text('Timestamp'), findsNothing);
+    });
+
+    testWidgets('renders nothing for detected credential content', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        _harness(
+          OpenInFooter(
+            output: '{"password":"raw-credential-fixture"}',
+            excludeUtilityId: 'base64',
+            onSwitchTool: (_, _) {},
+          ),
+        ),
+      );
+
+      expect(find.text('OPEN IN'), findsNothing);
+      expect(find.textContaining('raw-credential-fixture'), findsNothing);
+    });
+
     testWidgets('excludes the self utility from chips', (
       WidgetTester tester,
     ) async {

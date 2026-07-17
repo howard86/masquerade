@@ -5,6 +5,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'acknowledgements_screen.dart';
 import 'privacy_policy_screen.dart';
 import '../state/history_controller.dart';
+import '../state/sensitive_session_controller.dart';
 import '../state/theme_controller.dart';
 import '../state/view_mode_controller.dart';
 import '../state/wallpaper_controller.dart';
@@ -231,6 +232,15 @@ class SettingsBody extends StatelessWidget {
                 full: true,
                 onPressed: () => _confirmClear(context, history),
               ),
+              const SizedBox(height: MqSpacing.sm),
+              MqButton(
+                label: 'Clear sensitive session now',
+                icon: MqIcons.shield,
+                variant: MqButtonVariant.glass,
+                destructive: true,
+                full: true,
+                onPressed: () => _confirmClearSensitiveSession(context),
+              ),
             ],
           ),
         ),
@@ -300,6 +310,36 @@ class SettingsBody extends StatelessWidget {
               Navigator.of(ctx).pop();
             },
             child: const Text('Clear'),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmClearSensitiveSession(BuildContext context) {
+    final SensitiveSessionController session = SensitiveSessionScope.of(
+      context,
+    );
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (BuildContext ctx) => CupertinoAlertDialog(
+        title: const Text('Clear sensitive session now?'),
+        content: const Text(
+          'Closes open tools and clears their inputs, links, and on-device history.',
+        ),
+        actions: <Widget>[
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await session.clear();
+            },
+            child: const Text('Clear now'),
           ),
           CupertinoDialogAction(
             isDefaultAction: true,

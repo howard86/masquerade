@@ -212,6 +212,7 @@ class _GeneratorBodyState extends State<GeneratorBody> {
             label: _outputLabel(),
             value: _output,
             hint: _mode == GenMode.password ? _entropyHint() : null,
+            sensitive: _mode != GenMode.uuid,
           ),
         const SizedBox(height: MqSpacing.md),
         MqButton(
@@ -225,6 +226,7 @@ class _GeneratorBodyState extends State<GeneratorBody> {
             output: _output,
             excludeUtilityId: 'generator',
             onSwitchTool: widget.onSwitchTool,
+            protectedSource: _mode != GenMode.uuid,
           ),
       ],
     );

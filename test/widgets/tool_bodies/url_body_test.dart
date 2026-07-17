@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/utils/url_parser.dart';
+import 'package:masquerade/widgets/mq/mq_mono_cell.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '_helpers.dart';
@@ -110,5 +111,25 @@ void main() {
     await pumpHomeAndOpen(tester, 'URL');
 
     expect(find.textContaining('percent-encode'), findsOneWidget);
+  });
+
+  testWidgets('URL — decoded credentials keep protection', (
+    WidgetTester tester,
+  ) async {
+    await pumpHomeAndOpen(tester, 'URL');
+    await tester.tap(find.text('Decode'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byType(EditableText).last,
+      '%7B%22password%22%3A%22raw-credential-fixture%22%7D',
+    );
+    await tester.pumpAndSettle(kDebouncePump);
+
+    final MqMonoCell output = tester
+        .widgetList<MqMonoCell>(find.byType(MqMonoCell))
+        .firstWhere((MqMonoCell cell) => cell.label == 'Decoded');
+    expect(output.sensitive, isTrue);
+    expect(find.bySemanticsLabel('Copy ••••'), findsOneWidget);
   });
 }

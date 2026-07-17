@@ -9,6 +9,7 @@ import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
 import '../../utils/bytes_parser.dart';
+import '../../utils/sensitive_data_policy.dart';
 import '../mq/mq_button.dart';
 import '../mq/mq_empty_hint.dart';
 import '../mq/mq_icons.dart';
@@ -245,6 +246,10 @@ class _BytesBodyState extends State<BytesBody>
   }
 
   List<Widget> _buildOutput(bool wide) {
+    final bool sensitive =
+        SensitiveDataPolicy.containsSensitiveArtifact(controller.text) ||
+        (_decodedText != null &&
+            SensitiveDataPolicy.containsSensitiveArtifact(_decodedText!));
     if (_mode == BytesMode.encode) {
       if (_outSpace == null) {
         return const <Widget>[
@@ -253,15 +258,25 @@ class _BytesBodyState extends State<BytesBody>
       }
       return <Widget>[
         const MqSectionHeader(label: 'Output'),
-        MqMonoCell(label: 'Space', value: _outSpace!, accent: true),
+        MqMonoCell(
+          label: 'Space',
+          value: _outSpace!,
+          accent: true,
+          sensitive: sensitive,
+        ),
         const SizedBox(height: MqSpacing.sm),
-        MqMonoCell(label: 'Brackets', value: _outBrackets!),
+        MqMonoCell(
+          label: 'Brackets',
+          value: _outBrackets!,
+          sensitive: sensitive,
+        ),
         const SizedBox(height: MqSpacing.sm),
-        MqMonoCell(label: 'Hex', value: _outHex!),
+        MqMonoCell(label: 'Hex', value: _outHex!, sensitive: sensitive),
         OpenInFooter(
           output: _outSpace,
           excludeUtilityId: 'bytes',
           onSwitchTool: widget.onSwitchTool,
+          protectedSource: sensitive,
         ),
       ];
     }
@@ -279,9 +294,10 @@ class _BytesBodyState extends State<BytesBody>
         value: _decodedText ?? _error ?? 'Invalid UTF-8',
         accent: _decodedText != null,
         copyable: _decodedText != null,
+        sensitive: sensitive,
       ),
       const SizedBox(height: MqSpacing.sm),
-      MqMonoCell(label: 'Hex', value: _decodedHex!),
+      MqMonoCell(label: 'Hex', value: _decodedHex!, sensitive: sensitive),
       // Canvas-only: a classic offset/hex/ASCII hexdump of the parsed bytes.
       if (wide && _decodedBytes != null) ...<Widget>[
         const SizedBox(height: MqSpacing.lg),
@@ -292,6 +308,7 @@ class _BytesBodyState extends State<BytesBody>
         output: _decodedText,
         excludeUtilityId: 'bytes',
         onSwitchTool: widget.onSwitchTool,
+        protectedSource: sensitive,
       ),
     ];
   }

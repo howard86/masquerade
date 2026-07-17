@@ -4,6 +4,7 @@ import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../utility_catalog.dart';
+import '../../utils/sensitive_data_policy.dart';
 import '../../utils/url_parser.dart';
 import '../mq/mq_button.dart';
 import '../mq/mq_empty_hint.dart';
@@ -158,6 +159,12 @@ class _UrlBodyState extends State<UrlBody>
 
   @override
   Widget build(BuildContext context) {
+    final bool sensitive =
+        SensitiveDataPolicy.containsSensitiveArtifact(controller.text) ||
+        (_output != null &&
+            SensitiveDataPolicy.containsSensitiveArtifact(_output!)) ||
+        (_query != null &&
+            SensitiveDataPolicy.containsSensitiveArtifact(_query!));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -194,6 +201,7 @@ class _UrlBodyState extends State<UrlBody>
             label: _mode == UrlMode.encode ? 'Encoded' : 'Decoded',
             value: _output!,
             accent: true,
+            sensitive: sensitive,
             pipeType: _mode == UrlMode.decode ? ContentType.text : null,
           ),
           if (_pairs.isNotEmpty) ...<Widget>[
@@ -208,13 +216,19 @@ class _UrlBodyState extends State<UrlBody>
             ),
             if (_query != null) ...<Widget>[
               const SizedBox(height: MqSpacing.md),
-              MqMonoCell(label: 'Rebuilt query', value: _query!, accent: true),
+              MqMonoCell(
+                label: 'Rebuilt query',
+                value: _query!,
+                accent: true,
+                sensitive: sensitive,
+              ),
             ],
           ],
           OpenInFooter(
             output: _output,
             excludeUtilityId: 'url',
             onSwitchTool: widget.onSwitchTool,
+            protectedSource: sensitive,
           ),
         ] else
           MqEmptyHint(
