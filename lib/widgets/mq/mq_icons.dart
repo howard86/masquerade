@@ -9,6 +9,7 @@ class MqIcons {
   static const IconData search = LucideIcons.search;
   static const IconData copy = LucideIcons.copy;
   static const IconData paste = LucideIcons.clipboard;
+  static const IconData fileUp = LucideIcons.file_up;
   static const IconData swap = LucideIcons.arrow_up_down;
   static const IconData clear = LucideIcons.circle_x;
   static const IconData star = LucideIcons.star;

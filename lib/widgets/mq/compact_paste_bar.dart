@@ -17,6 +17,7 @@ class CompactPasteBar extends StatelessWidget {
     required this.onPaste,
     required this.onClear,
     required this.onScan,
+    this.onImport,
   });
 
   final TextEditingController controller;
@@ -24,6 +25,7 @@ class CompactPasteBar extends StatelessWidget {
   final VoidCallback onPaste;
   final VoidCallback onClear;
   final VoidCallback onScan;
+  final VoidCallback? onImport;
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +52,15 @@ class CompactPasteBar extends StatelessWidget {
                   icon: MqIcons.paste,
                   label: 'Paste',
                   onTap: onPaste,
+                  color: c.textSec,
+                ),
+                const SizedBox(width: 2),
+              ],
+              if (onImport case final VoidCallback import) ...<Widget>[
+                _BarIconButton(
+                  icon: MqIcons.fileUp,
+                  label: 'Import file',
+                  onTap: import,
                   color: c.textSec,
                 ),
                 const SizedBox(width: 2),
@@ -82,6 +93,18 @@ class CompactPasteBar extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: MqSpacing.sm),
+                      if (onImport case final VoidCallback import) ...<Widget>[
+                        Expanded(
+                          child: MqButton(
+                            label: 'Import',
+                            icon: MqIcons.fileUp,
+                            variant: MqButtonVariant.glass,
+                            onPressed: import,
+                            full: true,
+                          ),
+                        ),
+                        const SizedBox(width: MqSpacing.sm),
+                      ],
                       Expanded(
                         child: MqButton(
                           label: 'Clear',

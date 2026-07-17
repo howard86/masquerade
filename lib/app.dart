@@ -17,6 +17,7 @@ import 'state/wallpaper_controller.dart';
 import 'state/work_session_controller.dart';
 import 'theme/mq_colors.dart';
 import 'theme/mq_theme.dart';
+import 'utils/external_input_importer.dart';
 import 'widgets/iphone_frame.dart';
 import 'widgets/mq/mq_splash_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -33,6 +34,8 @@ class MyApp extends StatefulWidget {
     this.viewModeController,
     this.workSessionController,
     this.toolDraftController,
+    this.externalInputImporter,
+    this.qrScanner,
     this.isWebOverride,
     this.skipSplash = false,
   });
@@ -46,6 +49,8 @@ class MyApp extends StatefulWidget {
   final ViewModeController? viewModeController;
   final WorkSessionController? workSessionController;
   final ToolDraftController? toolDraftController;
+  final ExternalInputImporter? externalInputImporter;
+  final Future<String?> Function(BuildContext context)? qrScanner;
 
   /// Test seam for the web-gated desktop shell. `kIsWeb` is always false under
   /// `flutter test`, so widget tests pass `true` here to exercise the desktop
@@ -234,6 +239,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                                       ),
                                       isWebOverride: widget.isWebOverride,
                                       libraryController: _library,
+                                      externalInputImporter:
+                                          widget.externalInputImporter,
+                                      qrScanner: widget.qrScanner,
                                     ),
                               ),
                             ),

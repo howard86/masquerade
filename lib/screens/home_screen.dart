@@ -13,6 +13,7 @@ import '../theme/mq_theme.dart';
 import '../theme/mq_typography.dart';
 import '../utility_catalog.dart';
 import '../utils/copy_util.dart';
+import '../utils/external_input_importer.dart';
 import '../widgets/mq/compact_paste_bar.dart';
 import '../widgets/mq/mq_button.dart';
 import '../widgets/mq/mq_empty_hint.dart';
@@ -44,10 +45,20 @@ typedef _DetectedSuggestion = ({
 /// Mobile capture surface. Library owns catalog browsing; Workbench only
 /// suggests tools for the current explicit input.
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, this.onOpenTool, this.navigationBar});
+  const HomeScreen({
+    super.key,
+    this.onOpenTool,
+    this.navigationBar,
+    this.externalInputImporter,
+    this.importEnabled = true,
+    this.qrScanner,
+  });
 
   final OpenInToolCallback? onOpenTool;
   final ObstructingPreferredSizeWidget? navigationBar;
+  final ExternalInputImporter? externalInputImporter;
+  final bool importEnabled;
+  final Future<String?> Function(BuildContext context)? qrScanner;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -58,6 +69,9 @@ class _HomeScreenState extends State<HomeScreen> {
   final FocusNode _heroFocus = FocusNode();
   bool _showRawText = false;
   ArtifactProvenance _provenance = ArtifactProvenance.typed;
+  String? _importError;
+  int _inputRevision = 0;
+  int _importRequest = 0;
 
   @override
   void initState() {
@@ -82,13 +96,20 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onHeroChange() {
     if (!mounted) return;
     setState(() {
+      _inputRevision++;
+      _importError = null;
       _showRawText = false;
       _provenance = ArtifactProvenance.typed;
     });
   }
 
   Future<void> _paste() async {
+    final int request = ++_importRequest;
+    final int revision = _inputRevision;
     final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
+    if (!mounted || request != _importRequest || revision != _inputRevision) {
+      return;
+    }
     final String? text = data?.text;
     if (text != null && text.isNotEmpty) {
       _hero.text = text;
@@ -97,15 +118,43 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _clear() {
+    _importRequest++;
     _hero.clear();
     setState(() => _provenance = ArtifactProvenance.typed);
   }
 
   Future<void> _scan() async {
-    final String? result = await pushQrScanner(context);
-    if (mounted && result != null && result.isNotEmpty) {
+    final int request = ++_importRequest;
+    final int revision = _inputRevision;
+    final String? result = await (widget.qrScanner ?? pushQrScanner)(context);
+    if (mounted &&
+        request == _importRequest &&
+        revision == _inputRevision &&
+        result != null &&
+        result.isNotEmpty) {
       _hero.text = result;
       setState(() => _provenance = ArtifactProvenance.camera);
+    }
+  }
+
+  Future<void> _import() async {
+    final int request = ++_importRequest;
+    final int revision = _inputRevision;
+    if (_importError != null) setState(() => _importError = null);
+    final ExternalInputResult result =
+        await (widget.externalInputImporter ?? const ExternalInputImporter())
+            .pick();
+    if (!mounted || request != _importRequest || revision != _inputRevision) {
+      return;
+    }
+    switch (result) {
+      case ExternalInputCancelled():
+        return;
+      case ExternalInputFailure(:final message):
+        setState(() => _importError = message);
+      case ExternalInputSuccess(:final artifact):
+        _hero.text = artifact.rawValue;
+        setState(() => _provenance = artifact.provenance);
     }
   }
 
@@ -190,7 +239,16 @@ class _HomeScreenState extends State<HomeScreen> {
               onPaste: _paste,
               onClear: _clear,
               onScan: _scan,
+              onImport: widget.importEnabled ? _import : null,
             ),
+            if (_importError case final String error) ...<Widget>[
+              const SizedBox(height: MqSpacing.sm),
+              Semantics(
+                liveRegion: true,
+                label: error,
+                child: MqStatus(label: error, kind: MqStatusKind.warning),
+              ),
+            ],
             _shareInbox(context),
             _result(context, state, detected, nameMatches),
             _currentSession(context),
@@ -265,9 +323,16 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _acceptSharedItem(ShareInboxItem item) async {
+    final int request = ++_importRequest;
+    final int revision = _inputRevision;
     final ShareInboxController inbox = ShareInboxScope.of(context);
     if (!inbox.items.any((ShareInboxItem value) => value.id == item.id)) return;
-    if (!await inbox.remove(item.id) || !mounted) return;
+    if (!await inbox.remove(item.id) ||
+        !mounted ||
+        request != _importRequest ||
+        revision != _inputRevision) {
+      return;
+    }
     _hero.text = item.artifact.rawValue;
     setState(() => _provenance = ArtifactProvenance.shareExtension);
   }

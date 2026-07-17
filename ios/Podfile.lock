@@ -1,4 +1,6 @@
 PODS:
+  - file_selector_ios (0.0.1):
+    - Flutter
   - Flutter (1.0.0)
   - flutter_native_splash (2.4.3):
     - Flutter
@@ -14,6 +16,7 @@ PODS:
     - FlutterMacOS
 
 DEPENDENCIES:
+  - file_selector_ios (from `.symlinks/plugins/file_selector_ios/ios`)
   - Flutter (from `Flutter`)
   - flutter_native_splash (from `.symlinks/plugins/flutter_native_splash/ios`)
   - mobile_scanner (from `.symlinks/plugins/mobile_scanner/darwin`)
@@ -22,6 +25,8 @@ DEPENDENCIES:
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
 
 EXTERNAL SOURCES:
+  file_selector_ios:
+    :path: ".symlinks/plugins/file_selector_ios/ios"
   Flutter:
     :path: Flutter
   flutter_native_splash:
@@ -36,6 +41,7 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/shared_preferences_foundation/darwin"
 
 SPEC CHECKSUMS:
+  file_selector_ios: ec57ec07954363dd730b642e765e58f199bb621a
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   flutter_native_splash: c32d145d68aeda5502d5f543ee38c192065986cf
   mobile_scanner: 9157936403f5a0644ca3779a38ff8404c5434a93
