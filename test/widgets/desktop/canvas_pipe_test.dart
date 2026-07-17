@@ -132,4 +132,30 @@ void main() {
       expect(find.byType(ToolCardFrame), findsNWidgets(2));
     },
   );
+
+  testWidgets('accepted seed text does not imply unsupported live-link input', (
+    WidgetTester tester,
+  ) async {
+    await _pumpDesktop(tester);
+    await _openFirst(tester, 'JSON / YAML / TOML');
+    await tester.enterText(_jsonInput, '{"a":1}');
+    await tester.pumpAndSettle(_settle);
+
+    await _openViaPalette(tester, 'url', 'URL');
+    await tester.dragFrom(
+      tester.getTopLeft(find.byType(ToolCardFrame).last) +
+          const Offset(120, 14),
+      const Offset(-200, 350),
+    );
+    await tester.pumpAndSettle();
+
+    final Rect pipe = tester.getRect(_outputPipe);
+    await _pipeDrag(
+      tester,
+      Offset(pipe.right - 30, pipe.center.dy),
+      tester.getCenter(find.byType(ToolCardFrame).last),
+    );
+
+    expect(find.bySemanticsLabel('Unlink'), findsNothing);
+  });
 }
