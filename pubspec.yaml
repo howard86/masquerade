@@ -100,6 +100,7 @@ flutter:
     # OFL-1.1 requires the license text to ship with the fonts in every
     # copy, including the IPA. Bundled, not just committed.
     - assets/fonts/OFL.txt
+    - docs/privacy.md
 
   fonts:
     - family: IBMPlexSerif
