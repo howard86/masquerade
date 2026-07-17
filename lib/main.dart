@@ -7,6 +7,7 @@ import 'app.dart';
 import 'state/history_controller.dart';
 import 'state/detection_preference_controller.dart';
 import 'state/library_controller.dart';
+import 'state/share_inbox_controller.dart';
 import 'state/theme_controller.dart';
 import 'state/tool_draft_controller.dart';
 import 'state/view_mode_controller.dart';
@@ -26,6 +27,7 @@ Future<void> main() async {
     DetectionPreferenceController.load(),
     ToolDraftController.load(),
     WorkSessionController.load(),
+    ShareInboxController.load(),
   ]);
   runApp(
     MyApp(
@@ -36,6 +38,7 @@ Future<void> main() async {
       detectionPreferenceController: loaded[4] as DetectionPreferenceController,
       toolDraftController: loaded[5] as ToolDraftController,
       workSessionController: loaded[6] as WorkSessionController,
+      shareInboxController: loaded[7] as ShareInboxController,
     ),
   );
 }

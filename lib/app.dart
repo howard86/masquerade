@@ -8,6 +8,7 @@ import 'state/density_controller.dart';
 import 'state/detection_preference_controller.dart';
 import 'state/history_controller.dart';
 import 'state/library_controller.dart';
+import 'state/share_inbox_controller.dart';
 import 'state/sensitive_session_controller.dart';
 import 'state/theme_controller.dart';
 import 'state/tool_draft_controller.dart';
@@ -26,6 +27,7 @@ class MyApp extends StatefulWidget {
     this.themeController,
     this.historyController,
     this.libraryController,
+    this.shareInboxController,
     this.densityController,
     this.detectionPreferenceController,
     this.viewModeController,
@@ -38,6 +40,7 @@ class MyApp extends StatefulWidget {
   final ThemeController? themeController;
   final HistoryController? historyController;
   final LibraryController? libraryController;
+  final ShareInboxController? shareInboxController;
   final DensityController? densityController;
   final DetectionPreferenceController? detectionPreferenceController;
   final ViewModeController? viewModeController;
@@ -69,6 +72,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   late final ThemeController _theme;
   late final HistoryController _history;
   late final LibraryController _library;
+  late final ShareInboxController _shareInbox;
   late final SensitiveSessionController _sensitiveSession;
   late final DensityController _density;
   late final DetectionPreferenceController _detectionPreference;
@@ -87,6 +91,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _theme = widget.themeController ?? ThemeController();
     _history = widget.historyController ?? HistoryController();
     _library = widget.libraryController ?? LibraryController();
+    _shareInbox = widget.shareInboxController ?? ShareInboxController();
     _workSession = widget.workSessionController ?? WorkSessionController();
     _toolDrafts = widget.toolDraftController ?? ToolDraftController();
     unawaited(_toolDrafts.attach());
@@ -94,6 +99,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       _history,
       workSession: _workSession,
       toolDrafts: _toolDrafts,
+      shareInbox: _shareInbox,
     );
     _density = widget.densityController ?? DensityController();
     _detectionPreference =
@@ -149,6 +155,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     if (next != _platformBrightness) {
       setState(() => _platformBrightness = next);
     }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(_shareInbox.refresh());
   }
 
   Brightness _resolveBrightness(MqThemeMode mode) => switch (mode) {
@@ -208,20 +219,23 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                       ),
                       home: ToolDraftScope(
                         controller: _toolDrafts,
-                        child: WorkSessionScope(
-                          controller: _workSession,
-                          child: SensitiveSessionScope(
-                            controller: _sensitiveSession,
-                            child: ListenableBuilder(
-                              listenable: _sensitiveSession,
-                              builder: (BuildContext context, _) =>
-                                  RootTabScaffold(
-                                    key: ValueKey<int>(
-                                      _sensitiveSession.revision,
+                        child: ShareInboxScope(
+                          controller: _shareInbox,
+                          child: WorkSessionScope(
+                            controller: _workSession,
+                            child: SensitiveSessionScope(
+                              controller: _sensitiveSession,
+                              child: ListenableBuilder(
+                                listenable: _sensitiveSession,
+                                builder: (BuildContext context, _) =>
+                                    RootTabScaffold(
+                                      key: ValueKey<int>(
+                                        _sensitiveSession.revision,
+                                      ),
+                                      isWebOverride: widget.isWebOverride,
+                                      libraryController: _library,
                                     ),
-                                    isWebOverride: widget.isWebOverride,
-                                    libraryController: _library,
-                                  ),
+                              ),
                             ),
                           ),
                         ),

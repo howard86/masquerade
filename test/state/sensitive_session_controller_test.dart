@@ -1,8 +1,10 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:masquerade/state/canvas_controller.dart';
 import 'package:masquerade/state/history_controller.dart';
+import 'package:masquerade/state/share_inbox_controller.dart';
 import 'package:masquerade/state/sensitive_session_controller.dart';
 import 'package:masquerade/state/tool_draft_controller.dart';
 import 'package:masquerade/state/work_session_controller.dart';
@@ -56,6 +58,20 @@ void main() {
         ),
       );
     final ToolDraftController toolDrafts = await ToolDraftController.load();
+    const MethodChannel inboxChannel = MethodChannel('test/share-inbox-clear');
+    final List<String> inboxCalls = <String>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(inboxChannel, (MethodCall call) async {
+          inboxCalls.add(call.method);
+          return call.method == 'list' ? <Object?>[] : null;
+        });
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(inboxChannel, null),
+    );
+    final ShareInboxController shareInbox = await ShareInboxController.load(
+      channel: inboxChannel,
+    );
     await toolDrafts.saveJson(
       input: '{"safe":true}',
       source: 'json',
@@ -65,6 +81,7 @@ void main() {
       history,
       workSession: workSession,
       toolDrafts: toolDrafts,
+      shareInbox: shareInbox,
     );
 
     await session.clear();
@@ -73,6 +90,7 @@ void main() {
     expect(history.entries, isEmpty);
     expect(workSession.session, isNull);
     expect(toolDrafts.json, isNull);
+    expect(inboxCalls, contains('clear'));
     expect(prefs.containsKey(ToolDraftController.storageKey), isFalse);
     await toolDrafts.saveJson(
       input: '{"new":true}',

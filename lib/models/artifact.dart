@@ -23,7 +23,14 @@ enum ArtifactKind {
   unknown,
 }
 
-enum ArtifactProvenance { typed, clipboard, camera, liveLink, generated }
+enum ArtifactProvenance {
+  typed,
+  clipboard,
+  camera,
+  liveLink,
+  generated,
+  shareExtension,
+}
 
 enum ArtifactSensitivity { standard, sensitive }
 
