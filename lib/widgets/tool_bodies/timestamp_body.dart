@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
+import '../../models/artifact.dart';
 import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
@@ -32,6 +33,7 @@ class TimestampBody extends StatefulWidget implements ToolBodyWidget {
   const TimestampBody({
     super.key,
     this.initialInput,
+    this.initialArtifact,
     this.seedSource = SeedSource.none,
     this.onSwitchTool,
     this.actionBar,
@@ -40,6 +42,7 @@ class TimestampBody extends StatefulWidget implements ToolBodyWidget {
 
   @override
   final String? initialInput;
+  final Artifact<Object?>? initialArtifact;
   @override
   final SeedSource seedSource;
   final OpenInToolCallback? onSwitchTool;
@@ -62,6 +65,7 @@ class _TimestampBodyState extends State<TimestampBody>
   String? _error;
   bool _ambiguous = false;
   bool _naive = false;
+  bool _usedInitialArtifact = false;
 
   /// Non-null when the user has tapped the ambiguity banner to override the
   /// heuristic's default interpretation for the session. Cleared when input
@@ -100,7 +104,17 @@ class _TimestampBodyState extends State<TimestampBody>
   @override
   void parse(String input) {
     final String text = input.trim();
-    final TimestampParseResult heuristic = TimestampParser.parseAnyFormat(text);
+    final Artifact<Object?>? artifact = widget.initialArtifact;
+    final Object? cached = artifact?.parserResult;
+    final bool canReuse =
+        !_usedInitialArtifact &&
+        artifact?.kind == ArtifactKind.timestamp &&
+        artifact?.rawValue.trim() == text &&
+        cached is TimestampParseResult;
+    final TimestampParseResult heuristic = canReuse
+        ? cached
+        : TimestampParser.parseAnyFormat(text);
+    _usedInitialArtifact = _usedInitialArtifact || canReuse;
     final TimestampFormat? forced = heuristic.isAmbiguous ? _forcedUnit : null;
     final TimestampParseResult result = forced == null
         ? heuristic

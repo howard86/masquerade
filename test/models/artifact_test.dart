@@ -74,6 +74,16 @@ void main() {
           provenance: ArtifactProvenance.liveLink,
         ),
         Artifact<Object?>(
+          kind: ArtifactKind.bytes,
+          rawValue: '97 112 105 95 107 101 121 61 115 101 99 114 101 116',
+          provenance: ArtifactProvenance.clipboard,
+        ),
+        Artifact<Object?>(
+          kind: ArtifactKind.url,
+          rawValue: 'api_key%3Dsecret',
+          provenance: ArtifactProvenance.camera,
+        ),
+        Artifact<Object?>(
           kind: ArtifactKind.unknown,
           rawValue: SensitiveDataPolicy.mask,
           provenance: ArtifactProvenance.generated,
@@ -112,6 +122,7 @@ void main() {
         artifact: artifact,
         confidence: 0.8,
         reason: 'Plausible ten-digit Unix timestamp',
+        primaryToolId: 'timestamp',
         compatibleToolIds: <String>{'timestamp', 'number_base'},
       );
 
@@ -124,10 +135,12 @@ void main() {
         double confidence = 0.5,
         String reason = 'evidence',
         Set<String> tools = const <String>{'timestamp'},
+        String primary = 'timestamp',
       }) => DetectionMatch<Object?>(
         artifact: artifact,
         confidence: confidence,
         reason: reason,
+        primaryToolId: primary,
         compatibleToolIds: tools,
       );
 
@@ -136,6 +149,7 @@ void main() {
       expect(() => build(confidence: double.nan), throwsArgumentError);
       expect(() => build(reason: '  '), throwsArgumentError);
       expect(() => build(tools: <String>{}), throwsArgumentError);
+      expect(() => build(primary: 'number_base'), throwsArgumentError);
     });
   });
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../models/artifact.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
@@ -17,19 +18,30 @@ import '../../widgets/tool_bodies/seed_source.dart';
 /// their paste/clear handlers on the [ToolActionBarController]; the bar
 /// floats above the keyboard via `MediaQuery.viewInsets.bottom`.
 class ToolDetailRoute extends StatefulWidget {
-  const ToolDetailRoute({super.key, required this.descriptor, this.seed});
+  const ToolDetailRoute({
+    super.key,
+    required this.descriptor,
+    this.seed,
+    this.initialArtifact,
+  });
 
   final UtilityDescriptor descriptor;
   final String? seed;
+  final Artifact<Object?>? initialArtifact;
 
   static Future<void> push(
     BuildContext context,
     UtilityDescriptor descriptor, {
     String? seed,
+    Artifact<Object?>? initialArtifact,
   }) {
     return Navigator.of(context).push<void>(
       CupertinoPageRoute<void>(
-        builder: (_) => ToolDetailRoute(descriptor: descriptor, seed: seed),
+        builder: (_) => ToolDetailRoute(
+          descriptor: descriptor,
+          seed: seed,
+          initialArtifact: initialArtifact,
+        ),
       ),
     );
   }
@@ -82,6 +94,7 @@ class _ToolDetailRouteState extends State<ToolDetailRoute> {
                 child: widget.descriptor.builder(
                   context,
                   initialInput: s,
+                  initialArtifact: widget.initialArtifact,
                   seedSource: src,
                   onSwitchTool: (UtilityDescriptor target, String input) =>
                       ToolDetailRoute.push(

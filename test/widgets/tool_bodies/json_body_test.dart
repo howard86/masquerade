@@ -1,5 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:masquerade/models/artifact.dart';
+import 'package:masquerade/utils/json_parser.dart';
+import 'package:masquerade/widgets/tool_bodies/json_body.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '_helpers.dart';
@@ -19,6 +22,30 @@ void main() {
 
     expect(find.text('PRETTY'), findsOneWidget);
     expect(find.text('{\n  "a": 1\n}'), findsOneWidget);
+  });
+
+  testWidgets('JSON reuses a compatible detected parser result', (
+    WidgetTester tester,
+  ) async {
+    const String raw = '{not valid json';
+    await pumpBodyAtWidth(
+      tester,
+      JSONBody(
+        initialInput: raw,
+        initialArtifact: Artifact<Object?>(
+          kind: ArtifactKind.json,
+          rawValue: raw,
+          provenance: ArtifactProvenance.liveLink,
+          parserResult: const JSONOk(
+            JSONParseSuccess(<String, Object?>{'cached': true}),
+          ),
+        ),
+      ),
+      380,
+    );
+
+    expect(find.textContaining('"cached": true'), findsOneWidget);
+    expect(find.textContaining('ERROR'), findsNothing);
   });
 
   testWidgets('JSON — Tree target renders key path lines', (

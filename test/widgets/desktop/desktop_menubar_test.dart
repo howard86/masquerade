@@ -1,4 +1,4 @@
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
 import 'package:masquerade/screens/desktop/desktop_shell.dart';
@@ -45,6 +45,34 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(ToolCardFrame), findsNothing);
       expect(find.byType(DesktopIconGrid), findsOneWidget);
+    });
+
+    testWidgets('Paste & Detect opens the highest-ranked interpretation', (
+      WidgetTester tester,
+    ) async {
+      final TestDefaultBinaryMessenger messenger =
+          tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(SystemChannels.platform, (
+        MethodCall call,
+      ) async {
+        if (call.method == 'Clipboard.getData') {
+          return <String, Object>{'text': '1700000000'};
+        }
+        return null;
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+      await _pump(tester);
+
+      await tester.tap(find.text('Edit'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Paste & Detect  ⌘V'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ToolCardFrame), findsOneWidget);
+      expect(find.text('Timestamp'), findsWidgets);
+      expect(find.text('Number Base'), findsOneWidget);
     });
 
     testWidgets('Mobile view fires the view-mode change', (

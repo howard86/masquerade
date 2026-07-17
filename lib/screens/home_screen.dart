@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
+import '../models/artifact.dart';
 import '../theme/mq_metrics.dart';
 import '../theme/mq_theme.dart';
 import '../theme/mq_typography.dart';
@@ -15,6 +16,12 @@ import 'detail/qr_scanner_route.dart';
 import 'detail/tool_detail_route.dart';
 
 enum _WorkbenchState { empty, artifact, search, unknown }
+
+typedef _DetectedSuggestion = ({
+  DetectionMatch<Object?> match,
+  UtilityDescriptor tool,
+  bool primary,
+});
 
 /// Mobile capture surface. Library owns catalog browsing; Workbench only
 /// suggests tools for the current explicit input.
@@ -32,6 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _hero = TextEditingController();
   final FocusNode _heroFocus = FocusNode();
   bool _showRawText = false;
+  ArtifactProvenance _provenance = ArtifactProvenance.typed;
 
   @override
   void initState() {
@@ -55,29 +63,46 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _onHeroChange() {
     if (!mounted) return;
-    setState(() => _showRawText = false);
+    setState(() {
+      _showRawText = false;
+      _provenance = ArtifactProvenance.typed;
+    });
   }
 
   Future<void> _paste() async {
     final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
     final String? text = data?.text;
-    if (text != null && text.isNotEmpty) _hero.text = text;
+    if (text != null && text.isNotEmpty) {
+      _hero.text = text;
+      setState(() => _provenance = ArtifactProvenance.clipboard);
+    }
   }
 
-  void _clear() => _hero.clear();
+  void _clear() {
+    _hero.clear();
+    setState(() => _provenance = ArtifactProvenance.typed);
+  }
 
   Future<void> _scan() async {
     final String? result = await pushQrScanner(context);
-    if (mounted && result != null && result.isNotEmpty) _hero.text = result;
+    if (mounted && result != null && result.isNotEmpty) {
+      _hero.text = result;
+      setState(() => _provenance = ArtifactProvenance.camera);
+    }
   }
 
-  void _open(UtilityDescriptor tool) {
-    final String input = _hero.text;
+  void _open(UtilityDescriptor tool, {Artifact<Object?>? artifact}) {
+    final String input = artifact?.rawValue ?? _hero.text;
     final OpenInToolCallback? open = widget.onOpenTool;
     if (open != null) {
       open(tool, input);
     } else {
-      ToolDetailRoute.push(context, tool, seed: input);
+      ToolDetailRoute.push(
+        context,
+        tool,
+        seed: input,
+        initialArtifact: artifact,
+      );
     }
   }
 
@@ -107,10 +132,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final c = context.mq.colors;
     final String input = _hero.text.trim();
-    final List<UtilityDescriptor> detected = UtilityCatalog.detectAll(input);
-    final bool hasShape = detected.any(
-      (UtilityDescriptor tool) => tool.detect(input),
-    );
+    final List<DetectionMatch<Object?>> detected =
+        UtilityCatalog.detectArtifacts(_hero.text, provenance: _provenance);
+    final bool hasShape = detected.isNotEmpty;
     final List<UtilityDescriptor> nameMatches = hasShape
         ? const <UtilityDescriptor>[]
         : UtilityCatalog.searchStable(input);
@@ -121,9 +145,6 @@ class _HomeScreenState extends State<HomeScreen> {
         : nameMatches.isNotEmpty
         ? _WorkbenchState.search
         : _WorkbenchState.unknown;
-    final List<UtilityDescriptor> suggestions = hasShape
-        ? detected
-        : nameMatches;
 
     return CupertinoPageScaffold(
       backgroundColor: c.bg,
@@ -145,7 +166,7 @@ class _HomeScreenState extends State<HomeScreen> {
               onClear: _clear,
               onScan: _scan,
             ),
-            _result(context, state, suggestions),
+            _result(context, state, detected, nameMatches),
             const SectionRule(label: 'Current session'),
             const MqEmptyHint(label: 'No current session'),
             const SectionRule(label: 'Saved workflows'),
@@ -159,7 +180,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _result(
     BuildContext context,
     _WorkbenchState state,
-    List<UtilityDescriptor> suggestions,
+    List<DetectionMatch<Object?>> detected,
+    List<UtilityDescriptor> nameMatches,
   ) {
     final c = context.mq.colors;
     if (state == _WorkbenchState.empty) {
@@ -235,6 +257,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final bool artifact = state == _WorkbenchState.artifact;
     final String title = artifact ? 'Artifact detected' : 'Tool search';
+    final List<_DetectedSuggestion> ranked = artifact
+        ? _rankedSuggestions(detected)
+        : const <_DetectedSuggestion>[];
+    final int suggestionCount = artifact ? ranked.length : nameMatches.length;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -242,7 +268,9 @@ class _HomeScreenState extends State<HomeScreen> {
         Semantics(
           container: true,
           liveRegion: true,
-          label: '$title. ${suggestions.length} suggestions.',
+          label: artifact
+              ? '$title. ${ranked.first.match.reason} $suggestionCount suggestions.'
+              : '$title. $suggestionCount suggestions.',
           child: MqSurface(
             background: artifact ? c.successBg : c.accentBg,
             borderColor: artifact ? c.success : c.info,
@@ -254,8 +282,20 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: MqTextStyles.headline.copyWith(color: c.textPri),
                 ),
                 const SizedBox(height: MqSpacing.sm),
-                for (final UtilityDescriptor tool in suggestions)
-                  _SuggestionRow(tool: tool, onTap: () => _open(tool)),
+                if (artifact)
+                  for (final _DetectedSuggestion suggestion in ranked)
+                    _SuggestionRow(
+                      tool: suggestion.tool,
+                      detail:
+                          '${suggestion.primary ? 'Primary' : 'Alternative'} · ${(suggestion.match.confidence * 100).round()}% · ${suggestion.match.reason}',
+                      onTap: () => _open(
+                        suggestion.tool,
+                        artifact: suggestion.match.artifact,
+                      ),
+                    )
+                else
+                  for (final UtilityDescriptor tool in nameMatches)
+                    _SuggestionRow(tool: tool, onTap: () => _open(tool)),
               ],
             ),
           ),
@@ -263,19 +303,40 @@ class _HomeScreenState extends State<HomeScreen> {
       ],
     );
   }
+
+  List<_DetectedSuggestion> _rankedSuggestions(
+    List<DetectionMatch<Object?>> matches,
+  ) {
+    final Set<String> seen = <String>{};
+    final List<_DetectedSuggestion> suggestions = <_DetectedSuggestion>[];
+    for (final DetectionMatch<Object?> match in matches) {
+      for (final UtilityDescriptor tool in UtilityCatalog.toolsFor(match)) {
+        if (!seen.add(tool.id)) continue;
+        suggestions.add((
+          match: match,
+          tool: tool,
+          primary: suggestions.isEmpty,
+        ));
+      }
+    }
+    return suggestions;
+  }
 }
 
 class _SuggestionRow extends StatelessWidget {
-  const _SuggestionRow({required this.tool, required this.onTap});
+  const _SuggestionRow({required this.tool, required this.onTap, this.detail});
 
   final UtilityDescriptor tool;
   final VoidCallback onTap;
+  final String? detail;
 
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
     return Semantics(
-      label: 'Open ${tool.name}',
+      label: detail == null
+          ? 'Open ${tool.name}'
+          : 'Open ${tool.name}. $detail',
       button: true,
       excludeSemantics: true,
       child: CupertinoButton(
@@ -287,9 +348,21 @@ class _SuggestionRow extends StatelessWidget {
             Icon(tool.icon, size: 18, color: tool.tint),
             const SizedBox(width: MqSpacing.sm),
             Expanded(
-              child: Text(
-                tool.name,
-                style: MqTextStyles.body.copyWith(color: c.textPri),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    tool.name,
+                    style: MqTextStyles.body.copyWith(color: c.textPri),
+                  ),
+                  if (detail != null)
+                    Text(
+                      detail!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: MqTextStyles.caption1.copyWith(color: c.textSec),
+                    ),
+                ],
               ),
             ),
             Icon(MqIcons.chevR, size: 16, color: c.textTer),

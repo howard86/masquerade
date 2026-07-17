@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../models/artifact.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
@@ -23,6 +24,7 @@ class JwtBody extends StatefulWidget implements ToolBodyWidget {
   const JwtBody({
     super.key,
     this.initialInput,
+    this.initialArtifact,
     this.seedSource = SeedSource.none,
     this.onSwitchTool,
     this.actionBar,
@@ -30,6 +32,7 @@ class JwtBody extends StatefulWidget implements ToolBodyWidget {
 
   @override
   final String? initialInput;
+  final Artifact<Object?>? initialArtifact;
   @override
   final SeedSource seedSource;
   final OpenInToolCallback? onSwitchTool;
@@ -42,13 +45,24 @@ class JwtBody extends StatefulWidget implements ToolBodyWidget {
 
 class _JwtBodyState extends State<JwtBody> with ToolBodyScaffold<JwtBody> {
   JwtParseResult? _result;
+  bool _usedInitialArtifact = false;
 
   @override
   String get utilityId => 'jwt';
 
   @override
   void parse(String input) {
-    final JwtParseResult result = JwtParser.parse(input.trim());
+    final Artifact<Object?>? artifact = widget.initialArtifact;
+    final Object? cached = artifact?.parserResult;
+    final bool canReuse =
+        !_usedInitialArtifact &&
+        artifact?.kind == ArtifactKind.jwt &&
+        artifact?.rawValue.trim() == input.trim() &&
+        cached is JwtParseResult;
+    final JwtParseResult result = canReuse
+        ? cached
+        : JwtParser.parse(input.trim());
+    _usedInitialArtifact = _usedInitialArtifact || canReuse;
     setState(() => _result = result);
     if (result is JwtOk) {
       final String pretty = const JsonEncoder.withIndent(

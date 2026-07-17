@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
 
+import 'models/artifact.dart';
 import 'state/link_group.dart';
 import 'utils/bps_parser.dart';
 import 'utils/bytes_parser.dart';
@@ -13,8 +14,10 @@ import 'utils/hash_parser.dart';
 import 'utils/ip_parser.dart';
 import 'utils/json_parser.dart';
 import 'utils/jwt_parser.dart';
+import 'utils/math_parser.dart';
 import 'utils/number_base_parser.dart';
 import 'utils/toml_parser.dart';
+import 'utils/timestamp_parser.dart';
 import 'utils/uuid_parser.dart';
 import 'utils/yaml_parser.dart';
 import 'widgets/mq/mq_icons.dart';
@@ -43,6 +46,12 @@ import 'widgets/tool_bodies/uuid_body.dart';
 /// the host screen, which expands the target tool's inline card seeded with
 /// [input]. Fired by `OpenInFooter` and the QR scan-result chips.
 typedef OpenInToolCallback = void Function(UtilityDescriptor u, String input);
+
+typedef ArtifactDetector =
+    List<DetectionMatch<Object?>> Function(
+      String input,
+      ArtifactProvenance provenance,
+    );
 
 /// Default on-canvas width for a tool's card in the desktop shell. Mobile
 /// ignores this — every body is full-width there. Some tools earn more room
@@ -99,6 +108,7 @@ typedef UtilityBuilder =
     Widget Function(
       BuildContext context, {
       String? initialInput,
+      Artifact<Object?>? initialArtifact,
       SeedSource seedSource,
       OpenInToolCallback? onSwitchTool,
       ToolActionBarController? actionBar,
@@ -123,7 +133,7 @@ class UtilityDescriptor {
     required this.batchCapable,
     required this.historyPolicy,
     required this.builder,
-    required this.detect,
+    this.detectArtifact,
     this.defaultCardWidth = CardWidthClass.standard,
   });
 
@@ -143,7 +153,7 @@ class UtilityDescriptor {
   final bool batchCapable;
   final HistoryPolicy historyPolicy;
   final UtilityBuilder builder;
-  final bool Function(String input) detect;
+  final ArtifactDetector? detectArtifact;
 
   /// Width this tool's card opens at on the desktop canvas. Mobile ignores it.
   final CardWidthClass defaultCardWidth;
@@ -195,6 +205,7 @@ class UtilityCatalog {
           (
             BuildContext _, {
             String? initialInput,
+            Artifact<Object?>? initialArtifact,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
@@ -206,7 +217,7 @@ class UtilityCatalog {
             actionBar: actionBar,
             link: link,
           ),
-      detect: _detectUuid,
+      detectArtifact: _detectUuid,
     ),
     UtilityDescriptor(
       id: 'ip',
@@ -238,6 +249,7 @@ class UtilityCatalog {
           (
             BuildContext _, {
             String? initialInput,
+            Artifact<Object?>? initialArtifact,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
@@ -249,7 +261,7 @@ class UtilityCatalog {
             actionBar: actionBar,
             link: link,
           ),
-      detect: _detectIp,
+      detectArtifact: _detectIp,
     ),
     UtilityDescriptor(
       id: 'number_base',
@@ -279,6 +291,7 @@ class UtilityCatalog {
           (
             BuildContext _, {
             String? initialInput,
+            Artifact<Object?>? initialArtifact,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
@@ -290,7 +303,7 @@ class UtilityCatalog {
             actionBar: actionBar,
             link: link,
           ),
-      detect: _detectNumberBase,
+      detectArtifact: _detectNumberBase,
     ),
     UtilityDescriptor(
       id: 'timestamp',
@@ -327,18 +340,20 @@ class UtilityCatalog {
           (
             BuildContext _, {
             String? initialInput,
+            Artifact<Object?>? initialArtifact,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
             LinkChannel? link,
           }) => TimestampBody(
             initialInput: initialInput,
+            initialArtifact: initialArtifact,
             seedSource: seedSource,
             onSwitchTool: onSwitchTool,
             actionBar: actionBar,
             link: link,
           ),
-      detect: _detectTimestamp,
+      detectArtifact: _detectTimestamp,
     ),
     UtilityDescriptor(
       id: 'cron',
@@ -368,6 +383,7 @@ class UtilityCatalog {
           (
             BuildContext _, {
             String? initialInput,
+            Artifact<Object?>? initialArtifact,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
@@ -378,7 +394,7 @@ class UtilityCatalog {
             onSwitchTool: onSwitchTool,
             actionBar: actionBar,
           ),
-      detect: _detectCron,
+      detectArtifact: _detectCron,
     ),
     UtilityDescriptor(
       id: 'json',
@@ -423,18 +439,20 @@ class UtilityCatalog {
           (
             BuildContext _, {
             String? initialInput,
+            Artifact<Object?>? initialArtifact,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
             LinkChannel? link,
           }) => JSONBody(
             initialInput: initialInput,
+            initialArtifact: initialArtifact,
             seedSource: seedSource,
             onSwitchTool: onSwitchTool,
             actionBar: actionBar,
             link: link,
           ),
-      detect: _detectStructured,
+      detectArtifact: _detectStructured,
     ),
     UtilityDescriptor(
       id: 'jwt',
@@ -465,17 +483,19 @@ class UtilityCatalog {
           (
             BuildContext _, {
             String? initialInput,
+            Artifact<Object?>? initialArtifact,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
             LinkChannel? link,
           }) => JwtBody(
             initialInput: initialInput,
+            initialArtifact: initialArtifact,
             seedSource: seedSource,
             onSwitchTool: onSwitchTool,
             actionBar: actionBar,
           ),
-      detect: _detectJwt,
+      detectArtifact: _detectJwt,
     ),
     UtilityDescriptor(
       id: 'base64',
@@ -505,6 +525,7 @@ class UtilityCatalog {
           (
             BuildContext _, {
             String? initialInput,
+            Artifact<Object?>? initialArtifact,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
@@ -516,7 +537,7 @@ class UtilityCatalog {
             actionBar: actionBar,
             link: link,
           ),
-      detect: _detectBase64,
+      detectArtifact: _detectBase64,
     ),
     UtilityDescriptor(
       id: 'url',
@@ -557,6 +578,7 @@ class UtilityCatalog {
           (
             BuildContext _, {
             String? initialInput,
+            Artifact<Object?>? initialArtifact,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
@@ -568,7 +590,7 @@ class UtilityCatalog {
             actionBar: actionBar,
             link: link,
           ),
-      detect: _detectUrl,
+      detectArtifact: _detectUrl,
     ),
     UtilityDescriptor(
       id: 'color',
@@ -603,6 +625,7 @@ class UtilityCatalog {
           (
             BuildContext _, {
             String? initialInput,
+            Artifact<Object?>? initialArtifact,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
@@ -614,7 +637,7 @@ class UtilityCatalog {
             actionBar: actionBar,
             link: link,
           ),
-      detect: _detectColor,
+      detectArtifact: _detectColor,
     ),
     UtilityDescriptor(
       id: 'math',
@@ -654,6 +677,7 @@ class UtilityCatalog {
           (
             BuildContext _, {
             String? initialInput,
+            Artifact<Object?>? initialArtifact,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
@@ -665,7 +689,7 @@ class UtilityCatalog {
             actionBar: actionBar,
             link: link,
           ),
-      detect: _detectMath,
+      detectArtifact: _detectMath,
     ),
     UtilityDescriptor(
       id: 'bps',
@@ -694,6 +718,7 @@ class UtilityCatalog {
           (
             BuildContext _, {
             String? initialInput,
+            Artifact<Object?>? initialArtifact,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
@@ -704,7 +729,7 @@ class UtilityCatalog {
             onSwitchTool: onSwitchTool,
             actionBar: actionBar,
           ),
-      detect: _detectBps,
+      detectArtifact: _detectBps,
     ),
     UtilityDescriptor(
       id: 'bytes',
@@ -737,6 +762,7 @@ class UtilityCatalog {
           (
             BuildContext _, {
             String? initialInput,
+            Artifact<Object?>? initialArtifact,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
@@ -747,7 +773,7 @@ class UtilityCatalog {
             onSwitchTool: onSwitchTool,
             actionBar: actionBar,
           ),
-      detect: _detectBytes,
+      detectArtifact: _detectBytes,
     ),
     UtilityDescriptor(
       id: 'list',
@@ -785,6 +811,7 @@ class UtilityCatalog {
           (
             BuildContext _, {
             String? initialInput,
+            Artifact<Object?>? initialArtifact,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
@@ -796,7 +823,7 @@ class UtilityCatalog {
             actionBar: actionBar,
             link: link,
           ),
-      detect: _detectList,
+      detectArtifact: _detectList,
     ),
     UtilityDescriptor(
       id: 'diff',
@@ -826,6 +853,7 @@ class UtilityCatalog {
           (
             BuildContext _, {
             String? initialInput,
+            Artifact<Object?>? initialArtifact,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
@@ -836,7 +864,6 @@ class UtilityCatalog {
             actionBar: actionBar,
             link: link,
           ),
-      detect: _detectDiff,
     ),
     UtilityDescriptor(
       id: 'hash',
@@ -875,6 +902,7 @@ class UtilityCatalog {
           (
             BuildContext _, {
             String? initialInput,
+            Artifact<Object?>? initialArtifact,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
@@ -885,7 +913,7 @@ class UtilityCatalog {
             onSwitchTool: onSwitchTool,
             actionBar: actionBar,
           ),
-      detect: _detectHash,
+      detectArtifact: _detectHash,
     ),
     UtilityDescriptor(
       id: 'qr_code',
@@ -920,6 +948,7 @@ class UtilityCatalog {
           (
             BuildContext _, {
             String? initialInput,
+            Artifact<Object?>? initialArtifact,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
@@ -930,7 +959,6 @@ class UtilityCatalog {
             onSwitchTool: onSwitchTool,
             actionBar: actionBar,
           ),
-      detect: _detectQrCode,
     ),
     UtilityDescriptor(
       id: 'generator',
@@ -964,6 +992,7 @@ class UtilityCatalog {
           (
             BuildContext _, {
             String? initialInput,
+            Artifact<Object?>? initialArtifact,
             SeedSource seedSource = SeedSource.none,
             OpenInToolCallback? onSwitchTool,
             ToolActionBarController? actionBar,
@@ -975,7 +1004,6 @@ class UtilityCatalog {
             actionBar: actionBar,
             link: link,
           ),
-      detect: _detectGenerator,
     ),
   ];
 
@@ -1010,7 +1038,8 @@ class UtilityCatalog {
   }
 
   /// Ranks the catalog by name/synonym match for the command palette's
-  /// free-text query. Unlike [detectAll], this never inspects input *shape* —
+  /// free-text query. Unlike [detectArtifacts], this never inspects input
+  /// *shape* —
   /// it's a pure name search. An empty query returns the full catalog in
   /// catalog order so the palette shows everything before the user types.
   static List<UtilityDescriptor> searchByName(String query) {
@@ -1033,19 +1062,55 @@ class UtilityCatalog {
         .toList(growable: false);
   }
 
-  /// Returns descriptors whose `detect` predicate accepts [input], in catalog
-  /// order. When shape-based detection finds nothing and [input] looks like a
-  /// short query (alphabetic, ≤ 20 chars), falls through to a synonym/name
-  /// scorer so typing "unix" surfaces Timestamp and "minify" surfaces JSON.
-  /// Returns empty when [input] trims to empty.
-  static List<UtilityDescriptor> detectAll(String input) {
-    final String trimmed = input.trim();
-    if (trimmed.isEmpty) return const <UtilityDescriptor>[];
-    final List<UtilityDescriptor> shape = all
-        .where((UtilityDescriptor u) => u.detect(input))
-        .toList();
-    if (shape.isNotEmpty) return shape;
-    return _synonymMatch(trimmed);
+  /// Detects artifact interpretations independently from name search.
+  static List<DetectionMatch<Object?>> detectArtifacts(
+    String input, {
+    ArtifactProvenance provenance = ArtifactProvenance.typed,
+  }) {
+    if (input.trim().isEmpty) return const <DetectionMatch<Object?>>[];
+    final List<DetectionMatch<Object?>> matches = <DetectionMatch<Object?>>[
+      for (final UtilityDescriptor tool in all)
+        ...?tool.detectArtifact?.call(input, provenance),
+    ];
+    matches.sort((DetectionMatch<Object?> a, DetectionMatch<Object?> b) {
+      final int confidence = b.confidence.compareTo(a.confidence);
+      if (confidence != 0) return confidence;
+      final int primary = _catalogIndex(
+        a.primaryToolId,
+      ).compareTo(_catalogIndex(b.primaryToolId));
+      if (primary != 0) return primary;
+      return a.artifact.kind.index.compareTo(b.artifact.kind.index);
+    });
+
+    final Set<(ArtifactKind, String)> seen = <(ArtifactKind, String)>{};
+    return List<DetectionMatch<Object?>>.unmodifiable(
+      matches.where(
+        (DetectionMatch<Object?> match) =>
+            seen.add((match.artifact.kind, match.primaryToolId)),
+      ),
+    );
+  }
+
+  /// Resolves one interpretation's primary tool, then compatible alternates.
+  static List<UtilityDescriptor> toolsFor(DetectionMatch<Object?> match) =>
+      List<UtilityDescriptor>.unmodifiable(<UtilityDescriptor>[
+        byId(match.primaryToolId),
+        for (final UtilityDescriptor tool in all)
+          if (tool.id != match.primaryToolId &&
+              match.compatibleToolIds.contains(tool.id))
+            tool,
+      ]);
+
+  /// Flattens ranked interpretations without suggesting a tool twice.
+  static List<UtilityDescriptor> detectedTools(
+    Iterable<DetectionMatch<Object?>> matches,
+  ) {
+    final Set<String> seen = <String>{};
+    return List<UtilityDescriptor>.unmodifiable(<UtilityDescriptor>[
+      for (final DetectionMatch<Object?> match in matches)
+        for (final UtilityDescriptor tool in toolsFor(match))
+          if (seen.add(tool.id)) tool,
+    ]);
   }
 
   /// Shape-compatible tools that can consume output from [sourceUtilityId].
@@ -1056,7 +1121,9 @@ class UtilityCatalog {
   ) {
     final UtilityDescriptor? source = byIdOrNull(sourceUtilityId);
     if (source == null) return const <UtilityDescriptor>[];
-    return detectAll(output)
+    return detectedTools(
+          detectArtifacts(output, provenance: ArtifactProvenance.generated),
+        )
         .where(
           (UtilityDescriptor target) =>
               source.producedTypes.any(target.acceptedTypes.contains),
@@ -1064,27 +1131,8 @@ class UtilityCatalog {
         .toList(growable: false);
   }
 
-  static final RegExp _queryShape = RegExp(r'^[a-zA-Z0-9\- ]{1,20}$');
-
-  static List<UtilityDescriptor> _synonymMatch(String query) {
-    if (!_queryShape.hasMatch(query)) return const <UtilityDescriptor>[];
-    final String q = query.toLowerCase();
-    final List<({UtilityDescriptor u, int score})> ranked =
-        <({UtilityDescriptor u, int score})>[];
-    for (final UtilityDescriptor u in all) {
-      final int s = _scoreTool(u, q);
-      if (s > 0) ranked.add((u: u, score: s));
-    }
-    ranked.sort(
-      (
-        ({UtilityDescriptor u, int score}) a,
-        ({UtilityDescriptor u, int score}) b,
-      ) => b.score.compareTo(a.score),
-    );
-    return ranked
-        .map((({UtilityDescriptor u, int score}) e) => e.u)
-        .toList(growable: false);
-  }
+  static int _catalogIndex(String id) =>
+      all.indexWhere((UtilityDescriptor tool) => tool.id == id);
 
   static int _scoreTool(UtilityDescriptor u, String q) {
     final String name = u.name.toLowerCase();
@@ -1113,29 +1161,88 @@ final RegExp _uuidDashed = RegExp(
 final RegExp _uuidPlain = RegExp(r'^[0-9a-fA-F]{32}$');
 final RegExp _ulidShape = RegExp(r'^[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}$');
 
-bool _detectUuid(String input) {
+DetectionMatch<Object?> _evidence({
+  required ArtifactProvenance provenance,
+  required ArtifactKind kind,
+  required String rawValue,
+  required Object? parserResult,
+  required double confidence,
+  required String reason,
+  required String primaryToolId,
+  Set<String>? compatibleToolIds,
+}) => DetectionMatch<Object?>(
+  artifact: Artifact<Object?>(
+    kind: kind,
+    rawValue: rawValue,
+    provenance: provenance,
+    parserResult: parserResult,
+  ),
+  confidence: confidence,
+  reason: reason,
+  primaryToolId: primaryToolId,
+  compatibleToolIds: compatibleToolIds ?? <String>{primaryToolId},
+);
+
+List<DetectionMatch<Object?>> _detectUuid(
+  String input,
+  ArtifactProvenance provenance,
+) {
   final String t = input.trim();
   if (!_uuidDashed.hasMatch(t) &&
       !_uuidPlain.hasMatch(t) &&
       !_ulidShape.hasMatch(t)) {
-    return false;
+    return const <DetectionMatch<Object?>>[];
   }
   final UuidParseResult r = UuidParser.parse(t);
-  return r is UuidOk || r is UlidOk;
-}
-
-bool _detectIp(String input) {
-  final String t = input.trim();
-  if (_ipv4Cidr.hasMatch(t)) return IpParser.parse(t) is IpOk;
-  if (t.contains(':') && _ipv6Cidr.hasMatch(t)) {
-    return IpParser.parse(t) is IpOk;
+  if (r is! UuidOk && r is! UlidOk) {
+    return const <DetectionMatch<Object?>>[];
   }
-  return false;
+  return <DetectionMatch<Object?>>[
+    _evidence(
+      provenance: provenance,
+      kind: ArtifactKind.uuid,
+      rawValue: input,
+      parserResult: r,
+      confidence: .98,
+      reason: r is UlidOk
+          ? '26 Crockford Base32 characters decoded as a ULID.'
+          : 'Canonical UUID structure and version bits parsed successfully.',
+      primaryToolId: 'uuid',
+    ),
+  ];
 }
 
-bool _detectStructured(String input) {
+List<DetectionMatch<Object?>> _detectIp(
+  String input,
+  ArtifactProvenance provenance,
+) {
   final String t = input.trim();
-  if (t.isEmpty) return false;
+  if (!_ipv4Cidr.hasMatch(t) && !(t.contains(':') && _ipv6Cidr.hasMatch(t))) {
+    return const <DetectionMatch<Object?>>[];
+  }
+  final IpParseResult result = IpParser.parse(t);
+  if (result is! IpOk) return const <DetectionMatch<Object?>>[];
+  return <DetectionMatch<Object?>>[
+    _evidence(
+      provenance: provenance,
+      kind: ArtifactKind.ip,
+      rawValue: input,
+      parserResult: result,
+      confidence: .98,
+      reason: result.family == IpFamily.v4
+          ? 'Parsed as a valid IPv4 address${result.prefix == null ? '' : ' and CIDR prefix'}.'
+          : 'Parsed as a valid IPv6 address${result.prefix == null ? '' : ' and CIDR prefix'}.',
+      primaryToolId: 'ip',
+    ),
+  ];
+}
+
+List<DetectionMatch<Object?>> _detectStructured(
+  String input,
+  ArtifactProvenance provenance,
+) {
+  final String t = input.trim();
+  if (t.isEmpty) return const <DetectionMatch<Object?>>[];
   // Cheap pre-guard: structured input must carry at least one shape glyph.
   // Bypasses the regex sweep for plain scalars like "42", "deadbeef", words.
   if (!t.contains(':') &&
@@ -1143,83 +1250,269 @@ bool _detectStructured(String input) {
       !t.startsWith('[') &&
       !t.startsWith('{') &&
       !t.startsWith('---')) {
-    return false;
+    return const <DetectionMatch<Object?>>[];
   }
   // `{...}` is JSON only. `[name]\n...` is a TOML table header — must be
   // matched before JSON-array since both start with `[`.
-  if (t.startsWith('{')) return JSONParser.parse(t) is JSONOk;
-  if (TomlParser.looksLike(t)) return true;
-  if (t.startsWith('[')) return JSONParser.parse(t) is JSONOk;
-  return YamlParser.looksLike(t);
+  if (t.startsWith('{') || (t.startsWith('[') && !TomlParser.looksLike(t))) {
+    final JSONParseResult result = JSONParser.parse(t);
+    if (result is! JSONOk) return const <DetectionMatch<Object?>>[];
+    return <DetectionMatch<Object?>>[
+      _evidence(
+        provenance: provenance,
+        kind: ArtifactKind.json,
+        rawValue: input,
+        parserResult: result,
+        confidence: .97,
+        reason: 'JSON syntax parsed successfully.',
+        primaryToolId: 'json',
+      ),
+    ];
+  }
+  if (TomlParser.looksLike(t)) {
+    final TomlParseResult result = TomlParser.parse(t);
+    if (result is! TomlOk) return const <DetectionMatch<Object?>>[];
+    return <DetectionMatch<Object?>>[
+      _evidence(
+        provenance: provenance,
+        kind: ArtifactKind.toml,
+        rawValue: input,
+        parserResult: result,
+        confidence: .91,
+        reason: 'TOML table or key-value structure parsed successfully.',
+        primaryToolId: 'json',
+      ),
+    ];
+  }
+  if (!YamlParser.looksLike(t)) return const <DetectionMatch<Object?>>[];
+  final YamlParseResult result = YamlParser.parse(t);
+  if (result is! YamlOk) return const <DetectionMatch<Object?>>[];
+  return <DetectionMatch<Object?>>[
+    _evidence(
+      provenance: provenance,
+      kind: ArtifactKind.yaml,
+      rawValue: input,
+      parserResult: result,
+      confidence: .88,
+      reason: 'YAML document structure parsed successfully.',
+      primaryToolId: 'json',
+    ),
+  ];
 }
 
-bool _detectColor(String input) {
+List<DetectionMatch<Object?>> _detectColor(
+  String input,
+  ArtifactProvenance provenance,
+) {
   final String t = input.trim();
-  if (t.isEmpty) return false;
+  if (t.isEmpty) return const <DetectionMatch<Object?>>[];
   // Reject base-prefixed numbers — those should fire Number Base only.
   final String lower = t.toLowerCase();
   if (lower.startsWith('0x') ||
       lower.startsWith('0b') ||
       lower.startsWith('0o')) {
-    return false;
+    return const <DetectionMatch<Object?>>[];
   }
-  return MqColorParser.parse(t) != null;
+  final MqColorValue? result = MqColorParser.parse(t);
+  if (result == null) return const <DetectionMatch<Object?>>[];
+  return <DetectionMatch<Object?>>[
+    _evidence(
+      provenance: provenance,
+      kind: ArtifactKind.color,
+      rawValue: input,
+      parserResult: result,
+      confidence: t.startsWith('#') || t.contains('(') ? .96 : .72,
+      reason: 'Parsed as a supported HEX, RGB, or HSL color.',
+      primaryToolId: 'color',
+    ),
+  ];
 }
 
-bool _detectTimestamp(String input) {
+List<DetectionMatch<Object?>> _detectTimestamp(
+  String input,
+  ArtifactProvenance provenance,
+) {
   final String t = input.trim();
-  if (t.isEmpty) return false;
+  if (t.isEmpty) return const <DetectionMatch<Object?>>[];
   // Accept only the unambiguous direct forms here; defer base64/hex variants
   // to their own tools to avoid double-counting.
   final int? n = int.tryParse(t);
   if (n != null) {
     // Reject obviously-tiny numbers that are noise (e.g. "1", "42").
-    return n.abs() >= 100000000;
+    if (n.abs() < 100000000) return const <DetectionMatch<Object?>>[];
   }
-  try {
-    DateTime.parse(t);
-    return true;
-  } catch (_) {
-    return false;
+  final TimestampParseResult result = TimestampParser.parseAnyFormat(t);
+  if (!result.isSuccess) return const <DetectionMatch<Object?>>[];
+  final bool decimalAmbiguity =
+      n != null && t.replaceFirst('-', '').length == 10;
+  final List<DetectionMatch<Object?>> matches = <DetectionMatch<Object?>>[
+    _evidence(
+      provenance: provenance,
+      kind: ArtifactKind.timestamp,
+      rawValue: input,
+      parserResult: result,
+      confidence: decimalAmbiguity ? .82 : .96,
+      reason: decimalAmbiguity
+          ? 'A 10-digit decimal is plausibly Unix seconds, but it may be an ordinary number.'
+          : 'Parsed as ${result.format == TimestampFormat.iso8601 ? 'an ISO 8601 date-time' : 'a Unix timestamp'}.',
+      primaryToolId: 'timestamp',
+    ),
+  ];
+  if (n != null) {
+    final NumberBaseParseResult number = NumberBaseParser.parse(t);
+    if (number is NumberBaseOk) {
+      matches.add(
+        _evidence(
+          provenance: provenance,
+          kind: ArtifactKind.number,
+          rawValue: input,
+          parserResult: number,
+          confidence: decimalAmbiguity ? .62 : .58,
+          reason: decimalAmbiguity
+              ? 'The same 10-digit value is also a plain decimal number; Timestamp is ranked first.'
+              : 'The timestamp token is also a valid decimal integer.',
+          primaryToolId: 'number_base',
+        ),
+      );
+    }
   }
+  return matches;
 }
 
-bool _detectNumberBase(String input) =>
-    NumberBaseParser.parse(input.trim()) is NumberBaseOk;
-
-bool _detectCron(String input) {
+List<DetectionMatch<Object?>> _detectNumberBase(
+  String input,
+  ArtifactProvenance provenance,
+) {
   final String t = input.trim();
-  if (t.isEmpty) return false;
-  if (CronParser.parseSyntax(t).isSuccess) return true;
-  return CronNlParser.parse(t).isSuccess;
+  final NumberBaseParseResult result = NumberBaseParser.parse(t);
+  if (result is! NumberBaseOk) return const <DetectionMatch<Object?>>[];
+  final int? integer = int.tryParse(t);
+  if (integer != null && integer.abs() >= 100000000) {
+    final TimestampParseResult timestamp = TimestampParser.parseAnyFormat(t);
+    if (timestamp.isSuccess) return const <DetectionMatch<Object?>>[];
+  }
+  return <DetectionMatch<Object?>>[
+    _evidence(
+      provenance: provenance,
+      kind: ArtifactKind.number,
+      rawValue: input,
+      parserResult: result,
+      confidence: t.toLowerCase().startsWith(RegExp(r'0[xbo]')) ? .96 : .72,
+      reason: 'Parsed as a ${result.result.detectedBase}-base number.',
+      primaryToolId: 'number_base',
+    ),
+  ];
+}
+
+List<DetectionMatch<Object?>> _detectCron(
+  String input,
+  ArtifactProvenance provenance,
+) {
+  final String t = input.trim();
+  if (t.isEmpty) return const <DetectionMatch<Object?>>[];
+  final CronParseResult syntax = CronParser.parseSyntax(t);
+  final CronParseResult result = syntax.isSuccess
+      ? syntax
+      : CronNlParser.parse(t);
+  if (!result.isSuccess) return const <DetectionMatch<Object?>>[];
+  return <DetectionMatch<Object?>>[
+    _evidence(
+      provenance: provenance,
+      kind: ArtifactKind.cron,
+      rawValue: input,
+      parserResult: result,
+      confidence: syntax.isSuccess ? .97 : .86,
+      reason: syntax.isSuccess
+          ? 'Parsed as a valid cron schedule.'
+          : 'Parsed as a supported natural-language schedule.',
+      primaryToolId: 'cron',
+    ),
+  ];
 }
 
 final RegExp _jwtShape = RegExp(
   r'^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$',
 );
 
-bool _detectJwt(String input) {
+List<DetectionMatch<Object?>> _detectJwt(
+  String input,
+  ArtifactProvenance provenance,
+) {
   final String t = input.trim();
-  if (!_jwtShape.hasMatch(t)) return false;
-  return JwtParser.parse(t) is JwtOk;
+  if (!_jwtShape.hasMatch(t)) return const <DetectionMatch<Object?>>[];
+  final JwtParseResult result = JwtParser.parse(t);
+  if (result is! JwtOk) return const <DetectionMatch<Object?>>[];
+  final String headerSegment = t.split('.').first;
+  return <DetectionMatch<Object?>>[
+    _evidence(
+      provenance: provenance,
+      kind: ArtifactKind.jwt,
+      rawValue: input,
+      parserResult: result,
+      confidence: .995,
+      reason:
+          'Three Base64URL segments decoded as JSON JWT header and payload.',
+      primaryToolId: 'jwt',
+    ),
+    _evidence(
+      provenance: provenance,
+      kind: ArtifactKind.base64,
+      rawValue: headerSegment,
+      parserResult: EncodingResult(
+        type: EncodingType.base64,
+        result: jsonEncode(result.header),
+        original: headerSegment,
+      ),
+      confidence: .74,
+      reason: 'The JWT header is also Base64URL-encoded text.',
+      primaryToolId: 'base64',
+    ),
+  ];
 }
 
-bool _detectBase64(String input) {
+List<DetectionMatch<Object?>> _detectBase64(
+  String input,
+  ArtifactProvenance provenance,
+) {
   final String t = input.trim();
-  if (t.isEmpty) return false;
-  if (!EncodingParser.isBase64(t)) return false;
+  if (t.isEmpty) return const <DetectionMatch<Object?>>[];
+  if (!EncodingParser.isBase64(t)) return const <DetectionMatch<Object?>>[];
   // Reject pure hex (those already fire Number Base / Color); require either
   // padding, or chars outside the hex alphabet.
   final bool isHexAlphabet = RegExp(r'^[0-9a-fA-F]+$').hasMatch(t);
-  if (isHexAlphabet && !t.contains('=')) return false;
+  if (isHexAlphabet && !t.contains('=')) {
+    return const <DetectionMatch<Object?>>[];
+  }
+  // Four unpadded letters are indistinguishable from ordinary words (for
+  // example, the catalog name `List`). Short Base64 needs explicit padding.
+  if (t.length < 8 && !t.contains('=')) {
+    return const <DetectionMatch<Object?>>[];
+  }
   // Reject inputs where the decoded bytes are not printable text — those tend
   // to be coincidental matches like a 4-char alphanumeric token.
   try {
     final List<int> bytes = (const Base64Decoder()).convert(t);
-    if (bytes.isEmpty) return false;
-    return bytes.every(_isPrintableByte);
+    if (bytes.isEmpty || !bytes.every(_isPrintableByte)) {
+      return const <DetectionMatch<Object?>>[];
+    }
+    final EncodingResult result = EncodingResult(
+      type: EncodingType.base64,
+      result: utf8.decode(bytes),
+      original: t,
+    );
+    return <DetectionMatch<Object?>>[
+      _evidence(
+        provenance: provenance,
+        kind: ArtifactKind.base64,
+        rawValue: input,
+        parserResult: result,
+        confidence: .9,
+        reason: 'Valid Base64 decoded to printable text.',
+        primaryToolId: 'base64',
+      ),
+    ];
   } catch (_) {
-    return false;
+    return const <DetectionMatch<Object?>>[];
   }
 }
 
@@ -1234,47 +1527,86 @@ final RegExp _percentEscape = RegExp(r'%[0-9A-Fa-f]{2}');
 final RegExp _queryShapeUrl = RegExp(r'^[^\s?#&=]*\?[^\s]*=[^\s]*$');
 final RegExp _kvPair = RegExp(r'^[^\s&=]+=[^\s&]*$');
 
-bool _detectUrl(String input) {
+List<DetectionMatch<Object?>> _detectUrl(
+  String input,
+  ArtifactProvenance provenance,
+) {
   final String t = input.trim();
-  if (t.isEmpty) return false;
-  if (_percentEscape.hasMatch(t)) return true;
-  if (_queryShapeUrl.hasMatch(t)) return true;
+  if (t.isEmpty) return const <DetectionMatch<Object?>>[];
+  bool matches = _percentEscape.hasMatch(t) || _queryShapeUrl.hasMatch(t);
   // Bare `a=b&c=d`: every `&`-segment must be a clean key=value pair, and there
   // must be at least two — a single `k=v` is too ambiguous to claim.
   if (t.contains('&') && !t.contains(' ')) {
     final List<String> parts = t.split('&');
-    if (parts.length >= 2 && parts.every(_kvPair.hasMatch)) return true;
+    matches = matches || (parts.length >= 2 && parts.every(_kvPair.hasMatch));
   }
-  return false;
+  if (!matches) return const <DetectionMatch<Object?>>[];
+  return <DetectionMatch<Object?>>[
+    _evidence(
+      provenance: provenance,
+      kind: ArtifactKind.url,
+      rawValue: input,
+      parserResult: Uri.tryParse(t),
+      confidence: _percentEscape.hasMatch(t) ? .91 : .86,
+      reason: _percentEscape.hasMatch(t)
+          ? 'Contains valid percent-encoded URL bytes.'
+          : 'Contains a valid URL query-string shape.',
+      primaryToolId: 'url',
+    ),
+  ];
 }
 
-bool _detectBps(String input) {
+List<DetectionMatch<Object?>> _detectBps(
+  String input,
+  ArtifactProvenance provenance,
+) {
   final String t = input.trim().toLowerCase();
-  if (t.isEmpty) return false;
-  if (BpsParser.parse(t) == null) return false;
+  if (t.isEmpty) return const <DetectionMatch<Object?>>[];
+  final BpsResult? result = BpsParser.parse(t);
+  if (result == null) return const <DetectionMatch<Object?>>[];
   // Without an explicit suffix, only suggest bps for small decimals (≤ 1).
   // Plain large integers like a unix timestamp shouldn't trigger this chip.
   final bool hasSuffix =
       t.endsWith('bps') || t.endsWith('bp') || t.endsWith('%');
-  if (hasSuffix) return true;
+  bool matches = hasSuffix;
   final double? n = double.tryParse(t);
-  return n != null && n.abs() <= 1.0;
+  matches = matches || (n != null && n.abs() <= 1.0);
+  if (!matches) return const <DetectionMatch<Object?>>[];
+  return <DetectionMatch<Object?>>[
+    _evidence(
+      provenance: provenance,
+      kind: ArtifactKind.bps,
+      rawValue: input,
+      parserResult: result,
+      confidence: hasSuffix ? .95 : .72,
+      reason: hasSuffix
+          ? 'Explicit basis-point or percent suffix parsed successfully.'
+          : 'Small decimal is plausibly a rate expressed as a fraction.',
+      primaryToolId: 'bps',
+    ),
+  ];
 }
 
-bool _detectHash(String input) {
-  return HashTool.identify(input) is HashShape;
+List<DetectionMatch<Object?>> _detectHash(
+  String input,
+  ArtifactProvenance provenance,
+) {
+  final String t = input.trim();
+  final HashIdentifyResult result = HashTool.identify(t);
+  if (result is! HashShape) return const <DetectionMatch<Object?>>[];
+  return <DetectionMatch<Object?>>[
+    _evidence(
+      provenance: provenance,
+      kind: ArtifactKind.hash,
+      rawValue: input,
+      parserResult: result,
+      confidence: .9,
+      reason:
+          '${result.hex.length} hexadecimal characters match ${result.name}.',
+      primaryToolId: 'hash',
+    ),
+  ];
 }
-
-// QR has no input shape — entry is via grid tile or the home scan button.
-bool _detectQrCode(String _) => false;
-
-// Generator produces output from controls; it has no input to detect. Entry is
-// via the Home grid tile or Search.
-bool _detectGenerator(String _) => false;
-
-// Diff compares two inputs; a single typed/pasted value can't trigger it.
-// Entry is via the Home grid tile or Search.
-bool _detectDiff(String _) => false;
 
 // Operator must sit between two *operand-shaped* tokens. Eliminates false
 // positives like `0.5%` (unary-suffix percent) and `hsl(184, 100%, 38%)`
@@ -1308,36 +1640,70 @@ const Set<String> _mathFunctions = <String>{
 };
 const Set<String> _mathConsts = <String>{'pi', 'e', 'ans'};
 
-bool _detectMath(String input) {
+List<DetectionMatch<Object?>> _detectMath(
+  String input,
+  ArtifactProvenance provenance,
+) {
   final String t = input.trim();
-  if (t.isEmpty) return false;
-  if (_isoDateShape.hasMatch(t)) return false;
+  if (t.isEmpty) return const <DetectionMatch<Object?>>[];
+  if (_isoDateShape.hasMatch(t)) return const <DetectionMatch<Object?>>[];
   // A bulleted/numbered list reads as subtraction across line breaks
   // (`…T\n- E…`); defer those to the List tool.
-  if (_detectList(input)) return false;
+  if (_detectList(input, provenance).isNotEmpty) {
+    return const <DetectionMatch<Object?>>[];
+  }
   // A URL or query string reads `%` / `/` as operators; the URL tool owns it.
-  if (_detectUrl(input)) return false;
-  if (_mathBinaryOp.hasMatch(t)) return true;
+  if (_detectUrl(input, provenance).isNotEmpty) {
+    return const <DetectionMatch<Object?>>[];
+  }
+  bool matches = _mathBinaryOp.hasMatch(t);
   for (final RegExpMatch m in _mathIdent.allMatches(t.toLowerCase())) {
     final String w = m.group(0)!;
-    if (_mathFunctions.contains(w) || _mathConsts.contains(w)) return true;
+    if (_mathFunctions.contains(w) || _mathConsts.contains(w)) matches = true;
   }
-  return false;
+  if (!matches) return const <DetectionMatch<Object?>>[];
+  final MathParseResult result = MathParser.parse(t, ctx: const MathContext());
+  if (result is! MathOk) return const <DetectionMatch<Object?>>[];
+  return <DetectionMatch<Object?>>[
+    _evidence(
+      provenance: provenance,
+      kind: ArtifactKind.math,
+      rawValue: input,
+      parserResult: result,
+      confidence: .88,
+      reason: 'Contains supported math operators, functions, or constants.',
+      primaryToolId: 'math',
+    ),
+  ];
 }
 
-bool _detectBytes(String input) {
+List<DetectionMatch<Object?>> _detectBytes(
+  String input,
+  ArtifactProvenance provenance,
+) {
   final String t = input.trim();
-  if (t.isEmpty) return false;
+  if (t.isEmpty) return const <DetectionMatch<Object?>>[];
   // Cheap reject before allocating tokens/Uint8List: must start with a digit
   // or `[`, anything else can't be an integer list.
   final int first = t.codeUnitAt(0);
   final bool startsOk =
       first == 0x5B /* [ */ || (first >= 0x30 && first <= 0x39) /* 0-9 */;
-  if (!startsOk) return false;
+  if (!startsOk) return const <DetectionMatch<Object?>>[];
   final BytesParseResult r = BytesParser.parse(t);
-  if (r is! BytesParseOk) return false;
+  if (r is! BytesParseOk) return const <DetectionMatch<Object?>>[];
   // Single tokens stay with Number Base / Timestamp.
-  return r.bytes.length >= 2;
+  if (r.bytes.length < 2) return const <DetectionMatch<Object?>>[];
+  return <DetectionMatch<Object?>>[
+    _evidence(
+      provenance: provenance,
+      kind: ArtifactKind.bytes,
+      rawValue: input,
+      parserResult: r,
+      confidence: .9,
+      reason: 'Parsed ${r.bytes.length} integers in the byte range 0–255.',
+      primaryToolId: 'bytes',
+    ),
+  ];
 }
 
 // Fires only on multi-line bulleted/numbered lists: at least two non-blank
@@ -1345,12 +1711,26 @@ bool _detectBytes(String input) {
 // for prose, CSV, JSON, and single lines.
 final RegExp _listMarker = RegExp(r'^\s*([-*+•]|\d+[.)])\s+');
 
-bool _detectList(String input) {
+List<DetectionMatch<Object?>> _detectList(
+  String input,
+  ArtifactProvenance provenance,
+) {
   final List<String> lines = input
       .split('\n')
       .where((String l) => l.trim().isNotEmpty)
       .toList();
-  if (lines.length < 2) return false;
+  if (lines.length < 2) return const <DetectionMatch<Object?>>[];
   final int marked = lines.where(_listMarker.hasMatch).length;
-  return marked * 2 > lines.length;
+  if (marked * 2 <= lines.length) return const <DetectionMatch<Object?>>[];
+  return <DetectionMatch<Object?>>[
+    _evidence(
+      provenance: provenance,
+      kind: ArtifactKind.list,
+      rawValue: input,
+      parserResult: List<String>.unmodifiable(lines),
+      confidence: .86,
+      reason: '$marked of ${lines.length} non-blank lines use list markers.',
+      primaryToolId: 'list',
+    ),
+  ];
 }

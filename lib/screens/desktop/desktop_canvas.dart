@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import '../../models/artifact.dart';
 import '../../state/canvas_controller.dart';
 import '../../state/link_group.dart';
 import '../../state/window_content.dart';
@@ -300,15 +301,20 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
   }
 
   void _onDropOnCanvas(DragTargetDetails<PipePayload> details) {
-    final List<UtilityDescriptor> matches = UtilityCatalog.detectAll(
-      details.data.value,
-    );
+    final List<DetectionMatch<Object?>> matches =
+        UtilityCatalog.detectArtifacts(
+          details.data.value,
+          provenance: ArtifactProvenance.liveLink,
+        );
     if (matches.isEmpty) return;
     final RenderBox? box =
         _surfaceKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null) return;
     final Offset local = box.globalToLocal(details.offset);
-    final int id = _c.openTool(matches.first, seed: details.data.value);
+    final int id = _c.openTool(
+      UtilityCatalog.byId(matches.first.primaryToolId),
+      seed: matches.first.artifact.rawValue,
+    );
     _c.moveTo(id, local.dx - _pan.dx, local.dy - _pan.dy);
     _c.commit();
   }
