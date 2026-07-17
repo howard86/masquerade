@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../models/artifact.dart';
 import '../models/work_session.dart';
@@ -9,6 +10,7 @@ import '../theme/mq_metrics.dart';
 import '../theme/mq_theme.dart';
 import '../theme/mq_typography.dart';
 import '../utility_catalog.dart';
+import '../utils/copy_util.dart';
 import '../widgets/mq/compact_paste_bar.dart';
 import '../widgets/mq/mq_button.dart';
 import '../widgets/mq/mq_empty_hint.dart';
@@ -20,6 +22,16 @@ import 'detail/qr_scanner_route.dart';
 import 'detail/tool_detail_route.dart';
 
 enum _WorkbenchState { empty, artifact, search, unknown }
+
+enum _StepAction {
+  reopen,
+  copy,
+  share,
+  replace,
+  removeSubsequent,
+  duplicate,
+  branch,
+}
 
 typedef _DetectedSuggestion = ({
   DetectionMatch<Object?> match,
@@ -188,7 +200,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _currentSession(BuildContext context) {
-    final WorkSession? session = WorkSessionScope.of(context).session;
+    final WorkSessionController sessions = WorkSessionScope.of(context);
+    final WorkSession? session = sessions.session;
     if (session == null) {
       return const Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -208,13 +221,196 @@ class _HomeScreenState extends State<HomeScreen> {
             children: <Widget>[
               for (int i = 0; i < session.steps.length; i++) ...<Widget>[
                 if (i > 0) const SizedBox(height: MqSpacing.md),
-                _SessionStepRow(index: i, step: session.steps[i]),
+                _SessionStepRow(
+                  index: i,
+                  step: session.steps[i],
+                  onActions: () => _showStepActions(i),
+                ),
               ],
             ],
           ),
         ),
+        if (sessions.branchOrigin case final WorkSession original) ...<Widget>[
+          const SizedBox(height: MqSpacing.sm),
+          Semantics(
+            label:
+                'Original path preserved with ${original.steps.length} steps',
+            child: Text(
+              'Original path · ${original.steps.length} steps',
+              style: MqTextStyles.caption1.copyWith(
+                color: context.mq.colors.textSec,
+              ),
+            ),
+          ),
+        ],
       ],
     );
+  }
+
+  Future<void> _showStepActions(int index) async {
+    final WorkSessionController sessions = WorkSessionScope.of(context);
+    final WorkSession? session = sessions.session;
+    if (session == null || index < 0 || index >= session.steps.length) return;
+    final WorkflowStep step = session.steps[index];
+    final bool canExport = WorkSessionController.canExport(step);
+    final bool canReuse =
+        step.toolAvailable &&
+        step.status == WorkflowStepStatus.completed &&
+        step.output != null;
+    final bool hasDownstream = index < session.steps.length - 1;
+    final _StepAction? action = await showCupertinoModalPopup<_StepAction>(
+      context: context,
+      builder: (BuildContext sheetContext) => CupertinoActionSheet(
+        title: Text('Step ${index + 1} actions'),
+        actions: <Widget>[
+          if (step.toolAvailable)
+            CupertinoActionSheetAction(
+              onPressed: () =>
+                  Navigator.of(sheetContext).pop(_StepAction.reopen),
+              child: const Text('Reopen'),
+            ),
+          if (canExport) ...<Widget>[
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.of(sheetContext).pop(_StepAction.copy),
+              child: const Text('Copy output'),
+            ),
+            CupertinoActionSheetAction(
+              onPressed: () =>
+                  Navigator.of(sheetContext).pop(_StepAction.share),
+              child: const Text('Share output'),
+            ),
+          ],
+          if (step.toolAvailable)
+            CupertinoActionSheetAction(
+              onPressed: () =>
+                  Navigator.of(sheetContext).pop(_StepAction.replace),
+              child: const Text('Replace input'),
+            ),
+          if (hasDownstream)
+            CupertinoActionSheetAction(
+              isDestructiveAction: true,
+              onPressed: () =>
+                  Navigator.of(sheetContext).pop(_StepAction.removeSubsequent),
+              child: const Text('Remove subsequent steps'),
+            ),
+          if (canReuse)
+            CupertinoActionSheetAction(
+              onPressed: () =>
+                  Navigator.of(sheetContext).pop(_StepAction.duplicate),
+              child: const Text('Duplicate step'),
+            ),
+          if (canReuse && sessions.branchOrigin == null)
+            CupertinoActionSheetAction(
+              onPressed: () =>
+                  Navigator.of(sheetContext).pop(_StepAction.branch),
+              child: const Text('Branch from here'),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.of(sheetContext).pop(),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
+    if (!mounted || action == null || !identical(sessions.session, session)) {
+      return;
+    }
+    switch (action) {
+      case _StepAction.reopen:
+        _reopenStep(index);
+      case _StepAction.copy:
+        CopyToClipboardUtil.copyToClipboard(context, step.output!.rawValue);
+      case _StepAction.share:
+        await _shareOutput(step);
+      case _StepAction.replace:
+        await _replaceStepInput(index);
+      case _StepAction.removeSubsequent:
+        sessions.removeSubsequent(index);
+      case _StepAction.duplicate:
+        sessions.duplicate(index);
+      case _StepAction.branch:
+        sessions.branchFrom(index);
+    }
+  }
+
+  void _reopenStep(int index) {
+    final WorkSession? session = WorkSessionScope.of(context).session;
+    if (session == null || index < 0 || index >= session.steps.length) return;
+    final WorkflowStep step = session.steps[index];
+    final UtilityDescriptor? tool = UtilityCatalog.byIdOrNull(step.toolId);
+    if (tool == null) return;
+    ToolDetailRoute.push(
+      context,
+      tool,
+      seed: step.input.rawValue,
+      initialArtifact: step.input,
+      sessionStepIndex: index,
+    );
+  }
+
+  Future<void> _replaceStepInput(int index) async {
+    final WorkSessionController sessions = WorkSessionScope.of(context);
+    final WorkSession? session = sessions.session;
+    if (session == null || index < 0 || index >= session.steps.length) return;
+    final bool removesLaterSteps = index < session.steps.length - 1;
+    final TextEditingController input = TextEditingController(
+      text: session.steps[index].input.rawValue,
+    );
+    final String? replacement = await showCupertinoDialog<String>(
+      context: context,
+      builder: (BuildContext dialogContext) => CupertinoAlertDialog(
+        title: Text(
+          removesLaterSteps
+              ? 'Replace input and remove later steps?'
+              : 'Replace input?',
+        ),
+        content: Column(
+          children: <Widget>[
+            if (removesLaterSteps)
+              const Padding(
+                padding: EdgeInsets.only(bottom: MqSpacing.sm),
+                child: Text('All steps after this one will be removed.'),
+              ),
+            CupertinoTextField(controller: input, minLines: 1, maxLines: 4),
+          ],
+        ),
+        actions: <Widget>[
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: removesLaterSteps,
+            onPressed: () => Navigator.of(dialogContext).pop(input.text),
+            child: Text(removesLaterSteps ? 'Replace and remove' : 'Replace'),
+          ),
+        ],
+      ),
+    );
+    input.dispose();
+    if (mounted &&
+        replacement != null &&
+        identical(sessions.session, session)) {
+      sessions.replaceInput(index, replacement);
+    }
+  }
+
+  Future<void> _shareOutput(WorkflowStep step) async {
+    if (!WorkSessionController.canExport(step)) return;
+    final RenderBox? box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize || box.size.isEmpty) return;
+    try {
+      await SharePlus.instance.share(
+        ShareParams(
+          text: step.output!.rawValue,
+          subject:
+              '${UtilityCatalog.byIdOrNull(step.toolId)?.name ?? step.toolId} output',
+          sharePositionOrigin: box.localToGlobal(Offset.zero) & box.size,
+        ),
+      );
+    } catch (_) {
+      // Native share surfaces are best-effort; the user can retry.
+    }
   }
 
   Widget _result(
@@ -373,10 +569,15 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _SessionStepRow extends StatelessWidget {
-  const _SessionStepRow({required this.index, required this.step});
+  const _SessionStepRow({
+    required this.index,
+    required this.step,
+    required this.onActions,
+  });
 
   final int index;
   final WorkflowStep step;
+  final VoidCallback onActions;
 
   @override
   Widget build(BuildContext context) {
@@ -393,46 +594,53 @@ class _SessionStepRow extends StatelessWidget {
     final String? output = step.output?.safePreview;
     return Semantics(
       container: true,
+      button: true,
+      onTap: onActions,
       label:
-          'Step ${index + 1}, $name, $status. Input $input.${output == null ? '' : ' Output $output.'}',
+          'Step ${index + 1}, $name, $status. Input $input.${output == null ? '' : ' Output $output.'} Actions available.',
       excludeSemantics: true,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  '${index + 1}. $name',
-                  style: MqTextStyles.headline.copyWith(color: c.textPri),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        excludeFromSemantics: true,
+        onTap: onActions,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    '${index + 1}. $name',
+                    style: MqTextStyles.headline.copyWith(color: c.textPri),
+                  ),
                 ),
-              ),
-              MqStatus(
-                label: status,
-                kind: switch (step.status) {
-                  WorkflowStepStatus.completed => MqStatusKind.success,
-                  WorkflowStepStatus.failed => MqStatusKind.danger,
-                  WorkflowStepStatus.running => MqStatusKind.info,
-                  WorkflowStepStatus.pending => MqStatusKind.neutral,
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: MqSpacing.xs),
-          Text(
-            'Input · $input',
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: MqTextStyles.monoSm.copyWith(color: c.monoText),
-          ),
-          if (output != null)
+                MqStatus(
+                  label: status,
+                  kind: switch (step.status) {
+                    WorkflowStepStatus.completed => MqStatusKind.success,
+                    WorkflowStepStatus.failed => MqStatusKind.danger,
+                    WorkflowStepStatus.running => MqStatusKind.info,
+                    WorkflowStepStatus.pending => MqStatusKind.neutral,
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: MqSpacing.xs),
             Text(
-              'Output · $output',
+              'Input · $input',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: MqTextStyles.monoSm.copyWith(color: c.monoText),
             ),
-        ],
+            if (output != null)
+              Text(
+                'Output · $output',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: MqTextStyles.monoSm.copyWith(color: c.monoText),
+              ),
+          ],
+        ),
       ),
     );
   }
