@@ -6,6 +6,7 @@ import 'models/artifact.dart';
 import 'state/link_group.dart';
 import 'utils/bps_parser.dart';
 import 'utils/bytes_parser.dart';
+import 'utils/case_parser.dart';
 import 'utils/color_parser.dart';
 import 'utils/cron_nl_parser.dart';
 import 'utils/cron_parser.dart';
@@ -28,6 +29,7 @@ import 'widgets/tool_bodies/artifact_inspector_body.dart';
 import 'widgets/tool_bodies/base64_body.dart';
 import 'widgets/tool_bodies/bps_body.dart';
 import 'widgets/tool_bodies/bytes_body.dart';
+import 'widgets/tool_bodies/case_body.dart';
 import 'widgets/tool_bodies/color_body.dart';
 import 'widgets/tool_bodies/cron_body.dart';
 import 'widgets/tool_bodies/diff_body.dart';
@@ -838,6 +840,54 @@ class UtilityCatalog {
             link: link,
           ),
       detectArtifact: _detectBase64,
+    ),
+    UtilityDescriptor(
+      id: 'case',
+      name: 'Case',
+      description: 'camel · snake · kebab · pascal · …',
+      icon: MqIcons.textCase,
+      tint: const Color(0xFFFACC15),
+      synonyms: <String>[
+        'case',
+        'camel',
+        'snake',
+        'kebab',
+        'pascal',
+        'identifier',
+        'naming',
+      ],
+      categories: <UtilityCategory>{UtilityCategory.transform},
+      acceptedTypes: <ContentType>{ContentType.text},
+      producedTypes: <ContentType>{ContentType.text},
+      sensitivity: UtilitySensitivity.standard,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+      },
+      liveLinkTypes: <ContentType>{},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.copy,
+        UtilityQuickAction.openIn,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.enabled,
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            Artifact<Object?>? initialArtifact,
+            SeedSource seedSource = SeedSource.none,
+            OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
+            LinkChannel? link,
+          }) => CaseBody(
+            initialInput: initialInput,
+            seedSource: seedSource,
+            onSwitchTool: onSwitchTool,
+            actionBar: actionBar,
+          ),
+      detectArtifact: _detectCase,
     ),
     UtilityDescriptor(
       id: 'url',
@@ -1817,6 +1867,41 @@ List<DetectionMatch<Object?>> _detectBase64(
   } catch (_) {
     return const <DetectionMatch<Object?>>[];
   }
+}
+
+final RegExp _identifierShape = RegExp(r'^[A-Za-z][A-Za-z0-9_\- .]*$');
+final RegExp _caseSignal = RegExp(r'[_\-]|[a-z][A-Z]');
+
+List<DetectionMatch<Object?>> _detectCase(
+  String input,
+  ArtifactProvenance provenance,
+) {
+  final String t = input.trim();
+  if (t.isEmpty || t.length > 200) {
+    return const <DetectionMatch<Object?>>[];
+  }
+  if (!_identifierShape.hasMatch(t) || !_caseSignal.hasMatch(t)) {
+    return const <DetectionMatch<Object?>>[];
+  }
+  if (_detectJwt(input, provenance).isNotEmpty ||
+      _detectUuid(input, provenance).isNotEmpty ||
+      _detectBase64(input, provenance).isNotEmpty ||
+      _detectHash(input, provenance).isNotEmpty) {
+    return const <DetectionMatch<Object?>>[];
+  }
+  final CaseConversions? result = CaseParser.parse(t);
+  if (result == null) return const <DetectionMatch<Object?>>[];
+  return <DetectionMatch<Object?>>[
+    _evidence(
+      provenance: provenance,
+      kind: ArtifactKind.unknown,
+      rawValue: input,
+      parserResult: result,
+      confidence: .7,
+      reason: 'Identifier separators or letter-case boundaries were found.',
+      primaryToolId: 'case',
+    ),
+  ];
 }
 
 bool _isPrintableByte(int b) =>

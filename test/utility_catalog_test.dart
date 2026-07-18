@@ -215,6 +215,101 @@ void main() {
       );
     });
 
+    test('case detection is conservative and defers UUID and Base64', () {
+      final UtilityDescriptor tool = UtilityCatalog.byId('case');
+      expect(tool.name, 'Case');
+      expect(tool.description, 'camel · snake · kebab · pascal · …');
+      expect(tool.tint.toARGB32(), 0xFFFACC15);
+      expect(
+        UtilityCatalog.detectArtifacts(
+          'helloWorld',
+        ).map((DetectionMatch<Object?> match) => match.primaryToolId),
+        contains('case'),
+      );
+      for (final String input in <String>['XMLHttpRequest', 'testCase']) {
+        expect(
+          UtilityCatalog.detectArtifacts(
+            input,
+          ).map((DetectionMatch<Object?> match) => match.primaryToolId),
+          contains('case'),
+          reason: input,
+        );
+      }
+      expect(UtilityCatalog.detectArtifacts('hello'), isEmpty);
+      expect(
+        UtilityCatalog.detectArtifacts(
+          'a' * 201,
+        ).map((DetectionMatch<Object?> match) => match.primaryToolId),
+        isNot(contains('case')),
+      );
+      expect(
+        UtilityCatalog.detectArtifacts(
+          'a0B00000-0000-4000-8000-000000000000',
+        ).map((DetectionMatch<Object?> match) => match.primaryToolId),
+        isNot(contains('case')),
+      );
+      expect(
+        UtilityCatalog.detectArtifacts(
+          'bGlrZVRoaXMh',
+        ).map((DetectionMatch<Object?> match) => match.primaryToolId),
+        isNot(contains('case')),
+      );
+      expect(
+        UtilityCatalog.detectArtifacts(
+          'bGlrZVRoaXMh',
+        ).map((DetectionMatch<Object?> match) => match.primaryToolId),
+        contains('base64'),
+      );
+      for (final int length in <int>[32, 40, 64, 128]) {
+        final String digest = List<String>.generate(
+          length,
+          (int i) => i.isEven ? 'a' : 'B',
+        ).join();
+        final Iterable<String> toolIds = UtilityCatalog.detectArtifacts(
+          digest,
+        ).map((DetectionMatch<Object?> match) => match.primaryToolId);
+        expect(toolIds, contains('hash'), reason: '$length-char digest');
+        expect(toolIds, isNot(contains('case')), reason: '$length-char digest');
+      }
+      expect(
+        UtilityCatalog.detectArtifacts(
+          'aBValue',
+        ).map((DetectionMatch<Object?> match) => match.primaryToolId),
+        contains('case'),
+      );
+      for (final String input in <String>[
+        'hello world',
+        'https://example.com/fooBar',
+      ]) {
+        expect(
+          UtilityCatalog.detectArtifacts(
+            input,
+          ).map((DetectionMatch<Object?> match) => match.primaryToolId),
+          isNot(contains('case')),
+          reason: input,
+        );
+      }
+      final int caseIndex = UtilityCatalog.all.indexWhere(
+        (UtilityDescriptor u) => u.id == 'case',
+      );
+      expect(
+        caseIndex,
+        greaterThan(
+          UtilityCatalog.all.indexWhere(
+            (UtilityDescriptor u) => u.id == 'base64',
+          ),
+        ),
+      );
+      expect(
+        caseIndex,
+        greaterThan(
+          UtilityCatalog.all.indexWhere(
+            (UtilityDescriptor u) => u.id == 'uuid',
+          ),
+        ),
+      );
+    });
+
     test('catalog names never become artifact matches', () {
       final Map<String, List<String>> falsePositives = <String, List<String>>{};
       for (final UtilityDescriptor tool in UtilityCatalog.all) {
