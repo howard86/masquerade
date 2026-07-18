@@ -278,6 +278,13 @@ HttpRequestDescriptor _parseRaw(String input) {
       'Expected cURL, Fetch, Axios, or an HTTP request line.',
     );
   }
+  final String method = first.group(1)!.toUpperCase();
+  final String requestTarget = first.group(2)!;
+  if (method == 'CONNECT' || requestTarget == '*') {
+    throw const HttpInspectorException(
+      'CONNECT and asterisk request targets are not supported.',
+    );
+  }
   final List<HttpField> headers = <HttpField>[];
   for (final String line in lines.skip(1)) {
     if (line.trim().isEmpty) continue;
@@ -288,7 +295,7 @@ HttpRequestDescriptor _parseRaw(String input) {
     }
     headers.add(_parseHeader(line));
   }
-  String target = first.group(2)!;
+  String target = requestTarget;
   if (!target.startsWith('http://') && !target.startsWith('https://')) {
     final List<HttpField> hosts = headers
         .where((HttpField f) => f.name.toLowerCase() == 'host')
@@ -305,7 +312,7 @@ HttpRequestDescriptor _parseRaw(String input) {
     kind: lines.length == 1
         ? HttpSnippetKind.requestLog
         : HttpSnippetKind.rawHttp,
-    method: first.group(1)!.toUpperCase(),
+    method: method,
     target: target,
     headers: headers,
     body: body,
@@ -322,6 +329,11 @@ HttpRequestDescriptor _parseFetch(String input) {
   String? body;
   if (parser.optional(',')) {
     final Map<String, Object?> config = parser.object();
+    _requireJsKeys(config, const <String>{
+      'method',
+      'headers',
+      'body',
+    }, 'Fetch');
     method = _optionalJsString(config, 'method')?.toUpperCase() ?? method;
     headers = _jsHeaders(config['headers']);
     body = _jsBody(config['body']);
@@ -365,10 +377,12 @@ HttpRequestDescriptor _parseAxios(String input) {
         body = _jsBody(parser.value());
         if (parser.optional(',')) {
           final Map<String, Object?> config = parser.object();
+          _requireJsKeys(config, const <String>{'headers'}, 'Axios');
           headers = _jsHeaders(config['headers']);
         }
       } else {
         final Map<String, Object?> config = parser.object();
+        _requireJsKeys(config, const <String>{'headers'}, 'Axios');
         headers = _jsHeaders(config['headers']);
       }
     }
@@ -376,6 +390,12 @@ HttpRequestDescriptor _parseAxios(String input) {
   } else {
     parser.char('(');
     final Map<String, Object?> config = parser.object();
+    _requireJsKeys(config, const <String>{
+      'url',
+      'method',
+      'headers',
+      'data',
+    }, 'Axios');
     parser.char(')');
     target = _optionalJsString(config, 'url');
     method = _optionalJsString(config, 'method')?.toUpperCase() ?? method;
@@ -391,6 +411,16 @@ HttpRequestDescriptor _parseAxios(String input) {
     headers: headers,
     body: body,
   );
+}
+
+void _requireJsKeys(
+  Map<String, Object?> config,
+  Set<String> supported,
+  String label,
+) {
+  if (config.keys.any((String key) => !supported.contains(key))) {
+    throw HttpInspectorException('$label option is not supported.');
+  }
 }
 
 HttpRequestDescriptor _build({
