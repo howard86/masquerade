@@ -14,6 +14,77 @@ void main() {
       expect(result.truncated, isFalse);
     });
 
+    test('pathological matching times out off the caller isolate', () async {
+      bool started = false;
+      final RegexResult result = await RegexTester.runAsync(
+        pattern: r'(a+)+$',
+        input: '${'a' * 10000}!',
+        timeLimit: Duration.zero,
+        onWorkerStarted: () => started = true,
+      );
+
+      expect(started, isTrue);
+      expect(result, isA<RegexErr>());
+      expect((result as RegexErr).message, contains('timed out'));
+    });
+
+    test('worker setup failure returns a bounded error', () async {
+      final RegexResult result = await RegexTester.runAsync(
+        pattern: '.',
+        input: 'x',
+        workerRunner:
+            ({
+              required String pattern,
+              required String input,
+              required bool caseSensitive,
+              required bool multiLine,
+              required bool dotAll,
+              required bool unicode,
+              required Duration timeLimit,
+              void Function()? onStarted,
+            }) async => throw StateError('worker blocked by policy'),
+      );
+
+      expect(result, isA<RegexErr>());
+      expect(
+        (result as RegexErr).message,
+        'Regular expression matching is unavailable.',
+      );
+      expect(result.message, isNot(contains('worker blocked')));
+    });
+
+    test('async worker preserves UTF-16 offsets and named captures', () async {
+      final RegexOk result =
+          await RegexTester.runAsync(
+                pattern: r'(?<emoji>.)',
+                input: '😀',
+                unicode: true,
+              )
+              as RegexOk;
+
+      expect(result.matches.single.start, 0);
+      expect(result.matches.single.end, 2);
+      expect(result.matches.single.text, '😀');
+      expect(result.matches.single.groups, <String?>['😀']);
+      expect(result.matches.single.named, <String, String?>{'emoji': '😀'});
+
+      final RegexOk empty =
+          await RegexTester.runAsync(pattern: '', input: '😀', unicode: true)
+              as RegexOk;
+      expect(empty.matches.map((RegexMatchInfo match) => match.start), <int>[
+        0,
+        2,
+      ]);
+
+      final RegexErr captures =
+          await RegexTester.runAsync(
+                pattern: List<String>.filled(101, '(a)').join(),
+                input: '',
+              )
+              as RegexErr;
+      expect(captures.message, 'Pattern is limited to 100 capture groups.');
+    });
+
     test('returns named and optional captures', () {
       final RegexOk result =
           RegexTester.run(

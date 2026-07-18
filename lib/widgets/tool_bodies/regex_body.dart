@@ -19,17 +19,29 @@ import '../mq/tool_action_bar.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 
+typedef RegexRunner =
+    Future<RegexResult> Function({
+      required String pattern,
+      required String input,
+      bool caseSensitive,
+      bool multiLine,
+      bool dotAll,
+      bool unicode,
+    });
+
 class RegexBody extends StatefulWidget {
   const RegexBody({
     super.key,
     this.initialInput,
     this.seedSource = SeedSource.none,
     this.actionBar,
+    this.runner = RegexTester.runAsync,
   });
 
   final String? initialInput;
   final SeedSource seedSource;
   final ToolActionBarController? actionBar;
+  final RegexRunner runner;
 
   @override
   State<RegexBody> createState() => _RegexBodyState();
@@ -49,6 +61,7 @@ class _RegexBodyState extends State<RegexBody> {
   bool _unicode = true;
   bool _settingsRestored = false;
   int _visibleMatches = _pageSize;
+  int _runRequest = 0;
 
   @override
   void initState() {
@@ -109,6 +122,7 @@ class _RegexBodyState extends State<RegexBody> {
   }
 
   void _changed(String _) {
+    _runRequest++;
     _saveSettings();
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 150), _run);
@@ -120,26 +134,30 @@ class _RegexBodyState extends State<RegexBody> {
     _run();
   }
 
-  void _run() {
+  Future<void> _run() async {
     if (!mounted) return;
-    final RegexResult? result = _pattern.text.isEmpty && _input.text.isEmpty
+    final int request = ++_runRequest;
+    final String pattern = _pattern.text;
+    final String input = _input.text;
+    final RegexResult? result = pattern.isEmpty && input.isEmpty
         ? null
-        : RegexTester.run(
-            pattern: _pattern.text,
-            input: _input.text,
+        : await widget.runner(
+            pattern: pattern,
+            input: input,
             caseSensitive: _caseSensitive,
             multiLine: _multiLine,
             dotAll: _dotAll,
             unicode: _unicode,
           );
+    if (!mounted || request != _runRequest) return;
     setState(() {
       _result = result;
       _visibleMatches = _pageSize;
     });
     if (result case final RegexOk ok
-        when _pattern.text.isNotEmpty && _input.text.isNotEmpty) {
+        when pattern.isNotEmpty && input.isNotEmpty) {
       _recorder?.record(
-        _input.text,
+        input,
         ok.matches
             .take(20)
             .map((RegexMatchInfo match) => match.text)
@@ -160,6 +178,7 @@ class _RegexBodyState extends State<RegexBody> {
 
   void _clear() {
     _debounce?.cancel();
+    _runRequest++;
     _pattern.clear();
     _input.clear();
     setState(() {

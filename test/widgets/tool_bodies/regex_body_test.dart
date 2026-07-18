@@ -5,6 +5,7 @@ import 'package:masquerade/state/history_controller.dart';
 import 'package:masquerade/theme/mq_colors.dart';
 import 'package:masquerade/theme/mq_theme.dart';
 import 'package:masquerade/utility_catalog.dart';
+import 'package:masquerade/utils/regex_parser.dart';
 import 'package:masquerade/widgets/mq/mq_button.dart';
 import 'package:masquerade/widgets/mq/mq_mono_cell.dart';
 import 'package:masquerade/widgets/tool_bodies/open_in_footer.dart';
@@ -37,7 +38,7 @@ void main() {
   testWidgets('highlights matches and renders numbered and named captures', (
     WidgetTester tester,
   ) async {
-    await pumpBodyAtWidth(tester, const RegexBody(), 340);
+    await pumpBodyAtWidth(tester, const RegexBody(runner: _runRegex), 340);
     await tester.enterText(find.byType(EditableText).first, r'(?<n>\d+)');
     await tester.enterText(find.byType(EditableText).last, 'a12😀b34');
     await tester.pump(const Duration(milliseconds: 200));
@@ -56,7 +57,11 @@ void main() {
   testWidgets('compile errors and zero-width matches stay visible', (
     WidgetTester tester,
   ) async {
-    await pumpBodyAtWidth(tester, const RegexBody(initialInput: 'ab'), 340);
+    await pumpBodyAtWidth(
+      tester,
+      const RegexBody(initialInput: 'ab', runner: _runRegex),
+      340,
+    );
 
     expect(find.text('MATCH 1 · 0..0'), findsOneWidget);
     expect(find.text('Empty match'), findsNWidgets(3));
@@ -73,7 +78,7 @@ void main() {
       tester,
       MediaQuery(
         data: const MediaQueryData(textScaler: TextScaler.linear(2)),
-        child: RegexBody(initialInput: 'x' * 3000),
+        child: RegexBody(initialInput: 'x' * 3000, runner: _runRegex),
       ),
       340,
     );
@@ -117,7 +122,11 @@ void main() {
   testWidgets('unicode-off emoji matches keep valid rendered UTF-16', (
     WidgetTester tester,
   ) async {
-    await pumpBodyAtWidth(tester, const RegexBody(initialInput: '😀'), 340);
+    await pumpBodyAtWidth(
+      tester,
+      const RegexBody(initialInput: '😀', runner: _runRegex),
+      340,
+    );
     await tester.enterText(find.byType(EditableText).first, '.');
     await tester.tap(find.text('Unicode'));
     await tester.pump(const Duration(milliseconds: 200));
@@ -138,7 +147,7 @@ void main() {
       tester,
       MediaQuery(
         data: const MediaQueryData(textScaler: TextScaler.linear(2)),
-        child: RegexBody(initialInput: 'x' * 9999),
+        child: RegexBody(initialInput: 'x' * 9999, runner: _runRegex),
       ),
       340,
     );
@@ -152,7 +161,7 @@ void main() {
     WidgetTester tester,
   ) async {
     final String input = 'z' * 2000;
-    await _pump(tester, RegexBody(initialInput: input));
+    await _pump(tester, RegexBody(initialInput: input, runner: _runRegex));
     await tester.enterText(find.byType(EditableText).first, r'.+');
     await tester.pump(const Duration(milliseconds: 200));
 
@@ -177,7 +186,7 @@ void main() {
     WidgetTester tester,
   ) async {
     final HistoryController history = HistoryController();
-    await _pump(tester, const RegexBody(), history: history);
+    await _pump(tester, const RegexBody(runner: _runRegex), history: history);
     await tester.enterText(find.byType(EditableText).first, r'\d+');
     await tester.enterText(find.byType(EditableText).last, 'year 2026');
     await tester.pump(const Duration(milliseconds: 200));
@@ -198,7 +207,7 @@ void main() {
       MobileSessionRouteScope(
         addNext: true,
         protectedSession: true,
-        child: const RegexBody(),
+        child: const RegexBody(runner: _runRegex),
       ),
       history: protectedHistory,
     );
@@ -225,7 +234,7 @@ void main() {
           'unicode': true,
         },
         onSettingsChanged: (Map<String, Object?> value) => updated = value,
-        child: const RegexBody(initialInput: 'A'),
+        child: const RegexBody(initialInput: 'A', runner: _runRegex),
       ),
     );
 
@@ -256,6 +265,22 @@ void main() {
     );
   });
 }
+
+Future<RegexResult> _runRegex({
+  required String pattern,
+  required String input,
+  bool caseSensitive = true,
+  bool multiLine = false,
+  bool dotAll = false,
+  bool unicode = true,
+}) async => RegexTester.run(
+  pattern: pattern,
+  input: input,
+  caseSensitive: caseSensitive,
+  multiLine: multiLine,
+  dotAll: dotAll,
+  unicode: unicode,
+);
 
 Future<void> _pump(
   WidgetTester tester,

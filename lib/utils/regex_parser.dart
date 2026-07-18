@@ -1,3 +1,19 @@
+import 'regex_worker_native.dart'
+    if (dart.library.html) 'regex_worker_web.dart'
+    as worker;
+
+typedef RegexWorkerRunner =
+    Future<RegexResult> Function({
+      required String pattern,
+      required String input,
+      required bool caseSensitive,
+      required bool multiLine,
+      required bool dotAll,
+      required bool unicode,
+      required Duration timeLimit,
+      void Function()? onStarted,
+    });
+
 sealed class RegexResult {
   const RegexResult();
 }
@@ -38,6 +54,44 @@ class RegexTester {
   static const int maxInputLength = 64 * 1024;
   static const int maxCaptureGroups = 100;
   static const int maxMatches = 10000;
+  static const Duration timeout = Duration(milliseconds: 500);
+
+  static Future<RegexResult> runAsync({
+    required String pattern,
+    required String input,
+    bool caseSensitive = true,
+    bool multiLine = false,
+    bool dotAll = false,
+    bool unicode = true,
+    Duration timeLimit = timeout,
+    RegexWorkerRunner? workerRunner,
+    void Function()? onWorkerStarted,
+  }) async {
+    if (pattern.length > maxPatternLength || input.length > maxInputLength) {
+      return run(
+        pattern: pattern,
+        input: input,
+        caseSensitive: caseSensitive,
+        multiLine: multiLine,
+        dotAll: dotAll,
+        unicode: unicode,
+      );
+    }
+    try {
+      return await (workerRunner ?? worker.runRegexWorker)(
+        pattern: pattern,
+        input: input,
+        caseSensitive: caseSensitive,
+        multiLine: multiLine,
+        dotAll: dotAll,
+        unicode: unicode,
+        timeLimit: timeLimit,
+        onStarted: onWorkerStarted,
+      );
+    } on Object {
+      return const RegexErr('Regular expression matching is unavailable.');
+    }
+  }
 
   static RegexResult run({
     required String pattern,
@@ -72,7 +126,7 @@ class RegexTester {
         unicode: unicode,
       ).firstMatch('')!.groupCount;
     } on FormatException catch (error) {
-      return RegexErr(_compileError(error, pattern));
+      return RegexErr(formatCompileError(error.message, pattern));
     }
     if (captureGroups > maxCaptureGroups) {
       return const RegexErr('Pattern is limited to 100 capture groups.');
@@ -106,8 +160,8 @@ class RegexTester {
     );
   }
 
-  static String _compileError(FormatException error, String pattern) {
-    final String detail = error.message.replaceAll(RegExp(r'\s+'), ' ').trim();
+  static String formatCompileError(String message, String pattern) {
+    final String detail = message.replaceAll(RegExp(r'\s+'), ' ').trim();
     if (detail.isEmpty || detail.length > 160 || detail.contains(pattern)) {
       return 'Invalid regular expression.';
     }
