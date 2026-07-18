@@ -214,7 +214,7 @@ final class ShareInboxStore {
 
   private static let sensitivePatterns = [
     #"(?im)(?:^|[\[\{,?&;])\s*(?:-\s*)?["']?(?:access[-_.]?token|api[-_.]?key|auth[-_.]?token|authorization|client[-_.]?secret|consumer[-_.]?secret|credential(?:s)?|pass(?:word|wd)?|private[-_.]?key|proxy[-_.]?authorization|pwd|refresh[-_.]?token|secret[-_.]?access[-_.]?key|secret(?:[-_.]?key)?|session[-_.]?token|token)["']?\s*[:=]"#,
-    #"(?m)^\s*(?:export\s+)?[A-Za-z_][A-Za-z0-9_]*\s*="#,
+    #"(?m)^\s*(?:export\s+)?[A-Za-z_][A-Za-z0-9_]*\s*=\s*\S"#,
     #"-----BEGIN (?:[A-Z0-9]+ )?PRIVATE KEY-----"#,
     #"eyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*"#,
   ]

@@ -65,6 +65,16 @@ class RunnerTests: XCTestCase {
     XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: root.path), [])
   }
 
+  func testPaddedBase64IsNotAnEmptyEnvironmentAssignment() throws {
+    let store = try ShareInboxStore(root: root)
+    let value = "aGVsbG8="
+
+    XCTAssertFalse(ShareInboxStore.isProtected(value))
+    let saved = try store.saveText(value, kind: "text")
+    XCTAssertEqual(saved.payload, value)
+    XCTAssertTrue(store.remove(id: saved.id))
+  }
+
   func testConcurrentSavesKeepUniqueAtomicItems() throws {
     let store = try ShareInboxStore(root: root)
     let lock = NSLock()
