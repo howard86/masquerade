@@ -60,7 +60,6 @@ class _ToolDetailRouteState extends State<ToolDetailRoute> {
       navigationBar: CupertinoNavigationBar(
         backgroundColor: c.surface,
         border: Border(bottom: BorderSide(color: c.border, width: 0.5)),
-        previousPageTitle: 'Home',
         middle: Text(
           widget.descriptor.name,
           style: MqTextStyles.headline.copyWith(color: c.textPri),

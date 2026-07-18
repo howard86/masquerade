@@ -74,33 +74,69 @@ class _RootTabScaffoldState extends State<RootTabScaffold> {
               padding: EdgeInsets.symmetric(vertical: 8),
               child: Icon(MqIcons.home),
             ),
-            label: 'Home',
+            label: 'Workbench',
+          ),
+          BottomNavigationBarItem(
+            icon: Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Icon(MqIcons.list),
+            ),
+            label: 'Library',
           ),
           BottomNavigationBarItem(
             icon: Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
               child: Icon(MqIcons.history),
             ),
-            label: 'History',
-          ),
-          BottomNavigationBarItem(
-            icon: Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Icon(MqIcons.setting),
-            ),
-            label: 'Settings',
+            label: 'Activity',
           ),
         ],
       ),
       tabBuilder: (BuildContext context, int index) {
         return CupertinoTabView(
-          builder: (BuildContext context) => switch (index) {
-            0 => const HomeScreen(),
-            1 => const HistoryScreen(),
-            _ => const SettingsScreen(),
+          builder: (BuildContext context) {
+            final String title = switch (index) {
+              0 => 'Workbench',
+              1 => 'Library',
+              _ => 'Activity',
+            };
+            final CupertinoNavigationBar navigationBar = _topLevelNavigationBar(
+              context,
+              title,
+            );
+            return switch (index) {
+              0 => HomeScreen(navigationBar: navigationBar),
+              1 => HomeScreen(catalogOnly: true, navigationBar: navigationBar),
+              _ => HistoryScreen(title: title, navigationBar: navigationBar),
+            };
           },
         );
       },
+    );
+  }
+
+  CupertinoNavigationBar _topLevelNavigationBar(
+    BuildContext context,
+    String title,
+  ) {
+    return CupertinoNavigationBar(
+      middle: Text(title),
+      trailing: Semantics(
+        label: 'Open Settings',
+        button: true,
+        excludeSemantics: true,
+        child: CupertinoButton(
+          padding: EdgeInsets.zero,
+          minimumSize: const Size.square(44),
+          onPressed: () => Navigator.of(context).push<void>(
+            CupertinoPageRoute<void>(
+              builder: (_) =>
+                  SettingsScreen(isWebOverride: widget.isWebOverride),
+            ),
+          ),
+          child: const Icon(MqIcons.setting),
+        ),
+      ),
     );
   }
 }

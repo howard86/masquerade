@@ -16,17 +16,23 @@ import '../widgets/mq/tool_grid_card.dart';
 import 'detail/qr_scanner_route.dart';
 import 'detail/tool_detail_route.dart';
 
-/// Home tab — compact paste bar (two-stage hero), hairline section rule, and
-/// a responsive tool grid sorted matched → recently-used → idle. Tapping a
-/// card pushes a [ToolDetailRoute] seeded with the hero text, unless
-/// [onOpenTool] is supplied (desktop shell) — then it opens the tool in-pane.
+/// Workbench content — compact paste bar and a responsive tool grid sorted
+/// matched → recently-used → idle. [catalogOnly] reuses the same grid in
+/// stable catalog order for the provisional Library shell.
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, this.onOpenTool});
+  const HomeScreen({
+    super.key,
+    this.onOpenTool,
+    this.catalogOnly = false,
+    this.navigationBar,
+  });
 
   /// When non-null, tapping a tool card calls this instead of pushing a route.
   /// The desktop shell uses it to swap its content pane. The `input` arg is the
   /// current hero text (may be empty).
   final OpenInToolCallback? onOpenTool;
+  final bool catalogOnly;
+  final ObstructingPreferredSizeWidget? navigationBar;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -119,19 +125,18 @@ class _HomeScreenState extends State<HomeScreen> {
     // Dart's LinkedHashMap preserves insertion order, so the keys ARE the
     // recency-ordered list of recently-used tool ids.
     final Map<String, HistoryEntry> lastByTool = <String, HistoryEntry>{};
-    if (!retentionOff) {
+    if (!widget.catalogOnly && !retentionOff) {
       for (final HistoryEntry e in history.entries) {
         lastByTool.putIfAbsent(e.utilityId, () => e);
       }
     }
 
-    final Set<String> matchedIds = _matches
-        .map((UtilityDescriptor u) => u.id)
-        .toSet();
-    final List<UtilityDescriptor> sorted = _sortCatalog(
-      matchedIds,
-      lastByTool.keys,
-    );
+    final Set<String> matchedIds = widget.catalogOnly
+        ? const <String>{}
+        : _matches.map((UtilityDescriptor u) => u.id).toSet();
+    final List<UtilityDescriptor> sorted = widget.catalogOnly
+        ? UtilityCatalog.all
+        : _sortCatalog(matchedIds, lastByTool.keys);
     final MqDensity d = context.density;
     // Cards have a fixed cross-axis width, so a fixed aspect ratio also fixes
     // their height. At large Dynamic Type the tile text needs more vertical
@@ -142,6 +147,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return CupertinoPageScaffold(
       backgroundColor: c.bg,
+      navigationBar: widget.navigationBar,
       child: SafeArea(
         bottom: false,
         child: ListView(
@@ -152,14 +158,16 @@ class _HomeScreenState extends State<HomeScreen> {
             MqLayout.tabBarClearance,
           ),
           children: <Widget>[
-            CompactPasteBar(
-              controller: _hero,
-              focusNode: _heroFocus,
-              onPaste: _paste,
-              onClear: _clear,
-              onScan: _scan,
-            ),
-            const SectionRule(),
+            if (!widget.catalogOnly) ...<Widget>[
+              CompactPasteBar(
+                controller: _hero,
+                focusNode: _heroFocus,
+                onPaste: _paste,
+                onClear: _clear,
+                onScan: _scan,
+              ),
+              const SectionRule(),
+            ],
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
