@@ -6,6 +6,7 @@ import 'package:masquerade/main.dart' show registerBundledFontLicenses;
 import 'package:masquerade/screens/acknowledgements_screen.dart';
 import 'package:masquerade/screens/privacy_policy_screen.dart';
 import 'package:masquerade/screens/settings_screen.dart';
+import 'package:masquerade/state/detection_preference_controller.dart';
 import 'package:masquerade/state/history_controller.dart';
 import 'package:masquerade/state/theme_controller.dart';
 import 'package:masquerade/state/view_mode_controller.dart';
@@ -19,13 +20,16 @@ Widget _host({Widget home = const SettingsScreen(isWebOverride: false)}) {
       tokens: MqTokens(colors: MqColors.light(), brightness: Brightness.light),
       child: ThemeScope(
         controller: ThemeController(),
-        child: HistoryScope(
-          controller: HistoryController(),
-          child: ViewModeScope(
-            controller: ViewModeController(),
-            child: WallpaperScope(
-              controller: WallpaperController(),
-              child: child ?? const SizedBox.shrink(),
+        child: DetectionPreferenceScope(
+          controller: DetectionPreferenceController(),
+          child: HistoryScope(
+            controller: HistoryController(),
+            child: ViewModeScope(
+              controller: ViewModeController(),
+              child: WallpaperScope(
+                controller: WallpaperController(),
+                child: child ?? const SizedBox.shrink(),
+              ),
             ),
           ),
         ),

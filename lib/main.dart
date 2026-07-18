@@ -5,6 +5,7 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 
 import 'app.dart';
 import 'state/history_controller.dart';
+import 'state/detection_preference_controller.dart';
 import 'state/library_controller.dart';
 import 'state/theme_controller.dart';
 import 'state/view_mode_controller.dart';
@@ -20,6 +21,7 @@ Future<void> main() async {
     HistoryController.load(),
     LibraryController.load(),
     ViewModeController.load(),
+    DetectionPreferenceController.load(),
   ]);
   runApp(
     MyApp(
@@ -27,6 +29,7 @@ Future<void> main() async {
       historyController: loaded[1] as HistoryController,
       libraryController: loaded[2] as LibraryController,
       viewModeController: loaded[3] as ViewModeController,
+      detectionPreferenceController: loaded[4] as DetectionPreferenceController,
     ),
   );
 }

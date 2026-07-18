@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
 import '../../theme/mq_metrics.dart';
+import '../../state/detection_preference_controller.dart';
 import '../../utility_catalog.dart';
 import '../../utils/copy_util.dart';
 import '../../utils/sensitive_data_policy.dart';
@@ -35,9 +36,12 @@ class OpenInFooter extends StatelessWidget {
         SensitiveDataPolicy.containsSensitiveArtifact(out)) {
       return const SizedBox.shrink();
     }
+    final DetectionPreferenceController? preferences =
+        DetectionPreferenceScope.maybeOf(context);
     final List<UtilityDescriptor> targets = UtilityCatalog.compatibleNextSteps(
       excludeUtilityId,
       out,
+      rank: preferences?.rank,
     ).where((UtilityDescriptor u) => u.id != excludeUtilityId).toList();
     if (targets.isEmpty) return const SizedBox.shrink();
 

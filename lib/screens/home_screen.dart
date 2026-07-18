@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
 import '../models/artifact.dart';
+import '../state/detection_preference_controller.dart';
 import '../theme/mq_metrics.dart';
 import '../theme/mq_theme.dart';
 import '../theme/mq_typography.dart';
@@ -132,8 +133,11 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final c = context.mq.colors;
     final String input = _hero.text.trim();
-    final List<DetectionMatch<Object?>> detected =
-        UtilityCatalog.detectArtifacts(_hero.text, provenance: _provenance);
+    final DetectionPreferenceController preferences =
+        DetectionPreferenceScope.of(context);
+    final List<DetectionMatch<Object?>> detected = preferences.rank(
+      UtilityCatalog.detectArtifacts(_hero.text, provenance: _provenance),
+    );
     final bool hasShape = detected.isNotEmpty;
     final List<UtilityDescriptor> nameMatches = hasShape
         ? const <UtilityDescriptor>[]
@@ -184,6 +188,8 @@ class _HomeScreenState extends State<HomeScreen> {
     List<UtilityDescriptor> nameMatches,
   ) {
     final c = context.mq.colors;
+    final DetectionPreferenceController preferences =
+        DetectionPreferenceScope.of(context);
     if (state == _WorkbenchState.empty) {
       return Semantics(
         container: true,
@@ -292,6 +298,13 @@ class _HomeScreenState extends State<HomeScreen> {
                         suggestion.tool,
                         artifact: suggestion.match.artifact,
                       ),
+                      onMakePrimary:
+                          suggestion.primary || !preferences.canPrefer(detected)
+                          ? null
+                          : () => preferences.prefer(
+                              detected,
+                              suggestion.match.artifact.kind,
+                            ),
                     )
                 else
                   for (final UtilityDescriptor tool in nameMatches)
@@ -324,51 +337,75 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _SuggestionRow extends StatelessWidget {
-  const _SuggestionRow({required this.tool, required this.onTap, this.detail});
+  const _SuggestionRow({
+    required this.tool,
+    required this.onTap,
+    this.detail,
+    this.onMakePrimary,
+  });
 
   final UtilityDescriptor tool;
   final VoidCallback onTap;
   final String? detail;
+  final VoidCallback? onMakePrimary;
 
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
-    return Semantics(
-      label: detail == null
-          ? 'Open ${tool.name}'
-          : 'Open ${tool.name}. $detail',
-      button: true,
-      excludeSemantics: true,
-      child: CupertinoButton(
-        padding: const EdgeInsets.symmetric(vertical: MqSpacing.sm),
-        minimumSize: const Size.fromHeight(44),
-        onPressed: onTap,
-        child: Row(
-          children: <Widget>[
-            Icon(tool.icon, size: 18, color: tool.tint),
-            const SizedBox(width: MqSpacing.sm),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    tool.name,
-                    style: MqTextStyles.body.copyWith(color: c.textPri),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Semantics(
+          label: detail == null
+              ? 'Open ${tool.name}'
+              : 'Open ${tool.name}. $detail',
+          button: true,
+          excludeSemantics: true,
+          child: CupertinoButton(
+            padding: const EdgeInsets.symmetric(vertical: MqSpacing.sm),
+            minimumSize: const Size.fromHeight(44),
+            onPressed: onTap,
+            child: Row(
+              children: <Widget>[
+                Icon(tool.icon, size: 18, color: tool.tint),
+                const SizedBox(width: MqSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        tool.name,
+                        style: MqTextStyles.body.copyWith(color: c.textPri),
+                      ),
+                      if (detail != null)
+                        Text(
+                          detail!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: MqTextStyles.caption1.copyWith(
+                            color: c.textSec,
+                          ),
+                        ),
+                    ],
                   ),
-                  if (detail != null)
-                    Text(
-                      detail!,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: MqTextStyles.caption1.copyWith(color: c.textSec),
-                    ),
-                ],
-              ),
+                ),
+                Icon(MqIcons.chevR, size: 16, color: c.textTer),
+              ],
             ),
-            Icon(MqIcons.chevR, size: 16, color: c.textTer),
-          ],
+          ),
         ),
-      ),
+        if (onMakePrimary != null)
+          Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: MqButton(
+              label: 'Make primary',
+              semanticsLabel: 'Make ${tool.name} the primary interpretation',
+              size: MqButtonSize.sm,
+              variant: MqButtonVariant.glass,
+              onPressed: onMakePrimary,
+            ),
+          ),
+      ],
     );
   }
 }

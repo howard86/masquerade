@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
 import '../../models/artifact.dart';
+import '../../state/detection_preference_controller.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
@@ -86,7 +87,9 @@ class _CommandPaletteState extends State<_CommandPalette> {
     final bool protected = SensitiveDataPolicy.containsSensitiveArtifact(text);
     final List<DetectionMatch<Object?>> detected = protected
         ? const <DetectionMatch<Object?>>[]
-        : UtilityCatalog.detectArtifacts(text);
+        : DetectionPreferenceScope.of(
+            context,
+          ).rank(UtilityCatalog.detectArtifacts(text));
     setState(() {
       _queryProtected = protected;
       _results = protected
