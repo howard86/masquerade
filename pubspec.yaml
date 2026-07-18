@@ -64,6 +64,10 @@ dependencies:
   yaml_writer: ^2.0.0
   toml: ^0.18.0
 
+  # Dart has no built-in Unicode normalization API. This small pure-Dart
+  # package provides the four standard forms used by Unicode Inspector.
+  unorm_dart: ^0.3.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
