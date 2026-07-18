@@ -25,6 +25,15 @@ void main() {
     );
   });
 
+  testWidgets('tappable chip has a 44-point minimum hit target', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(_wrap(MqChip(label: 'Inspect', onTap: () {})));
+
+    final Size target = tester.getSize(find.bySemanticsLabel('Inspect'));
+    expect(target.height, greaterThanOrEqualTo(44));
+  });
+
   testWidgets('non-tappable chip is not announced as a button', (
     WidgetTester tester,
   ) async {

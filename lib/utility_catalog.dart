@@ -64,6 +64,18 @@ enum CardWidthClass {
   final double px;
 }
 
+enum UtilityCategory {
+  inspect('Inspect'),
+  transform('Transform'),
+  generate('Generate'),
+  compareValidate('Compare and validate'),
+  all('All tools');
+
+  const UtilityCategory(this.label);
+
+  final String label;
+}
+
 /// Builds an embeddable tool body for inline rendering inside an
 /// `InlineToolCard`. Receives the optional seed input and how it arrived
 /// ([SeedSource]) so the body can decide whether to record history
@@ -93,6 +105,7 @@ class UtilityDescriptor {
     required this.icon,
     required this.tint,
     required this.synonyms,
+    required this.categories,
     required this.builder,
     required this.detect,
     this.defaultCardWidth = CardWidthClass.standard,
@@ -104,6 +117,7 @@ class UtilityDescriptor {
   final IconData icon;
   final Color tint;
   final List<String> synonyms;
+  final Set<UtilityCategory> categories;
   final UtilityBuilder builder;
   final bool Function(String input) detect;
 
@@ -123,6 +137,11 @@ class UtilityCatalog {
       icon: MqIcons.uuid,
       tint: const Color(0xFF14B8A6),
       synonyms: <String>['uuid', 'guid', 'ulid', 'identifier'],
+      categories: <UtilityCategory>{
+        UtilityCategory.inspect,
+        UtilityCategory.generate,
+        UtilityCategory.compareValidate,
+      },
       builder:
           (
             BuildContext _, {
@@ -147,6 +166,10 @@ class UtilityCatalog {
       icon: MqIcons.network,
       tint: const Color(0xFF10B981),
       synonyms: <String>['ip', 'ipv4', 'ipv6', 'cidr', 'subnet', 'netmask'],
+      categories: <UtilityCategory>{
+        UtilityCategory.inspect,
+        UtilityCategory.compareValidate,
+      },
       builder:
           (
             BuildContext _, {
@@ -171,6 +194,7 @@ class UtilityCatalog {
       icon: MqIcons.binary,
       tint: const Color(0xFF3B6DD6),
       synonyms: <String>['hex', 'binary', 'octal', 'decimal', 'base'],
+      categories: <UtilityCategory>{UtilityCategory.transform},
       builder:
           (
             BuildContext _, {
@@ -195,6 +219,10 @@ class UtilityCatalog {
       icon: MqIcons.clock,
       tint: const Color(0xFF00B8C4),
       synonyms: <String>['epoch', 'unix', 'iso', 'date', 'time'],
+      categories: <UtilityCategory>{
+        UtilityCategory.inspect,
+        UtilityCategory.transform,
+      },
       builder:
           (
             BuildContext _, {
@@ -219,6 +247,7 @@ class UtilityCatalog {
       icon: MqIcons.cron,
       tint: const Color(0xFFD946EF),
       synonyms: <String>['cron', 'schedule', 'crontab'],
+      categories: <UtilityCategory>{UtilityCategory.inspect},
       defaultCardWidth: CardWidthClass.wide,
       builder:
           (
@@ -253,6 +282,11 @@ class UtilityCatalog {
         'config',
         'convert',
       ],
+      categories: <UtilityCategory>{
+        UtilityCategory.inspect,
+        UtilityCategory.transform,
+        UtilityCategory.compareValidate,
+      },
       defaultCardWidth: CardWidthClass.xwide,
       builder:
           (
@@ -278,6 +312,10 @@ class UtilityCatalog {
       icon: MqIcons.key,
       tint: const Color(0xFFA855F7),
       synonyms: <String>['jwt', 'token', 'jose', 'bearer', 'auth'],
+      categories: <UtilityCategory>{
+        UtilityCategory.inspect,
+        UtilityCategory.compareValidate,
+      },
       builder:
           (
             BuildContext _, {
@@ -301,6 +339,7 @@ class UtilityCatalog {
       icon: MqIcons.textCase,
       tint: const Color(0xFF0EA5E9),
       synonyms: <String>['encode', 'decode', 'b64', 'url-safe'],
+      categories: <UtilityCategory>{UtilityCategory.transform},
       builder:
           (
             BuildContext _, {
@@ -334,6 +373,10 @@ class UtilityCatalog {
         'querystring',
         'escape',
       ],
+      categories: <UtilityCategory>{
+        UtilityCategory.inspect,
+        UtilityCategory.transform,
+      },
       builder:
           (
             BuildContext _, {
@@ -358,6 +401,11 @@ class UtilityCatalog {
       icon: MqIcons.drop,
       tint: const Color(0xFFEC4899),
       synonyms: <String>['hex', 'rgb', 'hsl', 'oklch', 'contrast', 'wcag'],
+      categories: <UtilityCategory>{
+        UtilityCategory.inspect,
+        UtilityCategory.transform,
+        UtilityCategory.compareValidate,
+      },
       defaultCardWidth: CardWidthClass.wide,
       builder:
           (
@@ -389,6 +437,7 @@ class UtilityCatalog {
         'evaluate',
         'arithmetic',
       ],
+      categories: <UtilityCategory>{UtilityCategory.transform},
       builder:
           (
             BuildContext _, {
@@ -413,6 +462,7 @@ class UtilityCatalog {
       icon: MqIcons.pct,
       tint: const Color(0xFFF59E0B),
       synonyms: <String>['basis points', 'percent', 'rate', 'finance'],
+      categories: <UtilityCategory>{UtilityCategory.transform},
       builder:
           (
             BuildContext _, {
@@ -436,6 +486,10 @@ class UtilityCatalog {
       icon: MqIcons.bytes,
       tint: const Color(0xFF22C55E),
       synonyms: <String>['buffer', 'bytes', 'array', 'utf8', 'utf-8', 'decode'],
+      categories: <UtilityCategory>{
+        UtilityCategory.inspect,
+        UtilityCategory.transform,
+      },
       defaultCardWidth: CardWidthClass.wide,
       builder:
           (
@@ -468,6 +522,7 @@ class UtilityCatalog {
         'comma',
         'lines',
       ],
+      categories: <UtilityCategory>{UtilityCategory.transform},
       builder:
           (
             BuildContext _, {
@@ -492,6 +547,7 @@ class UtilityCatalog {
       icon: MqIcons.diff,
       tint: const Color(0xFF64748B),
       synonyms: <String>['diff', 'compare', 'changes', 'patch', 'difference'],
+      categories: <UtilityCategory>{UtilityCategory.compareValidate},
       defaultCardWidth: CardWidthClass.xwide,
       builder:
           (
@@ -523,6 +579,10 @@ class UtilityCatalog {
         'checksum',
         'fingerprint',
       ],
+      categories: <UtilityCategory>{
+        UtilityCategory.generate,
+        UtilityCategory.compareValidate,
+      },
       builder:
           (
             BuildContext _, {
@@ -546,6 +606,10 @@ class UtilityCatalog {
       icon: MqIcons.qrCode,
       tint: const Color(0xFF6366F1),
       synonyms: <String>['qr', 'barcode', 'scan', 'generate'],
+      categories: <UtilityCategory>{
+        UtilityCategory.inspect,
+        UtilityCategory.generate,
+      },
       builder:
           (
             BuildContext _, {
@@ -578,6 +642,7 @@ class UtilityCatalog {
         'nonce',
         'salt',
       ],
+      categories: <UtilityCategory>{UtilityCategory.generate},
       builder:
           (
             BuildContext _, {
@@ -607,6 +672,24 @@ class UtilityCatalog {
       if (u.id == id) return u;
     }
     return null;
+  }
+
+  static List<UtilityDescriptor> inCategory(UtilityCategory category) =>
+      List<UtilityDescriptor>.unmodifiable(
+        category == UtilityCategory.all
+            ? all
+            : all.where(
+                (UtilityDescriptor u) => u.categories.contains(category),
+              ),
+      );
+
+  /// Name/synonym search that keeps catalog-relative order for the Library.
+  static List<UtilityDescriptor> searchStable(String query) {
+    final String q = query.trim().toLowerCase();
+    if (q.isEmpty) return List<UtilityDescriptor>.unmodifiable(all);
+    return List<UtilityDescriptor>.unmodifiable(
+      all.where((UtilityDescriptor u) => _scoreTool(u, q) > 0),
+    );
   }
 
   /// Ranks the catalog by name/synonym match for the command palette's

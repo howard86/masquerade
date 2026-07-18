@@ -4,6 +4,7 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'screens/root_tab_scaffold.dart';
 import 'state/density_controller.dart';
 import 'state/history_controller.dart';
+import 'state/library_controller.dart';
 import 'state/sensitive_session_controller.dart';
 import 'state/theme_controller.dart';
 import 'state/view_mode_controller.dart';
@@ -19,6 +20,7 @@ class MyApp extends StatefulWidget {
     super.key,
     this.themeController,
     this.historyController,
+    this.libraryController,
     this.densityController,
     this.viewModeController,
     this.isWebOverride,
@@ -27,6 +29,7 @@ class MyApp extends StatefulWidget {
 
   final ThemeController? themeController;
   final HistoryController? historyController;
+  final LibraryController? libraryController;
   final DensityController? densityController;
   final ViewModeController? viewModeController;
 
@@ -54,6 +57,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   late final ThemeController _theme;
   late final HistoryController _history;
+  late final LibraryController _library;
   late final SensitiveSessionController _sensitiveSession;
   late final DensityController _density;
   late final ViewModeController _viewMode;
@@ -68,6 +72,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     super.initState();
     _theme = widget.themeController ?? ThemeController();
     _history = widget.historyController ?? HistoryController();
+    _library = widget.libraryController ?? LibraryController();
     _sensitiveSession = SensitiveSessionController(_history);
     _density = widget.densityController ?? DensityController();
     _viewMode = widget.viewModeController ?? ViewModeController();
@@ -181,6 +186,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                         builder: (BuildContext context, _) => RootTabScaffold(
                           key: ValueKey<int>(_sensitiveSession.revision),
                           isWebOverride: widget.isWebOverride,
+                          libraryController: _library,
                         ),
                       ),
                     ),

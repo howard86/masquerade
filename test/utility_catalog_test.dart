@@ -5,6 +5,65 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/utility_catalog.dart';
 
 void main() {
+  group('Library catalog metadata', () {
+    test(
+      'every tool is categorized and every category preserves catalog order',
+      () {
+        final List<String> allIds = UtilityCatalog.all
+            .map((UtilityDescriptor u) => u.id)
+            .toList();
+
+        expect(
+          UtilityCatalog.all.every(
+            (UtilityDescriptor u) => u.categories.isNotEmpty,
+          ),
+          isTrue,
+        );
+        for (final UtilityCategory category in UtilityCategory.values) {
+          final List<UtilityDescriptor> tools = UtilityCatalog.inCategory(
+            category,
+          );
+          expect(tools, isNotEmpty, reason: category.label);
+          expect(
+            tools.map((UtilityDescriptor u) => u.id),
+            allIds.where(
+              (String id) =>
+                  category == UtilityCategory.all ||
+                  UtilityCatalog.byId(id).categories.contains(category),
+            ),
+          );
+        }
+      },
+    );
+
+    test(
+      'every tool is searchable without changing catalog-relative order',
+      () {
+        for (final UtilityDescriptor tool in UtilityCatalog.all) {
+          expect(
+            UtilityCatalog.searchStable(tool.name),
+            contains(tool),
+            reason: tool.name,
+          );
+        }
+
+        final List<UtilityDescriptor> results = UtilityCatalog.searchStable(
+          'encode',
+        );
+        final List<String> allIds = UtilityCatalog.all
+            .map((UtilityDescriptor u) => u.id)
+            .toList();
+        expect(
+          results.map((UtilityDescriptor u) => allIds.indexOf(u.id)),
+          orderedEquals(
+            results.map((UtilityDescriptor u) => allIds.indexOf(u.id)).toList()
+              ..sort(),
+          ),
+        );
+      },
+    );
+  });
+
   group('UtilityCatalog.detectAll — shape detection', () {
     test('empty input returns empty', () {
       expect(UtilityCatalog.detectAll(''), isEmpty);
