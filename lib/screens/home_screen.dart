@@ -52,6 +52,7 @@ class HomeScreen extends StatefulWidget {
     this.externalInputImporter,
     this.importEnabled = true,
     this.qrScanner,
+    this.onAppIntentFocus,
   });
 
   final OpenInToolCallback? onOpenTool;
@@ -59,6 +60,7 @@ class HomeScreen extends StatefulWidget {
   final ExternalInputImporter? externalInputImporter;
   final bool importEnabled;
   final Future<String?> Function(BuildContext context)? qrScanner;
+  final VoidCallback? onAppIntentFocus;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -73,12 +75,22 @@ class _HomeScreenState extends State<HomeScreen> {
   int _inputRevision = 0;
   int _importRequest = 0;
   final Set<String> _acceptingSharedItems = <String>{};
+  bool _handlingAppIntents = false;
 
   @override
   void initState() {
     super.initState();
     _hero.addListener(_onHeroChange);
     _heroFocus.addListener(_rebuild);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final ShareInboxController inbox = ShareInboxScope.of(context);
+    if (!_handlingAppIntents && inbox.intentRequests.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _consumeAppIntents());
+    }
   }
 
   @override
@@ -104,7 +116,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  Future<void> _paste() async {
+  Future<void> _paste({bool reportEmpty = false}) async {
     final int request = ++_importRequest;
     final int revision = _inputRevision;
     final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
@@ -115,6 +127,69 @@ class _HomeScreenState extends State<HomeScreen> {
     if (text != null && text.isNotEmpty) {
       _hero.text = text;
       setState(() => _provenance = ArtifactProvenance.clipboard);
+    } else if (reportEmpty) {
+      setState(() => _importError = 'The clipboard does not contain text.');
+    }
+  }
+
+  Future<void> _consumeAppIntents() async {
+    if (!mounted || _handlingAppIntents) return;
+    _handlingAppIntents = true;
+    final ShareInboxController inbox = ShareInboxScope.of(context);
+    final WorkSessionController sessions = WorkSessionScope.of(context);
+    try {
+      while (mounted && inbox.intentRequests.isNotEmpty) {
+        final AppIntentRequest? request = inbox.takeIntentRequest(
+          inbox.intentRequests.first.id,
+        );
+        if (request == null) continue;
+        widget.onAppIntentFocus?.call();
+        switch (request.action) {
+          case AppIntentAction.inspectClipboard:
+            await _paste(reportEmpty: true);
+          case AppIntentAction.resumeLastSession:
+            if (sessions.recentSessions.isEmpty ||
+                !sessions.resume(sessions.recentSessions.first)) {
+              if (mounted) {
+                setState(
+                  () => _importError = 'There is no safe session to resume.',
+                );
+              }
+            }
+          case AppIntentAction.runWorkflow:
+            final SavedWorkflow? workflow = sessions.savedWorkflows
+                .where((SavedWorkflow value) => value.id == request.workflowId)
+                .firstOrNull;
+            if (workflow == null || request.input == null) {
+              if (mounted) {
+                setState(
+                  () => _importError = 'That saved workflow is unavailable.',
+                );
+              }
+              continue;
+            }
+            _hero.text = request.input!;
+            if (!mounted) return;
+            setState(() => _provenance = ArtifactProvenance.typed);
+            final int? index = sessions.rerun(workflow, request.input!);
+            if (index == null) continue;
+            final WorkflowStep step = sessions.session!.steps[index];
+            final UtilityDescriptor? tool = UtilityCatalog.byIdOrNull(
+              step.toolId,
+            );
+            if (tool != null && mounted) {
+              await ToolDetailRoute.push(
+                context,
+                tool,
+                seed: step.input.rawValue,
+                initialArtifact: step.input,
+                sessionStepIndex: index,
+              );
+            }
+        }
+      }
+    } finally {
+      _handlingAppIntents = false;
     }
   }
 

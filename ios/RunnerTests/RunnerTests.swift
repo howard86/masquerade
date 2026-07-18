@@ -139,6 +139,81 @@ class RunnerTests: XCTestCase {
     XCTAssertFalse(ShareInboxStore.validDisplayName(String(repeating: "😀", count: 128)))
   }
 
+  func testAppIntentStoreConsumesOnceAndRejectsProtectedInput() throws {
+    let store = try AppIntentRequestStore(root: root)
+    try store.syncWorkflows([AppIntentWorkflow(id: "workflow-1", name: "JSON cleanup")])
+    try store.save(action: "inspectClipboard")
+    try store.save(action: "runWorkflow", workflowID: "workflow-1", input: #"{"ok":true}"#)
+
+    XCTAssertEqual(store.workflows(), [AppIntentWorkflow(id: "workflow-1", name: "JSON cleanup")])
+    XCTAssertEqual(store.consume().map(\.action), ["inspectClipboard", "runWorkflow"])
+    XCTAssertTrue(store.consume().isEmpty)
+    XCTAssertThrowsError(
+      try store.save(
+        action: "runWorkflow",
+        workflowID: "workflow-1",
+        input: "password=do-not-persist"
+      )
+    ) { error in
+      XCTAssertEqual(error as? ShareInboxError, .protectedContent)
+    }
+    XCTAssertEqual(
+      try FileManager.default.contentsOfDirectory(atPath: root.path),
+      [AppIntentRequestStore.workflowsName]
+    )
+  }
+
+  func testAppIntentStoreDeletesAliasedRequestsBeforeTheyCanReplay() throws {
+    _ = try AppIntentRequestStore(root: root)
+    let request = AppIntentRequest(
+      schemaVersion: AppIntentRequest.version,
+      id: UUID().uuidString,
+      action: "resumeLastSession",
+      createdAt: Int64(Date().timeIntervalSince1970 * 1000),
+      workflowID: nil,
+      input: nil
+    )
+    let alias = root.appendingPathComponent("\(UUID().uuidString).json")
+    try JSONEncoder().encode(request).write(to: alias)
+
+    let reloaded = try AppIntentRequestStore(root: root)
+    XCTAssertTrue(reloaded.list().isEmpty)
+    XCTAssertFalse(FileManager.default.fileExists(atPath: alias.path))
+  }
+
+  func testAppIntentEngineExecutesSyntheticFixturesWithoutLeakingSecrets() throws {
+    XCTAssertEqual(try MasqueradeIntentEngine.formatJSON("42"), "42")
+    XCTAssertEqual(
+      try MasqueradeIntentEngine.formatJSON(#"{"b":2,"a":1}"#),
+      "{\n  \"a\" : 1,\n  \"b\" : 2\n}"
+    )
+    let jwt = "eyJhbGciOiJub25lIn0.eyJzdWIiOiIxMjMiLCJleHAiOjE3MDAwMDAwMDB9."
+    XCTAssertEqual(try MasqueradeIntentEngine.jwtClaimCount(jwt), 2)
+
+    let expected = try MasqueradeIntentEngine.convertTimestamp("1700000000")
+    XCTAssertEqual(try MasqueradeIntentEngine.convertTimestamp("1700000000000"), expected)
+    XCTAssertEqual(try MasqueradeIntentEngine.convertTimestamp("1700000000000000"), expected)
+    XCTAssertEqual(try MasqueradeIntentEngine.convertTimestamp("1700000000000000000"), expected)
+    XCTAssertEqual(try MasqueradeIntentEngine.convertTimestamp(expected), expected)
+
+    let first = try MasqueradeIntentEngine.secureToken()
+    let second = try MasqueradeIntentEngine.secureToken()
+    XCTAssertNotEqual(first, second)
+    XCTAssertNotNil(first.range(of: #"^[A-Za-z0-9_-]{43}$"#, options: .regularExpression))
+    XCTAssertFalse(first.contains("password"))
+
+    let oversized = String(repeating: "a", count: ShareInboxStore.maximumBytes + 1)
+    XCTAssertThrowsError(try MasqueradeIntentEngine.formatJSON(oversized))
+    XCTAssertThrowsError(try MasqueradeIntentEngine.jwtClaimCount(oversized))
+    XCTAssertThrowsError(try MasqueradeIntentEngine.convertTimestamp(oversized))
+  }
+
+  func testShortcutCatalogStaysFocused() {
+    if #available(iOS 16.0, *) {
+      XCTAssertEqual(MasqueradeShortcuts.appShortcuts.count, 8)
+    }
+  }
+
   func testExample() {
     // If you add code to the Runner application, consider adding tests here.
     // See https://developer.apple.com/documentation/xctest for more information about using XCTest.

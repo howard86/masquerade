@@ -98,6 +98,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _library = widget.libraryController ?? LibraryController();
     _shareInbox = widget.shareInboxController ?? ShareInboxController();
     _workSession = widget.workSessionController ?? WorkSessionController();
+    _workSession.addListener(_syncShortcutWorkflows);
+    unawaited(_shareInbox.syncWorkflows(_workSession.savedWorkflows));
     _toolDrafts = widget.toolDraftController ?? ToolDraftController();
     unawaited(_toolDrafts.attach());
     _sensitiveSession = SensitiveSessionController(
@@ -149,6 +151,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _workSession.removeListener(_syncShortcutWorkflows);
     _sensitiveSession.dispose();
     super.dispose();
   }
@@ -164,8 +167,18 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) unawaited(_shareInbox.refresh());
+    if (state == AppLifecycleState.resumed) {
+      unawaited(
+        Future.wait(<Future<void>>[
+          _shareInbox.refresh(),
+          _shareInbox.refreshIntents(),
+        ]),
+      );
+    }
   }
+
+  void _syncShortcutWorkflows() =>
+      unawaited(_shareInbox.syncWorkflows(_workSession.savedWorkflows));
 
   Brightness _resolveBrightness(MqThemeMode mode) => switch (mode) {
     MqThemeMode.light => Brightness.light,

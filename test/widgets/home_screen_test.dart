@@ -1,7 +1,9 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
 import 'package:masquerade/screens/detail/tool_detail_route.dart';
+import 'package:masquerade/state/share_inbox_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '_helpers.dart';
@@ -86,5 +88,68 @@ void main() {
     final ToolDetailRoute route = tester.widget(find.byType(ToolDetailRoute));
     expect(route.descriptor.id, 'json');
     expect(route.seed, '{"hello":"world"}');
+  });
+
+  testWidgets('late foreground shortcut explicitly inspects clipboard', (
+    WidgetTester tester,
+  ) async {
+    const MethodChannel inboxChannel = MethodChannel(
+      ShareInboxController.channelName,
+    );
+    List<Object?> intents = <Object?>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(inboxChannel, (MethodCall call) async {
+          return switch (call.method) {
+            'list' => <Object?>[],
+            'consumeIntents' => intents,
+            'syncWorkflows' => null,
+            _ => null,
+          };
+        });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (
+          MethodCall call,
+        ) async {
+          if (call.method == 'Clipboard.getData') {
+            return <String, String>{'text': '{"from":"shortcut"}'};
+          }
+          return null;
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(inboxChannel, null);
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null);
+    });
+    final ShareInboxController inbox = ShareInboxController(
+      channel: inboxChannel,
+    );
+    addTearDown(inbox.dispose);
+    await tester.binding.setSurfaceSize(kHomeSurfaceSize);
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MyApp(shareInboxController: inbox, skipSplash: true),
+    );
+    await tester.pumpAndSettle();
+
+    intents = <Object?>[
+      <String, Object?>{
+        'id': '11111111-1111-1111-1111-111111111111',
+        'action': 'inspectClipboard',
+        'createdAt': DateTime.now().millisecondsSinceEpoch,
+      },
+    ];
+    await inbox.refreshIntents();
+    await tester.pumpAndSettle();
+
+    final CupertinoTextField field = tester.widget<CupertinoTextField>(
+      find.byWidgetPredicate(
+        (Widget widget) =>
+            widget is CupertinoTextField &&
+            widget.placeholder == 'Paste timestamp, JSON, hex, base64, color…',
+      ),
+    );
+    expect(field.controller!.text, '{"from":"shortcut"}');
+    expect(inbox.intentRequests, isEmpty);
   });
 }

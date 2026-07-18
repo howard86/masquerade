@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../state/view_mode_controller.dart';
 import '../state/library_controller.dart';
+import '../state/share_inbox_controller.dart';
 import '../theme/mq_theme.dart';
 import '../utils/shell_layout.dart';
 import '../utils/external_input_importer.dart';
@@ -34,11 +35,28 @@ class RootTabScaffold extends StatefulWidget {
 
 class _RootTabScaffoldState extends State<RootTabScaffold> {
   late final CupertinoTabController _tabController;
+  final List<GlobalKey<NavigatorState>> _navigatorKeys = List.generate(
+    3,
+    (_) => GlobalKey<NavigatorState>(),
+  );
+  int _handledExternalInputRevision = 0;
 
   @override
   void initState() {
     super.initState();
     _tabController = CupertinoTabController();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final ShareInboxController inbox = ShareInboxScope.of(context);
+    if (inbox.externalInputRevision > _handledExternalInputRevision) {
+      _handledExternalInputRevision = inbox.externalInputRevision;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _focusWorkbench();
+      });
+    }
   }
 
   @override
@@ -109,6 +127,7 @@ class _RootTabScaffoldState extends State<RootTabScaffold> {
       ),
       tabBuilder: (BuildContext context, int index) {
         return CupertinoTabView(
+          navigatorKey: _navigatorKeys[index],
           builder: (BuildContext context) {
             final String title = switch (index) {
               0 => 'Workbench',
@@ -125,6 +144,7 @@ class _RootTabScaffoldState extends State<RootTabScaffold> {
                 externalInputImporter: widget.externalInputImporter,
                 importEnabled: importEnabled,
                 qrScanner: widget.qrScanner,
+                onAppIntentFocus: _focusWorkbench,
               ),
               1 => LibraryScope(
                 controller: widget.libraryController,
@@ -139,6 +159,13 @@ class _RootTabScaffoldState extends State<RootTabScaffold> {
           },
         );
       },
+    );
+  }
+
+  void _focusWorkbench() {
+    _tabController.index = 0;
+    _navigatorKeys.first.currentState?.popUntil(
+      (Route<void> route) => route.isFirst,
     );
   }
 

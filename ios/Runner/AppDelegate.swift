@@ -1,9 +1,11 @@
+import AppIntents
 import Flutter
 import UIKit
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   private var shareInboxChannel: FlutterMethodChannel?
+  private var appIntentObserver: NSObjectProtocol?
 
   override func application(
     _ application: UIApplication,
@@ -46,6 +48,31 @@ import UIKit
         case "clear":
           try store.clear()
           result(nil)
+        case "consumeIntents":
+          result(try AppIntentRequestStore().consume().map { request in
+            var value: [String: Any] = [
+              "id": request.id,
+              "action": request.action,
+              "createdAt": request.createdAt,
+            ]
+            if let workflowID = request.workflowID { value["workflowId"] = workflowID }
+            if let input = request.input { value["input"] = input }
+            return value
+          })
+        case "syncWorkflows":
+          guard let raw = call.arguments as? [[String: Any]] else {
+            throw ShareInboxError.unsupported
+          }
+          let workflows = try raw.map { value -> AppIntentWorkflow in
+            guard value.count == 2,
+              let id = value["id"] as? String,
+              let name = value["name"] as? String
+            else { throw ShareInboxError.unsupported }
+            return AppIntentWorkflow(id: id, name: name)
+          }
+          try AppIntentRequestStore().syncWorkflows(workflows)
+          if #available(iOS 16.0, *) { MasqueradeShortcuts.updateAppShortcutParameters() }
+          result(nil)
         default:
           result(FlutterMethodNotImplemented)
         }
@@ -54,5 +81,12 @@ import UIKit
       }
     }
     shareInboxChannel = channel
+    appIntentObserver = NotificationCenter.default.addObserver(
+      forName: .masqueradeAppIntentDidWrite,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      self?.shareInboxChannel?.invokeMethod("refreshExternalInputs", arguments: nil)
+    }
   }
 }

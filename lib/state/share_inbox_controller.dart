@@ -4,9 +4,29 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../models/artifact.dart';
+import '../models/saved_workflow.dart';
 import '../models/work_session.dart';
 
 enum ShareInboxKind { text, url, file }
+
+enum AppIntentAction { inspectClipboard, runWorkflow, resumeLastSession }
+
+@immutable
+class AppIntentRequest {
+  const AppIntentRequest({
+    required this.id,
+    required this.action,
+    required this.createdAt,
+    this.workflowId,
+    this.input,
+  });
+
+  final String id;
+  final AppIntentAction action;
+  final DateTime createdAt;
+  final String? workflowId;
+  final String? input;
+}
 
 @immutable
 class ShareInboxItem {
@@ -37,7 +57,9 @@ class ShareInboxItem {
 class ShareInboxController extends ChangeNotifier {
   ShareInboxController({
     MethodChannel channel = const MethodChannel(channelName),
-  }) : _channel = channel;
+  }) : _channel = channel {
+    _channel.setMethodCallHandler(_handleNativeCall);
+  }
 
   static const String channelName = 'dev.howardism.masquerade/share_inbox';
   static const int maxPayloadBytes = 65536;
@@ -47,23 +69,110 @@ class ShareInboxController extends ChangeNotifier {
 
   final MethodChannel _channel;
   List<ShareInboxItem> _items = const <ShareInboxItem>[];
+  List<AppIntentRequest> _intentRequests = const <AppIntentRequest>[];
   String? _error;
   Future<void>? _refreshing;
+  Future<void>? _refreshingIntents;
+  int _externalInputRevision = 0;
 
   List<ShareInboxItem> get items => _items;
+  List<AppIntentRequest> get intentRequests => _intentRequests;
   String? get error => _error;
+  int get externalInputRevision => _externalInputRevision;
 
   static Future<ShareInboxController> load({MethodChannel? channel}) async {
     final ShareInboxController controller = ShareInboxController(
       channel: channel ?? const MethodChannel(channelName),
     );
-    await controller.refresh();
+    await Future.wait(<Future<void>>[
+      controller.refresh(),
+      controller.refreshIntents(),
+    ]);
     return controller;
   }
 
   Future<void> refresh() => _refreshing ??= _refresh().whenComplete(() {
     _refreshing = null;
   });
+
+  Future<Object?> _handleNativeCall(MethodCall call) async {
+    if (call.method != 'refreshExternalInputs') return null;
+    await Future.wait(<Future<void>>[refresh(), refreshIntents()]);
+    return null;
+  }
+
+  Future<void> refreshIntents() =>
+      _refreshingIntents ??= _refreshIntents().whenComplete(() {
+        _refreshingIntents = null;
+      });
+
+  Future<void> _refreshIntents() async {
+    try {
+      final List<Object?> raw =
+          await _channel.invokeListMethod<Object?>('consumeIntents') ??
+          <Object?>[];
+      final List<AppIntentRequest> decoded = raw
+          .map(_decodeIntent)
+          .whereType<AppIntentRequest>()
+          .toList();
+      if (decoded.any(
+        (AppIntentRequest request) => !_intentRequests.any(
+          (AppIntentRequest existing) => existing.id == request.id,
+        ),
+      )) {
+        _externalInputRevision++;
+      }
+      final Map<String, AppIntentRequest> merged = <String, AppIntentRequest>{
+        for (final AppIntentRequest request in _intentRequests)
+          request.id: request,
+        for (final AppIntentRequest request in decoded) request.id: request,
+      };
+      _intentRequests = List<AppIntentRequest>.unmodifiable(
+        merged.values.toList()..sort(
+          (AppIntentRequest a, AppIntentRequest b) => a.createdAt == b.createdAt
+              ? a.id.compareTo(b.id)
+              : a.createdAt.compareTo(b.createdAt),
+        ),
+      );
+      if (decoded.length != raw.length) {
+        _error = 'Some shortcut actions could not be loaded.';
+      }
+      notifyListeners();
+    } on MissingPluginException {
+      // Keep already-consumed requests until Workbench handles them.
+    } on PlatformException {
+      _error = 'Shortcut actions could not be loaded.';
+      notifyListeners();
+    }
+  }
+
+  Future<void> syncWorkflows(Iterable<SavedWorkflow> workflows) async {
+    try {
+      await _channel.invokeMethod<void>('syncWorkflows', <Object?>[
+        for (final SavedWorkflow workflow in workflows)
+          <String, String>{'id': workflow.id, 'name': workflow.name},
+      ]);
+    } on MissingPluginException {
+      // App Intents are iOS-only.
+    } on PlatformException {
+      _error = 'Shortcuts could not be updated.';
+      notifyListeners();
+    }
+  }
+
+  AppIntentRequest? takeIntentRequest(String id) {
+    final int index = _intentRequests.indexWhere(
+      (AppIntentRequest request) => request.id == id,
+    );
+    if (index < 0) return null;
+    final AppIntentRequest request = _intentRequests[index];
+    _intentRequests = List<AppIntentRequest>.unmodifiable(<AppIntentRequest>[
+      ..._intentRequests.take(index),
+      ..._intentRequests.skip(index + 1),
+    ]);
+    notifyListeners();
+    return request;
+  }
 
   Future<void> _refresh() async {
     try {
@@ -85,6 +194,12 @@ class ShareInboxController extends ChangeNotifier {
             ? a.id.compareTo(b.id)
             : a.createdAt.compareTo(b.createdAt),
       );
+      if (next.any(
+        (ShareInboxItem item) =>
+            !_items.any((ShareInboxItem existing) => existing.id == item.id),
+      )) {
+        _externalInputRevision++;
+      }
       _items = List<ShareInboxItem>.unmodifiable(next);
       _error = rejected ? 'Some shared items could not be loaded.' : null;
     } on MissingPluginException {
@@ -210,6 +325,56 @@ class ShareInboxController extends ChangeNotifier {
         provenance: ArtifactProvenance.shareExtension,
       ),
     );
+  }
+
+  static AppIntentRequest? _decodeIntent(Object? value) {
+    if (value is! Map<Object?, Object?> ||
+        value['id'] is! String ||
+        !_id.hasMatch(value['id'] as String) ||
+        value['action'] is! String ||
+        value['createdAt'] is! int ||
+        (value['createdAt'] as int) <= 0) {
+      return null;
+    }
+    final AppIntentAction? action = switch (value['action']) {
+      'inspectClipboard' => AppIntentAction.inspectClipboard,
+      'runWorkflow' => AppIntentAction.runWorkflow,
+      'resumeLastSession' => AppIntentAction.resumeLastSession,
+      _ => null,
+    };
+    if (action == null) return null;
+    final String? workflowId = value['workflowId'] as String?;
+    final String? input = value['input'] as String?;
+    if (action == AppIntentAction.runWorkflow) {
+      if (workflowId == null ||
+          !RegExp(
+            r'^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$',
+          ).hasMatch(workflowId) ||
+          input == null ||
+          input.isEmpty ||
+          utf8.encode(input).length > maxPayloadBytes ||
+          isProtectedWorkflowString(input)) {
+        return null;
+      }
+    } else if (workflowId != null || input != null) {
+      return null;
+    }
+    return AppIntentRequest(
+      id: value['id'] as String,
+      action: action,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(
+        value['createdAt'] as int,
+        isUtc: true,
+      ),
+      workflowId: workflowId,
+      input: input,
+    );
+  }
+
+  @override
+  void dispose() {
+    _channel.setMethodCallHandler(null);
+    super.dispose();
   }
 }
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
@@ -11,6 +12,7 @@ void main() {
   const MethodChannel channel = MethodChannel(ShareInboxController.channelName);
   final List<MethodCall> calls = <MethodCall>[];
   List<Object?> nativeItems = <Object?>[];
+  List<Object?> intentItems = <Object?>[];
 
   Map<String, Object?> item({
     String id = '11111111-1111-1111-1111-111111111111',
@@ -35,12 +37,15 @@ void main() {
   setUp(() {
     calls.clear();
     nativeItems = <Object?>[];
+    intentItems = <Object?>[];
     SharedPreferences.setMockInitialValues(<String, Object>{});
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (MethodCall call) async {
           calls.add(call);
           return switch (call.method) {
             'list' => nativeItems,
+            'consumeIntents' => intentItems,
+            'syncWorkflows' => null,
             'remove' => true,
             'clear' => null,
             _ => throw MissingPluginException(),
@@ -154,5 +159,93 @@ void main() {
     await controller.clear();
     expect(controller.items, isEmpty);
     expect(calls.last.method, 'clear');
+  });
+
+  test(
+    'consumes strict shortcut requests without persisting payloads',
+    () async {
+      intentItems = <Object?>[
+        <String, Object?>{
+          'id': '11111111-1111-1111-1111-111111111111',
+          'action': 'inspectClipboard',
+          'createdAt': 1000,
+        },
+        <String, Object?>{
+          'id': '22222222-2222-2222-2222-222222222222',
+          'action': 'runWorkflow',
+          'createdAt': 2000,
+          'workflowId': 'workflow-1',
+          'input': '{"ok":true}',
+        },
+        <String, Object?>{
+          'id': '33333333-3333-3333-3333-333333333333',
+          'action': 'runWorkflow',
+          'createdAt': 3000,
+          'workflowId': 'workflow-1',
+          'input': 'password=do-not-load',
+        },
+      ];
+
+      final ShareInboxController controller = await ShareInboxController.load(
+        channel: channel,
+      );
+
+      expect(
+        controller.intentRequests.map((AppIntentRequest value) => value.action),
+        <AppIntentAction>[
+          AppIntentAction.inspectClipboard,
+          AppIntentAction.runWorkflow,
+        ],
+      );
+      expect(controller.error, 'Some shortcut actions could not be loaded.');
+      expect(
+        controller
+            .takeIntentRequest(controller.intentRequests.first.id)
+            ?.action,
+        AppIntentAction.inspectClipboard,
+      );
+      expect(controller.intentRequests, hasLength(1));
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      expect(prefs.getKeys(), isEmpty);
+    },
+  );
+
+  test('overlapping intent refreshes are single-flight and additive', () async {
+    final Completer<List<Object?>> pending = Completer<List<Object?>>();
+    int consumes = 0;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (MethodCall call) async {
+          if (call.method == 'consumeIntents') {
+            consumes++;
+            return pending.future;
+          }
+          if (call.method == 'list') return <Object?>[];
+          return null;
+        });
+    final ShareInboxController controller = ShareInboxController(
+      channel: channel,
+    );
+
+    final Future<void> first = controller.refreshIntents();
+    final Future<void> second = controller.refreshIntents();
+    expect(identical(first, second), isTrue);
+    expect(consumes, 1);
+    pending.complete(<Object?>[
+      <String, Object?>{
+        'id': '11111111-1111-1111-1111-111111111111',
+        'action': 'resumeLastSession',
+        'createdAt': 1000,
+      },
+    ]);
+    await Future.wait(<Future<void>>[first, second]);
+    expect(controller.intentRequests, hasLength(1));
+
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          channel,
+          (MethodCall call) async => <Object?>[],
+        );
+    await controller.refreshIntents();
+    expect(controller.intentRequests, hasLength(1));
   });
 }
