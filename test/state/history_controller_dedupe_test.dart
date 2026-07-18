@@ -178,4 +178,137 @@ void main() {
       },
     );
   });
+
+  group('HistoryController activity actions', () {
+    test('legacy JSON defaults pin and session metadata', () {
+      final HistoryEntry restored = HistoryEntry.fromJson(<String, dynamic>{
+        'utilityId': 'json',
+        'input': '{}',
+        'output': '{}',
+        'ts': 1700000000000,
+      });
+
+      expect(restored.pinned, isFalse);
+      expect(restored.sessionId, isNull);
+      expect(restored.id, isNull);
+    });
+
+    test('pin and session metadata serialize and pin persists', () async {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final HistoryController c = HistoryController(prefs: prefs);
+      final HistoryEntry item = HistoryEntry(
+        utilityId: 'json',
+        input: '{"hello":"world"}',
+        output: '{\n  "hello": "world"\n}',
+        timestamp: DateTime(2026, 7, 18, 10, 30),
+        sessionId: 'future-session',
+      );
+      await c.add(item);
+      await c.togglePinned(item);
+
+      final HistoryController restored = await HistoryController.load();
+      expect(restored.entries.single.pinned, isTrue);
+      expect(restored.entries.single.sessionId, 'future-session');
+      expect(restored.entries.single.id, isNotEmpty);
+    });
+
+    test('delete and clear persist while retention still evicts', () async {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final HistoryController c = HistoryController(
+        prefs: prefs,
+        retention: const Duration(days: 7),
+      );
+      final HistoryEntry current = entry('json', '{}');
+      await c.add(
+        HistoryEntry(
+          utilityId: 'timestamp',
+          input: '1',
+          output: 'old',
+          timestamp: DateTime.now().subtract(const Duration(days: 8)),
+        ),
+      );
+      await c.add(current);
+      expect(c.entries.single.input, current.input);
+
+      await c.delete(current);
+      expect((await HistoryController.load()).entries, isEmpty);
+
+      await c.add(entry('json', '{"again":true}'));
+      await c.clear();
+      expect((await HistoryController.load()).entries, isEmpty);
+    });
+
+    test('stale references can pin then delete or unpin', () async {
+      final HistoryController c = HistoryController();
+      await c.add(entry('json', '{}'));
+      final HistoryEntry original = c.entries.single;
+
+      await c.togglePinned(original);
+      expect(c.entries.single.pinned, isTrue);
+      await c.togglePinned(original);
+      expect(c.entries.single.pinned, isFalse);
+      expect(c.entries.single.id, original.id);
+
+      await c.togglePinned(original);
+      await c.delete(original);
+      expect(c.entries, isEmpty);
+    });
+
+    test('load assigns and persists IDs for legacy entries', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'mb.history.entries': jsonEncode(<Map<String, dynamic>>[
+          <String, dynamic>{
+            'utilityId': 'json',
+            'input': '{}',
+            'output': '{}',
+            'ts': DateTime.now().millisecondsSinceEpoch,
+          },
+        ]),
+      });
+
+      final HistoryController c = await HistoryController.load();
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final Map<String, dynamic> persisted =
+          (jsonDecode(prefs.getString('mb.history.entries')!) as List<dynamic>)
+                  .single
+              as Map<String, dynamic>;
+
+      expect(c.entries.single.id, isNotEmpty);
+      expect(persisted['id'], c.entries.single.id);
+    });
+
+    test('search covers tool, date, input, and output', () async {
+      final HistoryController c = HistoryController();
+      await c.add(
+        HistoryEntry(
+          utilityId: 'json',
+          input: '{"hello":"world"}',
+          output: 'pretty result',
+          timestamp: DateTime(2026, 7, 18, 10, 30),
+        ),
+      );
+
+      expect(c.search('json'), hasLength(1));
+      expect(c.search('2026-07-18'), hasLength(1));
+      expect(c.search('hello'), hasLength(1));
+      expect(c.search('pretty'), hasLength(1));
+      expect(
+        c.search('structured data', toolName: (_) => 'Structured Data'),
+        hasLength(1),
+      );
+      expect(c.search('private fixture'), isEmpty);
+    });
+
+    test(
+      'disabled and protected entries never enter searchable state',
+      () async {
+        final HistoryController c = HistoryController();
+        await c.add(entry('jwt', 'header.payload.signature'));
+        await c.add(entry('json', '{"password":"private fixture"}'));
+
+        expect(c.search('private fixture'), isEmpty);
+        expect(c.search('jwt'), isEmpty);
+      },
+    );
+  });
 }
