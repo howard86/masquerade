@@ -2,6 +2,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:package_info_plus/package_info_plus.dart';
 
+import 'acknowledgements_screen.dart';
+import 'privacy_policy_screen.dart';
 import '../state/history_controller.dart';
 import '../state/theme_controller.dart';
 import '../state/view_mode_controller.dart';
@@ -193,6 +195,14 @@ class SettingsBody extends StatelessWidget {
                 style: MqTextStyles.subhead.copyWith(color: c.textSec),
               ),
               const SizedBox(height: MqSpacing.md),
+              MqButton(
+                label: 'Privacy Policy',
+                icon: MqIcons.shield,
+                variant: MqButtonVariant.glass,
+                full: true,
+                onPressed: () => PrivacyPolicyScreen.push(context),
+              ),
+              const SizedBox(height: MqSpacing.md),
               Text(
                 'History retention',
                 style: MqTextStyles.footnote.copyWith(
@@ -260,6 +270,14 @@ class SettingsBody extends StatelessWidget {
               Text(
                 'A native iOS utility toolbox for developers. Inspect, convert, format, debug — fast, on-device, copy-friendly.',
                 style: MqTextStyles.subhead.copyWith(color: c.textSec),
+              ),
+              const SizedBox(height: MqSpacing.md),
+              MqButton(
+                label: 'Acknowledgements',
+                icon: MqIcons.info,
+                variant: MqButtonVariant.glass,
+                full: true,
+                onPressed: () => AcknowledgementsScreen.push(context),
               ),
             ],
           ),
