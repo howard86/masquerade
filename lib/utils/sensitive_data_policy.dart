@@ -28,6 +28,7 @@ abstract final class SensitiveDataPolicy {
   static bool isSensitiveTool(String? utilityId) =>
       utilityId == 'jwt' ||
       utilityId == 'generator' ||
+      utilityId == 'http_inspector' ||
       utilityId == 'artifact_inspector';
 
   static bool containsSensitiveArtifact(String value) =>
