@@ -48,6 +48,17 @@ class WorkSessionController extends ChangeNotifier {
       List<WorkSession>.unmodifiable(_recentSessions);
   String? get workflowError => _workflowError;
 
+  String? expectedNextToolId(int stepIndex) {
+    final SavedWorkflow? rerunning = _rerunning;
+    final int nextIndex = stepIndex + 1;
+    if (rerunning == null ||
+        stepIndex < 0 ||
+        nextIndex >= rerunning.steps.length) {
+      return null;
+    }
+    return rerunning.steps[nextIndex].toolId;
+  }
+
   static Future<WorkSessionController> load() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final String? raw = prefs.getString(storageKey);

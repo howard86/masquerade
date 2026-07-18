@@ -94,6 +94,9 @@ class _ToolDetailRouteState extends State<ToolDetailRoute> {
             stepIndex < steps.length
         ? steps[stepIndex]
         : null;
+    final String? expectedNextToolId = currentSessionStep
+        ? sessions.expectedNextToolId(stepIndex)
+        : null;
     if (currentSessionStep && _settingsLease == null) {
       _settingsLease = sessions.session;
     }
@@ -148,6 +151,7 @@ class _ToolDetailRouteState extends State<ToolDetailRoute> {
                 child: MobileSessionRouteScope(
                   addNext: currentSessionStep,
                   protectedSession: protectedSession,
+                  expectedNextToolId: expectedNextToolId,
                   settings: sessionStep?.settings ?? const <String, Object?>{},
                   onSettingsChanged:
                       currentSessionStep &&
