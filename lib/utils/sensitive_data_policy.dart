@@ -24,15 +24,77 @@ abstract final class SensitiveDataPolicy {
   static final RegExp _jwt = RegExp(
     r'eyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*',
   );
+  static final RegExp _secretKey = RegExp(
+    r'^(?:.*[-_.])?(?:access[-_.]?token|api[-_.]?key|auth[-_.]?token|authorization|client[-_.]?secret|consumer[-_.]?secret|cookie|credential(?:s)?|database[-_.]?url|pass(?:word|wd)?|private[-_.]?key|proxy[-_.]?authorization|pwd|redis[-_.]?url|refresh[-_.]?token|secret[-_.]?access[-_.]?key|secret(?:[-_.]?key)?|session[-_.]?token|set[-_.]?cookie|signing[-_.]?key|token)$',
+    caseSensitive: false,
+  );
+  static final RegExp _secretValue = RegExp(
+    r'''(?:^|\s)(?:bearer|basic)\s+[A-Za-z0-9._~+/=-]+|\b[A-Za-z][A-Za-z0-9+.-]*://[^\s/:@]+:[^\s/@]+@[^\s]+|\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|sk_(?:live|test)_[A-Za-z0-9]{12,})\b''',
+    caseSensitive: false,
+  );
 
   static bool isSensitiveTool(String? utilityId) =>
       utilityId == 'jwt' ||
       utilityId == 'generator' ||
       utilityId == 'http_inspector' ||
       utilityId == 'log_stack_inspector' ||
+      utilityId == 'environment_config_inspector' ||
       utilityId == 'unicode_string_inspector' ||
       utilityId == 'artifact_inspector' ||
       utilityId == 'x509_inspector';
+
+  static bool isCredentialKey(String key) => _secretKey.hasMatch(key.trim());
+
+  /// Checks a scalar without treating ordinary `KEY=value` config as secret.
+  /// Reversible encodings are inspected once so encoded credentials cannot
+  /// bypass redacted config exports.
+  static bool containsSecretLikeValue(String value) =>
+      _containsSecretLikeValue(value, inspectEncoding: true);
+
+  static bool _containsSecretLikeValue(
+    String value, {
+    required bool inspectEncoding,
+  }) {
+    if (_privateKey.hasMatch(value) ||
+        _jwt.hasMatch(value) ||
+        _secretValue.hasMatch(value)) {
+      return true;
+    }
+    if (!inspectEncoding) {
+      return false;
+    }
+    final bool percentEncoded = RegExp(r'%(?:[0-9A-Fa-f]{2})').hasMatch(value);
+    final String compact = value.trim();
+    final bool base64Shaped =
+        compact.length >= 8 &&
+        RegExp(r'^[A-Za-z0-9_+/-]+={0,2}$').hasMatch(compact);
+    if (value.length > _maxReversibleInspectionLength) {
+      return percentEncoded || base64Shaped;
+    }
+    final List<String> decoded = <String>[];
+    if (percentEncoded) {
+      try {
+        decoded.add(Uri.decodeComponent(value));
+      } catch (_) {
+        // Invalid percent input is not reversible and cannot reveal a secret.
+      }
+    }
+    if (base64Shaped) {
+      try {
+        decoded.add(utf8.decode(base64.decode(_paddedBase64(compact))));
+      } catch (_) {
+        // Not printable UTF-8 base64.
+      }
+    }
+    return decoded.any(
+      (String candidate) =>
+          containsSensitiveArtifact(candidate) ||
+          _containsSecretLikeValue(candidate, inspectEncoding: false),
+    );
+  }
+
+  static String redactedConfigValue(String key, String value) =>
+      isCredentialKey(key) || containsSecretLikeValue(value) ? mask : value;
 
   static bool containsSensitiveArtifact(String value) =>
       _credentialKey.hasMatch(value) ||
