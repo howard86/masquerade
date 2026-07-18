@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 
@@ -8,6 +10,7 @@ import 'state/history_controller.dart';
 import 'state/library_controller.dart';
 import 'state/sensitive_session_controller.dart';
 import 'state/theme_controller.dart';
+import 'state/tool_draft_controller.dart';
 import 'state/view_mode_controller.dart';
 import 'state/wallpaper_controller.dart';
 import 'state/work_session_controller.dart';
@@ -27,6 +30,7 @@ class MyApp extends StatefulWidget {
     this.detectionPreferenceController,
     this.viewModeController,
     this.workSessionController,
+    this.toolDraftController,
     this.isWebOverride,
     this.skipSplash = false,
   });
@@ -38,6 +42,7 @@ class MyApp extends StatefulWidget {
   final DetectionPreferenceController? detectionPreferenceController;
   final ViewModeController? viewModeController;
   final WorkSessionController? workSessionController;
+  final ToolDraftController? toolDraftController;
 
   /// Test seam for the web-gated desktop shell. `kIsWeb` is always false under
   /// `flutter test`, so widget tests pass `true` here to exercise the desktop
@@ -70,6 +75,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   late final ViewModeController _viewMode;
   late final WallpaperController _wallpaper;
   late final WorkSessionController _workSession;
+  late final ToolDraftController _toolDrafts;
   late final Listenable _appListenable;
 
   Brightness _platformBrightness = Brightness.light;
@@ -82,9 +88,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _history = widget.historyController ?? HistoryController();
     _library = widget.libraryController ?? LibraryController();
     _workSession = widget.workSessionController ?? WorkSessionController();
+    _toolDrafts = widget.toolDraftController ?? ToolDraftController();
+    unawaited(_toolDrafts.attach());
     _sensitiveSession = SensitiveSessionController(
       _history,
       workSession: _workSession,
+      toolDrafts: _toolDrafts,
     );
     _density = widget.densityController ?? DensityController();
     _detectionPreference =
@@ -197,20 +206,23 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                           ),
                         ),
                       ),
-                      home: WorkSessionScope(
-                        controller: _workSession,
-                        child: SensitiveSessionScope(
-                          controller: _sensitiveSession,
-                          child: ListenableBuilder(
-                            listenable: _sensitiveSession,
-                            builder: (BuildContext context, _) =>
-                                RootTabScaffold(
-                                  key: ValueKey<int>(
-                                    _sensitiveSession.revision,
+                      home: ToolDraftScope(
+                        controller: _toolDrafts,
+                        child: WorkSessionScope(
+                          controller: _workSession,
+                          child: SensitiveSessionScope(
+                            controller: _sensitiveSession,
+                            child: ListenableBuilder(
+                              listenable: _sensitiveSession,
+                              builder: (BuildContext context, _) =>
+                                  RootTabScaffold(
+                                    key: ValueKey<int>(
+                                      _sensitiveSession.revision,
+                                    ),
+                                    isWebOverride: widget.isWebOverride,
+                                    libraryController: _library,
                                   ),
-                                  isWebOverride: widget.isWebOverride,
-                                  libraryController: _library,
-                                ),
+                            ),
                           ),
                         ),
                       ),

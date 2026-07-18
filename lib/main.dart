@@ -8,6 +8,7 @@ import 'state/history_controller.dart';
 import 'state/detection_preference_controller.dart';
 import 'state/library_controller.dart';
 import 'state/theme_controller.dart';
+import 'state/tool_draft_controller.dart';
 import 'state/view_mode_controller.dart';
 
 Future<void> main() async {
@@ -22,6 +23,7 @@ Future<void> main() async {
     LibraryController.load(),
     ViewModeController.load(),
     DetectionPreferenceController.load(),
+    ToolDraftController.load(),
   ]);
   runApp(
     MyApp(
@@ -30,6 +32,7 @@ Future<void> main() async {
       libraryController: loaded[2] as LibraryController,
       viewModeController: loaded[3] as ViewModeController,
       detectionPreferenceController: loaded[4] as DetectionPreferenceController,
+      toolDraftController: loaded[5] as ToolDraftController,
     ),
   );
 }
