@@ -105,7 +105,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _longPressCopy(BuildContext ctx, HistoryEntry entry) {
-    if (entry.sensitive) return;
+    if (entry.protected) return;
     HapticFeedback.mediumImpact();
     CopyToClipboardUtil.copyToClipboard(ctx, entry.output);
   }
@@ -178,7 +178,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   matched: matchedIds.contains(u.id),
                   lastEntry: entry,
                   onTap: () => _open(u),
-                  onLongPress: entry == null
+                  onLongPress: entry == null || entry.protected
                       ? null
                       : () => _longPressCopy(context, entry),
                 );

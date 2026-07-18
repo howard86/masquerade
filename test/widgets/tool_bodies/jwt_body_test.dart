@@ -68,4 +68,17 @@ void main() {
     await tester.pumpAndSettle(kDebouncePump);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('JWT — decoded claims never route through Open in', (
+    WidgetTester tester,
+  ) async {
+    await pumpBodyAtWidth(
+      tester,
+      JwtBody(initialInput: token, onSwitchTool: (_, _) {}),
+      380,
+    );
+    await tester.pumpAndSettle(kDebouncePump);
+
+    expect(find.text('OPEN IN'), findsNothing);
+  });
 }

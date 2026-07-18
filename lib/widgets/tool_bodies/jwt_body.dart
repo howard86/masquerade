@@ -114,7 +114,7 @@ class _JwtBodyState extends State<JwtBody> with ToolBodyScaffold<JwtBody> {
 
       // Header section
       const MqSectionHeader(label: 'Header'),
-      MqMonoCell(label: 'JSON', value: prettyHeader),
+      MqMonoCell(label: 'JSON', value: prettyHeader, sensitive: true),
       const SizedBox(height: MqSpacing.sm),
       Wrap(
         spacing: MqSpacing.sm,
@@ -132,7 +132,12 @@ class _JwtBodyState extends State<JwtBody> with ToolBodyScaffold<JwtBody> {
 
       // Payload section
       const MqSectionHeader(label: 'Payload'),
-      MqMonoCell(label: 'JSON', value: prettyPayload, accent: true),
+      MqMonoCell(
+        label: 'JSON',
+        value: prettyPayload,
+        accent: true,
+        sensitive: true,
+      ),
       const SizedBox(height: MqSpacing.sm),
       Wrap(
         spacing: MqSpacing.sm,
@@ -167,6 +172,7 @@ class _JwtBodyState extends State<JwtBody> with ToolBodyScaffold<JwtBody> {
       MqMonoCell(
         label: 'Base64url (${_sigByteLen(ok.signature)} bytes)',
         value: ok.signature.isEmpty ? '(empty — alg:none)' : ok.signature,
+        sensitive: true,
       ),
       const SizedBox(height: MqSpacing.md),
 
@@ -184,6 +190,7 @@ class _JwtBodyState extends State<JwtBody> with ToolBodyScaffold<JwtBody> {
         output: prettyPayload,
         excludeUtilityId: 'jwt',
         onSwitchTool: widget.onSwitchTool,
+        protectedSource: true,
       ),
     ];
   }

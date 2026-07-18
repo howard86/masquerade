@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/widgets/mq/mq_input.dart';
 import 'package:masquerade/widgets/mq/mq_mono_cell.dart';
@@ -91,5 +92,62 @@ void main() {
 
     expect(find.textContaining('Invalid UTF-8'), findsOneWidget);
     expect(find.text('c8 c8'), findsOneWidget);
+  });
+
+  testWidgets('Bytes — decoded credentials protect every reversible output', (
+    WidgetTester tester,
+  ) async {
+    const String credential = '{"password":"raw-credential-fixture"}';
+    final String encoded = credential.codeUnits.join(' ');
+    final String hex = credential.codeUnits
+        .map((int byte) => byte.toRadixString(16).padLeft(2, '0'))
+        .join(' ');
+    String? clipboard;
+    final TestDefaultBinaryMessenger messenger =
+        tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (
+      MethodCall call,
+    ) async {
+      if (call.method == 'Clipboard.setData') {
+        clipboard = (call.arguments as Map<dynamic, dynamic>)['text'] as String;
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+    await pumpHomeAndOpen(tester, 'Bytes');
+
+    await tester.enterText(find.byType(EditableText).last, encoded);
+    await tester.pumpAndSettle(kDebouncePump);
+
+    final Finder textCell = find.byWidgetPredicate(
+      (Widget widget) =>
+          widget is MqMonoCell && widget.label.startsWith('Text'),
+    );
+    final Finder hexCell = find.byWidgetPredicate(
+      (Widget widget) => widget is MqMonoCell && widget.label == 'Hex',
+    );
+    expect(
+      find.descendant(
+        of: textCell,
+        matching: find.bySemanticsLabel('Copy ••••'),
+      ),
+      findsOneWidget,
+    );
+    final Finder hexCopy = find.descendant(
+      of: hexCell,
+      matching: find.bySemanticsLabel('Copy ••••'),
+    );
+    expect(hexCopy, findsOneWidget);
+
+    await tester.tap(hexCopy);
+    await tester.pump();
+
+    expect(clipboard, hex);
+    expect(find.text(hex), findsOneWidget);
+    expect(find.text('••••'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
   });
 }

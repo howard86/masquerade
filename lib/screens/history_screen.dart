@@ -6,7 +6,7 @@ import '../theme/mq_metrics.dart';
 import '../theme/mq_theme.dart';
 import '../theme/mq_typography.dart';
 import '../utility_catalog.dart';
-import '../utils/text_truncate.dart';
+import '../utils/sensitive_data_policy.dart';
 import '../widgets/mq/mq_button.dart';
 import '../widgets/mq/mq_icons.dart';
 import '../widgets/mq/mq_section_header.dart';
@@ -193,12 +193,18 @@ class _HistoryRow extends StatelessWidget {
     } catch (_) {
       u = null;
     }
-    final String displayInput = entry.sensitive
-        ? '••••••••'
-        : truncateWithEllipsis(entry.input, max: _truncateAt);
-    final String displayOutput = entry.sensitive
-        ? '(hidden)'
-        : truncateWithEllipsis(entry.output, max: _truncateAt);
+    final String displayInput = SensitiveDataPolicy.safePreview(
+      entry.input,
+      max: _truncateAt,
+      utilityId: entry.utilityId,
+      sensitive: entry.sensitive,
+    );
+    final String displayOutput = SensitiveDataPolicy.safePreview(
+      entry.output,
+      max: _truncateAt,
+      utilityId: entry.utilityId,
+      sensitive: entry.sensitive,
+    );
     return Container(
       padding: const EdgeInsets.all(MqSpacing.md),
       decoration: BoxDecoration(

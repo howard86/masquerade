@@ -6,7 +6,7 @@ import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
-import '../../utils/text_truncate.dart';
+import '../../utils/sensitive_data_policy.dart';
 
 /// Editorial home-grid tile. Hairline border resting; accent border + pulsing
 /// dot when [matched]; mono preview line when [lastEntry] is present
@@ -36,9 +36,12 @@ class ToolGridCard extends StatelessWidget {
     final HistoryEntry? entry = lastEntry;
     final bool hasPreview = entry != null;
     final String? preview = hasPreview
-        ? (entry.sensitive
-              ? '••••'
-              : truncateWithEllipsis(entry.input, max: _previewMax))
+        ? SensitiveDataPolicy.safePreview(
+            entry.input,
+            max: _previewMax,
+            utilityId: entry.utilityId,
+            sensitive: entry.sensitive,
+          )
         : null;
     final Color borderColor = matched ? c.accent : c.border;
     final double borderWidth = matched ? 1.0 : 0.5;

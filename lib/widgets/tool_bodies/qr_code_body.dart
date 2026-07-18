@@ -13,6 +13,7 @@ import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../utility_catalog.dart';
 import '../../utils/history_recorder.dart';
+import '../../utils/sensitive_data_policy.dart';
 import '../mq/mq_button.dart';
 import '../mq/mq_empty_hint.dart';
 import '../mq/mq_icons.dart';
@@ -89,7 +90,12 @@ class _QrCodeBodyState extends State<QrCodeBody> {
         label: _exporting ? 'Sharing…' : 'Share',
         icon: MqIcons.share,
         variant: MqButtonVariant.glass,
-        onPressed: hasInput && !_exporting ? _share : null,
+        onPressed:
+            hasInput &&
+                !_exporting &&
+                !SensitiveDataPolicy.containsSensitiveArtifact(_controller.text)
+            ? _share
+            : null,
         full: true,
       ),
     );

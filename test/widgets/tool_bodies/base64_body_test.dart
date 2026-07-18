@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:masquerade/widgets/mq/mq_mono_cell.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '_helpers.dart';
@@ -76,5 +77,43 @@ void main() {
     await tester.pumpAndSettle(kDebouncePump);
 
     expect(find.textContaining('Invalid base64'), findsOneWidget);
+  });
+
+  testWidgets('Base64 — transformed credential output keeps protection', (
+    WidgetTester tester,
+  ) async {
+    await pumpHomeAndOpen(tester, 'Base64');
+
+    await tester.enterText(
+      find.byType(EditableText).last,
+      '{"password":"raw-credential-fixture"}',
+    );
+    await tester.pumpAndSettle(kDebouncePump);
+
+    final MqMonoCell output = tester
+        .widgetList<MqMonoCell>(find.byType(MqMonoCell))
+        .firstWhere((MqMonoCell cell) => cell.label == 'Base64');
+    expect(output.sensitive, isTrue);
+    expect(find.bySemanticsLabel('Copy ••••'), findsOneWidget);
+  });
+
+  testWidgets('Base64 — decoded credentials keep protection', (
+    WidgetTester tester,
+  ) async {
+    await pumpHomeAndOpen(tester, 'Base64');
+    await tester.tap(find.text('Decode'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byType(EditableText).last,
+      'eyJwYXNzd29yZCI6InJhdy1jcmVkZW50aWFsLWZpeHR1cmUifQ==',
+    );
+    await tester.pumpAndSettle(kDebouncePump);
+
+    final MqMonoCell output = tester
+        .widgetList<MqMonoCell>(find.byType(MqMonoCell))
+        .firstWhere((MqMonoCell cell) => cell.label == 'Plain text');
+    expect(output.sensitive, isTrue);
+    expect(find.bySemanticsLabel('Copy ••••'), findsOneWidget);
   });
 }

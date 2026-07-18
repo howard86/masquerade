@@ -4,6 +4,7 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'screens/root_tab_scaffold.dart';
 import 'state/density_controller.dart';
 import 'state/history_controller.dart';
+import 'state/sensitive_session_controller.dart';
 import 'state/theme_controller.dart';
 import 'state/view_mode_controller.dart';
 import 'state/wallpaper_controller.dart';
@@ -53,6 +54,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   late final ThemeController _theme;
   late final HistoryController _history;
+  late final SensitiveSessionController _sensitiveSession;
   late final DensityController _density;
   late final ViewModeController _viewMode;
   late final WallpaperController _wallpaper;
@@ -66,6 +68,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     super.initState();
     _theme = widget.themeController ?? ThemeController();
     _history = widget.historyController ?? HistoryController();
+    _sensitiveSession = SensitiveSessionController(_history);
     _density = widget.densityController ?? DensityController();
     _viewMode = widget.viewModeController ?? ViewModeController();
     _wallpaper = WallpaperController();
@@ -107,6 +110,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _sensitiveSession.dispose();
     super.dispose();
   }
 
@@ -170,7 +174,16 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                         ),
                       ),
                     ),
-                    home: RootTabScaffold(isWebOverride: widget.isWebOverride),
+                    home: SensitiveSessionScope(
+                      controller: _sensitiveSession,
+                      child: ListenableBuilder(
+                        listenable: _sensitiveSession,
+                        builder: (BuildContext context, _) => RootTabScaffold(
+                          key: ValueKey<int>(_sensitiveSession.revision),
+                          isWebOverride: widget.isWebOverride,
+                        ),
+                      ),
+                    ),
                   );
                 },
               ),

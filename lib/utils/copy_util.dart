@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../theme/mq_metrics.dart';
 import '../theme/mq_theme.dart';
 import '../theme/mq_typography.dart';
+import 'sensitive_data_policy.dart';
 import '../widgets/mq/mq_icons.dart';
 
 /// Animated copy → check icon. Used inline next to mono values.
@@ -183,9 +184,16 @@ class _CopyToastState extends State<_CopyToast>
 class CopyToClipboardUtil {
   static OverlayEntry? _current;
 
-  static void copyToClipboard(BuildContext context, String value) {
+  static void copyToClipboard(
+    BuildContext context,
+    String value, {
+    bool sensitive = false,
+  }) {
     Clipboard.setData(ClipboardData(text: value));
-    _showCopyNotification(context, value);
+    _showCopyNotification(
+      context,
+      SensitiveDataPolicy.safePreview(value, max: 32, sensitive: sensitive),
+    );
   }
 
   static void _showCopyNotification(BuildContext context, String value) {

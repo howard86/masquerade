@@ -61,6 +61,18 @@ void main() {
   });
 
   group('HistoryController policy', () {
+    test('serialization redacts raw credential fixtures', () {
+      final Map<String, dynamic> json = entry(
+        'json',
+        '{"password":"raw-credential-fixture"}',
+      ).toJson();
+      final String serialized = jsonEncode(json);
+
+      expect(serialized, isNot(contains('raw-credential-fixture')));
+      expect(json['sensitive'], isTrue);
+      expect(json['input'], isEmpty);
+    });
+
     test(
       'disables JWT and Generator while normal tools still record',
       () async {
@@ -147,5 +159,23 @@ void main() {
         'timestamp',
       );
     });
+
+    test(
+      'overwrites a corrupt persisted payload instead of retaining it',
+      () async {
+        SharedPreferences.setMockInitialValues(<String, Object>{
+          'mb.history.entries': 'raw-credential-fixture',
+        });
+
+        final HistoryController c = await HistoryController.load();
+        final SharedPreferences prefs = await SharedPreferences.getInstance();
+
+        expect(c.entries, isEmpty);
+        expect(
+          prefs.getString('mb.history.entries'),
+          isNot(contains('raw-credential-fixture')),
+        );
+      },
+    );
   });
 }

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../theme/mq_metrics.dart';
 import '../../utility_catalog.dart';
 import '../../utils/copy_util.dart';
+import '../../utils/sensitive_data_policy.dart';
 import '../mq/mq_chip.dart';
 import '../mq/mq_section_header.dart';
 
@@ -16,16 +17,22 @@ class OpenInFooter extends StatelessWidget {
     required this.output,
     required this.excludeUtilityId,
     this.onSwitchTool,
+    this.protectedSource = false,
   });
 
   final String? output;
   final String excludeUtilityId;
   final OpenInToolCallback? onSwitchTool;
+  final bool protectedSource;
 
   @override
   Widget build(BuildContext context) {
     final String? out = output;
-    if (out == null || out.isEmpty || onSwitchTool == null) {
+    if (out == null ||
+        out.isEmpty ||
+        onSwitchTool == null ||
+        protectedSource ||
+        SensitiveDataPolicy.containsSensitiveArtifact(out)) {
       return const SizedBox.shrink();
     }
     final List<UtilityDescriptor> targets = UtilityCatalog.detectAll(

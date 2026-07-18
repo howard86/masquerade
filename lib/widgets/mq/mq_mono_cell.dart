@@ -6,6 +6,7 @@ import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utils/copy_util.dart';
+import '../../utils/sensitive_data_policy.dart';
 import '../desktop/pipe.dart';
 import 'mq_icons.dart';
 
@@ -23,6 +24,7 @@ class MqMonoCell extends StatelessWidget {
     this.large = false,
     this.semanticsLabel,
     this.pipeType,
+    this.sensitive = false,
   });
 
   final String label;
@@ -32,6 +34,7 @@ class MqMonoCell extends StatelessWidget {
   final String? hint;
   final bool large;
   final String? semanticsLabel;
+  final bool sensitive;
 
   /// Canvas-only: when non-null AND a [PipeScope] ancestor is present, the cell
   /// becomes a long-press drag source emitting a [PipePayload] of this canonical
@@ -42,6 +45,8 @@ class MqMonoCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = context.mq;
     final c = tokens.colors;
+    final bool protected =
+        sensitive || SensitiveDataPolicy.containsSensitiveArtifact(value);
 
     final TextStyle valueStyle =
         (large ? MqTextStyles.monoLg : MqTextStyles.monoMd).copyWith(
@@ -68,7 +73,12 @@ class MqMonoCell extends StatelessWidget {
             Row(
               children: <Widget>[
                 Expanded(child: Text(label, style: labelStyle)),
-                if (copyable) _CopyButton(value: value, color: c.textTer),
+                if (copyable)
+                  _CopyButton(
+                    value: value,
+                    color: c.textTer,
+                    sensitive: protected,
+                  ),
               ],
             ),
             const SizedBox(height: 4),
@@ -92,7 +102,7 @@ class MqMonoCell extends StatelessWidget {
     // Pipe-drag is canvas-only: inert unless this tool exposes a canonical type
     // AND the cell is inside a card's PipeScope. Mobile/Home have no scope, so
     // the cell renders bit-for-bit as before.
-    final PipeScope? scope = pipeType == null
+    final PipeScope? scope = pipeType == null || protected
         ? null
         : PipeScope.maybeOf(context);
     if (scope == null) return cell;
@@ -144,9 +154,14 @@ class _PipeChip extends StatelessWidget {
 }
 
 class _CopyButton extends StatefulWidget {
-  const _CopyButton({required this.value, required this.color});
+  const _CopyButton({
+    required this.value,
+    required this.color,
+    required this.sensitive,
+  });
   final String value;
   final Color color;
+  final bool sensitive;
 
   @override
   State<_CopyButton> createState() => _CopyButtonState();
@@ -156,7 +171,11 @@ class _CopyButtonState extends State<_CopyButton> {
   bool _copied = false;
 
   void _handle() {
-    CopyToClipboardUtil.copyToClipboard(context, widget.value);
+    CopyToClipboardUtil.copyToClipboard(
+      context,
+      widget.value,
+      sensitive: widget.sensitive,
+    );
     HapticFeedback.selectionClick();
     setState(() => _copied = true);
     Future<void>.delayed(const Duration(milliseconds: 1000), () {
@@ -169,7 +188,8 @@ class _CopyButtonState extends State<_CopyButton> {
     final tokens = context.mq;
     return Semantics(
       button: true,
-      label: 'Copy ${widget.value}',
+      label:
+          'Copy ${SensitiveDataPolicy.safePreview(widget.value, max: 32, sensitive: widget.sensitive)}',
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: _handle,
