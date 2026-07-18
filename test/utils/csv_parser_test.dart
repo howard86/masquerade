@@ -48,6 +48,14 @@ void main() {
       expect(parsed.rows.single.single, 'He said "hi"');
     });
 
+    test('supports a delimiter inside a quoted one-column record', () {
+      final CsvOk parsed = CsvParser.parse('name\n"Smith, John"') as CsvOk;
+
+      expect(parsed.delimiter, ',');
+      expect(parsed.header, <String>['name']);
+      expect(parsed.rows.single.single, 'Smith, John');
+    });
+
     test('detects tab and semicolon deterministically', () {
       expect((CsvParser.parse('a\tb\n1\t2') as CsvOk).delimiter, '\t');
       expect((CsvParser.parse('a;b\n1;2') as CsvOk).delimiter, ';');

@@ -76,7 +76,9 @@ class CsvParser {
     if (best == null) {
       if (commaFallback != null &&
           commaFallback.records!.length >= 2 &&
-          !delimiters.any(source.contains)) {
+          !delimiters.any(
+            (String delimiter) => _hasUnquotedDelimiter(source, delimiter),
+          )) {
         return _finish(commaFallback, ',', hasHeader);
       }
       return firstError ??
@@ -409,6 +411,22 @@ class CsvParser {
   static bool _sameKeys(Iterable<String> keys, List<String> expected) {
     final Set<String> actual = keys.toSet();
     return actual.length == expected.length && actual.containsAll(expected);
+  }
+
+  static bool _hasUnquotedDelimiter(String source, String delimiter) {
+    bool quoted = false;
+    for (int index = 0; index < source.length; index++) {
+      if (source[index] == '"') {
+        if (quoted && index + 1 < source.length && source[index + 1] == '"') {
+          index++;
+        } else {
+          quoted = !quoted;
+        }
+      } else if (!quoted && source[index] == delimiter) {
+        return true;
+      }
+    }
+    return false;
   }
 
   static String _scalar(Object? value, int row, String column) {
