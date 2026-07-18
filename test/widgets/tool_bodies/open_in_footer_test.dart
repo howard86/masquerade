@@ -138,6 +138,54 @@ void main() {
       expect(find.text('OPEN IN'), findsNothing);
     });
 
+    testWidgets('filters shape matches incompatible with source output type', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        _harness(
+          OpenInFooter(
+            output: '#336699',
+            excludeUtilityId: 'math',
+            onSwitchTool: (_, _) {},
+          ),
+        ),
+      );
+
+      expect(find.text('OPEN IN'), findsNothing);
+      expect(find.text('Color'), findsNothing);
+    });
+
+    testWidgets('source-only Generator can route a safe UUID output', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        _harness(
+          OpenInFooter(
+            output: '550e8400-e29b-41d4-a716-446655440000',
+            excludeUtilityId: 'generator',
+            onSwitchTool: (_, _) {},
+          ),
+        ),
+      );
+
+      expect(find.text('OPEN IN'), findsOneWidget);
+      expect(find.text('UUID'), findsOneWidget);
+    });
+
+    testWidgets('unknown source ids fail closed', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        _harness(
+          OpenInFooter(
+            output: '{"a":1}',
+            excludeUtilityId: 'removed-tool',
+            onSwitchTool: (_, _) {},
+          ),
+        ),
+      );
+
+      expect(find.text('OPEN IN'), findsNothing);
+    });
+
     testWidgets('chip exposes an a11y button with an "Open in" label', (
       WidgetTester tester,
     ) async {

@@ -2,10 +2,91 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:masquerade/state/link_group.dart';
 import 'package:masquerade/utility_catalog.dart';
+import 'package:masquerade/utils/sensitive_data_policy.dart';
 
 void main() {
   group('Library catalog metadata', () {
+    test('every tool has complete typed routing metadata', () {
+      for (final UtilityDescriptor tool in UtilityCatalog.all) {
+        expect(
+          tool.acceptedTypes.isEmpty,
+          tool.id == 'generator',
+          reason: '${tool.id} accepts',
+        );
+        expect(tool.producedTypes, isNotEmpty, reason: tool.id);
+        expect(
+          tool.inputSources.isEmpty,
+          tool.id == 'generator',
+          reason: '${tool.id} inputs',
+        );
+        expect(tool.quickActions, isNotEmpty, reason: tool.id);
+      }
+      expect(
+        UtilityCatalog.all
+            .where((UtilityDescriptor tool) => tool.batchCapable)
+            .map((UtilityDescriptor tool) => tool.id),
+        <String>['list'],
+      );
+    });
+
+    test('Generator is explicitly source-only', () {
+      final UtilityDescriptor generator = UtilityCatalog.byId('generator');
+      expect(generator.acceptedTypes, isEmpty);
+      expect(generator.inputSources, isEmpty);
+      expect(generator.producedTypes, <ContentType>{ContentType.text});
+      expect(
+        generator.quickActions,
+        containsAll(<UtilityQuickAction>{
+          UtilityQuickAction.copy,
+          UtilityQuickAction.openIn,
+        }),
+      );
+      expect(generator.metadataSummary, startsWith('none → text'));
+    });
+
+    test('sensitivity and history policy stay aligned with protection', () {
+      for (final UtilityDescriptor tool in UtilityCatalog.all) {
+        final bool sensitive = SensitiveDataPolicy.isSensitiveTool(tool.id);
+        expect(
+          tool.sensitivity == UtilitySensitivity.sensitive,
+          sensitive,
+          reason: tool.id,
+        );
+        expect(
+          tool.historyPolicy,
+          sensitive ? HistoryPolicy.disabled : HistoryPolicy.enabled,
+          reason: tool.id,
+        );
+      }
+    });
+
+    test('desktop live-link capability is catalog metadata', () {
+      const Map<String, Set<ContentType>> expected = <String, Set<ContentType>>{
+        'base64': <ContentType>{ContentType.text},
+        'json': <ContentType>{ContentType.text},
+        'number_base': <ContentType>{ContentType.number},
+        'math': <ContentType>{ContentType.number, ContentType.epoch},
+        'timestamp': <ContentType>{ContentType.epoch, ContentType.number},
+        'list': <ContentType>{ContentType.lines, ContentType.text},
+        'diff': <ContentType>{ContentType.text, ContentType.lines},
+        'color': <ContentType>{ContentType.color, ContentType.text},
+      };
+      expect(<String, Set<ContentType>>{
+        for (final UtilityDescriptor tool in UtilityCatalog.all)
+          if (tool.liveLinkTypes.isNotEmpty) tool.id: tool.liveLinkTypes,
+      }, expected);
+      for (final UtilityDescriptor tool in UtilityCatalog.all) {
+        expect(
+          tool.inputSources.contains(UtilityInputSource.liveLink),
+          tool.liveLinkTypes.isNotEmpty,
+          reason: tool.id,
+        );
+        expect(tool.acceptedTypes, containsAll(tool.liveLinkTypes));
+      }
+    });
+
     test(
       'every tool is categorized and every category preserves catalog order',
       () {
@@ -62,6 +143,30 @@ void main() {
         );
       },
     );
+  });
+
+  group('typed compatible next steps', () {
+    test('keeps value-shape detection and filters by content type', () {
+      expect(
+        UtilityCatalog.compatibleNextSteps(
+          'base64',
+          '{"a":1}',
+        ).map((UtilityDescriptor tool) => tool.id),
+        contains('json'),
+      );
+      expect(
+        UtilityCatalog.compatibleNextSteps('math', '#336699'),
+        isEmpty,
+        reason: 'Math produces numbers, not color or text artifacts.',
+      );
+    });
+
+    test('unknown source ids fail closed', () {
+      expect(
+        UtilityCatalog.compatibleNextSteps('removed-tool', '{"a":1}'),
+        isEmpty,
+      );
+    });
   });
 
   group('UtilityCatalog.detectAll — shape detection', () {

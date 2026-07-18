@@ -35,7 +35,8 @@ class OpenInFooter extends StatelessWidget {
         SensitiveDataPolicy.containsSensitiveArtifact(out)) {
       return const SizedBox.shrink();
     }
-    final List<UtilityDescriptor> targets = UtilityCatalog.detectAll(
+    final List<UtilityDescriptor> targets = UtilityCatalog.compatibleNextSteps(
+      excludeUtilityId,
       out,
     ).where((UtilityDescriptor u) => u.id != excludeUtilityId).toList();
     if (targets.isEmpty) return const SizedBox.shrink();

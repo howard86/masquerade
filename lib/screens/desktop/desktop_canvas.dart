@@ -38,20 +38,6 @@ const Map<String, ({String partnerId, ContentType type})> _linkPartners =
       'diff': (partnerId: 'list', type: ContentType.text),
     };
 
-/// Which canonical [ContentType]s a tool's card can RECEIVE via a pipe drop.
-/// A cell→card drop links the two cards iff the target tool's set contains the
-/// dragged payload's type. Phase 6 extends this as more link pairs land.
-const Map<String, Set<ContentType>> _linkableTypes = <String, Set<ContentType>>{
-  'base64': <ContentType>{ContentType.text},
-  'json': <ContentType>{ContentType.text},
-  'number_base': <ContentType>{ContentType.number},
-  'math': <ContentType>{ContentType.number, ContentType.epoch},
-  'timestamp': <ContentType>{ContentType.epoch, ContentType.number},
-  'list': <ContentType>{ContentType.lines, ContentType.text},
-  'diff': <ContentType>{ContentType.text, ContentType.lines},
-  'color': <ContentType>{ContentType.color, ContentType.text},
-};
-
 /// The desktop work surface: a pannable canvas hosting the fixed
 /// [DesktopIconGrid] (single-click an icon to open a tool) with draggable tool
 /// cards floating above it. Menubar items cover ⌘K / paste / close-all, so the
@@ -505,7 +491,8 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     return DragTarget<PipePayload>(
       onWillAcceptWithDetails: (DragTargetDetails<PipePayload> d) =>
           d.data.sourceCardId != card.id &&
-          (_linkableTypes[descriptor.id]?.contains(d.data.type) ?? false),
+          descriptor.inputSources.contains(UtilityInputSource.liveLink) &&
+          descriptor.liveLinkTypes.contains(d.data.type),
       onAcceptWithDetails: (DragTargetDetails<PipePayload> d) => _c.linkCards(
         d.data.sourceCardId,
         card.id,

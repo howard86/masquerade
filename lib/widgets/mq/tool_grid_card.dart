@@ -22,6 +22,7 @@ class ToolGridCard extends StatelessWidget {
     this.onLongPress,
     this.favorite = false,
     this.onToggleFavorite,
+    this.showMetadata = false,
   });
 
   final UtilityDescriptor descriptor;
@@ -31,6 +32,7 @@ class ToolGridCard extends StatelessWidget {
   final VoidCallback? onLongPress;
   final bool favorite;
   final VoidCallback? onToggleFavorite;
+  final bool showMetadata;
 
   static const int _previewMax = 24;
 
@@ -112,7 +114,9 @@ class ToolGridCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     )
                   : Text(
-                      descriptor.description,
+                      showMetadata
+                          ? descriptor.metadataSummary
+                          : descriptor.description,
                       style: MqTextStyles.caption1.copyWith(color: c.textSec),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

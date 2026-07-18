@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/state/history_controller.dart';
+import 'package:masquerade/utility_catalog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -61,6 +62,17 @@ void main() {
   });
 
   group('HistoryController policy', () {
+    test('catalog is authoritative and unknown tools fail closed', () async {
+      for (final UtilityDescriptor tool in UtilityCatalog.all) {
+        expect(historyPolicyFor(tool.id), tool.historyPolicy, reason: tool.id);
+      }
+      expect(historyPolicyFor('removed-tool'), HistoryPolicy.disabled);
+
+      final HistoryController c = HistoryController();
+      await c.add(entry('removed-tool', 'safe fixture'));
+      expect(c.entries, isEmpty);
+    });
+
     test('serialization redacts raw credential fixtures', () {
       final Map<String, dynamic> json = entry(
         'json',

@@ -142,6 +142,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
           lastEntry: entries[tool.id],
           favorite: library.isFavorite(tool.id),
           onToggleFavorite: () => library.toggleFavorite(tool.id),
+          showMetadata: true,
           onTap: () => ToolDetailRoute.push(context, tool),
         );
       },

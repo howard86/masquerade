@@ -72,6 +72,27 @@ void main() {
     );
   });
 
+  testWidgets('cards expose catalog routing and history metadata', (
+    WidgetTester tester,
+  ) async {
+    await _pumpLibrary(tester);
+
+    final ToolGridCard uuid = tester.widget<ToolGridCard>(
+      find.byWidgetPredicate(
+        (Widget widget) =>
+            widget is ToolGridCard && widget.descriptor.id == 'uuid',
+      ),
+    );
+    expect(uuid.showMetadata, isTrue);
+    expect(
+      find.descendant(
+        of: find.byWidgetPredicate((Widget widget) => identical(widget, uuid)),
+        matching: find.text(uuid.descriptor.metadataSummary),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets(
     'favorites and recents stay separate from the stable main catalog',
     (WidgetTester tester) async {

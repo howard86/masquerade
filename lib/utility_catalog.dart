@@ -76,6 +76,14 @@ enum UtilityCategory {
   final String label;
 }
 
+enum UtilityInputSource { text, clipboard, camera, liveLink }
+
+enum UtilityQuickAction { paste, copy, share, openIn, scan }
+
+enum UtilitySensitivity { standard, sensitive }
+
+enum HistoryPolicy { enabled, disabled }
+
 /// Builds an embeddable tool body for inline rendering inside an
 /// `InlineToolCard`. Receives the optional seed input and how it arrived
 /// ([SeedSource]) so the body can decide whether to record history
@@ -106,6 +114,14 @@ class UtilityDescriptor {
     required this.tint,
     required this.synonyms,
     required this.categories,
+    required this.acceptedTypes,
+    required this.producedTypes,
+    required this.sensitivity,
+    required this.inputSources,
+    required this.liveLinkTypes,
+    required this.quickActions,
+    required this.batchCapable,
+    required this.historyPolicy,
     required this.builder,
     required this.detect,
     this.defaultCardWidth = CardWidthClass.standard,
@@ -118,11 +134,29 @@ class UtilityDescriptor {
   final Color tint;
   final List<String> synonyms;
   final Set<UtilityCategory> categories;
+  final Set<ContentType> acceptedTypes;
+  final Set<ContentType> producedTypes;
+  final UtilitySensitivity sensitivity;
+  final Set<UtilityInputSource> inputSources;
+  final Set<ContentType> liveLinkTypes;
+  final Set<UtilityQuickAction> quickActions;
+  final bool batchCapable;
+  final HistoryPolicy historyPolicy;
   final UtilityBuilder builder;
   final bool Function(String input) detect;
 
   /// Width this tool's card opens at on the desktop canvas. Mobile ignores it.
   final CardWidthClass defaultCardWidth;
+
+  String get metadataSummary {
+    final String accepted = acceptedTypes.isEmpty
+        ? 'none'
+        : acceptedTypes.map((ContentType t) => t.name).join('/');
+    final String produced = producedTypes
+        .map((ContentType t) => t.name)
+        .join('/');
+    return '$accepted → $produced · ${historyPolicy == HistoryPolicy.enabled ? 'history' : 'no history'}';
+  }
 }
 
 /// Static catalog of every utility shipped in the app.
@@ -142,6 +176,21 @@ class UtilityCatalog {
         UtilityCategory.generate,
         UtilityCategory.compareValidate,
       },
+      acceptedTypes: <ContentType>{ContentType.text},
+      producedTypes: <ContentType>{ContentType.text},
+      sensitivity: UtilitySensitivity.standard,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+      },
+      liveLinkTypes: <ContentType>{},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.copy,
+        UtilityQuickAction.openIn,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.enabled,
       builder:
           (
             BuildContext _, {
@@ -170,6 +219,21 @@ class UtilityCatalog {
         UtilityCategory.inspect,
         UtilityCategory.compareValidate,
       },
+      acceptedTypes: <ContentType>{ContentType.text},
+      producedTypes: <ContentType>{ContentType.text},
+      sensitivity: UtilitySensitivity.standard,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+      },
+      liveLinkTypes: <ContentType>{},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.copy,
+        UtilityQuickAction.openIn,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.enabled,
       builder:
           (
             BuildContext _, {
@@ -195,6 +259,22 @@ class UtilityCatalog {
       tint: const Color(0xFF3B6DD6),
       synonyms: <String>['hex', 'binary', 'octal', 'decimal', 'base'],
       categories: <UtilityCategory>{UtilityCategory.transform},
+      acceptedTypes: <ContentType>{ContentType.number, ContentType.text},
+      producedTypes: <ContentType>{ContentType.number, ContentType.text},
+      sensitivity: UtilitySensitivity.standard,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+        UtilityInputSource.liveLink,
+      },
+      liveLinkTypes: <ContentType>{ContentType.number},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.copy,
+        UtilityQuickAction.openIn,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.enabled,
       builder:
           (
             BuildContext _, {
@@ -223,6 +303,26 @@ class UtilityCatalog {
         UtilityCategory.inspect,
         UtilityCategory.transform,
       },
+      acceptedTypes: <ContentType>{
+        ContentType.epoch,
+        ContentType.number,
+        ContentType.text,
+      },
+      producedTypes: <ContentType>{ContentType.epoch, ContentType.text},
+      sensitivity: UtilitySensitivity.standard,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+        UtilityInputSource.liveLink,
+      },
+      liveLinkTypes: <ContentType>{ContentType.epoch, ContentType.number},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.copy,
+        UtilityQuickAction.openIn,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.enabled,
       builder:
           (
             BuildContext _, {
@@ -248,6 +348,21 @@ class UtilityCatalog {
       tint: const Color(0xFFD946EF),
       synonyms: <String>['cron', 'schedule', 'crontab'],
       categories: <UtilityCategory>{UtilityCategory.inspect},
+      acceptedTypes: <ContentType>{ContentType.text},
+      producedTypes: <ContentType>{ContentType.text},
+      sensitivity: UtilitySensitivity.standard,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+      },
+      liveLinkTypes: <ContentType>{},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.copy,
+        UtilityQuickAction.openIn,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.enabled,
       defaultCardWidth: CardWidthClass.wide,
       builder:
           (
@@ -287,6 +402,22 @@ class UtilityCatalog {
         UtilityCategory.transform,
         UtilityCategory.compareValidate,
       },
+      acceptedTypes: <ContentType>{ContentType.json, ContentType.text},
+      producedTypes: <ContentType>{ContentType.json, ContentType.text},
+      sensitivity: UtilitySensitivity.standard,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+        UtilityInputSource.liveLink,
+      },
+      liveLinkTypes: <ContentType>{ContentType.text},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.copy,
+        UtilityQuickAction.openIn,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.enabled,
       defaultCardWidth: CardWidthClass.xwide,
       builder:
           (
@@ -316,6 +447,20 @@ class UtilityCatalog {
         UtilityCategory.inspect,
         UtilityCategory.compareValidate,
       },
+      acceptedTypes: <ContentType>{ContentType.text},
+      producedTypes: <ContentType>{ContentType.json, ContentType.text},
+      sensitivity: UtilitySensitivity.sensitive,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+      },
+      liveLinkTypes: <ContentType>{},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.copy,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.disabled,
       builder:
           (
             BuildContext _, {
@@ -340,6 +485,22 @@ class UtilityCatalog {
       tint: const Color(0xFF0EA5E9),
       synonyms: <String>['encode', 'decode', 'b64', 'url-safe'],
       categories: <UtilityCategory>{UtilityCategory.transform},
+      acceptedTypes: <ContentType>{ContentType.text, ContentType.bytes},
+      producedTypes: <ContentType>{ContentType.text, ContentType.bytes},
+      sensitivity: UtilitySensitivity.standard,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+        UtilityInputSource.liveLink,
+      },
+      liveLinkTypes: <ContentType>{ContentType.text},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.copy,
+        UtilityQuickAction.openIn,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.enabled,
       builder:
           (
             BuildContext _, {
@@ -377,6 +538,21 @@ class UtilityCatalog {
         UtilityCategory.inspect,
         UtilityCategory.transform,
       },
+      acceptedTypes: <ContentType>{ContentType.text},
+      producedTypes: <ContentType>{ContentType.text},
+      sensitivity: UtilitySensitivity.standard,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+      },
+      liveLinkTypes: <ContentType>{},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.copy,
+        UtilityQuickAction.openIn,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.enabled,
       builder:
           (
             BuildContext _, {
@@ -406,6 +582,22 @@ class UtilityCatalog {
         UtilityCategory.transform,
         UtilityCategory.compareValidate,
       },
+      acceptedTypes: <ContentType>{ContentType.color, ContentType.text},
+      producedTypes: <ContentType>{ContentType.color, ContentType.text},
+      sensitivity: UtilitySensitivity.standard,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+        UtilityInputSource.liveLink,
+      },
+      liveLinkTypes: <ContentType>{ContentType.color, ContentType.text},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.copy,
+        UtilityQuickAction.openIn,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.enabled,
       defaultCardWidth: CardWidthClass.wide,
       builder:
           (
@@ -438,6 +630,26 @@ class UtilityCatalog {
         'arithmetic',
       ],
       categories: <UtilityCategory>{UtilityCategory.transform},
+      acceptedTypes: <ContentType>{
+        ContentType.number,
+        ContentType.epoch,
+        ContentType.text,
+      },
+      producedTypes: <ContentType>{ContentType.number},
+      sensitivity: UtilitySensitivity.standard,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+        UtilityInputSource.liveLink,
+      },
+      liveLinkTypes: <ContentType>{ContentType.number, ContentType.epoch},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.copy,
+        UtilityQuickAction.openIn,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.enabled,
       builder:
           (
             BuildContext _, {
@@ -463,6 +675,21 @@ class UtilityCatalog {
       tint: const Color(0xFFF59E0B),
       synonyms: <String>['basis points', 'percent', 'rate', 'finance'],
       categories: <UtilityCategory>{UtilityCategory.transform},
+      acceptedTypes: <ContentType>{ContentType.number, ContentType.text},
+      producedTypes: <ContentType>{ContentType.number},
+      sensitivity: UtilitySensitivity.standard,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+      },
+      liveLinkTypes: <ContentType>{},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.copy,
+        UtilityQuickAction.openIn,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.enabled,
       builder:
           (
             BuildContext _, {
@@ -490,6 +717,21 @@ class UtilityCatalog {
         UtilityCategory.inspect,
         UtilityCategory.transform,
       },
+      acceptedTypes: <ContentType>{ContentType.bytes, ContentType.text},
+      producedTypes: <ContentType>{ContentType.bytes, ContentType.text},
+      sensitivity: UtilitySensitivity.standard,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+      },
+      liveLinkTypes: <ContentType>{},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.copy,
+        UtilityQuickAction.openIn,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.enabled,
       defaultCardWidth: CardWidthClass.wide,
       builder:
           (
@@ -523,6 +765,22 @@ class UtilityCatalog {
         'lines',
       ],
       categories: <UtilityCategory>{UtilityCategory.transform},
+      acceptedTypes: <ContentType>{ContentType.lines, ContentType.text},
+      producedTypes: <ContentType>{ContentType.lines, ContentType.text},
+      sensitivity: UtilitySensitivity.standard,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+        UtilityInputSource.liveLink,
+      },
+      liveLinkTypes: <ContentType>{ContentType.lines, ContentType.text},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.copy,
+        UtilityQuickAction.openIn,
+      },
+      batchCapable: true,
+      historyPolicy: HistoryPolicy.enabled,
       builder:
           (
             BuildContext _, {
@@ -548,6 +806,21 @@ class UtilityCatalog {
       tint: const Color(0xFF64748B),
       synonyms: <String>['diff', 'compare', 'changes', 'patch', 'difference'],
       categories: <UtilityCategory>{UtilityCategory.compareValidate},
+      acceptedTypes: <ContentType>{ContentType.lines, ContentType.text},
+      producedTypes: <ContentType>{ContentType.lines, ContentType.text},
+      sensitivity: UtilitySensitivity.standard,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+        UtilityInputSource.liveLink,
+      },
+      liveLinkTypes: <ContentType>{ContentType.text, ContentType.lines},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.copy,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.enabled,
       defaultCardWidth: CardWidthClass.xwide,
       builder:
           (
@@ -583,6 +856,21 @@ class UtilityCatalog {
         UtilityCategory.generate,
         UtilityCategory.compareValidate,
       },
+      acceptedTypes: <ContentType>{ContentType.bytes, ContentType.text},
+      producedTypes: <ContentType>{ContentType.text},
+      sensitivity: UtilitySensitivity.standard,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+      },
+      liveLinkTypes: <ContentType>{},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.copy,
+        UtilityQuickAction.openIn,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.enabled,
       builder:
           (
             BuildContext _, {
@@ -610,6 +898,24 @@ class UtilityCatalog {
         UtilityCategory.inspect,
         UtilityCategory.generate,
       },
+      acceptedTypes: <ContentType>{ContentType.text},
+      producedTypes: <ContentType>{ContentType.text},
+      sensitivity: UtilitySensitivity.standard,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+        UtilityInputSource.camera,
+      },
+      liveLinkTypes: <ContentType>{},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.copy,
+        UtilityQuickAction.share,
+        UtilityQuickAction.openIn,
+        UtilityQuickAction.scan,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.enabled,
       builder:
           (
             BuildContext _, {
@@ -643,6 +949,17 @@ class UtilityCatalog {
         'salt',
       ],
       categories: <UtilityCategory>{UtilityCategory.generate},
+      acceptedTypes: <ContentType>{},
+      producedTypes: <ContentType>{ContentType.text},
+      sensitivity: UtilitySensitivity.sensitive,
+      inputSources: <UtilityInputSource>{},
+      liveLinkTypes: <ContentType>{},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.copy,
+        UtilityQuickAction.openIn,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.disabled,
       builder:
           (
             BuildContext _, {
@@ -729,6 +1046,22 @@ class UtilityCatalog {
         .toList();
     if (shape.isNotEmpty) return shape;
     return _synonymMatch(trimmed);
+  }
+
+  /// Shape-compatible tools that can consume output from [sourceUtilityId].
+  /// Unknown sources fail closed rather than bypassing typed routing.
+  static List<UtilityDescriptor> compatibleNextSteps(
+    String sourceUtilityId,
+    String output,
+  ) {
+    final UtilityDescriptor? source = byIdOrNull(sourceUtilityId);
+    if (source == null) return const <UtilityDescriptor>[];
+    return detectAll(output)
+        .where(
+          (UtilityDescriptor target) =>
+              source.producedTypes.any(target.acceptedTypes.contains),
+        )
+        .toList(growable: false);
   }
 
   static final RegExp _queryShape = RegExp(r'^[a-zA-Z0-9\- ]{1,20}$');

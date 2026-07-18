@@ -3,15 +3,12 @@ import 'dart:convert';
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../utility_catalog.dart';
 import '../utils/sensitive_data_policy.dart';
 
-enum HistoryPolicy { enabled, disabled }
-
-HistoryPolicy historyPolicyFor(String utilityId) => switch (utilityId) {
-  _ when SensitiveDataPolicy.isSensitiveTool(utilityId) =>
-    HistoryPolicy.disabled,
-  _ => HistoryPolicy.enabled,
-};
+HistoryPolicy historyPolicyFor(String utilityId) =>
+    UtilityCatalog.byIdOrNull(utilityId)?.historyPolicy ??
+    HistoryPolicy.disabled;
 
 /// One captured utility action.
 @immutable
