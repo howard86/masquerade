@@ -15,7 +15,7 @@ abstract final class SensitiveDataPolicy {
   );
   // key=value is also valid TOML; without source-format metadata, fail closed.
   static final RegExp _environmentEntry = RegExp(
-    r'^\s*(?:export\s+)?[A-Za-z_][A-Za-z0-9_]*\s*=',
+    r'^\s*(?:export\s+)?[A-Za-z_][A-Za-z0-9_]*\s*=\s*\S',
     multiLine: true,
   );
   static final RegExp _privateKey = RegExp(
@@ -26,7 +26,9 @@ abstract final class SensitiveDataPolicy {
   );
 
   static bool isSensitiveTool(String? utilityId) =>
-      utilityId == 'jwt' || utilityId == 'generator';
+      utilityId == 'jwt' ||
+      utilityId == 'generator' ||
+      utilityId == 'artifact_inspector';
 
   static bool containsSensitiveArtifact(String value) =>
       _credentialKey.hasMatch(value) ||

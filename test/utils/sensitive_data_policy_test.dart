@@ -29,6 +29,13 @@ void main() {
     );
   });
 
+  test('does not mistake ordinary padded Base64 for an empty env value', () {
+    expect(
+      SensitiveDataPolicy.containsSensitiveArtifact('eyJvayI6dHJ1ZX0='),
+      isFalse,
+    );
+  });
+
   test('persistedValue rejects sensitive tools without shape guessing', () {
     expect(
       SensitiveDataPolicy.persistedValue(

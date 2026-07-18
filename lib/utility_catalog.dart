@@ -22,6 +22,7 @@ import 'utils/uuid_parser.dart';
 import 'utils/yaml_parser.dart';
 import 'widgets/mq/mq_icons.dart';
 import 'widgets/mq/tool_action_bar.dart';
+import 'widgets/tool_bodies/artifact_inspector_body.dart';
 import 'widgets/tool_bodies/base64_body.dart';
 import 'widgets/tool_bodies/bps_body.dart';
 import 'widgets/tool_bodies/bytes_body.dart';
@@ -174,6 +175,47 @@ class UtilityCatalog {
   const UtilityCatalog._();
 
   static final List<UtilityDescriptor> all = <UtilityDescriptor>[
+    UtilityDescriptor(
+      id: 'artifact_inspector',
+      name: 'Artifact Inspector',
+      description: 'Trace nested encoded data',
+      icon: MqIcons.bytes,
+      tint: const Color(0xFF8B5CF6),
+      synonyms: <String>['artifact', 'inspect', 'nested', 'decode', 'layers'],
+      categories: <UtilityCategory>{UtilityCategory.inspect},
+      acceptedTypes: <ContentType>{ContentType.text},
+      producedTypes: <ContentType>{...ContentType.values},
+      sensitivity: UtilitySensitivity.sensitive,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+      },
+      liveLinkTypes: <ContentType>{},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.openIn,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.disabled,
+      defaultCardWidth: CardWidthClass.wide,
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            Artifact<Object?>? initialArtifact,
+            SeedSource seedSource = SeedSource.none,
+            OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
+            LinkChannel? link,
+          }) => ArtifactInspectorBody(
+            initialInput: initialInput,
+            initialArtifact: initialArtifact,
+            seedSource: seedSource,
+            onSwitchTool: onSwitchTool,
+            actionBar: actionBar,
+            link: link,
+          ),
+    ),
     UtilityDescriptor(
       id: 'uuid',
       name: 'UUID',
