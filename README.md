@@ -8,7 +8,7 @@ A Flutter utility-toolbox app — a digital toolbox for the small everyday conve
 
 ## What's in the toolbox today
 
-Twenty-six tools, each reachable from the Home screen's grid or via search:
+Twenty-seven tools, each reachable from the Home screen's grid or via search:
 
 - **Log & Stack Inspector** — locally group, search, redact, copy, and share JSON Lines, plain logs, and stack traces.
 - **Environment & Config Inspector** — locally normalize, compare, redact, and convert `.env`, properties, headers, and key/value configuration.
@@ -22,6 +22,7 @@ Twenty-six tools, each reachable from the Home screen's grid or via search:
 - **Timestamp** — paste a Unix timestamp (seconds or milliseconds) or an ISO 8601 string; read it back in every other format. Tap any row to copy.
 - **Cron** — translate between cron expressions and natural language, in both directions.
 - **JSON / YAML / TOML** — pretty-print, minify, browse as an interactive tree, and convert between JSON, YAML, and TOML.
+- **CSV / TSV** — convert RFC 4180 CSV, TSV, or semicolon-delimited tables to and from JSON, with a bounded table preview.
 - **JWT** — decode header, payload, and standard claims from a JSON Web Token. Flags expired / not-yet-valid. Decode-only — no signature verification.
 - **Base64** — encode/decode with URL-safe variant; auto-detects which way you meant.
 - **Case** — convert identifiers between camel, pascal, snake, kebab, title, path, and other common naming styles.

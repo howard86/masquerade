@@ -10,6 +10,7 @@ import 'utils/case_parser.dart';
 import 'utils/color_parser.dart';
 import 'utils/cron_nl_parser.dart';
 import 'utils/cron_parser.dart';
+import 'utils/csv_parser.dart';
 import 'utils/encoding_parser.dart';
 import 'utils/environment_config_inspector.dart';
 import 'utils/hash_parser.dart';
@@ -32,6 +33,7 @@ import 'widgets/tool_bodies/bytes_body.dart';
 import 'widgets/tool_bodies/case_body.dart';
 import 'widgets/tool_bodies/color_body.dart';
 import 'widgets/tool_bodies/cron_body.dart';
+import 'widgets/tool_bodies/csv_body.dart';
 import 'widgets/tool_bodies/diff_body.dart';
 import 'widgets/tool_bodies/environment_config_inspector_body.dart';
 import 'widgets/tool_bodies/generator_body.dart';
@@ -756,6 +758,51 @@ class UtilityCatalog {
             link: link,
           ),
       detectArtifact: _detectStructured,
+    ),
+    UtilityDescriptor(
+      id: 'csv',
+      name: 'CSV / TSV',
+      description: 'Tabular ↔ JSON · table view',
+      icon: MqIcons.brackets,
+      tint: const Color(0xFF84CC16),
+      synonyms: <String>['csv', 'tsv', 'table', 'spreadsheet', 'rfc4180'],
+      categories: <UtilityCategory>{
+        UtilityCategory.inspect,
+        UtilityCategory.transform,
+      },
+      acceptedTypes: <ContentType>{ContentType.text, ContentType.json},
+      producedTypes: <ContentType>{ContentType.text, ContentType.json},
+      sensitivity: UtilitySensitivity.standard,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+      },
+      liveLinkTypes: <ContentType>{},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.copy,
+        UtilityQuickAction.openIn,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.enabled,
+      defaultCardWidth: CardWidthClass.xwide,
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            Artifact<Object?>? initialArtifact,
+            SeedSource seedSource = SeedSource.none,
+            OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
+            LinkChannel? link,
+          }) => CsvBody(
+            initialInput: initialInput,
+            initialArtifact: initialArtifact,
+            seedSource: seedSource,
+            onSwitchTool: onSwitchTool,
+            actionBar: actionBar,
+          ),
+      detectArtifact: _detectCsv,
     ),
     UtilityDescriptor(
       id: 'jwt',
@@ -1695,6 +1742,65 @@ List<DetectionMatch<Object?>> _detectStructured(
       confidence: .88,
       reason: 'YAML document structure parsed successfully.',
       primaryToolId: 'json',
+    ),
+  ];
+}
+
+List<DetectionMatch<Object?>> _detectCsv(
+  String input,
+  ArtifactProvenance provenance,
+) {
+  final String trimmed = input.trim();
+  if (trimmed.isEmpty || trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    return const <DetectionMatch<Object?>>[];
+  }
+  final CsvParseResult result = CsvParser.parse(input);
+  if (result is! CsvOk) return const <DetectionMatch<Object?>>[];
+  final int columns =
+      result.header?.length ??
+      (result.rows.isEmpty ? 0 : result.rows.first.length);
+  final int records = result.rows.length + (result.hasHeader ? 1 : 0);
+  if (columns < 2 || records < 2) {
+    return const <DetectionMatch<Object?>>[];
+  }
+  final bool typedSignal = result.rows
+      .expand((List<String> row) => row)
+      .any((String cell) => num.tryParse(cell) != null);
+  if (!result.hasHeader) {
+    if (!typedSignal) return const <DetectionMatch<Object?>>[];
+    final Iterable<String> firstColumn = result.rows.map(
+      (List<String> row) => row.first.trim(),
+    );
+    const Set<String> logLevels = <String>{
+      'TRACE',
+      'DEBUG',
+      'INFO',
+      'WARN',
+      'WARNING',
+      'ERROR',
+      'FATAL',
+    };
+    if (firstColumn.every(
+          (String cell) => logLevels.contains(cell.toUpperCase()),
+        ) ||
+        firstColumn.every(
+          (String cell) =>
+              cell.startsWith('http://') || cell.startsWith('https://'),
+        ) ||
+        firstColumn.every((String cell) => cell.contains('='))) {
+      return const <DetectionMatch<Object?>>[];
+    }
+  }
+  return <DetectionMatch<Object?>>[
+    _evidence(
+      provenance: provenance,
+      kind: ArtifactKind.unknown,
+      rawValue: input,
+      parserResult: result,
+      confidence: .89,
+      reason:
+          'Parsed $records consistent rows with $columns columns using ${result.delimiter == '\t' ? 'a tab' : '“${result.delimiter}”'}.',
+      primaryToolId: 'csv',
     ),
   ];
 }
