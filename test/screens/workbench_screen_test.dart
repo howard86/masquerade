@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
@@ -8,11 +9,15 @@ import 'package:masquerade/models/saved_workflow.dart';
 import 'package:masquerade/models/work_session.dart';
 import 'package:masquerade/screens/detail/tool_detail_route.dart';
 import 'package:masquerade/state/detection_preference_controller.dart';
+import 'package:masquerade/state/history_controller.dart';
 import 'package:masquerade/state/share_inbox_controller.dart';
+import 'package:masquerade/state/tool_draft_controller.dart';
 import 'package:masquerade/state/work_session_controller.dart';
 import 'package:masquerade/utility_catalog.dart';
 import 'package:masquerade/widgets/mq/tool_grid_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:file_selector/file_selector.dart';
+import 'package:masquerade/utils/external_input_importer.dart';
 
 const Size _phone = Size(393, 852);
 
@@ -22,6 +27,9 @@ Future<void> _pumpWorkbench(
   DetectionPreferenceController? detectionPreferenceController,
   WorkSessionController? workSessionController,
   ShareInboxController? shareInboxController,
+  ExternalInputImporter? externalInputImporter,
+  Future<String?> Function(BuildContext context)? qrScanner,
+  bool isWebOverride = false,
 }) async {
   await tester.binding.setSurfaceSize(_phone);
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -29,11 +37,13 @@ Future<void> _pumpWorkbench(
     MediaQuery(
       data: MediaQueryData(size: _phone, textScaler: textScaler),
       child: MyApp(
-        isWebOverride: false,
+        isWebOverride: isWebOverride,
         skipSplash: true,
         detectionPreferenceController: detectionPreferenceController,
         workSessionController: workSessionController,
         shareInboxController: shareInboxController,
+        externalInputImporter: externalInputImporter,
+        qrScanner: qrScanner,
       ),
     ),
   );
@@ -175,6 +185,269 @@ void main() {
       route.initialArtifact?.provenance,
       ArtifactProvenance.shareExtension,
     );
+  });
+
+  testWidgets('shared content is applied before its handoff is deleted', (
+    WidgetTester tester,
+  ) async {
+    const MethodChannel channel = MethodChannel(
+      'test/share-inbox-delayed-remove',
+    );
+    final Completer<bool> removal = Completer<bool>();
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+      MethodCall call,
+    ) async {
+      if (call.method == 'list') {
+        return <Object?>[
+          <String, Object?>{
+            'id': '11111111-1111-1111-1111-111111111111',
+            'kind': 'text',
+            'createdAt': 1000,
+            'byteCount': 6,
+            'sensitive': false,
+            'payload': 'shared',
+          },
+        ];
+      }
+      if (call.method == 'remove') return removal.future;
+      return null;
+    });
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+    final ShareInboxController inbox = await ShareInboxController.load(
+      channel: channel,
+    );
+    await _pumpWorkbench(tester, shareInboxController: inbox);
+
+    await tester.tap(find.text('Use in Workbench'));
+    await tester.pump();
+    final Finder input = find.byType(CupertinoTextField).first;
+    expect(tester.widget<CupertinoTextField>(input).controller!.text, 'shared');
+
+    await tester.enterText(input, 'newer edit');
+    removal.complete(true);
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<CupertinoTextField>(input).controller!.text,
+      'newer edit',
+    );
+    expect(inbox.items, isEmpty);
+  });
+
+  testWidgets('shared handoff acceptance is coalesced while removal runs', (
+    WidgetTester tester,
+  ) async {
+    const MethodChannel channel = MethodChannel(
+      'test/share-inbox-coalesced-remove',
+    );
+    final Completer<bool> removal = Completer<bool>();
+    int removals = 0;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+      MethodCall call,
+    ) async {
+      if (call.method == 'list') {
+        return <Object?>[
+          <String, Object?>{
+            'id': '11111111-1111-1111-1111-111111111111',
+            'kind': 'text',
+            'createdAt': 1000,
+            'byteCount': 6,
+            'sensitive': false,
+            'payload': 'shared',
+          },
+        ];
+      }
+      if (call.method == 'remove') {
+        removals++;
+        return removal.future;
+      }
+      return null;
+    });
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+    final ShareInboxController inbox = await ShareInboxController.load(
+      channel: channel,
+    );
+    await _pumpWorkbench(tester, shareInboxController: inbox);
+
+    final Finder accept = find.text('Use in Workbench');
+    await tester.tap(accept);
+    await tester.tap(accept);
+    await tester.pump();
+    expect(removals, 1);
+
+    removal.complete(false);
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<CupertinoTextField>(find.byType(CupertinoTextField).first)
+          .controller!
+          .text,
+      isEmpty,
+    );
+    expect(inbox.items, hasLength(1));
+  });
+
+  testWidgets('imports a safe JSON file with file provenance', (
+    WidgetTester tester,
+  ) async {
+    final ExternalInputImporter importer = ExternalInputImporter(
+      pickFile: ({required List<XTypeGroup> acceptedTypeGroups}) async =>
+          XFile.fromData(
+            Uint8List.fromList('{"ok":true}'.codeUnits),
+            path: '/tmp/fixture.json',
+            mimeType: 'application/json',
+          ),
+    );
+    await _pumpWorkbench(tester, externalInputImporter: importer);
+
+    await tester.tap(find.bySemanticsLabel('Import file'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<CupertinoTextField>(find.byType(CupertinoTextField).first)
+          .controller!
+          .text,
+      '{"ok":true}',
+    );
+    await tester.tap(find.text('JSON / YAML / TOML'));
+    await tester.pumpAndSettle();
+    final ToolDetailRoute route = tester.widget(find.byType(ToolDetailRoute));
+    expect(route.initialArtifact?.provenance, ArtifactProvenance.fileImport);
+  });
+
+  testWidgets('file picker cancellation adds no error state', (
+    WidgetTester tester,
+  ) async {
+    final ExternalInputImporter importer = ExternalInputImporter(
+      pickFile: ({required List<XTypeGroup> acceptedTypeGroups}) async => null,
+    );
+    await _pumpWorkbench(tester, externalInputImporter: importer);
+
+    await tester.tap(find.bySemanticsLabel('Import file'));
+    await tester.pumpAndSettle();
+
+    expect(_semantics('Empty Workbench'), findsOneWidget);
+    expect(find.textContaining('could not'), findsNothing);
+    expect(find.textContaining('not supported'), findsNothing);
+  });
+
+  testWidgets(
+    'cancel is silent and stale file result cannot overwrite typing',
+    (WidgetTester tester) async {
+      final Completer<XFile?> picked = Completer<XFile?>();
+      final ExternalInputImporter importer = ExternalInputImporter(
+        pickFile: ({required List<XTypeGroup> acceptedTypeGroups}) =>
+            picked.future,
+      );
+      await _pumpWorkbench(tester, externalInputImporter: importer);
+
+      await tester.tap(find.bySemanticsLabel('Import file'));
+      await tester.pump();
+      await _enter(tester, 'newer input');
+      picked.complete(
+        XFile.fromData(
+          Uint8List.fromList('stale'.codeUnits),
+          path: '/tmp/stale.txt',
+          mimeType: 'text/plain',
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<CupertinoTextField>(find.byType(CupertinoTextField).first)
+            .controller!
+            .text,
+        'newer input',
+      );
+      expect(find.text('The file picker could not be opened.'), findsNothing);
+    },
+  );
+
+  testWidgets('stale camera QR cannot overwrite newer input', (
+    WidgetTester tester,
+  ) async {
+    final Completer<String?> scanned = Completer<String?>();
+    await _pumpWorkbench(tester, qrScanner: (_) => scanned.future);
+
+    await tester.tap(find.bySemanticsLabel('Scan QR'));
+    await tester.pump();
+    await _enter(tester, 'newer input');
+    scanned.complete('stale QR');
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<CupertinoTextField>(find.byType(CupertinoTextField).first)
+          .controller!
+          .text,
+      'newer input',
+    );
+  });
+
+  testWidgets('web mobile shell keeps file import hidden', (
+    WidgetTester tester,
+  ) async {
+    await _pumpWorkbench(tester, isWebOverride: true);
+    expect(find.bySemanticsLabel('Import file'), findsNothing);
+  });
+
+  testWidgets('protected file import remains ephemeral across controllers', (
+    WidgetTester tester,
+  ) async {
+    const String secret = 'raw-import-secret-fixture';
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final HistoryController history = HistoryController(prefs: prefs);
+    final WorkSessionController sessions = WorkSessionController(prefs: prefs);
+    final ToolDraftController drafts = ToolDraftController(prefs: prefs);
+    final ExternalInputImporter importer = ExternalInputImporter(
+      pickFile: ({required List<XTypeGroup> acceptedTypeGroups}) async =>
+          XFile.fromData(
+            Uint8List.fromList('{"api_key":"$secret"}'.codeUnits),
+            path: '/tmp/credential.json',
+            mimeType: 'application/json',
+          ),
+    );
+    await tester.binding.setSurfaceSize(_phone);
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MyApp(
+        isWebOverride: false,
+        skipSplash: true,
+        historyController: history,
+        workSessionController: sessions,
+        toolDraftController: drafts,
+        externalInputImporter: importer,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.bySemanticsLabel('Import file'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('JSON / YAML / TOML'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 1));
+    await sessions.flush();
+
+    expect(sessions.session!.steps.single.input.rawValue, contains(secret));
+    expect(sessions.session!.steps.single.input.isSensitive, isTrue);
+    expect(sessions.recentSessions, isEmpty);
+    expect(history.entries, isEmpty);
+    expect(drafts.json, isNull);
+    for (final String key in prefs.getKeys()) {
+      expect(prefs.get(key).toString(), isNot(contains(secret)));
+    }
   });
 
   testWidgets('resume refreshes accessible shared actions at large text', (

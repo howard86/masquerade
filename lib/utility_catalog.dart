@@ -913,7 +913,7 @@ class UtilityCatalog {
             onSwitchTool: onSwitchTool,
             actionBar: actionBar,
           ),
-      detectArtifact: _detectHash,
+      detectArtifact: _detectHashAndPem,
     ),
     UtilityDescriptor(
       id: 'qr_code',
@@ -1707,6 +1707,49 @@ List<DetectionMatch<Object?>> _detectBytes(
       primaryToolId: 'bytes',
     ),
   ];
+}
+
+List<DetectionMatch<Object?>> _detectHashAndPem(
+  String input,
+  ArtifactProvenance provenance,
+) {
+  final List<int>? pem = _decodePublicPem(input.trim());
+  if (pem != null) {
+    return <DetectionMatch<Object?>>[
+      _evidence(
+        provenance: provenance,
+        kind: ArtifactKind.hash,
+        rawValue: input,
+        parserResult: pem,
+        confidence: .94,
+        reason: 'Parsed a PEM certificate or public key for fingerprinting.',
+        primaryToolId: 'hash',
+      ),
+    ];
+  }
+  return _detectHash(input, provenance);
+}
+
+List<int>? _decodePublicPem(String input) {
+  final RegExpMatch? header = RegExp(
+    r'^-----BEGIN (CERTIFICATE|PUBLIC KEY|RSA PUBLIC KEY)-----\r?\n',
+  ).firstMatch(input);
+  if (header == null) return null;
+  final String type = header.group(1)!;
+  final String footer = '-----END $type-----';
+  if (!input.endsWith(footer)) return null;
+  final String body = input
+      .substring(header.end, input.length - footer.length)
+      .trim();
+  if (body.isEmpty || !RegExp(r'^[A-Za-z0-9+/=\r\n]+$').hasMatch(body)) {
+    return null;
+  }
+  try {
+    final List<int> decoded = base64Decode(body.replaceAll(RegExp(r'\s'), ''));
+    return decoded.isEmpty ? null : decoded;
+  } catch (_) {
+    return null;
+  }
 }
 
 // Fires only on multi-line bulleted/numbered lists: at least two non-blank

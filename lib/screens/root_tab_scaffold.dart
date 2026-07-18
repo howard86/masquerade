@@ -5,6 +5,7 @@ import '../state/view_mode_controller.dart';
 import '../state/library_controller.dart';
 import '../theme/mq_theme.dart';
 import '../utils/shell_layout.dart';
+import '../utils/external_input_importer.dart';
 import '../widgets/mq/mq_icons.dart';
 import 'desktop/desktop_shell.dart';
 import 'history_screen.dart';
@@ -17,11 +18,15 @@ class RootTabScaffold extends StatefulWidget {
     super.key,
     this.isWebOverride,
     required this.libraryController,
+    this.externalInputImporter,
+    this.qrScanner,
   });
 
   /// See `MyApp.isWebOverride`. Null in production → reads [kIsWeb].
   final bool? isWebOverride;
   final LibraryController libraryController;
+  final ExternalInputImporter? externalInputImporter;
+  final Future<String?> Function(BuildContext context)? qrScanner;
 
   @override
   State<RootTabScaffold> createState() => _RootTabScaffoldState();
@@ -60,12 +65,15 @@ class _RootTabScaffoldState extends State<RootTabScaffold> {
         if (layout == MqShellLayout.desktop) {
           return DesktopShell(isWebOverride: widget.isWebOverride);
         }
-        return _buildTabScaffold(context);
+        return _buildTabScaffold(context, importEnabled: !isWeb);
       },
     );
   }
 
-  Widget _buildTabScaffold(BuildContext context) {
+  Widget _buildTabScaffold(
+    BuildContext context, {
+    required bool importEnabled,
+  }) {
     final c = context.mq.colors;
     return CupertinoTabScaffold(
       controller: _tabController,
@@ -112,7 +120,12 @@ class _RootTabScaffoldState extends State<RootTabScaffold> {
               title,
             );
             return switch (index) {
-              0 => HomeScreen(navigationBar: navigationBar),
+              0 => HomeScreen(
+                navigationBar: navigationBar,
+                externalInputImporter: widget.externalInputImporter,
+                importEnabled: importEnabled,
+                qrScanner: widget.qrScanner,
+              ),
               1 => LibraryScope(
                 controller: widget.libraryController,
                 child: LibraryScreen(navigationBar: navigationBar),

@@ -30,6 +30,8 @@ enum ArtifactProvenance {
   liveLink,
   generated,
   shareExtension,
+  fileImport,
+  qrImageImport,
 }
 
 enum ArtifactSensitivity { standard, sensitive }

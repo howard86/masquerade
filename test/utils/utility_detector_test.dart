@@ -279,5 +279,32 @@ void main() {
         expect(match.artifact.provenance, provenance);
       }
     });
+
+    test('routes only public PEM containers intact for fingerprinting', () {
+      const String certificate =
+          '-----BEGIN CERTIFICATE-----\nYWJj\n-----END CERTIFICATE-----';
+      const String publicKey =
+          '-----BEGIN PUBLIC KEY-----\nYWJj\n-----END PUBLIC KEY-----';
+      const String privateKey =
+          '-----BEGIN PRIVATE KEY-----\nYWJj\n-----END PRIVATE KEY-----';
+
+      for (final String value in <String>[certificate, publicKey]) {
+        final DetectionMatch<Object?> match = UtilityCatalog.detectArtifacts(
+          value,
+          provenance: ArtifactProvenance.fileImport,
+        ).first;
+        expect(match.primaryToolId, 'hash');
+        expect(match.artifact.kind, ArtifactKind.hash);
+        expect(match.artifact.rawValue, value);
+        expect(match.artifact.provenance, ArtifactProvenance.fileImport);
+      }
+      expect(
+        UtilityCatalog.detectArtifacts(privateKey).where(
+          (DetectionMatch<Object?> match) =>
+              match.primaryToolId == 'hash' && match.reason.contains('PEM'),
+        ),
+        isEmpty,
+      );
+    });
   });
 }
