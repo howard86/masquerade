@@ -1,6 +1,9 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:masquerade/models/artifact.dart';
+import 'package:masquerade/utils/timestamp_parser.dart';
+import 'package:masquerade/widgets/tool_bodies/timestamp_body.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '_helpers.dart';
@@ -29,6 +32,31 @@ void main() {
       );
     },
   );
+
+  testWidgets('Timestamp reuses a compatible detected parser result', (
+    WidgetTester tester,
+  ) async {
+    const String raw = 'not a timestamp';
+    await pumpBodyAtWidth(
+      tester,
+      TimestampBody(
+        initialInput: raw,
+        initialArtifact: Artifact<Object?>(
+          kind: ArtifactKind.timestamp,
+          rawValue: raw,
+          provenance: ArtifactProvenance.camera,
+          parserResult: TimestampParseResult(
+            timestamp: DateTime.fromMillisecondsSinceEpoch(1700000000000),
+            format: TimestampFormat.unixSeconds,
+          ),
+        ),
+      ),
+      380,
+    );
+
+    expect(find.text('UNIX SECONDS'), findsOneWidget);
+    expect(find.textContaining('Invalid input format'), findsNothing);
+  });
 
   testWidgets('Timestamp ambiguity banner hidden for unambiguous ms value', (
     WidgetTester tester,

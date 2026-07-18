@@ -2,7 +2,26 @@ import '../utils/sensitive_data_policy.dart';
 import 'content_type.dart';
 
 /// A detected value's specific shape, separate from its generic routing type.
-enum ArtifactKind { jwt, timestamp, json, base64, unknown }
+enum ArtifactKind {
+  uuid,
+  ip,
+  number,
+  timestamp,
+  cron,
+  json,
+  yaml,
+  toml,
+  jwt,
+  base64,
+  url,
+  color,
+  math,
+  bps,
+  bytes,
+  list,
+  hash,
+  unknown,
+}
 
 enum ArtifactProvenance { typed, clipboard, camera, liveLink, generated }
 
@@ -35,10 +54,23 @@ class Artifact<T> {
   final int _previewLength;
 
   ContentType get contentType => switch (kind) {
+    ArtifactKind.number ||
+    ArtifactKind.math ||
+    ArtifactKind.bps => ContentType.number,
     ArtifactKind.timestamp => ContentType.epoch,
-    ArtifactKind.json => ContentType.json,
+    ArtifactKind.json ||
+    ArtifactKind.yaml ||
+    ArtifactKind.toml => ContentType.json,
+    ArtifactKind.bytes => ContentType.bytes,
+    ArtifactKind.list => ContentType.lines,
+    ArtifactKind.color => ContentType.color,
+    ArtifactKind.uuid ||
+    ArtifactKind.ip ||
+    ArtifactKind.cron ||
     ArtifactKind.jwt ||
     ArtifactKind.base64 ||
+    ArtifactKind.url ||
+    ArtifactKind.hash ||
     ArtifactKind.unknown => ContentType.text,
   };
 
@@ -48,6 +80,8 @@ class Artifact<T> {
         utilityId: switch (kind) {
           ArtifactKind.jwt => 'jwt',
           ArtifactKind.base64 => 'base64',
+          ArtifactKind.bytes => 'bytes',
+          ArtifactKind.url => 'url',
           _ => null,
         },
         values: <String>[rawValue],
@@ -74,6 +108,7 @@ class DetectionMatch<T> {
     required this.artifact,
     required this.confidence,
     required this.reason,
+    required this.primaryToolId,
     required Set<String> compatibleToolIds,
   }) : compatibleToolIds = Set<String>.unmodifiable(compatibleToolIds) {
     if (!confidence.isFinite || confidence < 0 || confidence > 1) {
@@ -93,10 +128,18 @@ class DetectionMatch<T> {
         'must not be empty',
       );
     }
+    if (!compatibleToolIds.contains(primaryToolId)) {
+      throw ArgumentError.value(
+        primaryToolId,
+        'primaryToolId',
+        'must be compatible',
+      );
+    }
   }
 
   final Artifact<T> artifact;
   final double confidence;
   final String reason;
+  final String primaryToolId;
   final Set<String> compatibleToolIds;
 }

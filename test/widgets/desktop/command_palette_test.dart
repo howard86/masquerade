@@ -149,6 +149,34 @@ void main() {
       expect(find.byType(ToolCardFrame), findsOneWidget);
     });
 
+    testWidgets('tool-name queries remain name search, not artifacts', (
+      WidgetTester tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(1200, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        MyApp(
+          isWebOverride: true,
+          viewModeController: ViewModeController(initial: MqViewMode.desktop),
+          skipSplash: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('File'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('New tool…  ⌘K'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey<String>('command-palette-field')),
+        'uuid',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('UUID'), findsWidgets);
+      expect(find.text('Open UUID with this value'), findsNothing);
+    });
+
     testWidgets('a private key is neither echoed nor offered as a seed', (
       WidgetTester tester,
     ) async {

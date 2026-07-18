@@ -27,6 +27,12 @@ void main() {
     (Widget widget) => widget is Semantics && widget.properties.label == label,
   );
 
+  Finder semanticsStarts(String label) => find.byWidgetPredicate(
+    (Widget widget) =>
+        widget is Semantics &&
+        widget.properties.label?.startsWith(label) == true,
+  );
+
   testWidgets('empty capture offers explicit paste and QR scan controls', (
     WidgetTester tester,
   ) async {
@@ -48,7 +54,7 @@ void main() {
     expect(find.text('Paste'), findsOneWidget);
     expect(find.text('Clear'), findsOneWidget);
     expect(find.text('Artifact detected'), findsOneWidget);
-    expect(semantics('Open Color'), findsOneWidget);
+    expect(semanticsStarts('Open Color. Primary'), findsOneWidget);
 
     await tester.tap(find.text('Clear'));
     await tester.pumpAndSettle();
@@ -56,15 +62,15 @@ void main() {
     expect(find.text('TOOL SUGGESTIONS'), findsNothing);
   });
 
-  testWidgets('artifact detection can suggest more than one existing tool', (
+  testWidgets('artifact detection ranks timestamp above number base', (
     WidgetTester tester,
   ) async {
     final Finder hero = await pumpHero(tester);
     await tester.enterText(hero, '1700000000');
     await tester.pump();
 
-    expect(semantics('Open Number Base'), findsOneWidget);
-    expect(semantics('Open Timestamp'), findsOneWidget);
+    expect(semanticsStarts('Open Timestamp. Primary'), findsOneWidget);
+    expect(semanticsStarts('Open Number Base. Alternative'), findsOneWidget);
   });
 
   testWidgets('tapping a suggestion pushes a route seeded with capture', (

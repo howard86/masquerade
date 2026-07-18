@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
+import '../../models/artifact.dart';
 import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
@@ -93,6 +94,7 @@ class JSONBody extends StatefulWidget implements ToolBodyWidget {
   const JSONBody({
     super.key,
     this.initialInput,
+    this.initialArtifact,
     this.seedSource = SeedSource.none,
     this.onSwitchTool,
     this.actionBar,
@@ -101,6 +103,7 @@ class JSONBody extends StatefulWidget implements ToolBodyWidget {
 
   @override
   final String? initialInput;
+  final Artifact<Object?>? initialArtifact;
   @override
   final SeedSource seedSource;
   final OpenInToolCallback? onSwitchTool;
@@ -123,6 +126,7 @@ class _JSONBodyState extends State<JSONBody>
   _ParseError? _error;
   String? _output;
   String? _footerMinified;
+  bool _usedInitialArtifact = false;
 
   @override
   String get utilityId => 'json';
@@ -144,7 +148,11 @@ class _JSONBodyState extends State<JSONBody>
 
   @override
   void parse(String input) {
-    final ({_Parsed? parsed, _ParseError? error}) r = _runParse(input, _source);
+    final ({_Parsed? parsed, _ParseError? error})? cached = _initialParse(
+      input,
+    );
+    final ({_Parsed? parsed, _ParseError? error}) r =
+        cached ?? _runParse(input, _source);
     final _Parsed? parsed = r.parsed;
     final String? minified = parsed == null
         ? null
@@ -162,6 +170,34 @@ class _JSONBodyState extends State<JSONBody>
     });
     if (parsed != null) recordOutput(input, minified!);
     emitToLink();
+  }
+
+  ({_Parsed? parsed, _ParseError? error})? _initialParse(String input) {
+    if (_usedInitialArtifact || _source != SourceFormat.auto) return null;
+    final Artifact<Object?>? artifact = widget.initialArtifact;
+    if (artifact == null || artifact.rawValue.trim() != input.trim()) {
+      return null;
+    }
+    final Object? result = artifact.parserResult;
+    final _Parsed? parsed = switch ((artifact.kind, result)) {
+      (ArtifactKind.json, JSONOk r) => _Parsed(
+        value: r.value.value,
+        detectedFormat: SourceFormat.json,
+      ),
+      (ArtifactKind.yaml, YamlOk r) => _Parsed(
+        value: r.value,
+        detectedFormat: SourceFormat.yaml,
+        docCount: r.docCount,
+      ),
+      (ArtifactKind.toml, TomlOk r) => _Parsed(
+        value: r.value,
+        detectedFormat: SourceFormat.toml,
+      ),
+      _ => null,
+    };
+    if (parsed == null) return null;
+    _usedInitialArtifact = true;
+    return (parsed: parsed, error: null);
   }
 
   @override

@@ -133,6 +133,28 @@ void main() {
     },
   );
 
+  testWidgets('empty-canvas drop opens the highest-ranked interpretation', (
+    WidgetTester tester,
+  ) async {
+    await _pumpDesktop(tester);
+    await _openFirst(tester, 'Number Base');
+    await tester.enterText(find.byType(EditableText).first, '1700000000');
+    await tester.pumpAndSettle(_settle);
+
+    await _pipeDrag(
+      tester,
+      tester.getCenter(_outputPipe),
+      const Offset(1050, 800),
+    );
+
+    expect(
+      tester
+          .widgetList<ToolCardFrame>(find.byType(ToolCardFrame))
+          .map((ToolCardFrame frame) => frame.title),
+      <String>['Number Base', 'Timestamp'],
+    );
+  });
+
   testWidgets('accepted seed text does not imply unsupported live-link input', (
     WidgetTester tester,
   ) async {

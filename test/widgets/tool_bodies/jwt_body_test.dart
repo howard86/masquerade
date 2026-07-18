@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:masquerade/models/artifact.dart';
+import 'package:masquerade/utils/jwt_parser.dart';
 import 'package:masquerade/widgets/tool_bodies/jwt_body.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -80,5 +82,32 @@ void main() {
     await tester.pumpAndSettle(kDebouncePump);
 
     expect(find.text('OPEN IN'), findsNothing);
+  });
+
+  testWidgets('JWT — reuses a compatible detected parser result', (
+    WidgetTester tester,
+  ) async {
+    const String raw = 'not.a.jwt';
+    final JwtOk cached = JwtOk(
+      header: <String, dynamic>{'alg': 'cached-alg'},
+      payload: <String, dynamic>{'sub': 'cached-sub'},
+      signature: 'cached-signature',
+    );
+    await pumpBodyAtWidth(
+      tester,
+      JwtBody(
+        initialInput: raw,
+        initialArtifact: Artifact<Object?>(
+          kind: ArtifactKind.jwt,
+          rawValue: raw,
+          provenance: ArtifactProvenance.clipboard,
+          parserResult: cached,
+        ),
+      ),
+      380,
+    );
+
+    expect(find.textContaining('cached-sub'), findsWidgets);
+    expect(find.textContaining('Invalid'), findsNothing);
   });
 }
