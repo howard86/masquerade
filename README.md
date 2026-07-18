@@ -8,9 +8,10 @@ A Flutter utility-toolbox app — a digital toolbox for the small everyday conve
 
 ## What's in the toolbox today
 
-Twenty-two tools, each reachable from the Home screen's grid or via search:
+Twenty-three tools, each reachable from the Home screen's grid or via search:
 
 - **Log & Stack Inspector** — locally group, search, redact, copy, and share JSON Lines, plain logs, and stack traces.
+- **Unicode Inspector** — reveal grapheme clusters, code points, UTF-8 bytes, invisible/bidi controls, line endings, and explicit normalization changes.
 - **X.509 Inspector** — inspect local PEM / DER certificates and chains, fingerprints, validity, SANs, and public-key details without remote lookup.
 - **HTTP Inspector** — locally inspect, redact, and convert static HTTP request snippets without sending them.
 - **Artifact Inspector** — recursively trace nested encodings with bounded, sensitive-safe previews.

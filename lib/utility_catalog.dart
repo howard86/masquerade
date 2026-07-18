@@ -43,6 +43,7 @@ import 'widgets/tool_bodies/number_base_body.dart';
 import 'widgets/tool_bodies/qr_code_body.dart';
 import 'widgets/tool_bodies/seed_source.dart';
 import 'widgets/tool_bodies/timestamp_body.dart';
+import 'widgets/tool_bodies/unicode_string_inspector_body.dart';
 import 'widgets/tool_bodies/url_body.dart';
 import 'widgets/tool_bodies/uuid_body.dart';
 import 'widgets/tool_bodies/x509_inspector_body.dart';
@@ -221,6 +222,58 @@ class UtilityCatalog {
             ToolActionBarController? actionBar,
             LinkChannel? link,
           }) => LogStackInspectorBody(
+            initialInput: initialInput,
+            initialArtifact: initialArtifact,
+            seedSource: seedSource,
+            onSwitchTool: onSwitchTool,
+            actionBar: actionBar,
+          ),
+    ),
+    UtilityDescriptor(
+      id: 'unicode_string_inspector',
+      name: 'Unicode Inspector',
+      description: 'Reveal code points and hidden text',
+      icon: MqIcons.textCase,
+      tint: const Color(0xFF7C3AED),
+      synonyms: <String>[
+        'unicode',
+        'string',
+        'grapheme',
+        'normalization',
+        'invisible',
+        'bidi',
+        'confusable',
+      ],
+      categories: <UtilityCategory>{
+        UtilityCategory.inspect,
+        UtilityCategory.transform,
+        UtilityCategory.compareValidate,
+      },
+      acceptedTypes: <ContentType>{ContentType.text},
+      producedTypes: <ContentType>{ContentType.text, ContentType.bytes},
+      sensitivity: UtilitySensitivity.sensitive,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+      },
+      liveLinkTypes: <ContentType>{},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.openIn,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.disabled,
+      defaultCardWidth: CardWidthClass.wide,
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            Artifact<Object?>? initialArtifact,
+            SeedSource seedSource = SeedSource.none,
+            OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
+            LinkChannel? link,
+          }) => UnicodeStringInspectorBody(
             initialInput: initialInput,
             initialArtifact: initialArtifact,
             seedSource: seedSource,
