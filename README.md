@@ -8,7 +8,7 @@ A Flutter utility-toolbox app — a digital toolbox for the small everyday conve
 
 ## What's in the toolbox today
 
-Twenty-seven tools, each reachable from the Home screen's grid or via search:
+Twenty-eight tools, each reachable from the Home screen's grid or via search:
 
 - **Log & Stack Inspector** — locally group, search, redact, copy, and share JSON Lines, plain logs, and stack traces.
 - **Environment & Config Inspector** — locally normalize, compare, redact, and convert `.env`, properties, headers, and key/value configuration.
@@ -33,6 +33,7 @@ Twenty-seven tools, each reachable from the Home screen's grid or via search:
 - **Bytes** — byte array ↔ text (UTF-8).
 - **List** — split ↔ join with custom separators.
 - **Regex** — test Dart regular expressions, highlight matches, and inspect numbered or named captures.
+- **Markdown** — preview headings, emphasis, code, lists, links, and tables with inert local rendering.
 - **Diff** — compare two texts with line- or word-level granularity.
 - **Hash** — MD5 / SHA-1 / SHA-256 / SHA-512 digests with verify mode.
 - **QR Code** — scan a code with the camera or generate one from text.

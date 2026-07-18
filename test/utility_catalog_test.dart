@@ -171,6 +171,64 @@ void main() {
   });
 
   group('UtilityCatalog.detectArtifacts', () {
+    test('Markdown is the weakest last detector and requires two signals', () {
+      final UtilityDescriptor markdown = UtilityCatalog.byId('markdown');
+      expect(markdown.description, 'Preview · headings · code · lists');
+      expect(markdown.tint.toARGB32(), 0xFF94A3B8);
+      expect(UtilityCatalog.all.last, same(markdown));
+
+      Iterable<String> detected(String value) => UtilityCatalog.detectArtifacts(
+        value,
+      ).map((DetectionMatch<Object?> match) => match.primaryToolId);
+
+      expect(
+        detected('**bold** and [link](https://example.com)'),
+        contains('markdown'),
+      );
+      expect(detected('# One\n\n## Two'), contains('markdown'));
+      expect(
+        detected('# Shopping\n- one\n- two'),
+        containsAll(<String>['list', 'markdown']),
+      );
+      expect(detected('# Shopping\n- one\n- two').first, 'list');
+      expect(detected('# One signal'), isNot(contains('markdown')));
+      expect(
+        detected('Ordinary prose with no technical structure at all.'),
+        isNot(contains('markdown')),
+      );
+      expect(
+        detected('cat foo | grep bar\ncat baz | grep qux'),
+        isNot(contains('markdown')),
+      );
+      expect(detected('--- | ---'), isNot(contains('markdown')));
+      expect(detected('A | B\n--- | ---'), contains('markdown'));
+      expect(detected('__init__ and __name__'), isNot(contains('markdown')));
+    });
+
+    test('Markdown detection protects secret-like artifacts', () {
+      const String secret =
+          '# Private\n\n[endpoint](https://user:password@example.com)';
+      final Artifact<Object?> protected = UtilityCatalog.detectArtifacts(secret)
+          .firstWhere(
+            (DetectionMatch<Object?> match) =>
+                match.primaryToolId == 'markdown',
+          )
+          .artifact;
+      final Artifact<Object?> public =
+          UtilityCatalog.detectArtifacts(
+                '# Public\n\n[docs](https://example.com)',
+              )
+              .firstWhere(
+                (DetectionMatch<Object?> match) =>
+                    match.primaryToolId == 'markdown',
+              )
+              .artifact;
+
+      expect(protected.isSensitive, isTrue);
+      expect(protected.safePreview, '••••');
+      expect(public.sensitivity, ArtifactSensitivity.standard);
+    });
+
     test('CSV detection is tabular, ordered after JSON, and conservative', () {
       final UtilityDescriptor csv = UtilityCatalog.byId('csv');
       expect(csv.name, 'CSV / TSV');

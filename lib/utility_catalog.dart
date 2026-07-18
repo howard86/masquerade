@@ -18,7 +18,9 @@ import 'utils/ip_parser.dart';
 import 'utils/json_parser.dart';
 import 'utils/jwt_parser.dart';
 import 'utils/math_parser.dart';
+import 'utils/markdown_parser.dart';
 import 'utils/number_base_parser.dart';
+import 'utils/sensitive_data_policy.dart';
 import 'utils/toml_parser.dart';
 import 'utils/timestamp_parser.dart';
 import 'utils/uuid_parser.dart';
@@ -45,6 +47,7 @@ import 'widgets/tool_bodies/jwt_body.dart';
 import 'widgets/tool_bodies/list_body.dart';
 import 'widgets/tool_bodies/log_stack_inspector_body.dart';
 import 'widgets/tool_bodies/math_body.dart';
+import 'widgets/tool_bodies/markdown_body.dart';
 import 'widgets/tool_bodies/number_base_body.dart';
 import 'widgets/tool_bodies/qr_code_body.dart';
 import 'widgets/tool_bodies/regex_body.dart';
@@ -1445,6 +1448,50 @@ class UtilityCatalog {
             link: link,
           ),
     ),
+    UtilityDescriptor(
+      id: 'markdown',
+      name: 'Markdown',
+      description: 'Preview · headings · code · lists',
+      icon: MqIcons.brackets,
+      tint: const Color(0xFF94A3B8),
+      synonyms: <String>[
+        'markdown',
+        'md',
+        'preview',
+        'readme',
+        'commonmark',
+        'gfm',
+      ],
+      categories: <UtilityCategory>{UtilityCategory.inspect},
+      acceptedTypes: <ContentType>{ContentType.text, ContentType.lines},
+      producedTypes: <ContentType>{ContentType.text},
+      sensitivity: UtilitySensitivity.standard,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+      },
+      liveLinkTypes: <ContentType>{},
+      quickActions: <UtilityQuickAction>{UtilityQuickAction.paste},
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.enabled,
+      defaultCardWidth: CardWidthClass.wide,
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            Artifact<Object?>? initialArtifact,
+            SeedSource seedSource = SeedSource.none,
+            OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
+            LinkChannel? link,
+          }) => MarkdownBody(
+            initialInput: initialInput,
+            initialArtifact: initialArtifact,
+            seedSource: seedSource,
+            actionBar: actionBar,
+          ),
+      detectArtifact: _detectMarkdown,
+    ),
   ];
 
   static UtilityDescriptor byId(String id) =>
@@ -1616,12 +1663,14 @@ DetectionMatch<Object?> _evidence({
   required String reason,
   required String primaryToolId,
   Set<String>? compatibleToolIds,
+  ArtifactSensitivity sensitivity = ArtifactSensitivity.standard,
 }) => DetectionMatch<Object?>(
   artifact: Artifact<Object?>(
     kind: kind,
     rawValue: rawValue,
     provenance: provenance,
     parserResult: parserResult,
+    sensitivity: sensitivity,
   ),
   confidence: confidence,
   reason: reason,
@@ -2375,4 +2424,103 @@ List<DetectionMatch<Object?>> _detectList(
       primaryToolId: 'list',
     ),
   ];
+}
+
+final RegExp _markdownHeading = RegExp(r'^#{1,6}\s+\S', multiLine: true);
+final RegExp _markdownFence = RegExp(r'^\s*```\S*\s*$', multiLine: true);
+final RegExp _markdownQuote = RegExp(r'^\s*>\s+\S', multiLine: true);
+final RegExp _markdownList = RegExp(
+  r'^\s*(?:[-*+]\s+|\d+[.)]\s+)\S',
+  multiLine: true,
+);
+final RegExp _markdownRule = RegExp(
+  r'^\s{0,3}(?:\*\s*){3,}$|^\s{0,3}(?:-\s*){3,}$|^\s{0,3}(?:_\s*){3,}$',
+  multiLine: true,
+);
+final RegExp _markdownLink = RegExp(r'!?\[[^\]\r\n]+\]\([^\)\r\n]+\)');
+final RegExp _markdownTableDivider = RegExp(
+  r'^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$',
+  multiLine: true,
+);
+final RegExp _markdownTableRow = RegExp(
+  r'^\s*\|?[^|\r\n]+\|[^|\r\n]+(?:\|[^\r\n]*)?$',
+  multiLine: true,
+);
+
+List<DetectionMatch<Object?>> _detectMarkdown(
+  String input,
+  ArtifactProvenance provenance,
+) {
+  if (input.length > MarkdownParser.maxInputBytes) {
+    return const <DetectionMatch<Object?>>[];
+  }
+  final int listSignals = _signalCount(_markdownList, input);
+  final int tableDividerSignals = _signalCount(_markdownTableDivider, input);
+  final int otherSignals = <int>[
+    _signalCount(_markdownHeading, input),
+    _signalCount(_markdownFence, input),
+    _signalCount(_markdownQuote, input),
+    _signalCount(_markdownRule, input),
+    _signalCount(_markdownLink, input),
+    tableDividerSignals,
+    if (tableDividerSignals > 0) _markdownTableRowCount(input),
+    _pairedMarkerCount(input, '**'),
+    _pairedMarkerCount(input, '`'),
+  ].fold(0, (int total, int count) => total + count);
+  final int signals = listSignals + otherSignals;
+  if (signals < 2) return const <DetectionMatch<Object?>>[];
+  if (_detectCron(input, provenance).isNotEmpty ||
+      (otherSignals == 0 && _detectList(input, provenance).isNotEmpty)) {
+    return const <DetectionMatch<Object?>>[];
+  }
+
+  final MarkdownParseResult result = MarkdownParser.parse(input);
+  if (result is! MarkdownOk) return const <DetectionMatch<Object?>>[];
+  final bool sensitive =
+      SensitiveDataPolicy.protects(
+        utilityId: 'markdown',
+        values: <String>[input],
+      ) ||
+      SensitiveDataPolicy.containsSecretLikeValue(input);
+  return <DetectionMatch<Object?>>[
+    _evidence(
+      provenance: provenance,
+      kind: ArtifactKind.unknown,
+      rawValue: input,
+      parserResult: result,
+      confidence: .52,
+      reason: '$signals independent Markdown syntax signals parsed.',
+      primaryToolId: 'markdown',
+      sensitivity: sensitive
+          ? ArtifactSensitivity.sensitive
+          : ArtifactSensitivity.standard,
+    ),
+  ];
+}
+
+int _signalCount(RegExp pattern, String input) =>
+    pattern.allMatches(input).take(2).length;
+
+int _markdownTableRowCount(String input) {
+  int count = 0;
+  for (final RegExpMatch match in _markdownTableRow.allMatches(input)) {
+    if (!_markdownTableDivider.hasMatch(match.group(0)!)) {
+      count++;
+      if (count == 2) break;
+    }
+  }
+  return count;
+}
+
+int _pairedMarkerCount(String input, String marker) {
+  int occurrences = 0;
+  int offset = 0;
+  while (occurrences < 4) {
+    final int index = input.indexOf(marker, offset);
+    if (index < 0) break;
+    occurrences++;
+    offset = index + marker.length;
+  }
+  final int pairs = occurrences ~/ 2;
+  return pairs > 2 ? 2 : pairs;
 }

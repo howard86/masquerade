@@ -73,6 +73,27 @@ void main() {
     expect(restored.session!.steps[1].settings, workflow.steps[1].settings);
   });
 
+  test('secret-like Markdown never enters recent-session storage', () async {
+    const String secret =
+        '# Private\n\n[endpoint](https://user:password@example.com)';
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final WorkSessionController controller = WorkSessionController(
+      prefs: prefs,
+    );
+    final Artifact<Object?> detected = UtilityCatalog.detectArtifacts(secret)
+        .firstWhere(
+          (DetectionMatch<Object?> match) => match.primaryToolId == 'markdown',
+        )
+        .artifact;
+
+    controller.start(UtilityCatalog.byId('markdown'), detected);
+    await controller.flush();
+
+    expect(controller.session!.steps.single.input.isSensitive, isTrue);
+    expect(controller.recentSessions, isEmpty);
+    expect(prefs.getString(WorkSessionController.storageKey), isNull);
+  });
+
   test(
     'unknown saved tools stay visible while invalid recents are dropped',
     () async {
