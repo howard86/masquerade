@@ -8,8 +8,9 @@ A Flutter utility-toolbox app — a digital toolbox for the small everyday conve
 
 ## What's in the toolbox today
 
-Nineteen tools, each reachable from the Home screen's grid or via search:
+Twenty tools, each reachable from the Home screen's grid or via search:
 
+- **HTTP Inspector** — locally inspect, redact, and convert static HTTP request snippets without sending them.
 - **Artifact Inspector** — recursively trace nested encodings with bounded, sensitive-safe previews.
 - **UUID** — generate v4 / v7, validate any UUID, inspect version & variant, parse ULID; v1/v7/ULID timestamps cross-link into Timestamp.
 - **IP / CIDR** — parse IPv4 / IPv6 and CIDR blocks; subnet network, broadcast, host range and count, netmask, and scope flags (private / loopback / link-local / multicast / documentation).

@@ -31,6 +31,7 @@ import 'widgets/tool_bodies/cron_body.dart';
 import 'widgets/tool_bodies/diff_body.dart';
 import 'widgets/tool_bodies/generator_body.dart';
 import 'widgets/tool_bodies/hash_body.dart';
+import 'widgets/tool_bodies/http_inspector_body.dart';
 import 'widgets/tool_bodies/ip_body.dart';
 import 'widgets/tool_bodies/json_body.dart';
 import 'widgets/tool_bodies/jwt_body.dart';
@@ -175,6 +176,50 @@ class UtilityCatalog {
   const UtilityCatalog._();
 
   static final List<UtilityDescriptor> all = <UtilityDescriptor>[
+    UtilityDescriptor(
+      id: 'http_inspector',
+      name: 'HTTP Inspector',
+      description: 'Inspect · redact · convert requests',
+      icon: MqIcons.network,
+      tint: const Color(0xFF0EA5E9),
+      synonyms: <String>['http', 'curl', 'fetch', 'axios', 'request', 'api'],
+      categories: <UtilityCategory>{
+        UtilityCategory.inspect,
+        UtilityCategory.transform,
+      },
+      acceptedTypes: <ContentType>{ContentType.text},
+      producedTypes: <ContentType>{ContentType.text, ContentType.json},
+      sensitivity: UtilitySensitivity.sensitive,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+      },
+      liveLinkTypes: <ContentType>{},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.copy,
+        UtilityQuickAction.openIn,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.disabled,
+      defaultCardWidth: CardWidthClass.wide,
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            Artifact<Object?>? initialArtifact,
+            SeedSource seedSource = SeedSource.none,
+            OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
+            LinkChannel? link,
+          }) => HttpInspectorBody(
+            initialInput: initialInput,
+            initialArtifact: initialArtifact,
+            seedSource: seedSource,
+            onSwitchTool: onSwitchTool,
+            actionBar: actionBar,
+          ),
+    ),
     UtilityDescriptor(
       id: 'artifact_inspector',
       name: 'Artifact Inspector',
