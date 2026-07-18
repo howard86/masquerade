@@ -29,6 +29,7 @@ abstract final class SensitiveDataPolicy {
       utilityId == 'jwt' ||
       utilityId == 'generator' ||
       utilityId == 'http_inspector' ||
+      utilityId == 'log_stack_inspector' ||
       utilityId == 'artifact_inspector' ||
       utilityId == 'x509_inspector';
 
