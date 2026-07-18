@@ -283,6 +283,31 @@ void main() {
       );
     });
 
+    testWidgets('saved rerun reports an incompatible expected next step', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        _harness(
+          MobileSessionRouteScope(
+            addNext: true,
+            protectedSession: false,
+            expectedNextToolId: 'timestamp',
+            child: OpenInFooter(
+              output: 'plain text',
+              excludeUtilityId: 'json',
+              onSwitchTool: (_, _) {},
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        find.text('Output is not compatible with Timestamp.'),
+        findsOneWidget,
+      );
+      expect(find.text('ADD NEXT STEP'), findsNothing);
+    });
+
     testWidgets('protected session routes safely without clipboard copy', (
       WidgetTester tester,
     ) async {

@@ -92,16 +92,61 @@ class _GeneratorBodyState extends State<GeneratorBody> {
       _draftRevision = drafts.revision;
       _draftRestored = true;
       final GeneratorToolDraft? draft = drafts.generator;
-      if (draft != null) {
-        _mode = GenMode.values.byName(draft.mode);
-        _lengthCtrl.text = draft.length.toString();
-        _bytesCtrl.text = draft.bytes.toString();
-        _lower = draft.lower;
-        _upper = draft.upper;
-        _digits = draft.digits;
-        _symbols = draft.symbols;
-        _tokenFormat = TokenFormat.values.byName(draft.tokenFormat);
-        _uuidVersion = GenUuidVersion.values.byName(draft.uuidVersion);
+      final Map<String, Object?> saved = route.settings;
+      final String? mode = saved['mode'] is String
+          ? saved['mode']! as String
+          : draft?.mode;
+      final String? tokenFormat = saved['tokenFormat'] is String
+          ? saved['tokenFormat']! as String
+          : draft?.tokenFormat;
+      final String? uuidVersion = saved['uuidVersion'] is String
+          ? saved['uuidVersion']! as String
+          : draft?.uuidVersion;
+      if (mode != null &&
+          GenMode.values.any((GenMode value) => value.name == mode)) {
+        _mode = GenMode.values.byName(mode);
+      }
+      final int? length = saved['length'] is int
+          ? saved['length']! as int
+          : draft?.length;
+      final int? bytes = saved['bytes'] is int
+          ? saved['bytes']! as int
+          : draft?.bytes;
+      if (length != null &&
+          length >= Generator.minLength &&
+          length <= Generator.maxLength) {
+        _lengthCtrl.text = length.toString();
+      }
+      if (bytes != null &&
+          bytes >= Generator.minBytes &&
+          bytes <= Generator.maxBytes) {
+        _bytesCtrl.text = bytes.toString();
+      }
+      _lower = saved['lower'] is bool
+          ? saved['lower']! as bool
+          : draft?.lower ?? _lower;
+      _upper = saved['upper'] is bool
+          ? saved['upper']! as bool
+          : draft?.upper ?? _upper;
+      _digits = saved['digits'] is bool
+          ? saved['digits']! as bool
+          : draft?.digits ?? _digits;
+      _symbols = saved['symbols'] is bool
+          ? saved['symbols']! as bool
+          : draft?.symbols ?? _symbols;
+      if (tokenFormat != null &&
+          TokenFormat.values.any(
+            (TokenFormat value) => value.name == tokenFormat,
+          )) {
+        _tokenFormat = TokenFormat.values.byName(tokenFormat);
+      }
+      if (uuidVersion != null &&
+          GenUuidVersion.values.any(
+            (GenUuidVersion value) => value.name == uuidVersion,
+          )) {
+        _uuidVersion = GenUuidVersion.values.byName(uuidVersion);
+      }
+      if (draft != null || saved.isNotEmpty) {
         _output = _build();
       }
     }
@@ -165,6 +210,17 @@ class _GeneratorBodyState extends State<GeneratorBody> {
     final MobileSessionRouteScope? route = MobileSessionRouteScope.maybeOf(
       context,
     );
+    route?.onSettingsChanged?.call(<String, Object?>{
+      'mode': _mode.name,
+      'length': _length,
+      'bytes': _bytes,
+      'lower': _lower,
+      'upper': _upper,
+      'digits': _digits,
+      'symbols': _symbols,
+      'tokenFormat': _tokenFormat.name,
+      'uuidVersion': _uuidVersion.name,
+    });
     if (drafts == null ||
         !drafts.ready ||
         route == null ||

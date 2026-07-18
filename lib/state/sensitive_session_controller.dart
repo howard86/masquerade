@@ -23,7 +23,7 @@ class SensitiveSessionController extends ChangeNotifier {
   int get revision => _revision;
 
   Future<void> clear() async {
-    _workSession?.clear();
+    await _workSession?.clear();
     _toolDrafts?.suspendWrites();
     try {
       await _toolDrafts?.clear();

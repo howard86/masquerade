@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
 import 'package:masquerade/models/artifact.dart';
+import 'package:masquerade/models/saved_workflow.dart';
 import 'package:masquerade/models/work_session.dart';
 import 'package:masquerade/screens/detail/tool_detail_route.dart';
 import 'package:masquerade/state/detection_preference_controller.dart';
@@ -68,6 +69,18 @@ WorkSessionController _safeCompletedSession() {
   sessions.addNext(0, UtilityCatalog.byId('timestamp'), '1700000000');
   return sessions;
 }
+
+SavedWorkflow _workflow(List<String> toolIds, {String name = 'Saved flow'}) =>
+    SavedWorkflow(
+      id: 'workflow-test',
+      name: name,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(1),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(2),
+      steps: <SavedWorkflowStep>[
+        for (final String id in toolIds)
+          SavedWorkflowStep(toolId: id, settings: const <String, Object?>{}),
+      ],
+    );
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues(<String, Object>{}));
@@ -587,5 +600,207 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(ToolDetailRoute), findsOneWidget);
     expect(find.text('ADD NEXT STEP'), findsOneWidget);
+  });
+
+  testWidgets('saved workflow reruns with new input and supports management', (
+    WidgetTester tester,
+  ) async {
+    const String token = 'eyJhbGciOiJub25lIn0.eyJhdCI6MTgwMDAwMDAwMH0.';
+    final WorkSessionController sessions = WorkSessionController(
+      savedWorkflows: <SavedWorkflow>[
+        _workflow(<String>['jwt', 'json']),
+      ],
+    );
+    await _pumpWorkbench(tester, workSessionController: sessions);
+    await _enter(tester, token);
+
+    await tester.ensureVisible(find.text('Run'));
+    await tester.tap(find.text('Run'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ToolDetailRoute), findsOneWidget);
+    expect(sessions.session!.steps.single.input.rawValue, token);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Rename'));
+    await tester.tap(find.text('Rename'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(CupertinoAlertDialog),
+        matching: find.byType(CupertinoTextField),
+      ),
+      'JWT inspector',
+    );
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(find.text('JWT inspector'), findsOneWidget);
+
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete').last);
+    await tester.pumpAndSettle();
+    expect(sessions.savedWorkflows, isEmpty);
+    expect(find.text('No saved workflows'), findsOneWidget);
+  });
+
+  testWidgets('saving current workflow and incompatible rerun errors inline', (
+    WidgetTester tester,
+  ) async {
+    final WorkSessionController sessions = _safeCompletedSession();
+    await _pumpWorkbench(tester, workSessionController: sessions);
+    await tester.ensureVisible(find.text('Save workflow'));
+    await tester.tap(find.text('Save workflow'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(CupertinoAlertDialog),
+        matching: find.byType(CupertinoTextField),
+      ),
+      'Rates',
+    );
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(find.text('Rates'), findsOneWidget);
+
+    await _enter(tester, 'unrecognized prose value');
+    await tester.ensureVisible(find.text('Run'));
+    await tester.tap(find.text('Run'));
+    await tester.pump();
+    expect(
+      find.text('Input is not compatible with bps · % · decimal.'),
+      findsOneWidget,
+    );
+    expect(find.byType(ToolDetailRoute), findsNothing);
+  });
+
+  testWidgets('saved-step mismatch is announced inside the active route', (
+    WidgetTester tester,
+  ) async {
+    final WorkSessionController sessions = WorkSessionController(
+      savedWorkflows: <SavedWorkflow>[
+        _workflow(<String>['bps', 'timestamp']),
+      ],
+    );
+    await _pumpWorkbench(tester, workSessionController: sessions);
+    await _enter(tester, '25 bps');
+    await tester.ensureVisible(find.text('Run'));
+    await tester.tap(find.text('Run'));
+    await tester.pumpAndSettle();
+
+    expect(
+      sessions.addNext(0, UtilityCatalog.byId('number_base'), '1700000000'),
+      isNull,
+    );
+    await tester.pump();
+    expect(find.text('Next saved step is Timestamp.'), findsOneWidget);
+    expect(_semantics('Next saved step is Timestamp.'), findsOneWidget);
+  });
+
+  testWidgets('JSON body settings survive save, relaunch, and rerun', (
+    WidgetTester tester,
+  ) async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final WorkSessionController sessions = WorkSessionController(prefs: prefs);
+    sessions.start(
+      UtilityCatalog.byId('json'),
+      Artifact<Object?>(
+        kind: ArtifactKind.json,
+        rawValue: '{"at":1700000000}',
+        provenance: ArtifactProvenance.typed,
+      ),
+    );
+    await _pumpWorkbench(tester, workSessionController: sessions);
+    final Finder step = _stepSemantics(1, 'json', 'Running');
+    await tester.ensureVisible(step);
+    await tester.tap(step);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Reopen'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Pretty JSON'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tree').last);
+    await tester.pumpAndSettle();
+    expect(sessions.session!.steps.single.settings['target'], 'tree');
+
+    expect(
+      sessions.addNext(0, UtilityCatalog.byId('timestamp'), '1700000000'),
+      1,
+    );
+    await sessions.saveCurrent('JSON timestamp');
+    await sessions.flush();
+    final WorkSessionController restored = await WorkSessionController.load();
+    final SavedWorkflow workflow = restored.savedWorkflows.single;
+    expect(workflow.steps.first.settings['target'], 'tree');
+    expect(restored.rerun(workflow, '{"at":1800000000}'), 0);
+    expect(restored.session!.steps.single.settings['target'], 'tree');
+  });
+
+  testWidgets('stale tool route cannot write settings into a new session', (
+    WidgetTester tester,
+  ) async {
+    final WorkSessionController sessions = WorkSessionController();
+    sessions.start(
+      UtilityCatalog.byId('json'),
+      Artifact<Object?>(
+        kind: ArtifactKind.json,
+        rawValue: '{}',
+        provenance: ArtifactProvenance.typed,
+      ),
+    );
+    await _pumpWorkbench(tester, workSessionController: sessions);
+    final Finder step = _stepSemantics(1, 'json', 'Running');
+    await tester.ensureVisible(step);
+    await tester.tap(step);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Reopen'));
+    await tester.pumpAndSettle();
+
+    sessions.start(
+      UtilityCatalog.byId('json'),
+      Artifact<Object?>(
+        kind: ArtifactKind.json,
+        rawValue: '{"new":true}',
+        provenance: ArtifactProvenance.typed,
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('Pretty JSON'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tree').last);
+    await tester.pumpAndSettle();
+
+    expect(sessions.session!.steps.single.input.rawValue, '{"new":true}');
+    expect(sessions.session!.steps.single.settings, isEmpty);
+  });
+
+  testWidgets('malformed saved settings fall back without crashing', (
+    WidgetTester tester,
+  ) async {
+    final SavedWorkflow malformed = SavedWorkflow(
+      id: 'workflow-malformed-settings',
+      name: 'Malformed settings',
+      createdAt: DateTime.fromMillisecondsSinceEpoch(1),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(2),
+      steps: <SavedWorkflowStep>[
+        SavedWorkflowStep(
+          toolId: 'json',
+          settings: <String, Object?>{'source': false, 'target': 7},
+        ),
+      ],
+    );
+    final WorkSessionController sessions = WorkSessionController(
+      savedWorkflows: <SavedWorkflow>[malformed],
+    );
+    await _pumpWorkbench(tester, workSessionController: sessions);
+    await _enter(tester, '{}');
+    await tester.ensureVisible(find.text('Run'));
+    await tester.tap(find.text('Run'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ToolDetailRoute), findsOneWidget);
+    expect(find.text('Pretty JSON'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

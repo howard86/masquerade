@@ -10,6 +10,7 @@ import 'state/library_controller.dart';
 import 'state/theme_controller.dart';
 import 'state/tool_draft_controller.dart';
 import 'state/view_mode_controller.dart';
+import 'state/work_session_controller.dart';
 
 Future<void> main() async {
   final WidgetsBinding binding = WidgetsFlutterBinding.ensureInitialized();
@@ -24,6 +25,7 @@ Future<void> main() async {
     ViewModeController.load(),
     DetectionPreferenceController.load(),
     ToolDraftController.load(),
+    WorkSessionController.load(),
   ]);
   runApp(
     MyApp(
@@ -33,6 +35,7 @@ Future<void> main() async {
       viewModeController: loaded[3] as ViewModeController,
       detectionPreferenceController: loaded[4] as DetectionPreferenceController,
       toolDraftController: loaded[5] as ToolDraftController,
+      workSessionController: loaded[6] as WorkSessionController,
     ),
   );
 }

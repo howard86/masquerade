@@ -4,8 +4,12 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
+import 'package:masquerade/models/artifact.dart';
+import 'package:masquerade/models/work_session.dart';
 import 'package:masquerade/screens/detail/tool_detail_route.dart';
 import 'package:masquerade/state/history_controller.dart';
+import 'package:masquerade/state/work_session_controller.dart';
+import 'package:masquerade/utility_catalog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const Size _phone = Size(393, 852);
@@ -13,6 +17,7 @@ const Size _phone = Size(393, 852);
 Future<HistoryController> _pumpActivity(
   WidgetTester tester, {
   double textScale = 1,
+  WorkSessionController? workSessions,
 }) async {
   await tester.binding.setSurfaceSize(_phone);
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -41,6 +46,7 @@ Future<HistoryController> _pumpActivity(
         isWebOverride: false,
         skipSplash: true,
         historyController: history,
+        workSessionController: workSessions,
       ),
     ),
   );
@@ -49,6 +55,25 @@ Future<HistoryController> _pumpActivity(
   await tester.pumpAndSettle();
   return history;
 }
+
+WorkSession _recentSession() => WorkSession(
+  id: 'recent-session',
+  name: 'Rates session',
+  createdAt: DateTime.fromMillisecondsSinceEpoch(1),
+  updatedAt: DateTime.fromMillisecondsSinceEpoch(2),
+  steps: <WorkflowStep>[
+    WorkflowStep(
+      toolId: 'bps',
+      input: Artifact<Object?>(
+        kind: ArtifactKind.bps,
+        rawValue: '25 bps',
+        provenance: ArtifactProvenance.typed,
+      ),
+      settings: const <String, Object?>{},
+      status: WorkflowStepStatus.running,
+    ),
+  ],
+);
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues(<String, Object>{}));
@@ -143,6 +168,64 @@ void main() {
             as Map<String, dynamic>;
     expect(persisted['utilityId'], 'json');
   });
+
+  testWidgets('recent session resumes on Workbench at large text scale', (
+    WidgetTester tester,
+  ) async {
+    final WorkSession recent = _recentSession();
+    final WorkSessionController sessions = WorkSessionController(
+      recentSessions: <WorkSession>[recent],
+    );
+    await _pumpActivity(tester, textScale: 2, workSessions: sessions);
+
+    expect(find.text('RESUMABLE SESSIONS'), findsOneWidget);
+    expect(find.bySemanticsLabel('Resume Rates session'), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel('Resume Rates session'));
+    await tester.pumpAndSettle();
+
+    expect(sessions.session, same(recent));
+    expect(find.text('CURRENT SESSION'), findsOneWidget);
+    expect(find.text('1. bps · % · decimal'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'Activity Clear removes history and recents but keeps live work',
+    (WidgetTester tester) async {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final WorkSessionController sessions = WorkSessionController(
+        prefs: prefs,
+      );
+      sessions.start(
+        UtilityCatalog.byId('bps'),
+        Artifact<Object?>(
+          kind: ArtifactKind.bps,
+          rawValue: '25 bps',
+          provenance: ArtifactProvenance.typed,
+        ),
+      );
+      sessions.addNext(0, UtilityCatalog.byId('timestamp'), '1700000000');
+      await sessions.saveCurrent('Rates');
+      expect(sessions.branchFrom(0), isTrue);
+      final WorkSession live = sessions.session!;
+      final WorkSession original = sessions.branchOrigin!;
+      final HistoryController history = await _pumpActivity(
+        tester,
+        workSessions: sessions,
+      );
+
+      await tester.tap(find.text('Clear'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Clear').last);
+      await tester.pumpAndSettle();
+
+      expect(history.entries, isEmpty);
+      expect(sessions.recentSessions, isEmpty);
+      expect(sessions.session, same(live));
+      expect(sessions.branchOrigin, same(original));
+      expect(sessions.savedWorkflows.single.name, 'Rates');
+    },
+  );
 
   testWidgets('actions keep 44-point targets at large Dynamic Type', (
     WidgetTester tester,

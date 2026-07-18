@@ -1,12 +1,14 @@
 import 'package:flutter/cupertino.dart';
 
 import '../../models/artifact.dart';
+import '../../models/work_session.dart';
 import '../../state/work_session_controller.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
 import '../../widgets/mq/tool_action_bar.dart';
+import '../../widgets/mq/mq_surface.dart';
 import '../../widgets/tool_bodies/open_in_footer.dart';
 import '../../widgets/tool_bodies/seed_source.dart';
 
@@ -58,6 +60,7 @@ class ToolDetailRoute extends StatefulWidget {
 
 class _ToolDetailRouteState extends State<ToolDetailRoute> {
   final ToolActionBarController _actionBar = ToolActionBarController();
+  WorkSession? _settingsLease;
 
   @override
   void dispose() {
@@ -84,6 +87,19 @@ class _ToolDetailRouteState extends State<ToolDetailRoute> {
         stepIndex >= 0 &&
         stepIndex < steps.length &&
         steps[stepIndex].input.isSensitive;
+    final WorkflowStep? sessionStep =
+        steps != null &&
+            stepIndex != null &&
+            stepIndex >= 0 &&
+            stepIndex < steps.length
+        ? steps[stepIndex]
+        : null;
+    final String? expectedNextToolId = currentSessionStep
+        ? sessions.expectedNextToolId(stepIndex)
+        : null;
+    if (currentSessionStep && _settingsLease == null) {
+      _settingsLease = sessions.session;
+    }
     final OpenInToolCallback? switchTool = stepIndex == null
         ? (UtilityDescriptor target, String input) => ToolDetailRoute.push(
             context,
@@ -135,6 +151,22 @@ class _ToolDetailRouteState extends State<ToolDetailRoute> {
                 child: MobileSessionRouteScope(
                   addNext: currentSessionStep,
                   protectedSession: protectedSession,
+                  expectedNextToolId: expectedNextToolId,
+                  settings: sessionStep?.settings ?? const <String, Object?>{},
+                  onSettingsChanged:
+                      currentSessionStep &&
+                          sessionStep != null &&
+                          _settingsLease != null
+                      ? (Map<String, Object?> settings) {
+                          if (sessions.updateSettings(
+                            stepIndex,
+                            _settingsLease!,
+                            settings,
+                          )) {
+                            _settingsLease = sessions.session;
+                          }
+                        }
+                      : null,
                   child: widget.descriptor.builder(
                     context,
                     initialInput: s,
@@ -146,6 +178,36 @@ class _ToolDetailRouteState extends State<ToolDetailRoute> {
                 ),
               ),
             ),
+            if (sessions != null && stepIndex != null)
+              ListenableBuilder(
+                listenable: sessions,
+                builder: (BuildContext context, _) {
+                  final String? error = sessions.workflowError;
+                  if (error == null) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      MqSpacing.lg,
+                      0,
+                      MqSpacing.lg,
+                      MqSpacing.sm,
+                    ),
+                    child: Semantics(
+                      liveRegion: true,
+                      label: error,
+                      child: MqSurface(
+                        background: c.warningBg,
+                        borderColor: c.warning,
+                        child: Text(
+                          error,
+                          style: MqTextStyles.subhead.copyWith(
+                            color: c.textPri,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
             ToolActionBar(controller: _actionBar),
           ],
         ),
