@@ -187,6 +187,117 @@ void main() {
     );
   });
 
+  testWidgets('shared content is applied before its handoff is deleted', (
+    WidgetTester tester,
+  ) async {
+    const MethodChannel channel = MethodChannel(
+      'test/share-inbox-delayed-remove',
+    );
+    final Completer<bool> removal = Completer<bool>();
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+      MethodCall call,
+    ) async {
+      if (call.method == 'list') {
+        return <Object?>[
+          <String, Object?>{
+            'id': '11111111-1111-1111-1111-111111111111',
+            'kind': 'text',
+            'createdAt': 1000,
+            'byteCount': 6,
+            'sensitive': false,
+            'payload': 'shared',
+          },
+        ];
+      }
+      if (call.method == 'remove') return removal.future;
+      return null;
+    });
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+    final ShareInboxController inbox = await ShareInboxController.load(
+      channel: channel,
+    );
+    await _pumpWorkbench(tester, shareInboxController: inbox);
+
+    await tester.tap(find.text('Use in Workbench'));
+    await tester.pump();
+    final Finder input = find.byType(CupertinoTextField).first;
+    expect(tester.widget<CupertinoTextField>(input).controller!.text, 'shared');
+
+    await tester.enterText(input, 'newer edit');
+    removal.complete(true);
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<CupertinoTextField>(input).controller!.text,
+      'newer edit',
+    );
+    expect(inbox.items, isEmpty);
+  });
+
+  testWidgets('shared handoff acceptance is coalesced while removal runs', (
+    WidgetTester tester,
+  ) async {
+    const MethodChannel channel = MethodChannel(
+      'test/share-inbox-coalesced-remove',
+    );
+    final Completer<bool> removal = Completer<bool>();
+    int removals = 0;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+      MethodCall call,
+    ) async {
+      if (call.method == 'list') {
+        return <Object?>[
+          <String, Object?>{
+            'id': '11111111-1111-1111-1111-111111111111',
+            'kind': 'text',
+            'createdAt': 1000,
+            'byteCount': 6,
+            'sensitive': false,
+            'payload': 'shared',
+          },
+        ];
+      }
+      if (call.method == 'remove') {
+        removals++;
+        return removal.future;
+      }
+      return null;
+    });
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+    final ShareInboxController inbox = await ShareInboxController.load(
+      channel: channel,
+    );
+    await _pumpWorkbench(tester, shareInboxController: inbox);
+
+    final Finder accept = find.text('Use in Workbench');
+    await tester.tap(accept);
+    await tester.tap(accept);
+    await tester.pump();
+    expect(removals, 1);
+
+    removal.complete(false);
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<CupertinoTextField>(find.byType(CupertinoTextField).first)
+          .controller!
+          .text,
+      isEmpty,
+    );
+    expect(inbox.items, hasLength(1));
+  });
+
   testWidgets('imports a safe JSON file with file provenance', (
     WidgetTester tester,
   ) async {

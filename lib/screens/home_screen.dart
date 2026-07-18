@@ -72,6 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _importError;
   int _inputRevision = 0;
   int _importRequest = 0;
+  final Set<String> _acceptingSharedItems = <String>{};
 
   @override
   void initState() {
@@ -301,7 +302,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: MqButton(
                         label: 'Use in Workbench',
                         size: MqButtonSize.sm,
-                        onPressed: () => _acceptSharedItem(item),
+                        onPressed: _acceptingSharedItems.contains(item.id)
+                            ? null
+                            : () => _acceptSharedItem(item),
                       ),
                     ),
                     const SizedBox(width: MqSpacing.sm),
@@ -309,7 +312,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       label: 'Dismiss',
                       size: MqButtonSize.sm,
                       variant: MqButtonVariant.glass,
-                      onPressed: () => inbox.remove(item.id),
+                      onPressed: _acceptingSharedItems.contains(item.id)
+                          ? null
+                          : () => inbox.remove(item.id),
                     ),
                   ],
                 ),
@@ -323,18 +328,33 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _acceptSharedItem(ShareInboxItem item) async {
+    if (!_acceptingSharedItems.add(item.id)) return;
+    setState(() {});
+    try {
+      await _acceptSharedItemOnce(item);
+    } finally {
+      _acceptingSharedItems.remove(item.id);
+      if (mounted) setState(() {});
+    }
+  }
+
+  Future<void> _acceptSharedItemOnce(ShareInboxItem item) async {
     final int request = ++_importRequest;
     final int revision = _inputRevision;
     final ShareInboxController inbox = ShareInboxScope.of(context);
     if (!inbox.items.any((ShareInboxItem value) => value.id == item.id)) return;
-    if (!await inbox.remove(item.id) ||
-        !mounted ||
-        request != _importRequest ||
-        revision != _inputRevision) {
-      return;
-    }
+    if (request != _importRequest || revision != _inputRevision) return;
+    final String previousText = _hero.text;
+    final ArtifactProvenance previousProvenance = _provenance;
     _hero.text = item.artifact.rawValue;
     setState(() => _provenance = ArtifactProvenance.shareExtension);
+    final int appliedRevision = _inputRevision;
+    if (await inbox.remove(item.id) || !mounted) return;
+    if (request != _importRequest || appliedRevision != _inputRevision) {
+      return;
+    }
+    _hero.text = previousText;
+    setState(() => _provenance = previousProvenance);
   }
 
   Widget _currentSession(BuildContext context) {
