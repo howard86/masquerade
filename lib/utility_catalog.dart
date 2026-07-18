@@ -10,6 +10,7 @@ import 'utils/color_parser.dart';
 import 'utils/cron_nl_parser.dart';
 import 'utils/cron_parser.dart';
 import 'utils/encoding_parser.dart';
+import 'utils/environment_config_inspector.dart';
 import 'utils/hash_parser.dart';
 import 'utils/ip_parser.dart';
 import 'utils/json_parser.dart';
@@ -30,6 +31,7 @@ import 'widgets/tool_bodies/bytes_body.dart';
 import 'widgets/tool_bodies/color_body.dart';
 import 'widgets/tool_bodies/cron_body.dart';
 import 'widgets/tool_bodies/diff_body.dart';
+import 'widgets/tool_bodies/environment_config_inspector_body.dart';
 import 'widgets/tool_bodies/generator_body.dart';
 import 'widgets/tool_bodies/hash_body.dart';
 import 'widgets/tool_bodies/http_inspector_body.dart';
@@ -180,6 +182,63 @@ class UtilityCatalog {
   const UtilityCatalog._();
 
   static final List<UtilityDescriptor> all = <UtilityDescriptor>[
+    UtilityDescriptor(
+      id: 'environment_config_inspector',
+      name: 'Environment & Config Inspector',
+      description: 'Normalize · compare · redact config',
+      icon: MqIcons.setting,
+      tint: const Color(0xFF059669),
+      synonyms: <String>[
+        'env',
+        'dotenv',
+        'properties',
+        'headers',
+        'configuration',
+        'key value',
+      ],
+      categories: <UtilityCategory>{
+        UtilityCategory.inspect,
+        UtilityCategory.transform,
+        UtilityCategory.compareValidate,
+      },
+      acceptedTypes: <ContentType>{ContentType.text, ContentType.lines},
+      producedTypes: <ContentType>{
+        ContentType.text,
+        ContentType.lines,
+        ContentType.json,
+      },
+      sensitivity: UtilitySensitivity.sensitive,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+      },
+      liveLinkTypes: <ContentType>{},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.copy,
+        UtilityQuickAction.openIn,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.disabled,
+      defaultCardWidth: CardWidthClass.wide,
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            Artifact<Object?>? initialArtifact,
+            SeedSource seedSource = SeedSource.none,
+            OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
+            LinkChannel? link,
+          }) => EnvironmentConfigInspectorBody(
+            initialInput: initialInput,
+            initialArtifact: initialArtifact,
+            seedSource: seedSource,
+            onSwitchTool: onSwitchTool,
+            actionBar: actionBar,
+          ),
+      detectArtifact: _detectEnvironmentConfig,
+    ),
     UtilityDescriptor(
       id: 'log_stack_inspector',
       name: 'Log & Stack Inspector',
@@ -1972,6 +2031,36 @@ List<DetectionMatch<Object?>> _detectX509(
         reason:
             'Parsed ${inspection.certificates.length} X.509 certificate block(s).',
         primaryToolId: 'x509_inspector',
+      ),
+    ];
+  } catch (_) {
+    return const <DetectionMatch<Object?>>[];
+  }
+}
+
+List<DetectionMatch<Object?>> _detectEnvironmentConfig(
+  String input,
+  ArtifactProvenance provenance,
+) {
+  final String trimmed = input.trim();
+  if (trimmed.isEmpty || (!trimmed.contains('=') && !trimmed.contains(':'))) {
+    return const <DetectionMatch<Object?>>[];
+  }
+  try {
+    final ConfigInspection inspection = EnvironmentConfigInspector.parse(input);
+    if (inspection.entries.length < 2) {
+      return const <DetectionMatch<Object?>>[];
+    }
+    return <DetectionMatch<Object?>>[
+      _evidence(
+        provenance: provenance,
+        kind: ArtifactKind.unknown,
+        rawValue: input,
+        parserResult: inspection,
+        confidence: .9,
+        reason:
+            'Parsed ${inspection.entries.length} ${inspection.format.name} configuration entries.',
+        primaryToolId: 'environment_config_inspector',
       ),
     ];
   } catch (_) {
