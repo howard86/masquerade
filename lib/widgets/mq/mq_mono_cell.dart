@@ -19,6 +19,7 @@ class MqMonoCell extends StatelessWidget {
     required this.label,
     required this.value,
     this.copyable = true,
+    this.copyValue,
     this.accent = false,
     this.hint,
     this.large = false,
@@ -30,6 +31,9 @@ class MqMonoCell extends StatelessWidget {
   final String label;
   final String value;
   final bool copyable;
+
+  /// Optional unabridged clipboard value when [value] is a display preview.
+  final String? copyValue;
   final bool accent;
   final String? hint;
   final bool large;
@@ -46,7 +50,10 @@ class MqMonoCell extends StatelessWidget {
     final tokens = context.mq;
     final c = tokens.colors;
     final bool protected =
-        sensitive || SensitiveDataPolicy.containsSensitiveArtifact(value);
+        sensitive ||
+        SensitiveDataPolicy.containsSensitiveArtifact(value) ||
+        (copyValue != null &&
+            SensitiveDataPolicy.containsSensitiveArtifact(copyValue!));
 
     final TextStyle valueStyle =
         (large ? MqTextStyles.monoLg : MqTextStyles.monoMd).copyWith(
@@ -75,7 +82,7 @@ class MqMonoCell extends StatelessWidget {
                 Expanded(child: Text(label, style: labelStyle)),
                 if (copyable)
                   _CopyButton(
-                    value: value,
+                    value: copyValue ?? value,
                     color: c.textTer,
                     sensitive: protected,
                   ),
