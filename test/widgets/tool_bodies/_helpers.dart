@@ -15,13 +15,15 @@ const Size kDetailSurfaceSize = Size(480, 1050);
 /// `json`); 300 ms guarantees the timer has fired before assertions run.
 const Duration kDebouncePump = Duration(milliseconds: 300);
 
-/// Pumps the full app, navigates to the tool whose home-grid tile carries
-/// [tileLabel], and waits for the detail screen to settle.
+/// Pumps the full app, opens Library, then navigates to [tileLabel].
 Future<void> pumpHomeAndOpen(WidgetTester tester, String tileLabel) async {
   await tester.binding.setSurfaceSize(kDetailSurfaceSize);
   addTearDown(() => tester.binding.setSurfaceSize(null));
 
   await tester.pumpWidget(const MyApp(skipSplash: true));
+  await tester.pumpAndSettle();
+
+  await tester.tap(find.text('Library').last);
   await tester.pumpAndSettle();
 
   final Finder tile = find.text(tileLabel).last;

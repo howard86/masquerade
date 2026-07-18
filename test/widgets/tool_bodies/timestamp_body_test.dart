@@ -3,7 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:masquerade/app.dart';
+import '_helpers.dart';
 
 void main() {
   setUp(() {
@@ -11,15 +11,7 @@ void main() {
   });
 
   Future<void> openTimestamp(WidgetTester tester) async {
-    await tester.binding.setSurfaceSize(const Size(500, 1100));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-
-    await tester.pumpWidget(const MyApp(skipSplash: true));
-    await tester.pumpAndSettle();
-    final Finder timestampTile = find.text('Timestamp');
-    expect(timestampTile, findsWidgets);
-    await tester.tap(timestampTile.last);
-    await tester.pumpAndSettle();
+    await pumpHomeAndOpen(tester, 'Timestamp');
   }
 
   testWidgets(

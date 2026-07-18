@@ -9,8 +9,8 @@ import 'package:masquerade/widgets/mq/mq_mono_cell.dart';
 /// Inventory test for Dynamic Type (xxxLarge ≈ TextScaler 2.0).
 ///
 /// Every tab and every tool body must pump at 2.0× without throwing a
-/// `RenderFlex` overflow. The home grid grows its cards with the text scale,
-/// the chip rows use `Wrap`, and the settings rows let their labels flex, so
+/// `RenderFlex` overflow. Library cards grow with the text scale, chip rows use
+/// `Wrap`, and settings rows let their labels flex, so
 /// the layouts survive large Dynamic Type. If a future change reintroduces an
 /// overflow, the matching test below fails.
 ///
@@ -39,6 +39,25 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(const MyApp(skipSplash: true));
     await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('populated Workbench states render at TextScaler 2.0', (
+    WidgetTester tester,
+  ) async {
+    await pumpApp(tester);
+    final Finder input = find.byType(EditableText).first;
+
+    await tester.enterText(input, '{"ok":true}');
+    await tester.pumpAndSettle();
+    expect(find.text('Artifact detected'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.enterText(input, 'unrecognized prose value');
+    await tester.pumpAndSettle();
+    expect(find.text('Unknown text'), findsOneWidget);
+    expect(find.text('Open as text'), findsOneWidget);
+    expect(find.text('Send to tool'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -71,6 +90,8 @@ void main() {
       '${u.name} body renders at TextScaler 2.0 without overflow',
       (WidgetTester tester) async {
         await pumpApp(tester);
+        await tester.tap(find.text('Library').last);
+        await tester.pumpAndSettle();
         final Finder tile = find.text(u.name).last;
         expect(tile, findsWidgets, reason: '${u.name} tile must be visible');
         // The grid is tall at 2×, so the tile may sit below the fold; scroll it
@@ -103,6 +124,8 @@ void main() {
       '${u.name} output cells expose copy Semantics labels',
       (WidgetTester tester) async {
         await pumpApp(tester);
+        await tester.tap(find.text('Library').last);
+        await tester.pumpAndSettle();
         final Finder tile = find.text(u.name).last;
         await tester.ensureVisible(tile);
         await tester.pumpAndSettle();
