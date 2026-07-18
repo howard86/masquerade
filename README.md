@@ -8,7 +8,7 @@ A Flutter utility-toolbox app — a digital toolbox for the small everyday conve
 
 ## What's in the toolbox today
 
-Twenty-four tools, each reachable from the Home screen's grid or via search:
+Twenty-five tools, each reachable from the Home screen's grid or via search:
 
 - **Log & Stack Inspector** — locally group, search, redact, copy, and share JSON Lines, plain logs, and stack traces.
 - **Environment & Config Inspector** — locally normalize, compare, redact, and convert `.env`, properties, headers, and key/value configuration.
@@ -24,6 +24,7 @@ Twenty-four tools, each reachable from the Home screen's grid or via search:
 - **JSON / YAML / TOML** — pretty-print, minify, browse as an interactive tree, and convert between JSON, YAML, and TOML.
 - **JWT** — decode header, payload, and standard claims from a JSON Web Token. Flags expired / not-yet-valid. Decode-only — no signature verification.
 - **Base64** — encode/decode with URL-safe variant; auto-detects which way you meant.
+- **Case** — convert identifiers between camel, pascal, snake, kebab, title, path, and other common naming styles.
 - **URL** — percent-encode / decode, and break a URL into editable query parameters.
 - **Color** — HEX / RGB / HSL / OKLCH conversion with WCAG contrast scoring.
 - **Math** — expression evaluator with constants and functions (`pi`, `sin`, `log`, …).
