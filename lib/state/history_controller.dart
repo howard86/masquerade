@@ -3,6 +3,37 @@ import 'dart:convert';
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+enum HistoryPolicy { enabled, disabled }
+
+HistoryPolicy historyPolicyFor(String utilityId) => switch (utilityId) {
+  'jwt' || 'generator' => HistoryPolicy.disabled,
+  _ => HistoryPolicy.enabled,
+};
+
+final RegExp _credentialKey = RegExp(
+  r'''(?:^|[,\[{?&])\s*(?:-\s+)?["']?(?:[A-Za-z0-9]+[-_.])*(?:access[-_.]?key(?:[-_.]?id)?|access[-_.]?token|api[-_.]?key|auth[-_.]?token|authorization|client[-_.]?secret|consumer[-_.]?secret|credential(?:s)?|pass(?:word|wd)?|private[-_.]?key|proxy[-_.]?authorization|pwd|refresh[-_.]?token|secret[-_.]?access[-_.]?key|secret(?:[-_.]?key)?|session[-_.]?token|token)["']?\s*[:=]''',
+  caseSensitive: false,
+  multiLine: true,
+);
+// key=value is also valid TOML; treat it as .env until recording carries
+// source-format metadata that can distinguish the two safely.
+final RegExp _environmentEntry = RegExp(
+  r'^\s*(?:export\s+)?[A-Za-z_][A-Za-z0-9_]*\s*=',
+  multiLine: true,
+);
+final RegExp _privateKey = RegExp(
+  r'-----BEGIN (?:[A-Z0-9]+ )?PRIVATE KEY-----',
+);
+final RegExp _jwt = RegExp(
+  r'eyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*',
+);
+
+bool _containsSensitiveArtifact(String value) =>
+    _credentialKey.hasMatch(value) ||
+    _environmentEntry.hasMatch(value) ||
+    _privateKey.hasMatch(value) ||
+    _jwt.hasMatch(value);
+
 /// One captured utility action.
 @immutable
 class HistoryEntry {
@@ -74,7 +105,10 @@ class HistoryController extends ChangeNotifier {
               (dynamic e) => HistoryEntry.fromJson(e as Map<String, dynamic>),
             )
             .toList();
+        final int loadedCount = c._entries.length;
+        c._entries.removeWhere((HistoryEntry e) => !c._allows(e));
         c._evictExpired();
+        if (c._entries.length != loadedCount) await c._persist();
       } catch (_) {
         c._entries = <HistoryEntry>[];
       }
@@ -83,6 +117,7 @@ class HistoryController extends ChangeNotifier {
   }
 
   Future<void> add(HistoryEntry entry) async {
+    if (!_allows(entry)) return;
     // Dedupe: skip when the most recent entry shares utilityId + input.
     // Tools are deterministic (same input → same output), so consecutive
     // adds carry no new information. Mode flips that re-derive output from
@@ -102,6 +137,12 @@ class HistoryController extends ChangeNotifier {
     notifyListeners();
     await _persist();
   }
+
+  bool _allows(HistoryEntry entry) =>
+      historyPolicyFor(entry.utilityId) == HistoryPolicy.enabled &&
+      !entry.sensitive &&
+      !_containsSensitiveArtifact(entry.input) &&
+      !_containsSensitiveArtifact(entry.output);
 
   Future<void> clear() async {
     _entries = <HistoryEntry>[];
