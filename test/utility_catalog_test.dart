@@ -171,6 +171,44 @@ void main() {
   });
 
   group('UtilityCatalog.detectArtifacts', () {
+    test('CSV detection is tabular, ordered after JSON, and conservative', () {
+      final UtilityDescriptor csv = UtilityCatalog.byId('csv');
+      expect(csv.name, 'CSV / TSV');
+      expect(csv.description, 'Tabular ↔ JSON · table view');
+      expect(csv.tint.toARGB32(), 0xFF84CC16);
+      expect(
+        UtilityCatalog.all.indexOf(csv),
+        UtilityCatalog.all.indexOf(UtilityCatalog.byId('json')) + 1,
+      );
+
+      Iterable<String> detected(String value) => UtilityCatalog.detectArtifacts(
+        value,
+      ).map((DetectionMatch<Object?> match) => match.primaryToolId);
+
+      expect(detected('a,b\n1,2'), contains('csv'));
+      expect(detected('a\tb\n1\t2'), contains('csv'));
+      expect(detected('a;b\n1;2'), contains('csv'));
+      expect(
+        detected(
+          '[['
+          '"a","b"],['
+          '"1","2"]]',
+        ),
+        isNot(contains('csv')),
+      );
+      for (final String value in <String>[
+        'INFO, started\nERROR, failed',
+        'INFO,200\nERROR,500',
+        'info,200\nerror,500',
+        'hello, world\nthis, text',
+        'A=value\nB=value',
+        'https://a.example\nhttps://b.example',
+        'https://a.example,200\nhttps://b.example,404',
+      ]) {
+        expect(detected(value), isNot(contains('csv')), reason: value);
+      }
+    });
+
     test('empty input returns empty', () {
       expect(UtilityCatalog.detectArtifacts(''), isEmpty);
       expect(UtilityCatalog.detectArtifacts('   '), isEmpty);
