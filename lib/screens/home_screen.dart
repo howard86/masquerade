@@ -6,6 +6,7 @@ import '../models/artifact.dart';
 import '../models/saved_workflow.dart';
 import '../models/work_session.dart';
 import '../state/detection_preference_controller.dart';
+import '../state/share_inbox_controller.dart';
 import '../state/work_session_controller.dart';
 import '../theme/mq_metrics.dart';
 import '../theme/mq_theme.dart';
@@ -190,6 +191,7 @@ class _HomeScreenState extends State<HomeScreen> {
               onClear: _clear,
               onScan: _scan,
             ),
+            _shareInbox(context),
             _result(context, state, detected, nameMatches),
             _currentSession(context),
             _savedWorkflows(context),
@@ -197,6 +199,77 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+  }
+
+  Widget _shareInbox(BuildContext context) {
+    final ShareInboxController inbox = ShareInboxScope.of(context);
+    if (inbox.items.isEmpty && inbox.error == null) {
+      return const SizedBox.shrink();
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const SectionRule(label: 'Shared inbox'),
+        if (inbox.error case final String error)
+          Semantics(
+            liveRegion: true,
+            label: error,
+            child: MqStatus(label: error, kind: MqStatusKind.warning),
+          ),
+        for (final ShareInboxItem item in inbox.items) ...<Widget>[
+          MqSurface(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Text(
+                  item.label,
+                  style: MqTextStyles.headline.copyWith(
+                    color: context.mq.colors.textPri,
+                  ),
+                ),
+                const SizedBox(height: MqSpacing.xs),
+                Text(
+                  item.artifact.safePreview,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: MqTextStyles.monoMd.copyWith(
+                    color: context.mq.colors.monoText,
+                  ),
+                ),
+                const SizedBox(height: MqSpacing.sm),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: MqButton(
+                        label: 'Use in Workbench',
+                        size: MqButtonSize.sm,
+                        onPressed: () => _acceptSharedItem(item),
+                      ),
+                    ),
+                    const SizedBox(width: MqSpacing.sm),
+                    MqButton(
+                      label: 'Dismiss',
+                      size: MqButtonSize.sm,
+                      variant: MqButtonVariant.glass,
+                      onPressed: () => inbox.remove(item.id),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: MqSpacing.sm),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _acceptSharedItem(ShareInboxItem item) async {
+    final ShareInboxController inbox = ShareInboxScope.of(context);
+    if (!inbox.items.any((ShareInboxItem value) => value.id == item.id)) return;
+    if (!await inbox.remove(item.id) || !mounted) return;
+    _hero.text = item.artifact.rawValue;
+    setState(() => _provenance = ArtifactProvenance.shareExtension);
   }
 
   Widget _currentSession(BuildContext context) {

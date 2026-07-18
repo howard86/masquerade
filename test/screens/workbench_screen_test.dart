@@ -8,6 +8,7 @@ import 'package:masquerade/models/saved_workflow.dart';
 import 'package:masquerade/models/work_session.dart';
 import 'package:masquerade/screens/detail/tool_detail_route.dart';
 import 'package:masquerade/state/detection_preference_controller.dart';
+import 'package:masquerade/state/share_inbox_controller.dart';
 import 'package:masquerade/state/work_session_controller.dart';
 import 'package:masquerade/utility_catalog.dart';
 import 'package:masquerade/widgets/mq/tool_grid_card.dart';
@@ -20,6 +21,7 @@ Future<void> _pumpWorkbench(
   TextScaler textScaler = TextScaler.noScaling,
   DetectionPreferenceController? detectionPreferenceController,
   WorkSessionController? workSessionController,
+  ShareInboxController? shareInboxController,
 }) async {
   await tester.binding.setSurfaceSize(_phone);
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -31,6 +33,7 @@ Future<void> _pumpWorkbench(
         skipSplash: true,
         detectionPreferenceController: detectionPreferenceController,
         workSessionController: workSessionController,
+        shareInboxController: shareInboxController,
       ),
     ),
   );
@@ -114,6 +117,155 @@ void main() {
       _semantics('Unknown text. Open as text or send to a tool.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('shared inbox resumes safe content and deletes the handoff', (
+    WidgetTester tester,
+  ) async {
+    const MethodChannel channel = MethodChannel('test/share-inbox');
+    final List<MethodCall> calls = <MethodCall>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+      MethodCall call,
+    ) async {
+      calls.add(call);
+      if (call.method == 'list') {
+        return <Object?>[
+          <String, Object?>{
+            'id': '11111111-1111-1111-1111-111111111111',
+            'kind': 'text',
+            'createdAt': 1000,
+            'byteCount': 11,
+            'sensitive': false,
+            'payload': '{"ok":true}',
+          },
+        ];
+      }
+      if (call.method == 'remove') return true;
+      return null;
+    });
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+    final ShareInboxController inbox = await ShareInboxController.load(
+      channel: channel,
+    );
+    await _pumpWorkbench(tester, shareInboxController: inbox);
+
+    expect(find.text('SHARED INBOX'), findsOneWidget);
+    expect(find.text('{"ok":true}'), findsOneWidget);
+    await tester.tap(find.text('Use in Workbench'));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<CupertinoTextField>(find.byType(CupertinoTextField).first)
+          .controller!
+          .text,
+      '{"ok":true}',
+    );
+    expect(inbox.items, isEmpty);
+    expect(calls.last.method, 'remove');
+    await tester.tap(find.text('JSON / YAML / TOML'));
+    await tester.pumpAndSettle();
+    final ToolDetailRoute route = tester.widget(find.byType(ToolDetailRoute));
+    expect(
+      route.initialArtifact?.provenance,
+      ArtifactProvenance.shareExtension,
+    );
+  });
+
+  testWidgets('resume refreshes accessible shared actions at large text', (
+    WidgetTester tester,
+  ) async {
+    const MethodChannel channel = MethodChannel('test/share-inbox-resume');
+    bool available = false;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+      MethodCall call,
+    ) async {
+      if (call.method == 'list' && available) {
+        return <Object?>[
+          <String, Object?>{
+            'id': '11111111-1111-1111-1111-111111111111',
+            'kind': 'text',
+            'createdAt': 1000,
+            'byteCount': 5,
+            'sensitive': false,
+            'payload': 'hello',
+          },
+        ];
+      }
+      return call.method == 'list' ? <Object?>[] : true;
+    });
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+    final ShareInboxController inbox = await ShareInboxController.load(
+      channel: channel,
+    );
+    await _pumpWorkbench(
+      tester,
+      textScaler: const TextScaler.linear(2),
+      shareInboxController: inbox,
+    );
+    expect(find.text('SHARED INBOX'), findsNothing);
+
+    available = true;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+
+    expect(_semantics('Use in Workbench'), findsOneWidget);
+    expect(_semantics('Dismiss'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('failed native removal never copies the handoff into Workbench', (
+    WidgetTester tester,
+  ) async {
+    const MethodChannel channel = MethodChannel('test/share-inbox-remove-fail');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      channel,
+      (MethodCall call) async => call.method == 'list'
+          ? <Object?>[
+              <String, Object?>{
+                'id': '11111111-1111-1111-1111-111111111111',
+                'kind': 'text',
+                'createdAt': 1000,
+                'byteCount': 5,
+                'sensitive': false,
+                'payload': 'hello',
+              },
+            ]
+          : false,
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+    final ShareInboxController inbox = await ShareInboxController.load(
+      channel: channel,
+    );
+    await _pumpWorkbench(tester, shareInboxController: inbox);
+
+    await tester.tap(find.text('Use in Workbench'));
+    await tester.pump();
+
+    expect(
+      tester
+          .widget<CupertinoTextField>(find.byType(CupertinoTextField).first)
+          .controller!
+          .text,
+      isEmpty,
+    );
+    expect(inbox.items, hasLength(1));
+    expect(inbox.error, 'Shared item could not be removed.');
   });
 
   testWidgets('unknown text opens inline or routes to a chosen tool', (

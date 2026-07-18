@@ -1,7 +1,9 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
 import 'package:masquerade/state/canvas_controller.dart';
+import 'package:masquerade/state/share_inbox_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '_helpers.dart';
@@ -10,6 +12,18 @@ void main() {
   testWidgets('Clear sensitive session now resets live tool input', (
     WidgetTester tester,
   ) async {
+    const MethodChannel inboxChannel = MethodChannel(
+      ShareInboxController.channelName,
+    );
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          inboxChannel,
+          (MethodCall call) async => null,
+        );
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(inboxChannel, null),
+    );
     SharedPreferences.setMockInitialValues(<String, Object>{
       CanvasController.currentKey: '{"raw":"persisted-fixture"}',
     });
@@ -33,8 +47,14 @@ void main() {
     await tester.tap(find.text('Clear now'));
     await tester.pumpAndSettle();
 
+    final Finder resetHeroFinder = find.byWidgetPredicate(
+      (Widget widget) =>
+          widget is CupertinoTextField &&
+          widget.placeholder == 'Paste timestamp, JSON, hex, base64, color…',
+      skipOffstage: false,
+    );
     final CupertinoTextField resetHero = tester.widget<CupertinoTextField>(
-      hero,
+      resetHeroFinder,
     );
     expect(resetHero.controller!.text, isEmpty);
     final SharedPreferences prefs = await SharedPreferences.getInstance();

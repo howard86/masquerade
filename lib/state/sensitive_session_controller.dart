@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import 'canvas_controller.dart';
 import 'history_controller.dart';
+import 'share_inbox_controller.dart';
 import 'tool_draft_controller.dart';
 import 'work_session_controller.dart';
 
@@ -12,12 +13,15 @@ class SensitiveSessionController extends ChangeNotifier {
     this._history, {
     WorkSessionController? workSession,
     ToolDraftController? toolDrafts,
+    ShareInboxController? shareInbox,
   }) : _workSession = workSession,
-       _toolDrafts = toolDrafts;
+       _toolDrafts = toolDrafts,
+       _shareInbox = shareInbox;
 
   final HistoryController _history;
   final WorkSessionController? _workSession;
   final ToolDraftController? _toolDrafts;
+  final ShareInboxController? _shareInbox;
   int _revision = 0;
 
   int get revision => _revision;
@@ -27,6 +31,7 @@ class SensitiveSessionController extends ChangeNotifier {
     _toolDrafts?.suspendWrites();
     try {
       await _toolDrafts?.clear();
+      await _shareInbox?.clear();
       await _history.clear();
       await CanvasController.clearPersistedSensitiveSession();
       _revision++;
