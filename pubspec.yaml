@@ -68,6 +68,9 @@ dependencies:
   # package provides the four standard forms used by Unicode Inspector.
   unorm_dart: ^0.3.2
 
+  # Parser only. Rendering stays hand-rolled and Cupertino-only.
+  markdown: ^7.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
