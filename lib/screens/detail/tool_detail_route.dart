@@ -1,11 +1,13 @@
 import 'package:flutter/cupertino.dart';
 
 import '../../models/artifact.dart';
+import '../../state/work_session_controller.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
 import '../../widgets/mq/tool_action_bar.dart';
+import '../../widgets/tool_bodies/open_in_footer.dart';
 import '../../widgets/tool_bodies/seed_source.dart';
 
 /// Shared route wrapper for every catalog tool. Pushes a Cupertino scaffold
@@ -23,17 +25,20 @@ class ToolDetailRoute extends StatefulWidget {
     required this.descriptor,
     this.seed,
     this.initialArtifact,
+    this.sessionStepIndex,
   });
 
   final UtilityDescriptor descriptor;
   final String? seed;
   final Artifact<Object?>? initialArtifact;
+  final int? sessionStepIndex;
 
   static Future<void> push(
     BuildContext context,
     UtilityDescriptor descriptor, {
     String? seed,
     Artifact<Object?>? initialArtifact,
+    int? sessionStepIndex,
   }) {
     return Navigator.of(context).push<void>(
       CupertinoPageRoute<void>(
@@ -41,6 +46,7 @@ class ToolDetailRoute extends StatefulWidget {
           descriptor: descriptor,
           seed: seed,
           initialArtifact: initialArtifact,
+          sessionStepIndex: sessionStepIndex,
         ),
       ),
     );
@@ -66,6 +72,41 @@ class _ToolDetailRouteState extends State<ToolDetailRoute> {
     final SeedSource src = (s != null && s.isNotEmpty)
         ? SeedSource.paste
         : SeedSource.none;
+    final WorkSessionController? sessions = WorkSessionScope.maybeOf(context);
+    final int? stepIndex = widget.sessionStepIndex;
+    final steps = sessions?.session?.steps;
+    final bool currentSessionStep =
+        sessions != null && stepIndex != null && sessions.isCurrent(stepIndex);
+    final bool protectedSession =
+        sessions != null &&
+        steps != null &&
+        stepIndex != null &&
+        stepIndex >= 0 &&
+        stepIndex < steps.length &&
+        steps[stepIndex].input.isSensitive;
+    final OpenInToolCallback? switchTool = stepIndex == null
+        ? (UtilityDescriptor target, String input) => ToolDetailRoute.push(
+            context,
+            target,
+            seed: input.isNotEmpty ? input : null,
+          )
+        : currentSessionStep
+        ? (UtilityDescriptor target, String input) {
+            final int? next = sessions.addNext(stepIndex, target, input);
+            if (next == null) return;
+            final nextSteps = sessions.session?.steps;
+            if (next < 0 || nextSteps == null || next >= nextSteps.length) {
+              return;
+            }
+            ToolDetailRoute.push(
+              context,
+              target,
+              seed: input,
+              initialArtifact: nextSteps[next].input,
+              sessionStepIndex: next,
+            );
+          }
+        : null;
 
     return CupertinoPageScaffold(
       backgroundColor: c.bg,
@@ -91,18 +132,17 @@ class _ToolDetailRouteState extends State<ToolDetailRoute> {
                   MqSpacing.lg,
                   MqSpacing.md,
                 ),
-                child: widget.descriptor.builder(
-                  context,
-                  initialInput: s,
-                  initialArtifact: widget.initialArtifact,
-                  seedSource: src,
-                  onSwitchTool: (UtilityDescriptor target, String input) =>
-                      ToolDetailRoute.push(
-                        context,
-                        target,
-                        seed: input.isNotEmpty ? input : null,
-                      ),
-                  actionBar: _actionBar,
+                child: MobileSessionRouteScope(
+                  addNext: currentSessionStep,
+                  protectedSession: protectedSession,
+                  child: widget.descriptor.builder(
+                    context,
+                    initialInput: s,
+                    initialArtifact: widget.initialArtifact,
+                    seedSource: src,
+                    onSwitchTool: switchTool,
+                    actionBar: _actionBar,
+                  ),
                 ),
               ),
             ),

@@ -81,6 +81,8 @@ class _GeneratorBodyState extends State<GeneratorBody> {
       _recorder = HistoryRecorder(
         controller: HistoryScope.of(context),
         utilityId: 'generator',
+        sensitive:
+            MobileSessionRouteScope.maybeOf(context)?.protectedSession ?? false,
       );
       // Log the opening config (debounced + deduped by the recorder).
       _record();

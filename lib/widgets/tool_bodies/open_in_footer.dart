@@ -29,11 +29,19 @@ class OpenInFooter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String? out = output;
+    final MobileSessionRouteScope? route = MobileSessionRouteScope.maybeOf(
+      context,
+    );
+    final bool addNext = route?.addNext ?? false;
+    final bool lineageProtected =
+        protectedSource || (route?.protectedSession ?? false);
+    final bool contentProtected =
+        out != null && SensitiveDataPolicy.containsSensitiveArtifact(out);
     if (out == null ||
         out.isEmpty ||
         onSwitchTool == null ||
-        protectedSource ||
-        SensitiveDataPolicy.containsSensitiveArtifact(out)) {
+        contentProtected ||
+        (lineageProtected && !addNext)) {
       return const SizedBox.shrink();
     }
     final DetectionPreferenceController? preferences =
@@ -44,13 +52,14 @@ class OpenInFooter extends StatelessWidget {
       rank: preferences?.rank,
     ).where((UtilityDescriptor u) => u.id != excludeUtilityId).toList();
     if (targets.isEmpty) return const SizedBox.shrink();
+    final String action = addNext ? 'Add next step' : 'Open in';
 
     return Padding(
       padding: const EdgeInsets.only(top: MqSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const MqSectionHeader(label: 'Open in'),
+          MqSectionHeader(label: action),
           Wrap(
             spacing: MqSpacing.sm,
             runSpacing: MqSpacing.sm,
@@ -60,6 +69,8 @@ class OpenInFooter extends StatelessWidget {
                   descriptor: u,
                   output: out,
                   onSwitchTool: onSwitchTool!,
+                  action: action,
+                  allowCopy: !lineageProtected,
                 ),
             ],
           ),
@@ -74,17 +85,21 @@ class _OpenInChip extends StatelessWidget {
     required this.descriptor,
     required this.output,
     required this.onSwitchTool,
+    required this.action,
+    required this.allowCopy,
   });
 
   final UtilityDescriptor descriptor;
   final String output;
   final OpenInToolCallback onSwitchTool;
+  final String action;
+  final bool allowCopy;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: 'Open in ${descriptor.name}',
+      label: '$action ${descriptor.name}',
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () {
@@ -92,7 +107,7 @@ class _OpenInChip extends StatelessWidget {
           onSwitchTool(descriptor, output);
         },
         onLongPress: () {
-          CopyToClipboardUtil.copyToClipboard(context, output);
+          if (allowCopy) CopyToClipboardUtil.copyToClipboard(context, output);
           HapticFeedback.selectionClick();
           onSwitchTool(descriptor, output);
         },
@@ -105,4 +120,25 @@ class _OpenInChip extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Marks the current mobile session route without changing desktop callers.
+class MobileSessionRouteScope extends InheritedWidget {
+  const MobileSessionRouteScope({
+    super.key,
+    required this.addNext,
+    required this.protectedSession,
+    required super.child,
+  });
+
+  final bool addNext;
+  final bool protectedSession;
+
+  static MobileSessionRouteScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<MobileSessionRouteScope>();
+
+  @override
+  bool updateShouldNotify(MobileSessionRouteScope oldWidget) =>
+      addNext != oldWidget.addNext ||
+      protectedSession != oldWidget.protectedSession;
 }

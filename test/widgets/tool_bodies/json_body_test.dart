@@ -1,8 +1,13 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/models/artifact.dart';
+import 'package:masquerade/state/history_controller.dart';
+import 'package:masquerade/theme/mq_colors.dart';
+import 'package:masquerade/theme/mq_theme.dart';
 import 'package:masquerade/utils/json_parser.dart';
 import 'package:masquerade/widgets/tool_bodies/json_body.dart';
+import 'package:masquerade/widgets/tool_bodies/open_in_footer.dart';
+import 'package:masquerade/widgets/tool_bodies/seed_source.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '_helpers.dart';
@@ -46,6 +51,60 @@ void main() {
 
     expect(find.textContaining('"cached": true'), findsOneWidget);
     expect(find.textContaining('ERROR'), findsNothing);
+  });
+
+  testWidgets('protected session JSON never reaches history or prefs', (
+    WidgetTester tester,
+  ) async {
+    const String derived = '{"at":1700000000}';
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final HistoryController protectedHistory = HistoryController(prefs: prefs);
+
+    Widget harness({
+      required HistoryController history,
+      required Widget body,
+    }) => CupertinoApp(
+      builder: (BuildContext context, Widget? child) => MqTheme(
+        tokens: MqTokens(
+          colors: MqColors.light(),
+          brightness: Brightness.light,
+        ),
+        child: HistoryScope(
+          controller: history,
+          child: child ?? const SizedBox.shrink(),
+        ),
+      ),
+      home: CupertinoPageScaffold(child: body),
+    );
+
+    await tester.pumpWidget(
+      harness(
+        history: protectedHistory,
+        body: const MobileSessionRouteScope(
+          addNext: true,
+          protectedSession: true,
+          child: JSONBody(initialInput: derived, seedSource: SeedSource.paste),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle(kDebouncePump);
+
+    expect(protectedHistory.entries, isEmpty);
+    expect(prefs.getKeys().map(prefs.get).join(), isNot(contains(derived)));
+
+    final HistoryController safeHistory = HistoryController(prefs: prefs);
+    await tester.pumpWidget(
+      harness(
+        history: safeHistory,
+        body: const JSONBody(
+          initialInput: '{"safe":true}',
+          seedSource: SeedSource.paste,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle(kDebouncePump);
+
+    expect(safeHistory.entries.single.input, '{"safe":true}');
   });
 
   testWidgets('JSON — Tree target renders key path lines', (

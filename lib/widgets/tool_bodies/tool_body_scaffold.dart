@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import '../../state/history_controller.dart';
 import '../../utils/history_recorder.dart';
 import '../mq/tool_action_bar.dart';
+import 'open_in_footer.dart';
 import 'seed_source.dart';
 
 /// The widget half of a scaffolded tool body. A [StatefulWidget] whose [State]
@@ -90,6 +91,8 @@ mixin ToolBodyScaffold<T extends StatefulWidget> on State<T> {
       _recorder = HistoryRecorder(
         controller: HistoryScope.of(context),
         utilityId: utilityId,
+        sensitive:
+            MobileSessionRouteScope.maybeOf(context)?.protectedSession ?? false,
       );
       if (_w.seedSource == SeedSource.paste) _recorder!.markPaste();
     }
