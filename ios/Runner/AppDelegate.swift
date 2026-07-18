@@ -14,6 +14,12 @@ import UIKit
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
+  override func applicationDidBecomeActive(_ application: UIApplication) {
+    super.applicationDidBecomeActive(application)
+    guard let workflows = try? AppIntentRequestStore().workflows() else { return }
+    SavedWorkflowSpotlightIndexer.shared.replace(workflows)
+  }
+
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     guard let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "ShareInbox") else {
@@ -63,16 +69,26 @@ import UIKit
           guard let raw = call.arguments as? [[String: Any]] else {
             throw ShareInboxError.unsupported
           }
-          let workflows = try raw.map { value -> AppIntentWorkflow in
+          let workflows = raw.compactMap { value -> AppIntentWorkflow? in
             guard value.count == 2,
               let id = value["id"] as? String,
               let name = value["name"] as? String
-            else { throw ShareInboxError.unsupported }
+            else { return nil }
             return AppIntentWorkflow(id: id, name: name)
           }
-          try AppIntentRequestStore().syncWorkflows(workflows)
+          let safe = try AppIntentRequestStore().syncWorkflows(workflows)
           if #available(iOS 16.0, *) { MasqueradeShortcuts.updateAppShortcutParameters() }
-          result(nil)
+          SavedWorkflowSpotlightIndexer.shared.replace(safe) { error in
+            if error == nil {
+              result(nil)
+            } else {
+              result(FlutterError(
+                code: "spotlight_unavailable",
+                message: "Shortcut search could not be updated.",
+                details: nil
+              ))
+            }
+          }
         default:
           result(FlutterMethodNotImplemented)
         }

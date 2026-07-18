@@ -1,3 +1,4 @@
+import CoreSpotlight
 import Flutter
 import UIKit
 import XCTest
@@ -161,6 +162,125 @@ class RunnerTests: XCTestCase {
       try FileManager.default.contentsOfDirectory(atPath: root.path),
       [AppIntentRequestStore.workflowsName]
     )
+  }
+
+  func testWorkflowMetadataFiltersUnsafeNamesAndIdentifiersIndividually() throws {
+    let store = try AppIntentRequestStore(root: root)
+    let safe = try store.syncWorkflows([
+      AppIntentWorkflow(id: "workflow-1", name: " JSON cleanup "),
+      AppIntentWorkflow(id: "workflow-2", name: "Unsafe\nname"),
+      AppIntentWorkflow(id: "workflow-3", name: String(repeating: "x", count: 81)),
+      AppIntentWorkflow(id: "workflow-user-controlled", name: "Unsafe identifier"),
+      AppIntentWorkflow(id: "workflow-1", name: "Duplicate"),
+      AppIntentWorkflow(id: "workflow-4", name: "Timestamp cleanup"),
+    ])
+
+    XCTAssertEqual(safe, [
+      AppIntentWorkflow(id: "workflow-1", name: "JSON cleanup"),
+      AppIntentWorkflow(id: "workflow-4", name: "Timestamp cleanup"),
+    ])
+    XCTAssertEqual(store.workflows(), safe)
+  }
+
+  func testSpotlightItemsContainOnlySafeDeterministicMetadata() {
+    let secret = "password=do-not-index"
+    let items = SavedWorkflowSpotlightIndexer.searchableItems(for: [
+      AppIntentWorkflow(id: "workflow-1", name: "JSON cleanup"),
+      AppIntentWorkflow(id: "workflow-2", name: secret),
+      AppIntentWorkflow(id: "sk-proj-secret", name: "Unsafe identifier"),
+    ])
+
+    XCTAssertEqual(items.count, 1)
+    XCTAssertEqual(
+      items[0].uniqueIdentifier,
+      "dev.howardism.Masquerade.saved-workflows.workflow-1"
+    )
+    XCTAssertEqual(items[0].domainIdentifier, SavedWorkflowSpotlightIndexer.domainIdentifier)
+    XCTAssertEqual(items[0].attributeSet.title, "JSON cleanup")
+    XCTAssertEqual(items[0].attributeSet.displayName, "JSON cleanup")
+    XCTAssertEqual(items[0].attributeSet.contentDescription, "Saved workflow")
+    XCTAssertNil(items[0].attributeSet.keywords)
+    XCTAssertNil(items[0].attributeSet.textContent)
+    XCTAssertFalse(items[0].uniqueIdentifier.contains(secret))
+  }
+
+  func testSpotlightReplacementSerializesAndCoalescesToNewestSafeSet() {
+    let firstDelete = expectation(description: "first domain delete")
+    let secondDelete = expectation(description: "second domain delete")
+    let completed = expectation(description: "replace completions")
+    completed.expectedFulfillmentCount = 3
+    let lock = NSLock()
+    var deletedDomains: [[String]] = []
+    var deleteCompletions: [(Error?) -> Void] = []
+    var indexedTitles: [[String]] = []
+    let indexer = SavedWorkflowSpotlightIndexer(
+      deleteDomain: { domains, completion in
+        lock.lock()
+        deletedDomains.append(domains)
+        deleteCompletions.append(completion)
+        let count = deleteCompletions.count
+        lock.unlock()
+        (count == 1 ? firstDelete : secondDelete).fulfill()
+      },
+      addItems: { items, completion in
+        lock.lock()
+        indexedTitles.append(items.compactMap(\.attributeSet.title))
+        lock.unlock()
+        completion(nil)
+      }
+    )
+    let done: (Error?) -> Void = { error in
+      XCTAssertNil(error)
+      completed.fulfill()
+    }
+
+    indexer.replace([
+      AppIntentWorkflow(id: "workflow-1", name: "Old name"),
+      AppIntentWorkflow(id: "workflow-2", name: "Sibling"),
+    ], completion: done)
+    wait(for: [firstDelete], timeout: 2)
+    indexer.replace([
+      AppIntentWorkflow(id: "workflow-1", name: "Unsafe\u{0000}name"),
+      AppIntentWorkflow(id: "workflow-2", name: "Sibling"),
+    ], completion: done)
+    indexer.replace([
+      AppIntentWorkflow(id: "workflow-2", name: "Sibling"),
+    ], completion: done)
+
+    lock.lock()
+    let finishFirstDelete = deleteCompletions[0]
+    lock.unlock()
+    finishFirstDelete(nil)
+    wait(for: [secondDelete], timeout: 2)
+    lock.lock()
+    let finishSecondDelete = deleteCompletions[1]
+    lock.unlock()
+    finishSecondDelete(nil)
+    wait(for: [completed], timeout: 2)
+
+    XCTAssertEqual(deletedDomains, [
+      [SavedWorkflowSpotlightIndexer.domainIdentifier],
+      [SavedWorkflowSpotlightIndexer.domainIdentifier],
+    ])
+    XCTAssertEqual(indexedTitles, [["Old name", "Sibling"], ["Sibling"]])
+  }
+
+  func testSpotlightDeleteFailureDoesNotIndexStaleReplacement() {
+    let completed = expectation(description: "delete error surfaced")
+    let indexed = expectation(description: "must not index")
+    indexed.isInverted = true
+    let expected = NSError(domain: "test", code: 1)
+    let indexer = SavedWorkflowSpotlightIndexer(
+      deleteDomain: { _, completion in completion(expected) },
+      addItems: { _, _ in indexed.fulfill() }
+    )
+
+    indexer.replace([AppIntentWorkflow(id: "workflow-1", name: "Safe")]) { error in
+      XCTAssertEqual(error as NSError?, expected)
+      completed.fulfill()
+    }
+
+    wait(for: [completed, indexed], timeout: 0.2)
   }
 
   func testAppIntentStoreDeletesAliasedRequestsBeforeTheyCanReplay() throws {

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/models/artifact.dart';
+import 'package:masquerade/models/saved_workflow.dart';
 import 'package:masquerade/state/share_inbox_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -13,6 +14,19 @@ void main() {
   final List<MethodCall> calls = <MethodCall>[];
   List<Object?> nativeItems = <Object?>[];
   List<Object?> intentItems = <Object?>[];
+
+  SavedWorkflow workflow(String id, String name) {
+    final DateTime now = DateTime.fromMillisecondsSinceEpoch(1000);
+    return SavedWorkflow(
+      id: id,
+      name: name,
+      createdAt: now,
+      updatedAt: now,
+      steps: <SavedWorkflowStep>[
+        SavedWorkflowStep(toolId: 'json', settings: <String, Object?>{}),
+      ],
+    );
+  }
 
   Map<String, Object?> item({
     String id = '11111111-1111-1111-1111-111111111111',
@@ -247,5 +261,68 @@ void main() {
         );
     await controller.refreshIntents();
     expect(controller.intentRequests, hasLength(1));
+  });
+
+  test('syncs only unique safe workflow metadata', () async {
+    final ShareInboxController controller = ShareInboxController(
+      channel: channel,
+    );
+    final SavedWorkflow safe = workflow('workflow-1', ' JSON cleanup ');
+
+    await controller.syncWorkflows(<SavedWorkflow>[
+      safe,
+      workflow('workflow-2', 'Unsafe\nname'),
+      workflow('workflow-3', List<String>.filled(81, 'x').join()),
+      safe,
+    ]);
+
+    expect(calls.single.method, 'syncWorkflows');
+    expect(calls.single.arguments, <Object?>[
+      <String, String>{'id': 'workflow-1', 'name': 'JSON cleanup'},
+    ]);
+  });
+
+  test(
+    'unsafe rename drops old donated metadata while keeping siblings',
+    () async {
+      final ShareInboxController controller = ShareInboxController(
+        channel: channel,
+      );
+
+      await controller.syncWorkflows(<SavedWorkflow>[
+        workflow('workflow-1', 'Safe name'),
+        workflow('workflow-2', 'Timestamp cleanup'),
+      ]);
+      await controller.syncWorkflows(<SavedWorkflow>[
+        workflow('workflow-1', 'Unsafe\u0000name'),
+        workflow('workflow-2', 'Timestamp cleanup'),
+      ]);
+
+      expect(calls.last.arguments, <Object?>[
+        <String, String>{'id': 'workflow-2', 'name': 'Timestamp cleanup'},
+      ]);
+    },
+  );
+
+  test('successful workflow sync clears its prior native error', () async {
+    bool fail = true;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (MethodCall call) async {
+          if (call.method == 'syncWorkflows' && fail) {
+            throw PlatformException(code: 'spotlight_unavailable');
+          }
+          return null;
+        });
+    final ShareInboxController controller = ShareInboxController(
+      channel: channel,
+    );
+    final SavedWorkflow safe = workflow('workflow-1', 'JSON cleanup');
+
+    await controller.syncWorkflows(<SavedWorkflow>[safe]);
+    expect(controller.error, 'Shortcuts could not be updated.');
+    fail = false;
+    await controller.syncWorkflows(<SavedWorkflow>[safe]);
+
+    expect(controller.error, isNull);
   });
 }

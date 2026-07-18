@@ -111,16 +111,15 @@ final class AppIntentRequestStore {
     }
   }
 
-  func syncWorkflows(_ workflows: [AppIntentWorkflow]) throws {
-    guard workflows.count <= 100,
-      workflows.allSatisfy({ Self.validIdentifier($0.id) && Self.validName($0.name) }),
-      Set(workflows.map(\.id)).count == workflows.count
-    else { throw ShareInboxError.unsupported }
-    let encoded = try JSONEncoder().encode(workflows)
+  @discardableResult
+  func syncWorkflows(_ workflows: [AppIntentWorkflow]) throws -> [AppIntentWorkflow] {
+    let safe = Self.safeWorkflows(workflows)
+    let encoded = try JSONEncoder().encode(safe)
     guard encoded.count <= ShareInboxStore.maximumBytes else { throw ShareInboxError.oversized }
     let destination = root.appendingPathComponent(Self.workflowsName)
     try encoded.write(to: destination, options: .atomic)
     try secure(destination)
+    return safe
   }
 
   func workflows() -> [AppIntentWorkflow] {
@@ -129,10 +128,26 @@ final class AppIntentRequestStore {
       data.count <= ShareInboxStore.maximumBytes,
       let workflows = try? JSONDecoder().decode([AppIntentWorkflow].self, from: data),
       workflows.count <= 100,
-      workflows.allSatisfy({ Self.validIdentifier($0.id) && Self.validName($0.name) }),
-      Set(workflows.map(\.id)).count == workflows.count
+      Self.safeWorkflows(workflows) == workflows
     else { return [] }
     return workflows
+  }
+
+  static func safeWorkflows(_ workflows: [AppIntentWorkflow]) -> [AppIntentWorkflow] {
+    var ids = Set<String>()
+    var safe: [AppIntentWorkflow] = []
+    for workflow in workflows.prefix(100) {
+      let name = workflow.name.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard workflow.id.range(
+        of: #"^workflow-[0-9]{1,20}$"#,
+        options: .regularExpression
+      ) != nil,
+        validName(name),
+        ids.insert(workflow.id).inserted
+      else { continue }
+      safe.append(AppIntentWorkflow(id: workflow.id, name: name))
+    }
+    return safe
   }
 
   private func valid(_ request: AppIntentRequest) -> Bool {
@@ -159,8 +174,9 @@ final class AppIntentRequestStore {
   }
 
   private static func validName(_ value: String) -> Bool {
-    !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    !value.isEmpty
       && value.utf16.count <= 80
+      && value.unicodeScalars.allSatisfy { !CharacterSet.controlCharacters.contains($0) }
       && !ShareInboxStore.isProtected(value)
   }
 

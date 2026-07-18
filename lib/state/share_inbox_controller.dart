@@ -63,9 +63,14 @@ class ShareInboxController extends ChangeNotifier {
 
   static const String channelName = 'dev.howardism.masquerade/share_inbox';
   static const int maxPayloadBytes = 65536;
+  static const String _shortcutSyncError = 'Shortcuts could not be updated.';
   static final RegExp _id = RegExp(
     r'^[A-Fa-f0-9]{8}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{12}$',
   );
+  static final RegExp _unsafeWorkflowName = RegExp(
+    r'[\u0000-\u001F\u007F-\u009F]',
+  );
+  static final RegExp _workflowId = RegExp(r'^workflow-[0-9]{1,20}$');
 
   final MethodChannel _channel;
   List<ShareInboxItem> _items = const <ShareInboxItem>[];
@@ -148,14 +153,31 @@ class ShareInboxController extends ChangeNotifier {
 
   Future<void> syncWorkflows(Iterable<SavedWorkflow> workflows) async {
     try {
+      final Set<String> ids = <String>{};
+      final List<Map<String, String>> metadata = <Map<String, String>>[];
+      for (final SavedWorkflow workflow in workflows.take(100)) {
+        final String name = workflow.name.trim();
+        if (!_workflowId.hasMatch(workflow.id) ||
+            !ids.add(workflow.id) ||
+            name.isEmpty ||
+            name.length > 80 ||
+            _unsafeWorkflowName.hasMatch(name) ||
+            isProtectedWorkflowString(name)) {
+          continue;
+        }
+        metadata.add(<String, String>{'id': workflow.id, 'name': name});
+      }
       await _channel.invokeMethod<void>('syncWorkflows', <Object?>[
-        for (final SavedWorkflow workflow in workflows)
-          <String, String>{'id': workflow.id, 'name': workflow.name},
+        ...metadata,
       ]);
+      if (_error == _shortcutSyncError) {
+        _error = null;
+        notifyListeners();
+      }
     } on MissingPluginException {
       // App Intents are iOS-only.
     } on PlatformException {
-      _error = 'Shortcuts could not be updated.';
+      _error = _shortcutSyncError;
       notifyListeners();
     }
   }
