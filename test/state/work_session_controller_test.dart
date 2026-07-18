@@ -114,4 +114,173 @@ void main() {
       }
     }
   });
+
+  test('replace resets the step and deterministically removes its tail', () {
+    final WorkSessionController controller = WorkSessionController();
+    controller.start(
+      UtilityCatalog.byId('bps'),
+      artifact(ArtifactKind.bps, '25 bps'),
+    );
+    controller.addNext(0, UtilityCatalog.byId('timestamp'), '1700000000');
+
+    expect(controller.replaceInput(0, '50 bps'), isTrue);
+
+    expect(controller.session!.steps, hasLength(1));
+    final WorkflowStep step = controller.session!.steps.single;
+    expect(step.input.rawValue, '50 bps');
+    expect(step.output, isNull);
+    expect(step.status, WorkflowStepStatus.running);
+  });
+
+  test('remove subsequent retains an exact selected step', () {
+    final WorkSessionController controller = WorkSessionController();
+    controller.start(
+      UtilityCatalog.byId('bps'),
+      artifact(ArtifactKind.bps, '25 bps'),
+    );
+    controller.addNext(0, UtilityCatalog.byId('timestamp'), '1700000000');
+    final WorkflowStep selected = controller.session!.steps.first;
+
+    expect(controller.removeSubsequent(0), isTrue);
+
+    expect(controller.session!.steps, hasLength(1));
+    expect(controller.session!.steps.single.toolId, selected.toolId);
+    expect(
+      controller.session!.steps.single.output!.rawValue,
+      selected.output!.rawValue,
+    );
+    expect(controller.removeSubsequent(0), isFalse);
+  });
+
+  test('duplicate clones a completed step without a second running step', () {
+    final WorkSessionController controller = WorkSessionController();
+    controller.start(
+      UtilityCatalog.byId('bps'),
+      artifact(ArtifactKind.bps, '25 bps'),
+    );
+    expect(controller.duplicate(0), isFalse);
+    controller.addNext(0, UtilityCatalog.byId('timestamp'), '1700000000');
+    final WorkflowStep original = controller.session!.steps.first;
+
+    expect(controller.duplicate(0), isTrue);
+
+    final List<WorkflowStep> steps = controller.session!.steps;
+    expect(steps, hasLength(3));
+    final WorkflowStep duplicate = steps[1];
+    expect(duplicate, isNot(same(original)));
+    expect(duplicate.input, isNot(same(original.input)));
+    expect(duplicate.settings, isNot(same(original.settings)));
+    expect(duplicate.toolId, original.toolId);
+    expect(duplicate.input.rawValue, original.input.rawValue);
+    expect(duplicate.input.parserResult, isNull);
+    expect(duplicate.output!.rawValue, original.output!.rawValue);
+    expect(duplicate.status, WorkflowStepStatus.completed);
+    expect(controller.isCurrent(0), isFalse);
+    expect(controller.isCurrent(1), isFalse);
+    expect(controller.isCurrent(2), isTrue);
+    expect(
+      steps.where(
+        (WorkflowStep step) => step.status == WorkflowStepStatus.running,
+      ),
+      hasLength(1),
+    );
+    expect(
+      controller.addNext(0, UtilityCatalog.byId('timestamp'), '1700000000'),
+      isNull,
+    );
+  });
+
+  test('branch keeps an immutable origin and starts a usable alternate', () {
+    final WorkSessionController controller = WorkSessionController();
+    controller.start(
+      UtilityCatalog.byId('bps'),
+      artifact(ArtifactKind.bps, '25 bps'),
+    );
+    expect(controller.branchFrom(0), isFalse);
+    controller.addNext(0, UtilityCatalog.byId('number_base'), '1700000000');
+    final WorkSession original = controller.session!;
+
+    expect(controller.branchFrom(0), isTrue);
+
+    final WorkSession alternate = controller.session!;
+    expect(controller.branchOrigin, same(original));
+    expect(alternate.id, isNot(original.id));
+    expect(alternate.steps, hasLength(1));
+    expect(alternate.steps.single, isNot(same(original.steps.first)));
+    expect(
+      alternate.steps.single.input,
+      isNot(same(original.steps.first.input)),
+    );
+    expect(
+      alternate.steps.single.settings,
+      isNot(same(original.steps.first.settings)),
+    );
+    expect(
+      alternate.steps.single.output!.rawValue,
+      original.steps.first.output!.rawValue,
+    );
+    expect(alternate.steps.single.status, WorkflowStepStatus.completed);
+    expect(
+      controller.addNext(0, UtilityCatalog.byId('timestamp'), '1700000000'),
+      1,
+    );
+    expect(original.steps, hasLength(2));
+    expect(original.steps.last.toolId, 'number_base');
+    expect(original.steps.first.output!.rawValue, '1700000000');
+    expect(controller.branchFrom(0), isFalse);
+
+    controller.clear();
+    expect(controller.session, isNull);
+    expect(controller.branchOrigin, isNull);
+  });
+
+  test('a duplicated final completed step remains the sole continuation', () {
+    final WorkSessionController controller = WorkSessionController();
+    controller.start(
+      UtilityCatalog.byId('bps'),
+      artifact(ArtifactKind.bps, '25 bps'),
+    );
+    controller.addNext(0, UtilityCatalog.byId('timestamp'), '1700000000');
+    controller.removeSubsequent(0);
+
+    expect(controller.duplicate(0), isTrue);
+    expect(controller.isCurrent(0), isFalse);
+    expect(controller.isCurrent(1), isTrue);
+    expect(
+      controller.addNext(1, UtilityCatalog.byId('timestamp'), '1800000000'),
+      2,
+    );
+    expect(
+      controller.session!.steps.where(
+        (WorkflowStep step) => step.status == WorkflowStepStatus.running,
+      ),
+      hasLength(1),
+    );
+    expect(controller.session!.steps.last.input.rawValue, '1800000000');
+  });
+
+  test('export fails closed for sensitive lineage with standard output', () {
+    final WorkflowStep step = WorkflowStep(
+      toolId: 'json',
+      input: artifact(
+        ArtifactKind.json,
+        '{"claim":true}',
+        sensitivity: ArtifactSensitivity.sensitive,
+      ),
+      settings: const <String, Object?>{},
+      output: artifact(ArtifactKind.json, '{"safe-looking":true}'),
+      status: WorkflowStepStatus.completed,
+    );
+
+    expect(WorkSessionController.canExport(step), isFalse);
+
+    final WorkflowStep directCredential = WorkflowStep(
+      toolId: 'json',
+      input: artifact(ArtifactKind.json, '{"safe":true}'),
+      settings: const <String, Object?>{},
+      output: artifact(ArtifactKind.json, '{"password":"do-not-copy"}'),
+      status: WorkflowStepStatus.completed,
+    );
+    expect(WorkSessionController.canExport(directCredential), isFalse);
+  });
 }

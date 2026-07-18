@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
@@ -48,6 +49,25 @@ Finder _semanticsStarts(String label) => find.byWidgetPredicate(
   (Widget widget) =>
       widget is Semantics && widget.properties.label?.startsWith(label) == true,
 );
+
+Finder _stepSemantics(int index, String toolId, String status) =>
+    _semanticsStarts(
+      'Step $index, ${UtilityCatalog.byId(toolId).name}, $status. Input',
+    );
+
+WorkSessionController _safeCompletedSession() {
+  final WorkSessionController sessions = WorkSessionController();
+  sessions.start(
+    UtilityCatalog.byId('bps'),
+    Artifact<Object?>(
+      kind: ArtifactKind.bps,
+      rawValue: '25 bps',
+      provenance: ArtifactProvenance.typed,
+    ),
+  );
+  sessions.addNext(0, UtilityCatalog.byId('timestamp'), '1700000000');
+  return sessions;
+}
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues(<String, Object>{}));
@@ -302,6 +322,270 @@ void main() {
     for (final WorkflowStep step in sessions.session!.steps) {
       expect(step.input.safePreview, isNot(step.input.rawValue));
     }
+    final Finder first = _stepSemantics(1, 'jwt', 'Completed');
+    await tester.ensureVisible(first);
+    expect(tester.getSize(first).height, greaterThanOrEqualTo(44));
+    expect(tester.widget<Semantics>(first).properties.onTap, isNotNull);
+    expect(
+      tester
+          .getSemantics(first)
+          .getSemanticsData()
+          .hasAction(SemanticsAction.tap),
+      isTrue,
+    );
+    tester.widget<Semantics>(first).properties.onTap!();
+    await tester.pumpAndSettle();
+    expect(find.byType(CupertinoActionSheet), findsOneWidget);
+    await tester.ensureVisible(find.text('Replace input'));
+    await tester.tap(find.text('Replace input'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CupertinoAlertDialog), findsOneWidget);
     expect(tester.takeException(), isNull);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('safe step actions copy, share, and reopen exact data', (
+    WidgetTester tester,
+  ) async {
+    final WorkSessionController sessions = _safeCompletedSession();
+    MethodCall? clipboardCall;
+    MethodCall? shareCall;
+    final TestDefaultBinaryMessenger messenger =
+        tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (
+      MethodCall call,
+    ) async {
+      if (call.method == 'Clipboard.setData') clipboardCall = call;
+      return null;
+    });
+    const MethodChannel shareChannel = MethodChannel(
+      'dev.fluttercommunity.plus/share',
+    );
+    messenger.setMockMethodCallHandler(shareChannel, (MethodCall call) async {
+      shareCall = call;
+      return 'dev.fluttercommunity.plus/share/unavailable';
+    });
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(SystemChannels.platform, null);
+      messenger.setMockMethodCallHandler(shareChannel, null);
+    });
+    await _pumpWorkbench(tester, workSessionController: sessions);
+    final Finder first = _stepSemantics(1, 'bps', 'Completed');
+
+    await tester.ensureVisible(first);
+    await tester.tap(first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Copy output'));
+    await tester.pump();
+    expect(clipboardCall?.method, 'Clipboard.setData');
+    expect(clipboardCall?.arguments, <String, String>{'text': '1700000000'});
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+
+    await tester.tap(first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Share output'));
+    await tester.pumpAndSettle();
+    expect(shareCall?.method, 'share');
+    final Map<Object?, Object?> shared = Map<Object?, Object?>.from(
+      shareCall!.arguments as Map<Object?, Object?>,
+    );
+    expect(shared['text'], '1700000000');
+    expect(shared['originWidth'], greaterThan(0));
+    expect(shared['originHeight'], greaterThan(0));
+
+    await tester.tap(first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Reopen'));
+    await tester.pumpAndSettle();
+    final ToolDetailRoute route = tester.widget(find.byType(ToolDetailRoute));
+    expect(route.seed, '25 bps');
+    expect(route.sessionStepIndex, 0);
+  });
+
+  testWidgets('protected step omits clipboard and share actions', (
+    WidgetTester tester,
+  ) async {
+    const String jwt = 'eyJhbGciOiJub25lIn0.eyJhdCI6MTcwMDAwMDAwMH0.';
+    final WorkSessionController sessions = WorkSessionController();
+    sessions.start(
+      UtilityCatalog.byId('jwt'),
+      Artifact<Object?>(
+        kind: ArtifactKind.jwt,
+        rawValue: jwt,
+        provenance: ArtifactProvenance.typed,
+      ),
+    );
+    sessions.addNext(0, UtilityCatalog.byId('json'), '{"at":1700000000}');
+    await _pumpWorkbench(tester, workSessionController: sessions);
+
+    final Finder first = _stepSemantics(1, 'jwt', 'Completed');
+    await tester.ensureVisible(first);
+    await tester.tap(first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Copy output'), findsNothing);
+    expect(find.text('Share output'), findsNothing);
+    expect(find.textContaining(jwt), findsNothing);
+  });
+
+  testWidgets('replace warns before deterministically removing later steps', (
+    WidgetTester tester,
+  ) async {
+    final WorkSessionController sessions = _safeCompletedSession();
+    await _pumpWorkbench(tester, workSessionController: sessions);
+    final Finder first = _stepSemantics(1, 'bps', 'Completed');
+
+    await tester.ensureVisible(first);
+    await tester.tap(first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Replace input'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Replace input and remove later steps?'), findsOneWidget);
+    expect(
+      find.text('All steps after this one will be removed.'),
+      findsOneWidget,
+    );
+    expect(sessions.session!.steps, hasLength(2));
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(CupertinoAlertDialog),
+        matching: find.byType(CupertinoTextField),
+      ),
+      '50 bps',
+    );
+    expect(sessions.session!.steps, hasLength(2));
+    await tester.tap(find.text('Replace and remove'));
+    await tester.pumpAndSettle();
+
+    expect(sessions.session!.steps, hasLength(1));
+    expect(sessions.session!.steps.single.input.rawValue, '50 bps');
+    expect(sessions.session!.steps.single.output, isNull);
+    expect(sessions.session!.steps.single.status, WorkflowStepStatus.running);
+  });
+
+  testWidgets('stale action sheet cannot mutate a replacement session', (
+    WidgetTester tester,
+  ) async {
+    final WorkSessionController sessions = _safeCompletedSession();
+    await _pumpWorkbench(tester, workSessionController: sessions);
+    final Finder first = _stepSemantics(1, 'bps', 'Completed');
+
+    await tester.ensureVisible(first);
+    await tester.tap(first);
+    await tester.pumpAndSettle();
+    sessions.start(
+      UtilityCatalog.byId('bps'),
+      Artifact<Object?>(
+        kind: ArtifactKind.bps,
+        rawValue: '99 bps',
+        provenance: ArtifactProvenance.typed,
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('Remove subsequent steps'));
+    await tester.pumpAndSettle();
+
+    expect(sessions.session!.steps, hasLength(1));
+    expect(sessions.session!.steps.single.input.rawValue, '99 bps');
+  });
+
+  testWidgets('stale replace dialog cannot mutate a replacement session', (
+    WidgetTester tester,
+  ) async {
+    final WorkSessionController sessions = _safeCompletedSession();
+    await _pumpWorkbench(tester, workSessionController: sessions);
+    final Finder first = _stepSemantics(1, 'bps', 'Completed');
+
+    await tester.ensureVisible(first);
+    await tester.tap(first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Replace input'));
+    await tester.pumpAndSettle();
+    sessions.start(
+      UtilityCatalog.byId('bps'),
+      Artifact<Object?>(
+        kind: ArtifactKind.bps,
+        rawValue: '99 bps',
+        provenance: ArtifactProvenance.typed,
+      ),
+    );
+    await tester.pump();
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(CupertinoAlertDialog),
+        matching: find.byType(CupertinoTextField),
+      ),
+      '50 bps',
+    );
+    await tester.tap(find.text('Replace and remove'));
+    await tester.pumpAndSettle();
+
+    expect(sessions.session!.steps, hasLength(1));
+    expect(sessions.session!.steps.single.input.rawValue, '99 bps');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('duplicate and remove actions produce deterministic stacks', (
+    WidgetTester tester,
+  ) async {
+    final WorkSessionController sessions = _safeCompletedSession();
+    await _pumpWorkbench(tester, workSessionController: sessions);
+    Finder first = _stepSemantics(1, 'bps', 'Completed');
+
+    await tester.ensureVisible(first);
+    await tester.tap(first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Duplicate step'));
+    await tester.pumpAndSettle();
+    expect(sessions.session!.steps, hasLength(3));
+    expect(sessions.session!.steps[1].toolId, 'bps');
+
+    first = _stepSemantics(1, 'bps', 'Completed');
+    await tester.tap(first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove subsequent steps'));
+    await tester.pumpAndSettle();
+    expect(sessions.session!.steps, hasLength(1));
+    expect(sessions.session!.steps.single.toolId, 'bps');
+  });
+
+  testWidgets('branch exposes the origin and reopens the active continuation', (
+    WidgetTester tester,
+  ) async {
+    final WorkSessionController sessions = WorkSessionController();
+    sessions.start(
+      UtilityCatalog.byId('json'),
+      Artifact<Object?>(
+        kind: ArtifactKind.json,
+        rawValue: '[65,66]',
+        provenance: ArtifactProvenance.typed,
+      ),
+    );
+    expect(sessions.addNext(0, UtilityCatalog.byId('bytes'), '[65,66]'), 1);
+    final WorkSession original = sessions.session!;
+    await _pumpWorkbench(tester, workSessionController: sessions);
+    Finder first = _stepSemantics(1, 'json', 'Completed');
+
+    await tester.ensureVisible(first);
+    await tester.tap(first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Branch from here'));
+    await tester.pumpAndSettle();
+
+    expect(sessions.branchOrigin, same(original));
+    expect(sessions.session!.steps, hasLength(1));
+    expect(find.text('Original path · 2 steps'), findsOneWidget);
+    first = _stepSemantics(1, 'json', 'Completed');
+    await tester.tap(first);
+    await tester.pumpAndSettle();
+    expect(find.text('Branch from here'), findsNothing);
+    await tester.tap(find.text('Reopen'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ToolDetailRoute), findsOneWidget);
+    expect(find.text('ADD NEXT STEP'), findsOneWidget);
   });
 }
