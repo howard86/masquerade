@@ -37,6 +37,7 @@ import 'widgets/tool_bodies/ip_body.dart';
 import 'widgets/tool_bodies/json_body.dart';
 import 'widgets/tool_bodies/jwt_body.dart';
 import 'widgets/tool_bodies/list_body.dart';
+import 'widgets/tool_bodies/log_stack_inspector_body.dart';
 import 'widgets/tool_bodies/math_body.dart';
 import 'widgets/tool_bodies/number_base_body.dart';
 import 'widgets/tool_bodies/qr_code_body.dart';
@@ -178,6 +179,55 @@ class UtilityCatalog {
   const UtilityCatalog._();
 
   static final List<UtilityDescriptor> all = <UtilityDescriptor>[
+    UtilityDescriptor(
+      id: 'log_stack_inspector',
+      name: 'Log & Stack Inspector',
+      description: 'Group · search · redact logs',
+      icon: MqIcons.list,
+      tint: const Color(0xFFF97316),
+      synonyms: <String>[
+        'log',
+        'stack trace',
+        'exception',
+        'jsonl',
+        'ansi',
+        'debug',
+      ],
+      categories: <UtilityCategory>{UtilityCategory.inspect},
+      acceptedTypes: <ContentType>{ContentType.text, ContentType.lines},
+      producedTypes: <ContentType>{ContentType.text, ContentType.lines},
+      sensitivity: UtilitySensitivity.sensitive,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+      },
+      liveLinkTypes: <ContentType>{},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.copy,
+        UtilityQuickAction.share,
+        UtilityQuickAction.openIn,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.disabled,
+      defaultCardWidth: CardWidthClass.wide,
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            Artifact<Object?>? initialArtifact,
+            SeedSource seedSource = SeedSource.none,
+            OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
+            LinkChannel? link,
+          }) => LogStackInspectorBody(
+            initialInput: initialInput,
+            initialArtifact: initialArtifact,
+            seedSource: seedSource,
+            onSwitchTool: onSwitchTool,
+            actionBar: actionBar,
+          ),
+    ),
     UtilityDescriptor(
       id: 'x509_inspector',
       name: 'X.509 Inspector',
