@@ -8,8 +8,9 @@ A Flutter utility-toolbox app — a digital toolbox for the small everyday conve
 
 ## What's in the toolbox today
 
-Twenty tools, each reachable from the Home screen's grid or via search:
+Twenty-one tools, each reachable from the Home screen's grid or via search:
 
+- **X.509 Inspector** — inspect local PEM / DER certificates and chains, fingerprints, validity, SANs, and public-key details without remote lookup.
 - **HTTP Inspector** — locally inspect, redact, and convert static HTTP request snippets without sending them.
 - **Artifact Inspector** — recursively trace nested encodings with bounded, sensitive-safe previews.
 - **UUID** — generate v4 / v7, validate any UUID, inspect version & variant, parse ULID; v1/v7/ULID timestamps cross-link into Timestamp.

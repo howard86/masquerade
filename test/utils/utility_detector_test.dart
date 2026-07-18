@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:masquerade/models/artifact.dart';
@@ -280,23 +282,38 @@ void main() {
       }
     });
 
-    test('routes only public PEM containers intact for fingerprinting', () {
-      const String certificate =
-          '-----BEGIN CERTIFICATE-----\nYWJj\n-----END CERTIFICATE-----';
+    test('routes certificates to X.509 and public keys to fingerprinting', () {
+      final String certificate = File(
+        'test/fixtures/x509_leaf.pem',
+      ).readAsStringSync();
       const String publicKey =
           '-----BEGIN PUBLIC KEY-----\nYWJj\n-----END PUBLIC KEY-----';
+      const String rsaPublicKey =
+          '-----BEGIN RSA PUBLIC KEY-----\nYWJj\n-----END RSA PUBLIC KEY-----';
       const String privateKey =
           '-----BEGIN PRIVATE KEY-----\nYWJj\n-----END PRIVATE KEY-----';
 
-      for (final String value in <String>[certificate, publicKey]) {
-        final DetectionMatch<Object?> match = UtilityCatalog.detectArtifacts(
-          value,
-          provenance: ArtifactProvenance.fileImport,
-        ).first;
-        expect(match.primaryToolId, 'hash');
-        expect(match.artifact.kind, ArtifactKind.hash);
-        expect(match.artifact.rawValue, value);
-        expect(match.artifact.provenance, ArtifactProvenance.fileImport);
+      final DetectionMatch<Object?> certificateMatch =
+          UtilityCatalog.detectArtifacts(
+            certificate,
+            provenance: ArtifactProvenance.fileImport,
+          ).first;
+      expect(certificateMatch.primaryToolId, 'x509_inspector');
+      expect(certificateMatch.artifact.rawValue, certificate);
+      expect(
+        certificateMatch.artifact.provenance,
+        ArtifactProvenance.fileImport,
+      );
+
+      for (final String value in <String>[publicKey, rsaPublicKey]) {
+        final DetectionMatch<Object?> publicKeyMatch =
+            UtilityCatalog.detectArtifacts(
+              value,
+              provenance: ArtifactProvenance.fileImport,
+            ).first;
+        expect(publicKeyMatch.primaryToolId, 'hash');
+        expect(publicKeyMatch.artifact.kind, ArtifactKind.hash);
+        expect(publicKeyMatch.artifact.rawValue, value);
       }
       expect(
         UtilityCatalog.detectArtifacts(privateKey).where(
