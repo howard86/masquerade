@@ -188,7 +188,7 @@ abstract final class UnicodeStringInspector {
               !markers.contains(marker)) {
             markers.add(marker);
           }
-          invisibleNames.add(marker);
+          if (marker != 'SPACE') invisibleNames.add(marker);
           if (display.length < maxDetailsPerGrapheme) {
             display.write('⟦$marker⟧');
           }

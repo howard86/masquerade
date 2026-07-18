@@ -51,6 +51,15 @@ void main() {
     expect(value.byteLabel, 'C3 A9');
   });
 
+  test('does not warn about ordinary spaces', () {
+    final UnicodeInspection result = UnicodeStringInspector.parse(
+      'hello world',
+    );
+
+    expect(result.warnings, isEmpty);
+    expect(result.graphemes[5].display, '⟦SPACE⟧');
+  });
+
   test('identifies invisible and bidi controls in visible output', () {
     final UnicodeInspection result = UnicodeStringInspector.parse(
       'a\u200bb\u202ec\u2069\ufeff',
