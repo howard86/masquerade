@@ -183,6 +183,29 @@ void main() {
       expect(matches.first.artifact.kind, ArtifactKind.timestamp);
     });
 
+    test(
+      'certificates route to X.509 while public keys still route to Hash',
+      () {
+        final String certificate = File(
+          'test/fixtures/x509_leaf.pem',
+        ).readAsStringSync();
+        expect(
+          UtilityCatalog.detectArtifacts(
+            certificate,
+          ).map((DetectionMatch<Object?> match) => match.primaryToolId),
+          contains('x509_inspector'),
+        );
+        const String publicKey =
+            '-----BEGIN PUBLIC KEY-----\nAQID\n-----END PUBLIC KEY-----';
+        expect(
+          UtilityCatalog.detectArtifacts(
+            publicKey,
+          ).map((DetectionMatch<Object?> match) => match.primaryToolId),
+          contains('hash'),
+        );
+      },
+    );
+
     test('hex color surfaces Color via shape', () {
       final List<DetectionMatch<Object?>> matches =
           UtilityCatalog.detectArtifacts('#1F4FB8');

@@ -19,6 +19,7 @@ import 'utils/number_base_parser.dart';
 import 'utils/toml_parser.dart';
 import 'utils/timestamp_parser.dart';
 import 'utils/uuid_parser.dart';
+import 'utils/x509_inspector.dart';
 import 'utils/yaml_parser.dart';
 import 'widgets/mq/mq_icons.dart';
 import 'widgets/mq/tool_action_bar.dart';
@@ -43,6 +44,7 @@ import 'widgets/tool_bodies/seed_source.dart';
 import 'widgets/tool_bodies/timestamp_body.dart';
 import 'widgets/tool_bodies/url_body.dart';
 import 'widgets/tool_bodies/uuid_body.dart';
+import 'widgets/tool_bodies/x509_inspector_body.dart';
 
 /// Routes a cross-tool "Open in X" tap from any tool body's footer back to
 /// the host screen, which expands the target tool's inline card seeded with
@@ -176,6 +178,55 @@ class UtilityCatalog {
   const UtilityCatalog._();
 
   static final List<UtilityDescriptor> all = <UtilityDescriptor>[
+    UtilityDescriptor(
+      id: 'x509_inspector',
+      name: 'X.509 Inspector',
+      description: 'Inspect certificates and PEM chains',
+      icon: MqIcons.shield,
+      tint: const Color(0xFF2563EB),
+      synonyms: <String>['x509', 'certificate', 'pem', 'der', 'tls', 'ssl'],
+      categories: <UtilityCategory>{
+        UtilityCategory.inspect,
+        UtilityCategory.transform,
+      },
+      acceptedTypes: <ContentType>{ContentType.text, ContentType.bytes},
+      producedTypes: <ContentType>{
+        ContentType.text,
+        ContentType.bytes,
+        ContentType.epoch,
+      },
+      sensitivity: UtilitySensitivity.sensitive,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+      },
+      liveLinkTypes: <ContentType>{},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.copy,
+        UtilityQuickAction.openIn,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.disabled,
+      defaultCardWidth: CardWidthClass.wide,
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            Artifact<Object?>? initialArtifact,
+            SeedSource seedSource = SeedSource.none,
+            OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
+            LinkChannel? link,
+          }) => X509InspectorBody(
+            initialInput: initialInput,
+            initialArtifact: initialArtifact,
+            seedSource: seedSource,
+            onSwitchTool: onSwitchTool,
+            actionBar: actionBar,
+          ),
+      detectArtifact: _detectX509,
+    ),
     UtilityDescriptor(
       id: 'http_inspector',
       name: 'HTTP Inspector',
@@ -1796,11 +1847,40 @@ List<DetectionMatch<Object?>> _detectBytes(
   ];
 }
 
+List<DetectionMatch<Object?>> _detectX509(
+  String input,
+  ArtifactProvenance provenance,
+) {
+  final String trimmed = input.trim();
+  if (!trimmed.startsWith('-----BEGIN CERTIFICATE-----') &&
+      !trimmed.toLowerCase().startsWith('base64:') &&
+      !trimmed.toLowerCase().startsWith('hex:')) {
+    return const <DetectionMatch<Object?>>[];
+  }
+  try {
+    final X509Inspection inspection = X509Inspector.parse(trimmed);
+    return <DetectionMatch<Object?>>[
+      _evidence(
+        provenance: provenance,
+        kind: ArtifactKind.unknown,
+        rawValue: input,
+        parserResult: inspection,
+        confidence: .99,
+        reason:
+            'Parsed ${inspection.certificates.length} X.509 certificate block(s).',
+        primaryToolId: 'x509_inspector',
+      ),
+    ];
+  } catch (_) {
+    return const <DetectionMatch<Object?>>[];
+  }
+}
+
 List<DetectionMatch<Object?>> _detectHashAndPem(
   String input,
   ArtifactProvenance provenance,
 ) {
-  final List<int>? pem = _decodePublicPem(input.trim());
+  final List<int>? pem = _decodePublicKeyPem(input.trim());
   if (pem != null) {
     return <DetectionMatch<Object?>>[
       _evidence(
@@ -1809,7 +1889,7 @@ List<DetectionMatch<Object?>> _detectHashAndPem(
         rawValue: input,
         parserResult: pem,
         confidence: .94,
-        reason: 'Parsed a PEM certificate or public key for fingerprinting.',
+        reason: 'Parsed a public-key PEM block for fingerprinting.',
         primaryToolId: 'hash',
       ),
     ];
@@ -1817,9 +1897,9 @@ List<DetectionMatch<Object?>> _detectHashAndPem(
   return _detectHash(input, provenance);
 }
 
-List<int>? _decodePublicPem(String input) {
+List<int>? _decodePublicKeyPem(String input) {
   final RegExpMatch? header = RegExp(
-    r'^-----BEGIN (CERTIFICATE|PUBLIC KEY|RSA PUBLIC KEY)-----\r?\n',
+    r'^-----BEGIN (PUBLIC KEY|RSA PUBLIC KEY)-----\r?\n',
   ).firstMatch(input);
   if (header == null) return null;
   final String type = header.group(1)!;

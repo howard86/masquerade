@@ -29,7 +29,8 @@ abstract final class SensitiveDataPolicy {
       utilityId == 'jwt' ||
       utilityId == 'generator' ||
       utilityId == 'http_inspector' ||
-      utilityId == 'artifact_inspector';
+      utilityId == 'artifact_inspector' ||
+      utilityId == 'x509_inspector';
 
   static bool containsSensitiveArtifact(String value) =>
       _credentialKey.hasMatch(value) ||
