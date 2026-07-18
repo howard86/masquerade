@@ -45,6 +45,7 @@ import 'widgets/tool_bodies/log_stack_inspector_body.dart';
 import 'widgets/tool_bodies/math_body.dart';
 import 'widgets/tool_bodies/number_base_body.dart';
 import 'widgets/tool_bodies/qr_code_body.dart';
+import 'widgets/tool_bodies/regex_body.dart';
 import 'widgets/tool_bodies/seed_source.dart';
 import 'widgets/tool_bodies/timestamp_body.dart';
 import 'widgets/tool_bodies/unicode_string_inspector_body.dart';
@@ -1176,6 +1177,48 @@ class UtilityCatalog {
       detectArtifact: _detectList,
     ),
     UtilityDescriptor(
+      id: 'regex',
+      name: 'Regex',
+      description: 'Test patterns · captures',
+      icon: MqIcons.brackets,
+      tint: const Color(0xFFEC4899),
+      synonyms: <String>['regex', 'regexp', 'pattern', 'match', 'capture'],
+      categories: <UtilityCategory>{
+        UtilityCategory.inspect,
+        UtilityCategory.compareValidate,
+      },
+      acceptedTypes: <ContentType>{ContentType.text},
+      producedTypes: <ContentType>{ContentType.text},
+      sensitivity: UtilitySensitivity.standard,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+      },
+      liveLinkTypes: <ContentType>{},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.copy,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.enabled,
+      defaultCardWidth: CardWidthClass.wide,
+      builder:
+          (
+            BuildContext _, {
+            String? initialInput,
+            Artifact<Object?>? initialArtifact,
+            SeedSource seedSource = SeedSource.none,
+            OpenInToolCallback? onSwitchTool,
+            ToolActionBarController? actionBar,
+            LinkChannel? link,
+          }) => RegexBody(
+            initialInput: initialInput,
+            seedSource: seedSource,
+            actionBar: actionBar,
+          ),
+      detectArtifact: _detectRegex,
+    ),
+    UtilityDescriptor(
       id: 'diff',
       name: 'Diff',
       description: 'Compare two texts · line / word',
@@ -1504,6 +1547,9 @@ class UtilityCatalog {
     return 0;
   }
 }
+
+List<DetectionMatch<Object?>> _detectRegex(String _, ArtifactProvenance _) =>
+    const <DetectionMatch<Object?>>[];
 
 final RegExp _ipv4Cidr = RegExp(r'^(\d{1,3}\.){3}\d{1,3}(/\d{1,2})?$');
 final RegExp _ipv6Cidr = RegExp(r'^[0-9A-Fa-f:]+(/\d{1,3})?$');
