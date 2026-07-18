@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:masquerade/state/link_group.dart';
+import 'package:masquerade/models/content_type.dart';
 import 'package:masquerade/utility_catalog.dart';
 import 'package:masquerade/utils/sensitive_data_policy.dart';
 
