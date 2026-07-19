@@ -1,5 +1,6 @@
 ---
-status: accepted
+status: superseded
+superseded-by: 0004
 ---
 
 # iOS ships iPhone-only (`TARGETED_DEVICE_FAMILY = 1`)

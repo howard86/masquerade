@@ -38,6 +38,13 @@ class MqLayout {
   /// to the mobile UI with no toggle.
   static const double desktopBreakpoint = 900;
 
+  /// Minimum viewport extent (logical px) — in BOTH dimensions — at which a
+  /// native large screen resolves to the split-view tablet shell. Gating on
+  /// both width and height separates a real tablet (iPad shortest side ≥744)
+  /// from a phone in landscape and from an iPad Split-View slim window, which
+  /// stay on the phone presentation. See `docs/adr/0004`.
+  static const double tabletBreakpoint = 600;
+
   /// Max width of the desktop Home content (tool grid) before it stops growing
   /// and centers — keeps tiles from stretching on ultrawide monitors.
   static const double desktopContentMaxWidth = 1100;

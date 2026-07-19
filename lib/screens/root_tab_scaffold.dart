@@ -13,6 +13,7 @@ import 'history_screen.dart';
 import 'home_screen.dart';
 import 'library_screen.dart';
 import 'settings_screen.dart';
+import 'tablet/tablet_shell.dart';
 
 class RootTabScaffold extends StatefulWidget {
   const RootTabScaffold({
@@ -82,6 +83,12 @@ class _RootTabScaffoldState extends State<RootTabScaffold> {
         );
         if (layout == MqShellLayout.desktop) {
           return DesktopShell(isWebOverride: widget.isWebOverride);
+        }
+        if (layout == MqShellLayout.tablet) {
+          return TabletShell(
+            libraryController: widget.libraryController,
+            isWebOverride: widget.isWebOverride,
+          );
         }
         return _buildTabScaffold(context, importEnabled: !isWeb);
       },

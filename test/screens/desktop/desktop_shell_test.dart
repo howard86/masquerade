@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
 import 'package:masquerade/screens/desktop/desktop_shell.dart';
+import 'package:masquerade/screens/tablet/tablet_shell.dart';
 import 'package:masquerade/state/view_mode_controller.dart';
 import 'package:masquerade/utility_catalog.dart';
 import 'package:masquerade/widgets/desktop/desktop_icon_grid.dart';
@@ -143,13 +144,15 @@ void main() {
       expect(find.byKey(ViewModeToggleButton.compactKey), findsNothing);
     });
 
-    testWidgets('non-web wide viewport is unchanged (framed, no toggle)', (
-      WidgetTester tester,
-    ) async {
-      await _pump(tester, size: _desktop, isWeb: false);
-      expect(find.byType(IphoneFrame), findsOneWidget);
-      expect(find.byType(DesktopShell), findsNothing);
-      expect(find.byKey(ViewModeToggleButton.compactKey), findsNothing);
-    });
+    testWidgets(
+      'non-web wide viewport → tablet shell, not the iPhone frame (ADR-0004)',
+      (WidgetTester tester) async {
+        await _pump(tester, size: _desktop, isWeb: false);
+        expect(find.byType(TabletShell), findsOneWidget);
+        expect(find.byType(IphoneFrame), findsNothing);
+        expect(find.byType(DesktopShell), findsNothing);
+        expect(find.byKey(ViewModeToggleButton.compactKey), findsNothing);
+      },
+    );
   });
 }

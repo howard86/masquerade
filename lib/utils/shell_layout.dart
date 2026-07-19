@@ -8,7 +8,7 @@ import '../theme/mq_metrics.dart';
 const double _framedMinWidth = 393 + 100;
 const double _framedMinHeight = 852 + 200;
 
-/// The three ways the app shell can present itself.
+/// The ways the app shell can present itself.
 enum MqShellLayout {
   /// Mobile UI rendered directly (small viewport — a real phone or a narrow
   /// browser window).
@@ -18,9 +18,15 @@ enum MqShellLayout {
   /// running the mobile presentation).
   ///
   /// Deliberately NOT gated on `isWeb` — a wide browser window previewing the
-  /// mobile UI is the point. Native iOS only reaches this on iPad, which the
-  /// App Store build no longer targets (see `docs/adr/0003`).
+  /// mobile UI is the point. Native iOS reaches this only on a phone in
+  /// landscape or an iPad Split-View slim window (see `docs/adr/0004`).
   framedMobile,
+
+  /// Native split-view tablet layout: a permanent sidebar nav beside a detail
+  /// pane. Gated on `!isWeb` and a genuinely tablet-sized viewport, so the web
+  /// mobile-preview path (framedMobile on a wide browser) is preserved (see
+  /// `docs/adr/0004`).
+  tablet,
 
   /// Full desktop layout: sidebar nav + multi-column content (web only).
   desktop,
@@ -38,6 +44,15 @@ MqShellLayout resolveShellLayout({
       width >= MqLayout.desktopBreakpoint &&
       viewMode == MqViewMode.desktop) {
     return MqShellLayout.desktop;
+  }
+  // Native + genuinely tablet-sized (both dimensions) → the split-view shell.
+  // `!isWeb` preserves the web mobile-preview path below; requiring both width
+  // AND height keeps a phone in landscape and an iPad Split-View slim window on
+  // the phone presentation (see `docs/adr/0004`).
+  if (!isWeb &&
+      width >= MqLayout.tabletBreakpoint &&
+      height >= MqLayout.tabletBreakpoint) {
+    return MqShellLayout.tablet;
   }
   if (width > _framedMinWidth || height > _framedMinHeight) {
     return MqShellLayout.framedMobile;
