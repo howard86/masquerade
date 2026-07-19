@@ -118,7 +118,9 @@ void main() {
   testWidgets('iPhone frame wraps every screen, including pushed routes', (
     WidgetTester tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(1200, 1000));
+    // A tall, narrow native viewport still frames. A wide native viewport is
+    // now the tablet split-view shell instead (see ADR-0004).
+    await tester.binding.setSurfaceSize(const Size(500, 1400));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await tester.pumpWidget(const MyApp(skipSplash: true));
@@ -127,7 +129,7 @@ void main() {
     expect(
       find.byType(IphoneFrame),
       findsOneWidget,
-      reason: 'Home should render inside the iPhone frame on large screens',
+      reason: 'Home should render inside the iPhone frame on a framed viewport',
     );
 
     await openLibraryTool(tester, 'Timestamp');

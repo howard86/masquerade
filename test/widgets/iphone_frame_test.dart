@@ -27,10 +27,13 @@ Widget _harness(
 
 void main() {
   group('ResponsiveLayout', () {
-    testWidgets('shows iPhone frame on large screens', (
+    testWidgets('shows iPhone frame on a large framed viewport', (
       WidgetTester tester,
     ) async {
-      await tester.binding.setSurfaceSize(const Size(1200, 1000));
+      // A tall, narrow native viewport still frames (framedMobile). A wide
+      // native viewport is now the tablet shell instead (see ADR-0004), so it
+      // is deliberately not exercised here.
+      await tester.binding.setSurfaceSize(const Size(500, 1400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       await tester.pumpWidget(_harness(const Text('Test Content')));
@@ -88,7 +91,7 @@ void main() {
     testWidgets('renders iPhone 16 Pro silhouette geometry', (
       WidgetTester tester,
     ) async {
-      await tester.binding.setSurfaceSize(const Size(1200, 1000));
+      await tester.binding.setSurfaceSize(const Size(500, 1400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       await tester.pumpWidget(_harness(const Text('Test Content')));
