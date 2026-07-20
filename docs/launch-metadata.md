@@ -218,6 +218,7 @@ Repo state:
 - [x] `web/favicon.png` regenerated as the monogram (no longer the 343 B Flutter default).
 - [x] Web manifest + OG/Twitter meta tags applied per §3/§4.
 - [x] iOS app icons generated (`flutter_launcher_icons`, light + dark).
+- [x] macOS app icons branded — all 7 sizes rendered from `assets/brand/macos-icon-light.svg` (native floating rounded tile) by `gen-store-assets.sh` step 5, replacing the stock Flutter logo. `flutter_launcher_icons` is intentionally not configured for macOS (not a shipping target), so this stays in the rsvg pipeline.
 - [x] `NSCameraUsageDescription` set in `Info.plist` (QR scanner).
 - [x] Bundle ID `dev.howardism.Masquerade` (fixed 2026-07-16 — Runner shipped the template's `com.example.howardism` until then; App Store rejects `com.example`); home-screen `CFBundleDisplayName` stays `Masquerade`.
 - [x] `pubspec.yaml` `flutter_launcher_icons.android` left disabled — Android shipping deferred. Re-open with Play Store metadata + adaptive icon source when revisited.

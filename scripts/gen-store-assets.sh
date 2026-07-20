@@ -34,10 +34,10 @@ SERIF_IT="$FONTS/IBMPlexSerif-Italic.ttf"   # magick reads the TTF path directly
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing dependency: $1" >&2; exit 1; }; }
 need rsvg-convert; need magick
 
-echo "==> 1/6  canonical SVG -> 1024 PNG sources"
+echo "==> 1/7  canonical SVG -> 1024 PNG sources"
 "$ROOT/scripts/build-brand-pngs.sh"
 
-echo "==> 2/6  iOS + web icon/splash fan-out (existing generators)"
+echo "==> 2/7  iOS + web icon/splash fan-out (existing generators)"
 if command -v flutter >/dev/null 2>&1; then
   ( cd "$ROOT" && flutter pub get >/dev/null \
       && dart run flutter_launcher_icons \
@@ -48,16 +48,25 @@ fi
 
 # Runs AFTER the generators: flutter_launcher_icons copies the plain icon into
 # the maskable slots (no safe-zone), so render the real maskable source over it.
-echo "==> 3/6  real maskable web icons (fixes the byte-identical duplicates)"
+echo "==> 3/7  real maskable web icons (fixes the byte-identical duplicates)"
 for px in 192 512; do
   rsvg-convert -w "$px" -h "$px" "$SRC/monogram-light-maskable.svg" \
     -o "$WEB/icons/Icon-maskable-$px.png"
 done
 
-echo "==> 4/6  favicon that survives 16px (bracket mark)"
+echo "==> 4/7  favicon that survives 16px (bracket mark)"
 rsvg-convert -w 32 -h 32 "$SRC/favicon.svg" -o "$WEB/favicon.png"
 
-echo "==> 5/6  og-banner 1200x630 (typographic — on-brand, no generation needed)"
+echo "==> 5/7  macOS app icons (native floating rounded tile, all sizes)"
+# flutter_launcher_icons is not configured for macOS (not a shipping target), so
+# the appiconset shipped the stock Flutter logo. Render the brand tile at each size.
+MACOS_SET="$ROOT/macos/Runner/Assets.xcassets/AppIcon.appiconset"
+for px in 16 32 64 128 256 512 1024; do
+  rsvg-convert -w "$px" -h "$px" "$SRC/macos-icon-light.svg" \
+    -o "$MACOS_SET/app_icon_$px.png"
+done
+
+echo "==> 6/7  og-banner 1200x630 (typographic — on-brand, no generation needed)"
 # Borderless maskable source (no hairline box) so the mark floats cleanly.
 magick -size 1200x630 "xc:$CREAM" \
   \( "$SRC/source/monogram-light-maskable-1024.png" -resize 360x360 \) \
@@ -67,7 +76,7 @@ magick -size 1200x630 "xc:$CREAM" \
   "$WEB/og-banner.png"
 
 # --- optional: editorial photography via agy-image --------------------------
-# One style SPINE + ANCHOR + NEGATIVE clause stay constant across the whole
+# One style SPINE + NEGATIVE clause stays constant across the whole
 # batch; only the per-asset SCENE varies. That constancy is what keeps a set
 # coherent, and the photographic specificity is what lifts quality out of the
 # generic "AI-cream" look. Text is never generated — composited afterward.
@@ -102,7 +111,7 @@ imagegen() {
 
 if [[ "${GEN_PHOTOS:-0}" == "1" ]]; then
   need "$AGY_IMAGE"
-  echo "==> 6/6  editorial photography (agy-image)"
+  echo "==> 7/7  editorial photography (agy-image)"
 
   # Brand hero / realistic logo (square) — the mark letterpressed into paper.
   imagegen "A single sheet of thick cream cotton rag paper, photographed close and \
@@ -135,7 +144,7 @@ third; the upper two-thirds is empty, softly lit cream paper." \
 center; the left third is empty cream paper." \
     1200 630 "$STORE/og-hero.jpg"
 else
-  echo "==> 6/6  editorial photography — skipped (set GEN_PHOTOS=1 to run agy-image)"
+  echo "==> 7/7  editorial photography — skipped (set GEN_PHOTOS=1 to run agy-image)"
 fi
 
-echo "done. Review the diff under web/, store/, ios/, and assets/brand/source/."
+echo "done. Review the diff under web/, store/, ios/, macos/, and assets/brand/source/."
