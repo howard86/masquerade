@@ -7,10 +7,10 @@
 # backdrops — and only when GEN_PHOTOS=1.
 #
 # Coherence comes from three things: (1) one SVG source of truth, rasterized
-# everywhere; (2) every generative prompt shares BRAND_PREAMBLE + is anchored to
-# the existing marketing still-life via agy-image --ref/--subject-anchor; and
-# (3) text is NEVER generated — it is composited afterward with the bundled Plex
-# fonts, so type stays crisp and identical across every asset.
+# everywhere; (2) every generative prompt shares the same style SPINE + NEGATIVE
+# clause — that shared style spine, not a per-image reference, is what keeps the
+# set coherent; and (3) text is NEVER generated — it is composited afterward with
+# the bundled Plex fonts, so type stays crisp and identical across every asset.
 #
 # Usage:
 #   ./scripts/gen-store-assets.sh              # deterministic assets only
@@ -30,7 +30,6 @@ mkdir -p "$STORE"
 # --- brand tokens (mirror lib/theme/mq_colors.dart) -------------------------
 CREAM="#FAF7F2"; OXBLOOD="#8B2635"
 SERIF_IT="$FONTS/IBMPlexSerif-Italic.ttf"   # magick reads the TTF path directly
-REF_STILL="$ROOT/assets/marketing/logo-still-1254.jpg"  # coherence reference
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing dependency: $1" >&2; exit 1; }; }
 need rsvg-convert; need magick
@@ -85,48 +84,56 @@ NEGATIVE="Exclude: any text, letters, numbers, logos or watermarks; any screens,
 devices or user interface; gradients, glassmorphism, neon, glossy plastic, HDR, isometric 3D, \
 sticker drop-shadows or mockups; people, hands, faces; saturated or off-palette colors. A real \
 photograph, not a digital illustration."
-ANCHOR="Masquerade editorial still-life: oxblood and brass instruments on warm cream paper, \
-north-window light, museum-catalog photography"
-AGY_IMAGE="${AGY_IMAGE:-agy-image}"   # path to agy_image.py, or the installed binary
+# Default to the committed wrapper; override AGY_IMAGE to point elsewhere.
+AGY_IMAGE="${AGY_IMAGE:-$ROOT/scripts/agy_image.py}"
 
-# imagegen <scene> <width> <height> <outfile>  — SPINE + scene + NEGATIVE
+# imagegen <scene> <width> <height> <outfile.jpg>  — SPINE + scene + NEGATIVE.
+# No --ref: the wrapper's reference block is face-preservation framing meant for
+# character portraits, which is wrong for still-lifes. The shared SPINE carries
+# coherence; --crop enforces the exact pixel size afterward. agy emits PNG; we
+# transcode to JPEG q82 so these multi-megapixel photos clear the 500 KB
+# check-added-large-files guard (repo convention: photos are JPEG, marks are SVG/PNG).
 imagegen() {
-  local scene="$1" w="$2" h="$3" out="$4"
+  local scene="$1" w="$2" h="$3" out="$4" tmp="${4%.jpg}.png"
   "$AGY_IMAGE" --prompt "$SPINE  $scene  $NEGATIVE" \
-    --width "$w" --height "$h" --out "$out" \
-    --ref "$REF_STILL" --subject-anchor "$ANCHOR" --crop --quiet
+    --width "$w" --height "$h" --out "$tmp" --crop --quiet
+  magick "$tmp" -quality 82 -strip "$out" && rm -f "$tmp"
 }
 
 if [[ "${GEN_PHOTOS:-0}" == "1" ]]; then
   need "$AGY_IMAGE"
   echo "==> 6/6  editorial photography (agy-image)"
 
-  # Brand hero / press (square) — the mark debossed into paper.
-  imagegen "A single sheet of thick cream cotton paper, close up; pressed into it \
-letterpress-style, two upright square brackets framing a crossed hammer and feather quill, \
-inked oxblood, the impression catching raking light along one edge. Centered, breathing room \
-on all sides." \
-    2048 2048 "$STORE/brand-hero.png"
+  # Brand hero / realistic logo (square) — the mark letterpressed into paper.
+  imagegen "A single sheet of thick cream cotton rag paper, photographed close and \
+straight-on. Pressed deep into the paper letterpress-style is the Masquerade mark: two tall, \
+upright square brackets [ ] framing a crossed carpenter's hammer and a feather writing quill \
+forming an X at their centre, all inked in deep oxblood. The deboss impression catches the \
+raking window light along one edge so the mark reads three-dimensional, tactile, hand-pressed. \
+The mark is centred with generous, even breathing room on all four sides." \
+    2048 2048 "$STORE/brand-hero.jpg"
 
   # App Store feature graphic — generate the scene, composite the wordmark crisply after.
+  # q92 + 4:4:4 sampling keeps the oxblood serif type sharp against cream (no chroma fringing).
   imagegen "Overhead flat-lay on cream paper: aged brass calipers, a slim oxblood fountain pen, \
 a folded architect's blueprint in muted oxblood, and two small letterpress type slugs, arranged \
 loosely. Objects clustered left; the right third is empty cream paper." \
-    2400 1260 "$STORE/feature-bg.png"
-  magick "$STORE/feature-bg.png" \
+    2400 1260 "$STORE/feature-bg.jpg"
+  magick "$STORE/feature-bg.jpg" \
     -font "$SERIF_IT" -pointsize 132 -fill "$OXBLOOD" \
       -gravity east -annotate +200+0 "Masquerade" \
-    "$STORE/appstore-feature.png"
+    -quality 92 -sampling-factor 4:4:4 -strip \
+    "$STORE/appstore-feature.jpg"
 
   # Screenshot scene backdrop (portrait) — frame real captures over this later.
   imagegen "One oxblood fountain pen resting diagonally beside a faint brass ruler, in the lower \
 third; the upper two-thirds is empty, softly lit cream paper." \
-    1290 2796 "$STORE/screenshot-bg.png"
+    1290 2796 "$STORE/screenshot-bg.jpg"
 
   # Social / OG hero backdrop (landscape).
   imagegen "A brass magnifier loupe on cream paper next to a small oxblood wax seal, right of \
 center; the left third is empty cream paper." \
-    1200 630 "$STORE/og-hero.png"
+    1200 630 "$STORE/og-hero.jpg"
 else
   echo "==> 6/6  editorial photography — skipped (set GEN_PHOTOS=1 to run agy-image)"
 fi

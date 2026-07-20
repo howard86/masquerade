@@ -102,9 +102,29 @@ Insert between the existing `<meta name="description">` and `<meta name="mobile-
 <meta name="theme-color" content="#14110D" media="(prefers-color-scheme: dark)">
 ```
 
-## 5. Logo prompt (DALL-E 3 / GPT Image)
+## 5. Brand photography pipeline (agy · `scripts/gen-store-assets.sh`)
 
-Marketing still life of the production hammer+quill monogram. The first generation landed at `assets/marketing/logo-still-1254.jpg` (1254×1254, JPEG q80 — re-encoded from the original PNG to clear the 500 KB pre-commit limit; baked shadow + paper texture). The clean SVG sources for the icon pipeline are authored separately and live in `assets/brand/monogram-{light,dark,light-maskable,dark-maskable}.svg` — DO NOT use this prompt's output as the production icon source (shadow + paper texture conflict with iOS HIG). Use only for marketing surfaces (README hero, OG card, App Store screenshot frames, social posts). Output size: 1024×1024.
+Editorial photography is now **generated deterministically** by `scripts/gen-store-assets.sh` with `GEN_PHOTOS=1`, which drives the agy (Antigravity) CLI through the committed `scripts/agy_image.py` wrapper. Every prompt shares one style **SPINE** + **NEGATIVE** clause defined in the script; only the per-asset scene varies. That shared spine — not a per-image reference photo — is what keeps the set coherent. Text is never generated: the wordmark is composited afterward in IBM Plex Serif Italic so type stays crisp. Regenerate with:
+
+```bash
+GEN_PHOTOS=1 ./scripts/gen-store-assets.sh   # deps: rsvg-convert, ImageMagick 7, ffmpeg, agy on PATH
+```
+
+### Generated store assets (committed under `store/`)
+
+| File | Size | Surface |
+|---|---|---|
+| `store/brand-hero.jpg` | 2048×2048 | Realistic logo — the bracketed hammer+quill mark letterpressed into cream rag paper. Marketing hero, press, README. |
+| `store/feature-bg.jpg` | 2400×1260 | App Store feature-graphic backdrop (objects left, empty right third). |
+| `store/appstore-feature.jpg` | 2400×1260 | `feature-bg` + "Masquerade" wordmark composited east. |
+| `store/screenshot-bg.jpg` | 1290×2796 | Portrait backdrop; frame real screen captures over the empty upper two-thirds. |
+| `store/og-hero.jpg` | 1200×630 | Photographic social/OG backdrop; tagline overlays the empty left third. |
+
+The realistic logo (`store/brand-hero.jpg`) is for **marketing surfaces only**. The production icon source stays the clean SVGs in `assets/brand/monogram-{light,dark,light-maskable,dark-maskable}.svg` — DO NOT use the photographic hero as the app icon (baked shadow + paper texture conflict with iOS HIG). The earlier hand-shot still-life at `assets/marketing/logo-still-1254.jpg` (1254×1254, JPEG q80) remains as the historical reference.
+
+### Historical prompt reference (DALL-E 3 / GPT Image · pre-agy)
+
+Kept for provenance; the canonical prompts now live in `scripts/gen-store-assets.sh`. Output size 1024×1024.
 
 ```
 A square, photorealistic editorial still life on a warm cream paper surface
@@ -127,9 +147,9 @@ Iteration notes:
 - DALL-E weakness: deboss + small object detail. Expect 3–5 generations before landing.
 - For App Store screenshot frames, prefer this prompt over re-cropping the banner — square aspect carries the mark better than wide.
 
-## 6. Banner prompt (DALL-E 3 / GPT Image)
+## 6. Banner prompt (historical · DALL-E 3 / GPT Image)
 
-Native size 1792×1024 (DALL-E landscape). Crop targets:
+Superseded by the pipeline in §5. The shipping OG/social banner is the **deterministic typographic** `web/og-banner.png` (1200×630, mark + wordmark over cream, built by `gen-store-assets.sh` step 5); the **photographic** social backdrop is `store/og-hero.jpg`. The DALL-E banner prompt below is kept for provenance. Native size 1792×1024 (DALL-E landscape). Crop targets:
 
 | Surface | Aspect | Crop strategy |
 |---|---|---|
