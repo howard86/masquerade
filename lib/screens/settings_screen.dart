@@ -37,7 +37,6 @@ class SettingsScreen extends StatelessWidget {
       backgroundColor: c.bg,
       navigationBar: const CupertinoNavigationBar(middle: Text('Settings')),
       child: SafeArea(
-        bottom: false,
         child: SettingsBody(
           desktopShellOverride: desktopShellOverride,
           showTitle: false,
