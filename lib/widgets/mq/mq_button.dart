@@ -118,6 +118,8 @@ class MqButton extends StatelessWidget {
       button: true,
       enabled: onPressed != null,
       label: semanticsLabel ?? label,
+      onTap: onPressed,
+      excludeSemantics: true,
       child: sized,
     );
   }

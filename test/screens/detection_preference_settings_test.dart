@@ -35,7 +35,7 @@ void main() {
       find.text('Your type-only detection choices are active.'),
       findsOneWidget,
     );
-    final Finder reset = find.bySemanticsLabel('Reset detection choices');
+    final Finder reset = find.text('Reset detection choices');
     await tester.ensureVisible(reset);
     await tester.tap(reset);
     await tester.pumpAndSettle();
