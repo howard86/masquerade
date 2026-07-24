@@ -2,7 +2,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:masquerade/app.dart';
+import 'package:masquerade/screens/detail/qr_scanner_route.dart';
 import 'package:masquerade/screens/detail/tool_detail_route.dart';
+import 'package:masquerade/screens/home_screen.dart';
 import 'package:masquerade/widgets/mq/tool_action_bar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -56,6 +58,24 @@ void main() {
     expect(
       tester.getBottomRight(find.byType(ToolActionBar)).dy,
       lessThanOrEqualTo(_tabBarTop(tester)),
+    );
+  });
+
+  testWidgets('QR scanner guidance clears the persistent tab bar', (
+    WidgetTester tester,
+  ) async {
+    await _pumpApp(tester);
+    Navigator.of(tester.element(find.byType(HomeScreen))).push<void>(
+      CupertinoPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (_) => const QrScannerRoute(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getBottomRight(find.text('Point camera at a QR code')).dy,
+      lessThanOrEqualTo(_tabBarTop(tester) - 24),
     );
   });
 }
