@@ -91,6 +91,41 @@ void main() {
       ),
       findsOneWidget,
     );
+    expect(
+      find.descendant(
+        of: find.byWidgetPredicate((Widget widget) => identical(widget, uuid)),
+        matching: find.text(uuid.descriptor.description),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('portrait cards use the readable full-width layout', (
+    WidgetTester tester,
+  ) async {
+    await _pumpLibrary(tester);
+
+    final Finder cards = find.byType(ToolGridCard);
+    final Size firstCard = tester.getSize(cards.first);
+    expect(firstCard.width, greaterThan(340));
+    expect(firstCard.height, inInclusiveRange(112, 132));
+    expect(
+      tester.getTopLeft(cards.at(1)).dy,
+      greaterThan(tester.getTopLeft(cards.first).dy),
+    );
+  });
+
+  testWidgets('portrait cards do not overflow at 2x Dynamic Type', (
+    WidgetTester tester,
+  ) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+    await _pumpLibrary(tester);
+
+    expect(find.text(UtilityCatalog.all.first.name), findsOneWidget);
+    expect(find.text(UtilityCatalog.all.first.description), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(
@@ -131,10 +166,14 @@ void main() {
             matching: find.byType(CupertinoButton),
           )
           .first;
+      await tester.ensureVisible(base64Favorite);
+      await tester.pumpAndSettle();
       await tester.tap(base64Favorite);
       await tester.pumpAndSettle();
-      expect(find.text('FAVORITES'), findsOneWidget);
       expect(library.isFavorite('base64'), isTrue);
+      await tester.fling(find.byType(ListView), const Offset(0, 4000), 5000);
+      await tester.pumpAndSettle();
+      expect(find.text('FAVORITES'), findsOneWidget);
       await _expectStableMainCatalog(tester);
 
       await history.add(

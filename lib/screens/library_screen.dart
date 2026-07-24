@@ -128,10 +128,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: MqLayout.tileMaxExtent,
+        maxCrossAxisExtent: 560,
         mainAxisSpacing: density.cardGap,
         crossAxisSpacing: density.cardGap,
-        childAspectRatio: density.cardAspectRatio / textScale,
+        mainAxisExtent: 120 + (80 * (textScale - 1)),
       ),
       itemCount: tools.length,
       itemBuilder: (BuildContext context, int index) {
