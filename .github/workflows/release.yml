@@ -9,7 +9,7 @@ name: Release
 #       develop and cuts the release
 #   merge the Release PR into main
 #     → release-please tags vX.Y.Z + publishes the GitHub Release on main
-#     → main is merged back into develop so the version + manifest stay in sync
+#     → a main → develop PR is opened so the version + manifest stay in sync
 #     → CI on main goes green and deploys to TestFlight (see ci.yml)
 #
 # release-please cannot open a PR whose base differs from the branch it scans --
@@ -47,10 +47,9 @@ jobs:
           target-branch: ${{ github.ref_name == 'main' && 'main' || 'develop' }}
           skip-github-pull-request: ${{ github.ref_name == 'main' }}
           skip-github-release: ${{ github.ref_name == 'develop' }}
-          # A PAT makes the Release PR trigger CI and lets the sync step push to
-          # develop. Anything created with the default GITHUB_TOKEN cannot trigger
-          # other workflows (GitHub's recursion guard), so on the fallback path the
-          # Release PR opens without checks and may sit unmergeable.
+          # A PAT makes generated PRs trigger CI. Anything created with the default
+          # GITHUB_TOKEN cannot trigger other workflows (GitHub's recursion guard),
+          # so on the fallback path a generated PR may sit without checks.
           token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
@@ -74,28 +73,24 @@ jobs:
           gh pr edit "$pr" --base main
           echo "Retargeted PR #$pr onto main."
 
-      # The version bump and CHANGELOG land on main via the Release PR, so develop
-      # needs them merged back or the next cycle starts from a stale version.
-      - name: Checkout for main → develop sync
-        if: github.ref_name == 'main' && steps.release.outputs.release_created == 'true'
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
-
-      - name: Sync main back into develop
+      # The version bump and CHANGELOG land on main via the Release PR. Open a PR
+      # back to protected develop or the next cycle starts from a stale version.
+      - name: Open main → develop sync PR
         if: github.ref_name == 'main' && steps.release.outputs.release_created == 'true'
         env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           TAG: ${{ steps.release.outputs.tag_name }}
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin main develop
-          git checkout -B develop origin/develop
-          if git merge-base --is-ancestor origin/main develop; then
-            echo "develop already contains main; nothing to sync."
+          pr=$(gh pr list --state open --base develop --head main \
+            --json number --jq '.[0].number // empty')
+          if [ -n "$pr" ]; then
+            echo "Sync PR #$pr already exists."
             exit 0
           fi
-          git merge origin/main -m "chore: sync release $TAG from main"
-          git push origin develop
+          gh pr create \
+            --base develop \
+            --head main \
+            --title "chore: sync release $TAG back to develop" \
+            --body "Syncs the released version, manifest, and changelog from main."
