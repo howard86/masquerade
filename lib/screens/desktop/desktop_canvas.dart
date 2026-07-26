@@ -387,13 +387,13 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
             _draggingCardId = card.id;
           });
         }
-        _c.moveTo(card.id, card.x + d.dx, card.y + d.dy);
+        _c.moveBy(card.id, d.dx, d.dy);
       },
       onMoveEnd: () {
         setState(() {
           _draggingCardId = null;
         });
-        _onMoveEnd(card);
+        _onMoveEnd(_c.cards.firstWhere((CanvasCard c) => c.id == card.id));
       },
       onResizeEdge:
           (
@@ -448,13 +448,13 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
             _draggingCardId = card.id;
           });
         }
-        _c.moveTo(card.id, card.x + d.dx, card.y + d.dy);
+        _c.moveBy(card.id, d.dx, d.dy);
       },
       onMoveEnd: () {
         setState(() {
           _draggingCardId = null;
         });
-        _onMoveEnd(card);
+        _onMoveEnd(_c.cards.firstWhere((CanvasCard c) => c.id == card.id));
       },
       onResizeEdge:
           (
