@@ -3,7 +3,10 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
+import 'package:masquerade/models/artifact.dart';
+import 'package:masquerade/state/detection_preference_controller.dart';
 import 'package:masquerade/state/view_mode_controller.dart';
+import 'package:masquerade/utility_catalog.dart';
 import 'package:masquerade/widgets/desktop/pipe.dart';
 import 'package:masquerade/widgets/desktop/tool_card_frame.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,7 +14,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Past the longest body debounce (JSON 200 ms) so converts settle.
 const Duration _settle = Duration(milliseconds: 300);
 
-Future<void> _pumpDesktop(WidgetTester tester) async {
+Future<void> _pumpDesktop(
+  WidgetTester tester, {
+  DetectionPreferenceController? detectionPreferenceController,
+}) async {
   await tester.binding.setSurfaceSize(const Size(1200, 900));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
@@ -19,6 +25,7 @@ Future<void> _pumpDesktop(WidgetTester tester) async {
       desktopShellOverride: true,
       viewModeController: ViewModeController(initial: MqViewMode.desktop),
       skipSplash: true,
+      detectionPreferenceController: detectionPreferenceController,
     ),
   );
   await tester.pumpAndSettle();
@@ -132,4 +139,80 @@ void main() {
       expect(find.byType(ToolCardFrame), findsNWidgets(2));
     },
   );
+
+  testWidgets('empty-canvas drop opens the highest-ranked interpretation', (
+    WidgetTester tester,
+  ) async {
+    await _pumpDesktop(tester);
+    await _openFirst(tester, 'Number Base');
+    await tester.enterText(find.byType(EditableText).first, '1700000000');
+    await tester.pumpAndSettle(_settle);
+
+    await _pipeDrag(
+      tester,
+      tester.getCenter(_outputPipe),
+      const Offset(800, 800),
+    );
+
+    expect(
+      tester
+          .widgetList<ToolCardFrame>(find.byType(ToolCardFrame))
+          .map((ToolCardFrame frame) => frame.title),
+      <String>['Number Base', 'Timestamp'],
+    );
+  });
+
+  testWidgets('empty-canvas drop honors a saved type preference', (
+    WidgetTester tester,
+  ) async {
+    final DetectionPreferenceController preferences =
+        DetectionPreferenceController();
+    await preferences.prefer(
+      UtilityCatalog.detectArtifacts('1700000000'),
+      ArtifactKind.number,
+    );
+    await _pumpDesktop(tester, detectionPreferenceController: preferences);
+    await _openFirst(tester, 'Number Base');
+    await tester.enterText(find.byType(EditableText).first, '1700000000');
+    await tester.pumpAndSettle(_settle);
+
+    await _pipeDrag(
+      tester,
+      tester.getCenter(_outputPipe),
+      const Offset(800, 800),
+    );
+
+    expect(
+      tester
+          .widgetList<ToolCardFrame>(find.byType(ToolCardFrame))
+          .map((ToolCardFrame frame) => frame.title),
+      <String>['Number Base', 'Number Base'],
+    );
+  });
+
+  testWidgets('accepted seed text does not imply unsupported live-link input', (
+    WidgetTester tester,
+  ) async {
+    await _pumpDesktop(tester);
+    await _openFirst(tester, 'JSON / YAML / TOML');
+    await tester.enterText(_jsonInput, '{"a":1}');
+    await tester.pumpAndSettle(_settle);
+
+    await _openViaPalette(tester, 'url', 'URL');
+    await tester.dragFrom(
+      tester.getTopLeft(find.byType(ToolCardFrame).last) +
+          const Offset(120, 14),
+      const Offset(-200, 350),
+    );
+    await tester.pumpAndSettle();
+
+    final Rect pipe = tester.getRect(_outputPipe);
+    await _pipeDrag(
+      tester,
+      Offset(pipe.right - 30, pipe.center.dy),
+      tester.getCenter(find.byType(ToolCardFrame).last),
+    );
+
+    expect(find.bySemanticsLabel('Unlink'), findsNothing);
+  });
 }

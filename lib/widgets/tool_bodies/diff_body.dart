@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../../state/history_controller.dart';
 import '../../state/link_group.dart';
+import '../../state/tool_draft_controller.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
@@ -19,6 +20,7 @@ import '../mq/mq_input.dart';
 import '../mq/mq_surface.dart';
 import '../mq/tool_action_bar.dart';
 import 'linkable_body.dart';
+import 'open_in_footer.dart';
 import 'seed_source.dart';
 import 'tool_layout.dart';
 
@@ -67,6 +69,9 @@ class _DiffBodyState extends State<DiffBody> with LinkableToolBody<DiffBody> {
   String _unified = '';
 
   HistoryRecorder? _recorder;
+  ToolDraftController? _drafts;
+  bool _draftRestored = false;
+  int? _draftRevision;
 
   @override
   void initState() {
@@ -105,9 +110,41 @@ class _DiffBodyState extends State<DiffBody> with LinkableToolBody<DiffBody> {
       _recorder = HistoryRecorder(
         controller: HistoryScope.of(context),
         utilityId: 'diff',
+        sensitive:
+            MobileSessionRouteScope.maybeOf(context)?.protectedSession ?? false,
       );
       if (widget.seedSource == SeedSource.paste) {
         _recorder!.markPaste();
+      }
+    }
+    _drafts ??= ToolDraftScope.maybeOf(context);
+    final MobileSessionRouteScope? route = MobileSessionRouteScope.maybeOf(
+      context,
+    );
+    final ToolDraftController? drafts = _drafts;
+    if (!_draftRestored && route != null && drafts != null && drafts.ready) {
+      _draftRevision = drafts.revision;
+      _draftRestored = true;
+      final DiffToolDraft? draft = drafts.diff;
+      final Object? savedWordHighlight = route.settings['wordHighlight'];
+      final Object? savedIgnoreWhitespace = route.settings['ignoreWhitespace'];
+      _wordHighlight = savedWordHighlight is bool
+          ? savedWordHighlight
+          : draft?.wordHighlight ?? _wordHighlight;
+      _ignoreWhitespace = savedIgnoreWhitespace is bool
+          ? savedIgnoreWhitespace
+          : draft?.ignoreWhitespace ?? _ignoreWhitespace;
+      if (draft != null) {
+        if ((widget.initialInput == null || widget.initialInput!.isEmpty) &&
+            !route.protectedSession) {
+          _a.text = draft.a;
+          _b.text = draft.b;
+        }
+        if (_a.text.isNotEmpty || _b.text.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _convert();
+          });
+        }
       }
     }
   }
@@ -142,6 +179,7 @@ class _DiffBodyState extends State<DiffBody> with LinkableToolBody<DiffBody> {
   void _onChanged(String _) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 150), _convert);
+    _saveDraft();
   }
 
   void _convert() {
@@ -179,6 +217,7 @@ class _DiffBodyState extends State<DiffBody> with LinkableToolBody<DiffBody> {
     if (unified.isNotEmpty) {
       _recorder?.record(aText, unified);
     }
+    _saveDraft();
     _updateActionBar();
     // Only side A is the canonical; an emit after a B-only edit is a no-op.
     emitToLink();
@@ -228,6 +267,7 @@ class _DiffBodyState extends State<DiffBody> with LinkableToolBody<DiffBody> {
       _hunks = const <DiffHunk>[];
       _unified = '';
     });
+    _saveDraft();
     _updateActionBar();
   }
 
@@ -236,7 +276,36 @@ class _DiffBodyState extends State<DiffBody> with LinkableToolBody<DiffBody> {
     _a.text = _b.text;
     _b.text = aText;
     _recorder?.markPaste();
+    _saveDraft();
     _convert();
+  }
+
+  void _saveDraft() {
+    final ToolDraftController? drafts = _drafts;
+    final int? revision = _draftRevision;
+    final MobileSessionRouteScope? route = MobileSessionRouteScope.maybeOf(
+      context,
+    );
+    route?.onSettingsChanged?.call(<String, Object?>{
+      'wordHighlight': _wordHighlight,
+      'ignoreWhitespace': _ignoreWhitespace,
+    });
+    if (drafts == null ||
+        !drafts.ready ||
+        route == null ||
+        route.protectedSession ||
+        revision == null) {
+      return;
+    }
+    unawaited(
+      drafts.saveDiff(
+        a: _a.text,
+        b: _b.text,
+        wordHighlight: _wordHighlight,
+        ignoreWhitespace: _ignoreWhitespace,
+        revision: revision,
+      ),
+    );
   }
 
   @override
@@ -305,6 +374,7 @@ class _DiffBodyState extends State<DiffBody> with LinkableToolBody<DiffBody> {
               selected: _wordHighlight,
               onTap: () {
                 _wordHighlight = !_wordHighlight;
+                _saveDraft();
                 _convert();
               },
             ),
@@ -314,6 +384,7 @@ class _DiffBodyState extends State<DiffBody> with LinkableToolBody<DiffBody> {
               selected: _ignoreWhitespace,
               onTap: () {
                 _ignoreWhitespace = !_ignoreWhitespace;
+                _saveDraft();
                 _convert();
               },
             ),

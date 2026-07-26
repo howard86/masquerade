@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.25.2+3
+version: 1.26.0+4
 
 environment:
   sdk: ^3.10.0
@@ -39,6 +39,7 @@ dependencies:
   package_info_plus: ^10.1.0
   shared_preferences: ^2.3.0
   mobile_scanner: ^7.2.0
+  file_selector: ^1.1.0
   qr_flutter: ^4.1.0
   share_plus: ^13.1.0
   cross_file: ^0.3.4+2
@@ -62,6 +63,13 @@ dependencies:
   yaml: ^3.1.2
   yaml_writer: ^2.0.0
   toml: ^0.18.0
+
+  # Dart has no built-in Unicode normalization API. This small pure-Dart
+  # package provides the four standard forms used by Unicode Inspector.
+  unorm_dart: ^0.3.2
+
+  # Parser only. Rendering stays hand-rolled and Cupertino-only.
+  markdown: ^7.3.0
 
 dev_dependencies:
   flutter_test:
@@ -97,6 +105,10 @@ flutter:
 
   assets:
     - assets/brand/
+    # OFL-1.1 requires the license text to ship with the fonts in every
+    # copy, including the IPA. Bundled, not just committed.
+    - assets/fonts/OFL.txt
+    - docs/privacy.md
 
   fonts:
     - family: IBMPlexSerif

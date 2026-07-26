@@ -10,19 +10,26 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
   });
 
+  Future<void> openLibraryTool(WidgetTester tester, String name) async {
+    await tester.tap(find.text('Library').last);
+    await tester.pumpAndSettle();
+    final Finder tile = find.text(name).last;
+    await tester.ensureVisible(tile);
+    await tester.pumpAndSettle();
+    await tester.tap(tile);
+    await tester.pumpAndSettle();
+  }
+
   Future<void> openTimestampScreen(WidgetTester tester) async {
     await tester.binding.setSurfaceSize(const Size(500, 1400));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await tester.pumpWidget(const MyApp(skipSplash: true));
     await tester.pumpAndSettle();
-    final Finder timestampTile = find.text('Timestamp');
-    expect(timestampTile, findsWidgets);
-    await tester.tap(timestampTile.first);
-    await tester.pumpAndSettle();
+    await openLibraryTool(tester, 'Timestamp');
   }
 
-  testWidgets('Home → Timestamp utility flow', (WidgetTester tester) async {
+  testWidgets('Library → Timestamp utility flow', (WidgetTester tester) async {
     await openTimestampScreen(tester);
 
     final Finder inputField = find.byWidgetPredicate(
@@ -89,14 +96,7 @@ void main() {
     await tester.pumpWidget(const MyApp(skipSplash: true));
     await tester.pumpAndSettle();
 
-    await tester.scrollUntilVisible(
-      find.text('Color'),
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Color').first);
-    await tester.pumpAndSettle();
+    await openLibraryTool(tester, 'Color');
 
     final Finder field = find.byWidgetPredicate(
       (Widget w) =>
@@ -132,8 +132,7 @@ void main() {
       reason: 'Home should render inside the iPhone frame on large screens',
     );
 
-    await tester.tap(find.text('Timestamp').first);
-    await tester.pumpAndSettle();
+    await openLibraryTool(tester, 'Timestamp');
 
     expect(
       find.byType(IphoneFrame),

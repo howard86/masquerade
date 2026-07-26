@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/widgets/tool_bodies/qr_code_body.dart';
+import 'package:masquerade/widgets/mq/mq_button.dart';
+import 'package:masquerade/widgets/mq/tool_action_bar.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -57,5 +59,17 @@ void main() {
     await tester.tap(find.text('H'));
     await tester.pumpAndSettle();
     expect(_qr(tester).errorCorrectionLevel, QrErrorCorrectLevel.H);
+  });
+
+  testWidgets('QR — sensitive payload cannot enter the share surface', (
+    WidgetTester tester,
+  ) async {
+    final ToolActionBarController actionBar = ToolActionBarController();
+    await pumpBodyAtWidth(tester, QrCodeBody(actionBar: actionBar), 340);
+    await enter(tester, '{"password":"raw-credential-fixture"}');
+
+    final MqButton share = actionBar.center! as MqButton;
+    expect(share.label, 'Share');
+    expect(share.onPressed, isNull);
   });
 }

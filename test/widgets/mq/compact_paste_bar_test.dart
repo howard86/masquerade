@@ -9,14 +9,20 @@ class _Hooks {
   int paste = 0;
   int clear = 0;
   int scan = 0;
+  int import = 0;
 }
 
 Widget _harness({
   required TextEditingController controller,
   required FocusNode focusNode,
   required _Hooks hooks,
+  TextScaler textScaler = TextScaler.noScaling,
 }) {
   return CupertinoApp(
+    builder: (BuildContext context, Widget? child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+      child: child!,
+    ),
     home: MqTheme(
       tokens: MqTokens(colors: MqColors.light(), brightness: Brightness.light),
       child: CupertinoPageScaffold(
@@ -28,6 +34,7 @@ Widget _harness({
             onPaste: () => hooks.paste++,
             onClear: () => hooks.clear++,
             onScan: () => hooks.scan++,
+            onImport: () => hooks.import++,
           ),
         ),
       ),
@@ -54,6 +61,7 @@ void main() {
 
     expect(find.bySemanticsLabel('Paste'), findsOneWidget);
     expect(find.bySemanticsLabel('Scan QR'), findsOneWidget);
+    expect(find.bySemanticsLabel('Import file'), findsOneWidget);
     expect(find.text('Clear'), findsNothing);
   });
 
@@ -132,5 +140,31 @@ void main() {
 
     await tester.tap(find.text('Clear'));
     expect(hooks.clear, 1);
+  });
+
+  testWidgets('three capture actions fit at 2x Dynamic Type', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(393, 852));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final TextEditingController c = TextEditingController(text: 'hello');
+    final FocusNode f = FocusNode();
+    addTearDown(() {
+      c.dispose();
+      f.dispose();
+    });
+
+    await tester.pumpWidget(
+      _harness(
+        controller: c,
+        focusNode: f,
+        hooks: _Hooks(),
+        textScaler: const TextScaler.linear(2),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Import'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

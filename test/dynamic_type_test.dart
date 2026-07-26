@@ -9,8 +9,8 @@ import 'package:masquerade/widgets/mq/mq_mono_cell.dart';
 /// Inventory test for Dynamic Type (xxxLarge ≈ TextScaler 2.0).
 ///
 /// Every tab and every tool body must pump at 2.0× without throwing a
-/// `RenderFlex` overflow. The home grid grows its cards with the text scale,
-/// the chip rows use `Wrap`, and the settings rows let their labels flex, so
+/// `RenderFlex` overflow. Library cards grow with the text scale, chip rows use
+/// `Wrap`, and settings rows let their labels flex, so
 /// the layouts survive large Dynamic Type. If a future change reintroduces an
 /// overflow, the matching test below fails.
 ///
@@ -32,7 +32,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('Home renders at default scale without overflow', (
+  testWidgets('Workbench renders at default scale without overflow', (
     WidgetTester tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(500, 1400));
@@ -42,7 +42,26 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  for (final String tab in <String>['Home', 'History', 'Settings']) {
+  testWidgets('populated Workbench states render at TextScaler 2.0', (
+    WidgetTester tester,
+  ) async {
+    await pumpApp(tester);
+    final Finder input = find.byType(EditableText).first;
+
+    await tester.enterText(input, '{"ok":true}');
+    await tester.pumpAndSettle();
+    expect(find.text('Artifact detected'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.enterText(input, 'unrecognized prose value');
+    await tester.pumpAndSettle();
+    expect(find.text('Unknown text'), findsOneWidget);
+    expect(find.text('Open as text'), findsOneWidget);
+    expect(find.text('Send to tool'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final String tab in <String>['Workbench', 'Library', 'Activity']) {
     testWidgets('$tab tab renders at TextScaler 2.0 without overflow', (
       WidgetTester tester,
     ) async {
@@ -57,11 +76,22 @@ void main() {
     });
   }
 
+  testWidgets('Settings route renders at TextScaler 2.0 without overflow', (
+    WidgetTester tester,
+  ) async {
+    await pumpApp(tester);
+    await tester.tap(find.bySemanticsLabel('Open Settings'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
   for (final UtilityDescriptor u in UtilityCatalog.all) {
     testWidgets(
       '${u.name} body renders at TextScaler 2.0 without overflow',
       (WidgetTester tester) async {
         await pumpApp(tester);
+        await tester.tap(find.text('Library').last);
+        await tester.pumpAndSettle();
         final Finder tile = find.text(u.name).last;
         expect(tile, findsWidgets, reason: '${u.name} tile must be visible');
         // The grid is tall at 2×, so the tile may sit below the fold; scroll it
@@ -94,6 +124,8 @@ void main() {
       '${u.name} output cells expose copy Semantics labels',
       (WidgetTester tester) async {
         await pumpApp(tester);
+        await tester.tap(find.text('Library').last);
+        await tester.pumpAndSettle();
         final Finder tile = find.text(u.name).last;
         await tester.ensureVisible(tile);
         await tester.pumpAndSettle();

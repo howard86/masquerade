@@ -2,6 +2,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
+import 'package:masquerade/models/artifact.dart';
+import 'package:masquerade/state/detection_preference_controller.dart';
 import 'package:masquerade/state/view_mode_controller.dart';
 import 'package:masquerade/utility_catalog.dart';
 import 'package:masquerade/widgets/desktop/desktop_icon_grid.dart';
@@ -171,6 +173,107 @@ void main() {
       await tester.tap(find.text('Open UUID with this value'));
       await tester.pumpAndSettle();
       expect(find.byType(ToolCardFrame), findsOneWidget);
+    });
+
+    testWidgets('detected value honors the saved type preference', (
+      WidgetTester tester,
+    ) async {
+      final DetectionPreferenceController preferences =
+          DetectionPreferenceController();
+      await preferences.prefer(
+        UtilityCatalog.detectArtifacts('1700000000'),
+        ArtifactKind.number,
+      );
+      await tester.binding.setSurfaceSize(const Size(1200, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        MyApp(
+          isWebOverride: true,
+          viewModeController: ViewModeController(initial: MqViewMode.desktop),
+          detectionPreferenceController: preferences,
+          skipSplash: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('File'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('New tool…  ⌘K'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey<String>('command-palette-field')),
+        '1700000000',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Open Number Base with this value'), findsOneWidget);
+      expect(find.text('Open Timestamp with this value'), findsNothing);
+    });
+
+    testWidgets('tool-name queries remain name search, not artifacts', (
+      WidgetTester tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(1200, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        MyApp(
+          isWebOverride: true,
+          viewModeController: ViewModeController(initial: MqViewMode.desktop),
+          skipSplash: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('File'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('New tool…  ⌘K'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey<String>('command-palette-field')),
+        'uuid',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('UUID'), findsWidgets);
+      expect(find.text('Open UUID with this value'), findsNothing);
+    });
+
+    testWidgets('a private key is neither echoed nor offered as a seed', (
+      WidgetTester tester,
+    ) async {
+      const String pem = '''-----BEGIN PRIVATE KEY-----
+raw-private-key-fixture
+-----END PRIVATE KEY-----''';
+      await tester.binding.setSurfaceSize(const Size(1200, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        MyApp(
+          isWebOverride: true,
+          viewModeController: ViewModeController(initial: MqViewMode.desktop),
+          skipSplash: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('File'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('New tool…  ⌘K'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey<String>('command-palette-field')),
+        pem,
+      );
+      await tester.pumpAndSettle();
+
+      final MqEmptyHint hint = tester.widget(find.byType(MqEmptyHint));
+      expect(hint.detail, 'Sensitive values stay out of search results.');
+      expect(hint.detail, isNot(contains('raw-private-key-fixture')));
+      expect(
+        find.textContaining('with this value', findRichText: true),
+        findsNothing,
+      );
+      expect(find.byType(ListView), findsNothing);
+      expect(find.byType(ToolCardFrame), findsNothing);
     });
   });
 }

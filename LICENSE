@@ -1,0 +1,50 @@
+# Masquerade — Source-Available License
+
+Copyright © 2026 Chia-hao Tai. All rights reserved.
+
+This source code is published for reference, study, and evaluation. It is
+**not** open-source software, and no open-source license is granted.
+
+## Permitted
+
+- Read, fork, and browse this repository.
+- Build and run the app locally to evaluate it.
+- Open issues and submit pull requests (see Contributions).
+
+## Not permitted
+
+Without prior written permission from the copyright holder, you may not:
+
+- Redistribute this software, in source or binary form, modified or not.
+- Publish, sell, or otherwise distribute any application derived from this
+  source — including to the App Store or any other distribution platform.
+- Use this software, or any substantial portion of it, in a commercial
+  product.
+
+Masquerade is sold as a one-time purchase on the App Store. That listing is
+the only authorised distribution of the compiled app.
+
+## Contributions
+
+By submitting a pull request you agree that your contribution is licensed
+under these terms, and that copyright in it passes to the copyright holder.
+
+## Third-party components
+
+This repository bundles and depends on third-party software under its own
+licenses. Those licenses govern those components and are unaffected by the
+terms above:
+
+- **IBM Plex** (`assets/fonts/`) — SIL Open Font License 1.1, © 2017 IBM
+  Corp. with Reserved Font Name "Plex". Full text: `assets/fonts/OFL.txt`.
+- **Dart / Flutter package dependencies** — each under its own license; see
+  the `LICENSE` file in each package.
+
+## No warranty
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../state/history_controller.dart';
 import '../../state/link_group.dart';
+import '../../state/tool_draft_controller.dart';
 import '../../theme/mq_metrics.dart';
 import '../../utility_catalog.dart';
 import '../../utils/generator.dart';
@@ -58,6 +61,9 @@ class _GeneratorBodyState extends State<GeneratorBody> {
 
   String _output = '';
   HistoryRecorder? _recorder;
+  ToolDraftController? _drafts;
+  bool _draftRestored = false;
+  int? _draftRevision;
 
   @override
   void initState() {
@@ -77,10 +83,79 @@ class _GeneratorBodyState extends State<GeneratorBody> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _drafts ??= ToolDraftScope.maybeOf(context);
+    final MobileSessionRouteScope? route = MobileSessionRouteScope.maybeOf(
+      context,
+    );
+    final ToolDraftController? drafts = _drafts;
+    if (!_draftRestored && route != null && drafts != null && drafts.ready) {
+      _draftRevision = drafts.revision;
+      _draftRestored = true;
+      final GeneratorToolDraft? draft = drafts.generator;
+      final Map<String, Object?> saved = route.settings;
+      final String? mode = saved['mode'] is String
+          ? saved['mode']! as String
+          : draft?.mode;
+      final String? tokenFormat = saved['tokenFormat'] is String
+          ? saved['tokenFormat']! as String
+          : draft?.tokenFormat;
+      final String? uuidVersion = saved['uuidVersion'] is String
+          ? saved['uuidVersion']! as String
+          : draft?.uuidVersion;
+      if (mode != null &&
+          GenMode.values.any((GenMode value) => value.name == mode)) {
+        _mode = GenMode.values.byName(mode);
+      }
+      final int? length = saved['length'] is int
+          ? saved['length']! as int
+          : draft?.length;
+      final int? bytes = saved['bytes'] is int
+          ? saved['bytes']! as int
+          : draft?.bytes;
+      if (length != null &&
+          length >= Generator.minLength &&
+          length <= Generator.maxLength) {
+        _lengthCtrl.text = length.toString();
+      }
+      if (bytes != null &&
+          bytes >= Generator.minBytes &&
+          bytes <= Generator.maxBytes) {
+        _bytesCtrl.text = bytes.toString();
+      }
+      _lower = saved['lower'] is bool
+          ? saved['lower']! as bool
+          : draft?.lower ?? _lower;
+      _upper = saved['upper'] is bool
+          ? saved['upper']! as bool
+          : draft?.upper ?? _upper;
+      _digits = saved['digits'] is bool
+          ? saved['digits']! as bool
+          : draft?.digits ?? _digits;
+      _symbols = saved['symbols'] is bool
+          ? saved['symbols']! as bool
+          : draft?.symbols ?? _symbols;
+      if (tokenFormat != null &&
+          TokenFormat.values.any(
+            (TokenFormat value) => value.name == tokenFormat,
+          )) {
+        _tokenFormat = TokenFormat.values.byName(tokenFormat);
+      }
+      if (uuidVersion != null &&
+          GenUuidVersion.values.any(
+            (GenUuidVersion value) => value.name == uuidVersion,
+          )) {
+        _uuidVersion = GenUuidVersion.values.byName(uuidVersion);
+      }
+      if (draft != null || saved.isNotEmpty) {
+        _output = _build();
+      }
+    }
     if (_recorder == null) {
       _recorder = HistoryRecorder(
         controller: HistoryScope.of(context),
         utilityId: 'generator',
+        sensitive:
+            MobileSessionRouteScope.maybeOf(context)?.protectedSession ?? false,
       );
       // Log the opening config (debounced + deduped by the recorder).
       _record();
@@ -126,6 +201,49 @@ class _GeneratorBodyState extends State<GeneratorBody> {
   void _generate() {
     setState(() => _output = _build());
     _record();
+    _saveDraft();
+  }
+
+  void _saveDraft() {
+    final ToolDraftController? drafts = _drafts;
+    final int? revision = _draftRevision;
+    final MobileSessionRouteScope? route = MobileSessionRouteScope.maybeOf(
+      context,
+    );
+    route?.onSettingsChanged?.call(<String, Object?>{
+      'mode': _mode.name,
+      'length': _length,
+      'bytes': _bytes,
+      'lower': _lower,
+      'upper': _upper,
+      'digits': _digits,
+      'symbols': _symbols,
+      'tokenFormat': _tokenFormat.name,
+      'uuidVersion': _uuidVersion.name,
+    });
+    if (drafts == null ||
+        !drafts.ready ||
+        route == null ||
+        route.protectedSession ||
+        revision == null) {
+      return;
+    }
+    unawaited(
+      drafts.saveGenerator(
+        GeneratorToolDraft(
+          mode: _mode.name,
+          length: _length,
+          bytes: _bytes,
+          lower: _lower,
+          upper: _upper,
+          digits: _digits,
+          symbols: _symbols,
+          tokenFormat: _tokenFormat.name,
+          uuidVersion: _uuidVersion.name,
+        ),
+        revision: revision,
+      ),
+    );
   }
 
   void _record() {
@@ -183,6 +301,7 @@ class _GeneratorBodyState extends State<GeneratorBody> {
       _output = _build();
     });
     _record();
+    _saveDraft();
   }
 
   @override
@@ -212,6 +331,7 @@ class _GeneratorBodyState extends State<GeneratorBody> {
             label: _outputLabel(),
             value: _output,
             hint: _mode == GenMode.password ? _entropyHint() : null,
+            sensitive: _mode != GenMode.uuid,
           ),
         const SizedBox(height: MqSpacing.md),
         MqButton(
@@ -225,6 +345,7 @@ class _GeneratorBodyState extends State<GeneratorBody> {
             output: _output,
             excludeUtilityId: 'generator',
             onSwitchTool: widget.onSwitchTool,
+            protectedSource: _mode != GenMode.uuid,
           ),
       ],
     );

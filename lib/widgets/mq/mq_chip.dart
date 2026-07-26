@@ -93,7 +93,10 @@ class MqChip extends StatelessWidget {
           HapticFeedback.selectionClick();
           onTap!();
         },
-        child: chip,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44),
+          child: Center(widthFactor: 1, heightFactor: 1, child: chip),
+        ),
       ),
     );
   }

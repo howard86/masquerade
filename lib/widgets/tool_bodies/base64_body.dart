@@ -8,6 +8,7 @@ import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
+import '../../utils/sensitive_data_policy.dart';
 import '../mq/mq_button.dart';
 import '../mq/mq_chip.dart';
 import '../mq/mq_empty_hint.dart';
@@ -194,6 +195,10 @@ class _Base64BodyState extends State<Base64Body>
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final bool wide = constraints.maxWidth >= kToolCanvasWide;
+        final bool sensitive =
+            SensitiveDataPolicy.containsSensitiveArtifact(controller.text) ||
+            (_output != null &&
+                SensitiveDataPolicy.containsSensitiveArtifact(_output!));
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
@@ -268,6 +273,7 @@ class _Base64BodyState extends State<Base64Body>
                 label: _mode == Base64Mode.encode ? 'Base64' : 'Plain text',
                 value: _output!,
                 accent: true,
+                sensitive: sensitive,
                 // Canvas-only: only the decoded (plain-text) output is the text
                 // canonical; encode-mode output is base64, so leave it unpiped.
                 pipeType: _mode == Base64Mode.decode ? ContentType.text : null,
@@ -290,6 +296,7 @@ class _Base64BodyState extends State<Base64Body>
                 output: _output,
                 excludeUtilityId: 'base64',
                 onSwitchTool: widget.onSwitchTool,
+                protectedSource: sensitive,
               ),
             ] else
               MqEmptyHint(

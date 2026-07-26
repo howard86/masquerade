@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
+import '../../models/artifact.dart';
 import '../../state/link_group.dart';
+import '../../state/tool_draft_controller.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../utility_catalog.dart';
@@ -93,6 +97,7 @@ class JSONBody extends StatefulWidget implements ToolBodyWidget {
   const JSONBody({
     super.key,
     this.initialInput,
+    this.initialArtifact,
     this.seedSource = SeedSource.none,
     this.onSwitchTool,
     this.actionBar,
@@ -101,6 +106,7 @@ class JSONBody extends StatefulWidget implements ToolBodyWidget {
 
   @override
   final String? initialInput;
+  final Artifact<Object?>? initialArtifact;
   @override
   final SeedSource seedSource;
   final OpenInToolCallback? onSwitchTool;
@@ -123,12 +129,62 @@ class _JSONBodyState extends State<JSONBody>
   _ParseError? _error;
   String? _output;
   String? _footerMinified;
+  bool _usedInitialArtifact = false;
+  ToolDraftController? _drafts;
+  bool _draftRestored = false;
+  int? _draftRevision;
 
   @override
   String get utilityId => 'json';
 
   @override
   Duration get debounceDuration => const Duration(milliseconds: 200);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _drafts ??= ToolDraftScope.maybeOf(context);
+    final MobileSessionRouteScope? route = MobileSessionRouteScope.maybeOf(
+      context,
+    );
+    final ToolDraftController? drafts = _drafts;
+    if (_draftRestored || route == null || drafts == null || !drafts.ready) {
+      return;
+    }
+    _draftRevision = drafts.revision;
+    _draftRestored = true;
+    final JsonToolDraft? draft = drafts.json;
+    final Object? rawSource = route.settings['source'];
+    final Object? rawTarget = route.settings['target'];
+    final String? savedSource = rawSource is String ? rawSource : null;
+    final String? savedTarget = rawTarget is String ? rawTarget : null;
+    if (savedSource != null &&
+        SourceFormat.values.any(
+          (SourceFormat value) => value.name == savedSource,
+        )) {
+      _source = SourceFormat.values.byName(savedSource);
+    } else if (draft != null) {
+      _source = SourceFormat.values.byName(draft.source);
+    }
+    if (savedTarget != null &&
+        TargetFormat.values.any(
+          (TargetFormat value) => value.name == savedTarget,
+        )) {
+      _target = TargetFormat.values.byName(savedTarget);
+    } else if (draft != null) {
+      _target = TargetFormat.values.byName(draft.target);
+    }
+    if (draft != null &&
+        (widget.initialInput == null || widget.initialInput!.isEmpty) &&
+        !route.protectedSession) {
+      controller.text = draft.input;
+    }
+    if (controller.text.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) reparse();
+      });
+    }
+  }
 
   // ─── Canonical-hub link (identity peer) ─────────────────────────────────
   @override
@@ -144,7 +200,11 @@ class _JSONBodyState extends State<JSONBody>
 
   @override
   void parse(String input) {
-    final ({_Parsed? parsed, _ParseError? error}) r = _runParse(input, _source);
+    final ({_Parsed? parsed, _ParseError? error})? cached = _initialParse(
+      input,
+    );
+    final ({_Parsed? parsed, _ParseError? error}) r =
+        cached ?? _runParse(input, _source);
     final _Parsed? parsed = r.parsed;
     final String? minified = parsed == null
         ? null
@@ -160,8 +220,37 @@ class _JSONBodyState extends State<JSONBody>
       }
       _output = parsed == null ? null : _renderOutput(parsed.value, _target);
     });
+    _saveDraft();
     if (parsed != null) recordOutput(input, minified!);
     emitToLink();
+  }
+
+  ({_Parsed? parsed, _ParseError? error})? _initialParse(String input) {
+    if (_usedInitialArtifact || _source != SourceFormat.auto) return null;
+    final Artifact<Object?>? artifact = widget.initialArtifact;
+    if (artifact == null || artifact.rawValue.trim() != input.trim()) {
+      return null;
+    }
+    final Object? result = artifact.parserResult;
+    final _Parsed? parsed = switch ((artifact.kind, result)) {
+      (ArtifactKind.json, JSONOk r) => _Parsed(
+        value: r.value.value,
+        detectedFormat: SourceFormat.json,
+      ),
+      (ArtifactKind.yaml, YamlOk r) => _Parsed(
+        value: r.value,
+        detectedFormat: SourceFormat.yaml,
+        docCount: r.docCount,
+      ),
+      (ArtifactKind.toml, TomlOk r) => _Parsed(
+        value: r.value,
+        detectedFormat: SourceFormat.toml,
+      ),
+      _ => null,
+    };
+    if (parsed == null) return null;
+    _usedInitialArtifact = true;
+    return (parsed: parsed, error: null);
   }
 
   @override
@@ -172,6 +261,7 @@ class _JSONBodyState extends State<JSONBody>
       _output = null;
       _footerMinified = null;
     });
+    _saveDraft();
     emitToLink();
   }
 
@@ -296,6 +386,7 @@ class _JSONBodyState extends State<JSONBody>
       _target = t;
       _output = _parsed == null ? null : _renderOutput(_parsed!.value, t);
     });
+    _saveDraft();
   }
 
   void _swap() {
@@ -308,7 +399,40 @@ class _JSONBodyState extends State<JSONBody>
       _source = nextSource;
       _target = nextTarget;
     });
+    _saveDraft();
     setInput(output, asPaste: true);
+  }
+
+  void _onInputChanged(String value) {
+    onInputChanged(value);
+    _saveDraft();
+  }
+
+  void _saveDraft() {
+    final ToolDraftController? drafts = _drafts;
+    final int? revision = _draftRevision;
+    final MobileSessionRouteScope? route = MobileSessionRouteScope.maybeOf(
+      context,
+    );
+    route?.onSettingsChanged?.call(<String, Object?>{
+      'source': _source.name,
+      'target': _target.name,
+    });
+    if (drafts == null ||
+        !drafts.ready ||
+        route == null ||
+        route.protectedSession ||
+        revision == null) {
+      return;
+    }
+    unawaited(
+      drafts.saveJson(
+        input: controller.text,
+        source: _source.name,
+        target: _target.name,
+        revision: revision,
+      ),
+    );
   }
 
   bool get _swapEnabled =>
@@ -387,7 +511,7 @@ class _JSONBodyState extends State<JSONBody>
           controller: controller,
           label: 'Input',
           placeholder: '{"hello": "world"}',
-          onChanged: onInputChanged,
+          onChanged: _onInputChanged,
           onPaste: (_) => markPaste(),
           multiline: true,
           minLines: 4,
@@ -405,6 +529,7 @@ class _JSONBodyState extends State<JSONBody>
           swapEnabled: _swapEnabled,
           onSource: (SourceFormat s) {
             setState(() => _source = s);
+            _saveDraft();
             reparse();
           },
           onTarget: _setTarget,

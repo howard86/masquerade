@@ -1,7 +1,11 @@
 import 'package:flutter/cupertino.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import 'acknowledgements_screen.dart';
+import 'privacy_policy_screen.dart';
 import '../state/history_controller.dart';
+import '../state/detection_preference_controller.dart';
+import '../state/sensitive_session_controller.dart';
 import '../state/theme_controller.dart';
 import '../state/view_mode_controller.dart';
 import '../state/wallpaper_controller.dart';
@@ -31,6 +35,7 @@ class SettingsScreen extends StatelessWidget {
     final c = context.mq.colors;
     return CupertinoPageScaffold(
       backgroundColor: c.bg,
+      navigationBar: const CupertinoNavigationBar(middle: Text('Settings')),
       child: SafeArea(
         bottom: false,
         child: SettingsBody(desktopShellOverride: desktopShellOverride),
@@ -51,6 +56,8 @@ class SettingsBody extends StatelessWidget {
     final c = context.mq.colors;
     final ThemeController theme = ThemeScope.of(context);
     final HistoryController history = HistoryScope.of(context);
+    final DetectionPreferenceController detectionPreferences =
+        DetectionPreferenceScope.of(context);
     final ViewModeController viewMode = ViewModeScope.of(context);
     final bool showViewToggle = toggleAvailable(
       desktopSupported: desktopShellSupported(override: desktopShellOverride),
@@ -68,6 +75,37 @@ class SettingsBody extends StatelessWidget {
         Text(
           'Settings',
           style: MqTextStyles.largeTitle.copyWith(color: c.textPri),
+        ),
+        const SizedBox(height: MqSpacing.xl),
+        const MqSectionHeader(label: 'Detection'),
+        MqSurface(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                'Artifact interpretations',
+                style: MqTextStyles.headline.copyWith(color: c.textPri),
+              ),
+              const SizedBox(height: MqSpacing.sm),
+              Text(
+                detectionPreferences.hasPreferences
+                    ? 'Your type-only detection choices are active.'
+                    : 'No detection choices have been saved.',
+                style: MqTextStyles.subhead.copyWith(color: c.textSec),
+              ),
+              const SizedBox(height: MqSpacing.md),
+              MqButton(
+                label: 'Reset detection choices',
+                icon: MqIcons.clear,
+                variant: MqButtonVariant.glass,
+                full: true,
+                onPressed: detectionPreferences.hasPreferences
+                    ? () =>
+                          _confirmResetDetection(context, detectionPreferences)
+                    : null,
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: MqSpacing.xl),
         const MqSectionHeader(label: 'Appearance'),
@@ -191,6 +229,14 @@ class SettingsBody extends StatelessWidget {
                 style: MqTextStyles.subhead.copyWith(color: c.textSec),
               ),
               const SizedBox(height: MqSpacing.md),
+              MqButton(
+                label: 'Privacy Policy',
+                icon: MqIcons.shield,
+                variant: MqButtonVariant.glass,
+                full: true,
+                onPressed: () => PrivacyPolicyScreen.push(context),
+              ),
+              const SizedBox(height: MqSpacing.md),
               Text(
                 'History retention',
                 style: MqTextStyles.footnote.copyWith(
@@ -218,6 +264,15 @@ class SettingsBody extends StatelessWidget {
                 destructive: true,
                 full: true,
                 onPressed: () => _confirmClear(context, history),
+              ),
+              const SizedBox(height: MqSpacing.sm),
+              MqButton(
+                label: 'Clear sensitive session now',
+                icon: MqIcons.shield,
+                variant: MqButtonVariant.glass,
+                destructive: true,
+                full: true,
+                onPressed: () => _confirmClearSensitiveSession(context),
               ),
             ],
           ),
@@ -259,6 +314,14 @@ class SettingsBody extends StatelessWidget {
                 'A native iOS utility toolbox for developers. Inspect, convert, format, debug — fast, on-device, copy-friendly.',
                 style: MqTextStyles.subhead.copyWith(color: c.textSec),
               ),
+              const SizedBox(height: MqSpacing.md),
+              MqButton(
+                label: 'Acknowledgements',
+                icon: MqIcons.info,
+                variant: MqButtonVariant.glass,
+                full: true,
+                onPressed: () => AcknowledgementsScreen.push(context),
+              ),
             ],
           ),
         ),
@@ -280,6 +343,66 @@ class SettingsBody extends StatelessWidget {
               Navigator.of(ctx).pop();
             },
             child: const Text('Clear'),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmResetDetection(
+    BuildContext context,
+    DetectionPreferenceController preferences,
+  ) {
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (BuildContext ctx) => CupertinoAlertDialog(
+        title: const Text('Reset detection choices?'),
+        content: const Text(
+          'Ambiguous values will use their default interpretation again.',
+        ),
+        actions: <Widget>[
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await preferences.reset();
+            },
+            child: const Text('Reset'),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmClearSensitiveSession(BuildContext context) {
+    final SensitiveSessionController session = SensitiveSessionScope.of(
+      context,
+    );
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (BuildContext ctx) => CupertinoAlertDialog(
+        title: const Text('Clear sensitive session now?'),
+        content: const Text(
+          'Closes open tools and clears their inputs, links, and on-device history.',
+        ),
+        actions: <Widget>[
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await session.clear();
+            },
+            child: const Text('Clear now'),
           ),
           CupertinoDialogAction(
             isDefaultAction: true,

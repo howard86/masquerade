@@ -2,7 +2,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../models/artifact.dart';
 import '../../state/canvas_controller.dart';
+import '../../state/detection_preference_controller.dart';
 import '../../state/window_content.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
@@ -50,9 +52,18 @@ class _DesktopShellState extends State<DesktopShell> {
     final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
     final String? text = data?.text;
     if (text == null || text.isEmpty || !mounted) return;
-    final List<UtilityDescriptor> matches = UtilityCatalog.detectAll(text);
+    final List<DetectionMatch<Object?>> matches =
+        DetectionPreferenceScope.of(context).rank(
+          UtilityCatalog.detectArtifacts(
+            text,
+            provenance: ArtifactProvenance.clipboard,
+          ),
+        );
     if (matches.isEmpty) return;
-    _canvas.openTool(matches.first, seed: text);
+    _canvas.openTool(
+      UtilityCatalog.byId(matches.first.primaryToolId),
+      seed: matches.first.artifact.rawValue,
+    );
   }
 
   void _openSettings() {

@@ -1,197 +1,155 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:masquerade/app.dart';
 import 'package:masquerade/screens/detail/tool_detail_route.dart';
-import 'package:masquerade/utility_catalog.dart';
-import 'package:masquerade/widgets/mq/tool_grid_card.dart';
+import 'package:masquerade/state/share_inbox_controller.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '_helpers.dart';
 
 void main() {
-  setUp(() {
-    SharedPreferences.setMockInitialValues(<String, Object>{});
-  });
+  setUp(() => SharedPreferences.setMockInitialValues(<String, Object>{}));
 
-  Future<Finder> findHero(WidgetTester tester) async {
+  Future<Finder> pumpHero(WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(kHomeSurfaceSize);
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const MyApp(skipSplash: true));
+    await tester.pumpAndSettle();
     final Finder input = find.byWidgetPredicate(
-      (Widget w) =>
-          w is CupertinoTextField &&
-          w.placeholder == 'Paste timestamp, JSON, hex, base64, color…',
+      (Widget widget) =>
+          widget is CupertinoTextField &&
+          widget.placeholder == 'Paste timestamp, JSON, hex, base64, color…',
     );
-    expect(input, findsOneWidget, reason: 'Hero composer must be on home');
+    expect(input, findsOneWidget);
     return input;
   }
 
-  ToolGridCard cardFor(WidgetTester tester, String utilityId) {
-    return tester
-        .widgetList<ToolGridCard>(find.byType(ToolGridCard))
-        .firstWhere((ToolGridCard c) => c.descriptor.id == utilityId);
-  }
+  Finder semantics(String label) => find.byWidgetPredicate(
+    (Widget widget) => widget is Semantics && widget.properties.label == label,
+  );
 
-  testWidgets('renders all 9 catalog tools as grid cards', (
+  Finder semanticsStarts(String label) => find.byWidgetPredicate(
+    (Widget widget) =>
+        widget is Semantics &&
+        widget.properties.label?.startsWith(label) == true,
+  );
+
+  testWidgets('empty capture offers explicit paste and QR scan controls', (
     WidgetTester tester,
   ) async {
-    await tester.binding.setSurfaceSize(kHomeSurfaceSize);
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await pumpHero(tester);
 
-    await tester.pumpWidget(const MyApp(skipSplash: true));
-    await tester.pumpAndSettle();
-
-    final Iterable<ToolGridCard> cards = tester.widgetList<ToolGridCard>(
-      find.byType(ToolGridCard),
-    );
-    expect(cards.length, UtilityCatalog.all.length);
-    expect(
-      cards.map((ToolGridCard c) => c.descriptor.id).toSet(),
-      UtilityCatalog.all.map((UtilityDescriptor u) => u.id).toSet(),
-    );
-  });
-
-  testWidgets('idle hero shows paste + scan icons, no Clear button', (
-    WidgetTester tester,
-  ) async {
-    await tester.binding.setSurfaceSize(kHomeSurfaceSize);
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-
-    await tester.pumpWidget(const MyApp(skipSplash: true));
-    await tester.pumpAndSettle();
-
-    expect(find.bySemanticsLabel('Paste'), findsAtLeastNWidgets(1));
-    expect(find.bySemanticsLabel('Scan QR'), findsAtLeastNWidgets(1));
-    // The MqButton variant exposes its label as text; absent in idle.
+    expect(semantics('Empty Workbench'), findsOneWidget);
+    expect(find.bySemanticsLabel('Paste'), findsOneWidget);
+    expect(find.bySemanticsLabel('Scan QR'), findsOneWidget);
     expect(find.text('Clear'), findsNothing);
   });
 
-  testWidgets('hero content reveals Paste/Clear button row', (
+  testWidgets('captured content reveals Paste and Clear then clears state', (
     WidgetTester tester,
   ) async {
-    await tester.binding.setSurfaceSize(kHomeSurfaceSize);
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-
-    await tester.pumpWidget(const MyApp(skipSplash: true));
+    final Finder hero = await pumpHero(tester);
+    await tester.enterText(hero, '#ff5733');
     await tester.pumpAndSettle();
 
-    final Finder hero = await findHero(tester);
-    await tester.enterText(hero, '#ff5733');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
-
-    expect(find.text('Clear'), findsOneWidget);
     expect(find.text('Paste'), findsOneWidget);
-  });
-
-  testWidgets('typing JSON marks JSON card as matched', (
-    WidgetTester tester,
-  ) async {
-    await tester.binding.setSurfaceSize(kHomeSurfaceSize);
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-
-    await tester.pumpWidget(const MyApp(skipSplash: true));
-    await tester.pumpAndSettle();
-
-    final Finder hero = await findHero(tester);
-    await tester.enterText(hero, '{"hello":"world"}');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
-
-    expect(cardFor(tester, 'json').matched, isTrue);
-    expect(cardFor(tester, 'timestamp').matched, isFalse);
-  });
-
-  testWidgets('multi-format input matches multiple cards', (
-    WidgetTester tester,
-  ) async {
-    await tester.binding.setSurfaceSize(kHomeSurfaceSize);
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-
-    await tester.pumpWidget(const MyApp(skipSplash: true));
-    await tester.pumpAndSettle();
-
-    final Finder hero = await findHero(tester);
-    await tester.enterText(hero, '1700000000');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
-
-    expect(cardFor(tester, 'timestamp').matched, isTrue);
-    expect(cardFor(tester, 'number_base').matched, isTrue);
-  });
-
-  testWidgets('clearing hero drops match highlights', (
-    WidgetTester tester,
-  ) async {
-    await tester.binding.setSurfaceSize(kHomeSurfaceSize);
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-
-    await tester.pumpWidget(const MyApp(skipSplash: true));
-    await tester.pumpAndSettle();
-
-    final Finder hero = await findHero(tester);
-    await tester.enterText(hero, '#ff5733');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
-    expect(cardFor(tester, 'color').matched, isTrue);
+    expect(find.text('Clear'), findsOneWidget);
+    expect(find.text('Artifact detected'), findsOneWidget);
+    expect(semanticsStarts('Open Color. Primary'), findsOneWidget);
 
     await tester.tap(find.text('Clear'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
-    expect(cardFor(tester, 'color').matched, isFalse);
+    await tester.pumpAndSettle();
+    expect(semantics('Empty Workbench'), findsOneWidget);
+    expect(find.text('TOOL SUGGESTIONS'), findsNothing);
   });
 
-  testWidgets('tap on a tool card pushes ToolDetailRoute seeded with hero', (
+  testWidgets('artifact detection ranks timestamp above number base', (
     WidgetTester tester,
   ) async {
-    await tester.binding.setSurfaceSize(kHomeSurfaceSize);
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final Finder hero = await pumpHero(tester);
+    await tester.enterText(hero, '1700000000');
+    await tester.pump();
 
-    await tester.pumpWidget(const MyApp(skipSplash: true));
-    await tester.pumpAndSettle();
+    expect(semanticsStarts('Open Timestamp. Primary'), findsOneWidget);
+    expect(semanticsStarts('Open Number Base. Alternative'), findsOneWidget);
+  });
 
-    final Finder hero = await findHero(tester);
+  testWidgets('tapping a suggestion pushes a route seeded with capture', (
+    WidgetTester tester,
+  ) async {
+    final Finder hero = await pumpHero(tester);
     await tester.enterText(hero, '{"hello":"world"}');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await tester.pump();
 
-    await tester.tap(
-      find.byWidgetPredicate(
-        (Widget w) => w is ToolGridCard && w.descriptor.id == 'json',
-      ),
-    );
+    await tester.tap(find.text('JSON / YAML / TOML'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(ToolDetailRoute), findsOneWidget);
     final ToolDetailRoute route = tester.widget(find.byType(ToolDetailRoute));
     expect(route.descriptor.id, 'json');
     expect(route.seed, '{"hello":"world"}');
   });
 
-  testWidgets('grid sorts matched first, then recents, then remainder', (
+  testWidgets('late foreground shortcut explicitly inspects clipboard', (
     WidgetTester tester,
   ) async {
-    final int now = DateTime.now().millisecondsSinceEpoch;
-    SharedPreferences.setMockInitialValues(<String, Object>{
-      'mb.history.entries': encodeHistoryEntries(<Map<String, Object>>[
-        historyEntry(utilityId: 'base64', ts: now),
-        historyEntry(utilityId: 'json', ts: now - 1000),
-      ]),
-    });
-
-    await pumpHomeWithLoadedHistory(tester);
-
-    final Finder hero = find.byWidgetPredicate(
-      (Widget w) =>
-          w is CupertinoTextField &&
-          w.placeholder == 'Paste timestamp, JSON, hex, base64, color…',
+    const MethodChannel inboxChannel = MethodChannel(
+      ShareInboxController.channelName,
     );
-    // Color match (hero is a hex) → Color card jumps to first.
-    await tester.enterText(hero, '#abcdef');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    List<Object?> intents = <Object?>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(inboxChannel, (MethodCall call) async {
+          return switch (call.method) {
+            'list' => <Object?>[],
+            'consumeIntents' => intents,
+            'syncWorkflows' => null,
+            _ => null,
+          };
+        });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (
+          MethodCall call,
+        ) async {
+          if (call.method == 'Clipboard.getData') {
+            return <String, String>{'text': '{"from":"shortcut"}'};
+          }
+          return null;
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(inboxChannel, null);
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null);
+    });
+    final ShareInboxController inbox = ShareInboxController(
+      channel: inboxChannel,
+    );
+    addTearDown(inbox.dispose);
+    await tester.binding.setSurfaceSize(kHomeSurfaceSize);
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MyApp(shareInboxController: inbox, skipSplash: true),
+    );
+    await tester.pumpAndSettle();
 
-    final List<String> ids = tester
-        .widgetList<ToolGridCard>(find.byType(ToolGridCard))
-        .map((ToolGridCard c) => c.descriptor.id)
-        .toList();
-    final int colorIdx = ids.indexOf('color');
-    final int base64Idx = ids.indexOf('base64');
-    final int jsonIdx = ids.indexOf('json');
-    final int cronIdx = ids.indexOf('cron');
-    expect(colorIdx, 0, reason: 'matched goes first');
-    expect(base64Idx < cronIdx, isTrue, reason: 'recent above remainder');
-    expect(jsonIdx < cronIdx, isTrue, reason: 'recent above remainder');
+    intents = <Object?>[
+      <String, Object?>{
+        'id': '11111111-1111-1111-1111-111111111111',
+        'action': 'inspectClipboard',
+        'createdAt': DateTime.now().millisecondsSinceEpoch,
+      },
+    ];
+    await inbox.refreshIntents();
+    await tester.pumpAndSettle();
+
+    final CupertinoTextField field = tester.widget<CupertinoTextField>(
+      find.byWidgetPredicate(
+        (Widget widget) =>
+            widget is CupertinoTextField &&
+            widget.placeholder == 'Paste timestamp, JSON, hex, base64, color…',
+      ),
+    );
+    expect(field.controller!.text, '{"from":"shortcut"}');
+    expect(inbox.intentRequests, isEmpty);
   });
 }

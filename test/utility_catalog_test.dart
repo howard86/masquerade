@@ -2,78 +2,439 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:masquerade/models/content_type.dart';
+import 'package:masquerade/models/artifact.dart';
 import 'package:masquerade/utility_catalog.dart';
+import 'package:masquerade/utils/sensitive_data_policy.dart';
 
 void main() {
-  group('UtilityCatalog.detectAll — shape detection', () {
-    test('empty input returns empty', () {
-      expect(UtilityCatalog.detectAll(''), isEmpty);
-      expect(UtilityCatalog.detectAll('   '), isEmpty);
+  group('Library catalog metadata', () {
+    test('every tool has complete typed routing metadata', () {
+      for (final UtilityDescriptor tool in UtilityCatalog.all) {
+        expect(
+          tool.acceptedTypes.isEmpty,
+          tool.id == 'generator',
+          reason: '${tool.id} accepts',
+        );
+        expect(tool.producedTypes, isNotEmpty, reason: tool.id);
+        expect(
+          tool.inputSources.isEmpty,
+          tool.id == 'generator',
+          reason: '${tool.id} inputs',
+        );
+        expect(tool.quickActions, isNotEmpty, reason: tool.id);
+      }
+      expect(
+        UtilityCatalog.all
+            .where((UtilityDescriptor tool) => tool.batchCapable)
+            .map((UtilityDescriptor tool) => tool.id),
+        <String>['list'],
+      );
     });
 
-    test('unix timestamp value surfaces Timestamp via shape', () {
-      final List<UtilityDescriptor> matches = UtilityCatalog.detectAll(
-        '1714972800',
+    test('Generator is explicitly source-only', () {
+      final UtilityDescriptor generator = UtilityCatalog.byId('generator');
+      expect(generator.acceptedTypes, isEmpty);
+      expect(generator.inputSources, isEmpty);
+      expect(generator.producedTypes, <ContentType>{ContentType.text});
+      expect(
+        generator.quickActions,
+        containsAll(<UtilityQuickAction>{
+          UtilityQuickAction.copy,
+          UtilityQuickAction.openIn,
+        }),
       );
-      expect(matches.map((UtilityDescriptor u) => u.id), contains('timestamp'));
+      expect(generator.metadataSummary, startsWith('none → text'));
     });
 
-    test('hex color surfaces Color via shape', () {
-      final List<UtilityDescriptor> matches = UtilityCatalog.detectAll(
-        '#1F4FB8',
-      );
-      expect(matches.any((UtilityDescriptor u) => u.id == 'color'), isTrue);
+    test('sensitivity and history policy stay aligned with protection', () {
+      for (final UtilityDescriptor tool in UtilityCatalog.all) {
+        final bool sensitive = SensitiveDataPolicy.isSensitiveTool(tool.id);
+        expect(
+          tool.sensitivity == UtilitySensitivity.sensitive,
+          sensitive,
+          reason: tool.id,
+        );
+        expect(
+          tool.historyPolicy,
+          sensitive ? HistoryPolicy.disabled : HistoryPolicy.enabled,
+          reason: tool.id,
+        );
+      }
     });
+
+    test('desktop live-link capability is catalog metadata', () {
+      const Map<String, Set<ContentType>> expected = <String, Set<ContentType>>{
+        'base64': <ContentType>{ContentType.text},
+        'json': <ContentType>{ContentType.text},
+        'number_base': <ContentType>{ContentType.number},
+        'math': <ContentType>{ContentType.number, ContentType.epoch},
+        'timestamp': <ContentType>{ContentType.epoch, ContentType.number},
+        'list': <ContentType>{ContentType.lines, ContentType.text},
+        'diff': <ContentType>{ContentType.text, ContentType.lines},
+        'color': <ContentType>{ContentType.color, ContentType.text},
+      };
+      expect(<String, Set<ContentType>>{
+        for (final UtilityDescriptor tool in UtilityCatalog.all)
+          if (tool.liveLinkTypes.isNotEmpty) tool.id: tool.liveLinkTypes,
+      }, expected);
+      for (final UtilityDescriptor tool in UtilityCatalog.all) {
+        expect(
+          tool.inputSources.contains(UtilityInputSource.liveLink),
+          tool.liveLinkTypes.isNotEmpty,
+          reason: tool.id,
+        );
+        expect(tool.acceptedTypes, containsAll(tool.liveLinkTypes));
+      }
+    });
+
+    test(
+      'every tool is categorized and every category preserves catalog order',
+      () {
+        final List<String> allIds = UtilityCatalog.all
+            .map((UtilityDescriptor u) => u.id)
+            .toList();
+
+        expect(
+          UtilityCatalog.all.every(
+            (UtilityDescriptor u) => u.categories.isNotEmpty,
+          ),
+          isTrue,
+        );
+        for (final UtilityCategory category in UtilityCategory.values) {
+          final List<UtilityDescriptor> tools = UtilityCatalog.inCategory(
+            category,
+          );
+          expect(tools, isNotEmpty, reason: category.label);
+          expect(
+            tools.map((UtilityDescriptor u) => u.id),
+            allIds.where(
+              (String id) =>
+                  category == UtilityCategory.all ||
+                  UtilityCatalog.byId(id).categories.contains(category),
+            ),
+          );
+        }
+      },
+    );
+
+    test(
+      'every tool is searchable without changing catalog-relative order',
+      () {
+        for (final UtilityDescriptor tool in UtilityCatalog.all) {
+          expect(
+            UtilityCatalog.searchStable(tool.name),
+            contains(tool),
+            reason: tool.name,
+          );
+        }
+
+        final List<UtilityDescriptor> results = UtilityCatalog.searchStable(
+          'encode',
+        );
+        final List<String> allIds = UtilityCatalog.all
+            .map((UtilityDescriptor u) => u.id)
+            .toList();
+        expect(
+          results.map((UtilityDescriptor u) => allIds.indexOf(u.id)),
+          orderedEquals(
+            results.map((UtilityDescriptor u) => allIds.indexOf(u.id)).toList()
+              ..sort(),
+          ),
+        );
+      },
+    );
   });
 
-  group('UtilityCatalog.detectAll — synonym fallthrough', () {
-    test('"unix" surfaces Timestamp', () {
-      final List<UtilityDescriptor> matches = UtilityCatalog.detectAll('unix');
-      expect(matches, isNotEmpty);
-      expect(matches.first.id, 'timestamp');
-    });
-
-    test('"minify" surfaces JSON', () {
-      final List<UtilityDescriptor> matches = UtilityCatalog.detectAll(
-        'minify',
-      );
-      expect(matches, isNotEmpty);
-      expect(matches.first.id, 'json');
-    });
-
-    test('"crontab" surfaces Cron', () {
-      final List<UtilityDescriptor> matches = UtilityCatalog.detectAll(
-        'crontab',
-      );
-      expect(matches, isNotEmpty);
-      expect(matches.first.id, 'cron');
-    });
-
-    test('exact tool name wins over substring synonym', () {
-      final List<UtilityDescriptor> matches = UtilityCatalog.detectAll('color');
-      expect(matches.first.id, 'color');
-    });
-
-    test('case-insensitive synonym match', () {
-      final List<UtilityDescriptor> matches = UtilityCatalog.detectAll('UNIX');
-      expect(matches.first.id, 'timestamp');
-    });
-
-    test('long noisy query returns empty (not a query shape)', () {
+  group('typed compatible next steps', () {
+    test('keeps value-shape detection and filters by content type', () {
       expect(
-        UtilityCatalog.detectAll(
-          'this is way too long to be a tool query string',
-        ),
+        UtilityCatalog.compatibleNextSteps(
+          'base64',
+          '{"a":1}',
+        ).map((UtilityDescriptor tool) => tool.id),
+        contains('json'),
+      );
+      expect(
+        UtilityCatalog.compatibleNextSteps('math', '#336699'),
+        isEmpty,
+        reason: 'Math produces numbers, not color or text artifacts.',
+      );
+    });
+
+    test('unknown source ids fail closed', () {
+      expect(
+        UtilityCatalog.compatibleNextSteps('removed-tool', '{"a":1}'),
         isEmpty,
       );
     });
+  });
 
-    test('punctuation-heavy query returns empty', () {
-      expect(UtilityCatalog.detectAll('foo!@#bar'), isEmpty);
+  group('UtilityCatalog.detectArtifacts', () {
+    test('Markdown is the weakest last detector and requires two signals', () {
+      final UtilityDescriptor markdown = UtilityCatalog.byId('markdown');
+      expect(markdown.description, 'Preview · headings · code · lists');
+      expect(markdown.tint.toARGB32(), 0xFF94A3B8);
+      expect(UtilityCatalog.all.last, same(markdown));
+
+      Iterable<String> detected(String value) => UtilityCatalog.detectArtifacts(
+        value,
+      ).map((DetectionMatch<Object?> match) => match.primaryToolId);
+
+      expect(
+        detected('**bold** and [link](https://example.com)'),
+        contains('markdown'),
+      );
+      expect(detected('# One\n\n## Two'), contains('markdown'));
+      expect(
+        detected('# Shopping\n- one\n- two'),
+        containsAll(<String>['list', 'markdown']),
+      );
+      expect(detected('# Shopping\n- one\n- two').first, 'list');
+      expect(detected('# One signal'), isNot(contains('markdown')));
+      expect(
+        detected('Ordinary prose with no technical structure at all.'),
+        isNot(contains('markdown')),
+      );
+      expect(
+        detected('cat foo | grep bar\ncat baz | grep qux'),
+        isNot(contains('markdown')),
+      );
+      expect(detected('--- | ---'), isNot(contains('markdown')));
+      expect(detected('A | B\n--- | ---'), contains('markdown'));
+      expect(detected('__init__ and __name__'), isNot(contains('markdown')));
     });
 
-    test('unknown word returns empty', () {
-      expect(UtilityCatalog.detectAll('xyzpdq'), isEmpty);
+    test('Markdown detection protects secret-like artifacts', () {
+      const String secret =
+          '# Private\n\n[endpoint](https://user:password@example.com)';
+      final Artifact<Object?> protected = UtilityCatalog.detectArtifacts(secret)
+          .firstWhere(
+            (DetectionMatch<Object?> match) =>
+                match.primaryToolId == 'markdown',
+          )
+          .artifact;
+      final Artifact<Object?> public =
+          UtilityCatalog.detectArtifacts(
+                '# Public\n\n[docs](https://example.com)',
+              )
+              .firstWhere(
+                (DetectionMatch<Object?> match) =>
+                    match.primaryToolId == 'markdown',
+              )
+              .artifact;
+
+      expect(protected.isSensitive, isTrue);
+      expect(protected.safePreview, '••••');
+      expect(public.sensitivity, ArtifactSensitivity.standard);
+    });
+
+    test('CSV detection is tabular, ordered after JSON, and conservative', () {
+      final UtilityDescriptor csv = UtilityCatalog.byId('csv');
+      expect(csv.name, 'CSV / TSV');
+      expect(csv.description, 'Tabular ↔ JSON · table view');
+      expect(csv.tint.toARGB32(), 0xFF84CC16);
+      expect(
+        UtilityCatalog.all.indexOf(csv),
+        UtilityCatalog.all.indexOf(UtilityCatalog.byId('json')) + 1,
+      );
+
+      Iterable<String> detected(String value) => UtilityCatalog.detectArtifacts(
+        value,
+      ).map((DetectionMatch<Object?> match) => match.primaryToolId);
+
+      expect(detected('a,b\n1,2'), contains('csv'));
+      expect(detected('a\tb\n1\t2'), contains('csv'));
+      expect(detected('a;b\n1;2'), contains('csv'));
+      expect(
+        detected(
+          '[['
+          '"a","b"],['
+          '"1","2"]]',
+        ),
+        isNot(contains('csv')),
+      );
+      for (final String value in <String>[
+        'INFO, started\nERROR, failed',
+        'INFO,200\nERROR,500',
+        'info,200\nerror,500',
+        'hello, world\nthis, text',
+        'A=value\nB=value',
+        'https://a.example\nhttps://b.example',
+        'https://a.example,200\nhttps://b.example,404',
+      ]) {
+        expect(detected(value), isNot(contains('csv')), reason: value);
+      }
+    });
+
+    test('empty input returns empty', () {
+      expect(UtilityCatalog.detectArtifacts(''), isEmpty);
+      expect(UtilityCatalog.detectArtifacts('   '), isEmpty);
+    });
+
+    test('unix timestamp value surfaces ranked Timestamp evidence', () {
+      final List<DetectionMatch<Object?>> matches =
+          UtilityCatalog.detectArtifacts('1714972800');
+      expect(matches.first.primaryToolId, 'timestamp');
+      expect(matches.first.artifact.kind, ArtifactKind.timestamp);
+    });
+
+    test(
+      'certificates route to X.509 while public keys still route to Hash',
+      () {
+        final String certificate = File(
+          'test/fixtures/x509_leaf.pem',
+        ).readAsStringSync();
+        expect(
+          UtilityCatalog.detectArtifacts(
+            certificate,
+          ).map((DetectionMatch<Object?> match) => match.primaryToolId),
+          contains('x509_inspector'),
+        );
+        const String publicKey =
+            '-----BEGIN PUBLIC KEY-----\nAQID\n-----END PUBLIC KEY-----';
+        expect(
+          UtilityCatalog.detectArtifacts(
+            publicKey,
+          ).map((DetectionMatch<Object?> match) => match.primaryToolId),
+          contains('hash'),
+        );
+      },
+    );
+
+    test('hex color surfaces Color via shape', () {
+      final List<DetectionMatch<Object?>> matches =
+          UtilityCatalog.detectArtifacts('#1F4FB8');
+      expect(
+        matches.any((DetectionMatch<Object?> m) => m.primaryToolId == 'color'),
+        isTrue,
+      );
+    });
+
+    test('case detection is conservative and defers UUID and Base64', () {
+      final UtilityDescriptor tool = UtilityCatalog.byId('case');
+      expect(tool.name, 'Case');
+      expect(tool.description, 'camel · snake · kebab · pascal · …');
+      expect(tool.tint.toARGB32(), 0xFFFACC15);
+      expect(
+        UtilityCatalog.detectArtifacts(
+          'helloWorld',
+        ).map((DetectionMatch<Object?> match) => match.primaryToolId),
+        contains('case'),
+      );
+      for (final String input in <String>['XMLHttpRequest', 'testCase']) {
+        expect(
+          UtilityCatalog.detectArtifacts(
+            input,
+          ).map((DetectionMatch<Object?> match) => match.primaryToolId),
+          contains('case'),
+          reason: input,
+        );
+      }
+      expect(UtilityCatalog.detectArtifacts('hello'), isEmpty);
+      expect(
+        UtilityCatalog.detectArtifacts(
+          'a' * 201,
+        ).map((DetectionMatch<Object?> match) => match.primaryToolId),
+        isNot(contains('case')),
+      );
+      expect(
+        UtilityCatalog.detectArtifacts(
+          'a0B00000-0000-4000-8000-000000000000',
+        ).map((DetectionMatch<Object?> match) => match.primaryToolId),
+        isNot(contains('case')),
+      );
+      expect(
+        UtilityCatalog.detectArtifacts(
+          'bGlrZVRoaXMh',
+        ).map((DetectionMatch<Object?> match) => match.primaryToolId),
+        isNot(contains('case')),
+      );
+      expect(
+        UtilityCatalog.detectArtifacts(
+          'bGlrZVRoaXMh',
+        ).map((DetectionMatch<Object?> match) => match.primaryToolId),
+        contains('base64'),
+      );
+      for (final int length in <int>[32, 40, 64, 128]) {
+        final String digest = List<String>.generate(
+          length,
+          (int i) => i.isEven ? 'a' : 'B',
+        ).join();
+        final Iterable<String> toolIds = UtilityCatalog.detectArtifacts(
+          digest,
+        ).map((DetectionMatch<Object?> match) => match.primaryToolId);
+        expect(toolIds, contains('hash'), reason: '$length-char digest');
+        expect(toolIds, isNot(contains('case')), reason: '$length-char digest');
+      }
+      expect(
+        UtilityCatalog.detectArtifacts(
+          'aBValue',
+        ).map((DetectionMatch<Object?> match) => match.primaryToolId),
+        contains('case'),
+      );
+      for (final String input in <String>[
+        'hello world',
+        'https://example.com/fooBar',
+      ]) {
+        expect(
+          UtilityCatalog.detectArtifacts(
+            input,
+          ).map((DetectionMatch<Object?> match) => match.primaryToolId),
+          isNot(contains('case')),
+          reason: input,
+        );
+      }
+      final int caseIndex = UtilityCatalog.all.indexWhere(
+        (UtilityDescriptor u) => u.id == 'case',
+      );
+      expect(
+        caseIndex,
+        greaterThan(
+          UtilityCatalog.all.indexWhere(
+            (UtilityDescriptor u) => u.id == 'base64',
+          ),
+        ),
+      );
+      expect(
+        caseIndex,
+        greaterThan(
+          UtilityCatalog.all.indexWhere(
+            (UtilityDescriptor u) => u.id == 'uuid',
+          ),
+        ),
+      );
+    });
+
+    test('catalog names never become artifact matches', () {
+      final Map<String, List<String>> falsePositives = <String, List<String>>{};
+      for (final UtilityDescriptor tool in UtilityCatalog.all) {
+        final List<DetectionMatch<Object?>> matches =
+            UtilityCatalog.detectArtifacts(tool.name);
+        if (matches.isNotEmpty) {
+          falsePositives[tool.name] = matches
+              .map((match) => '${match.artifact.kind.name}: ${match.reason}')
+              .toList();
+        }
+        expect(
+          UtilityCatalog.searchByName(tool.name).map((entry) => entry.id),
+          contains(tool.id),
+          reason: tool.name,
+        );
+      }
+      expect(falsePositives, isEmpty);
+    });
+
+    test('search synonyms never become artifact matches', () {
+      for (final String query in <String>[
+        'unix',
+        'minify',
+        'crontab',
+        'UNIX',
+      ]) {
+        expect(UtilityCatalog.detectArtifacts(query), isEmpty, reason: query);
+        expect(UtilityCatalog.searchByName(query), isNotEmpty, reason: query);
+      }
     });
   });
 

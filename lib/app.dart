@@ -1,14 +1,23 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 
 import 'screens/root_tab_scaffold.dart';
 import 'state/density_controller.dart';
+import 'state/detection_preference_controller.dart';
 import 'state/history_controller.dart';
+import 'state/library_controller.dart';
+import 'state/share_inbox_controller.dart';
+import 'state/sensitive_session_controller.dart';
 import 'state/theme_controller.dart';
+import 'state/tool_draft_controller.dart';
 import 'state/view_mode_controller.dart';
 import 'state/wallpaper_controller.dart';
+import 'state/work_session_controller.dart';
 import 'theme/mq_colors.dart';
 import 'theme/mq_theme.dart';
+import 'utils/external_input_importer.dart';
 import 'widgets/iphone_frame.dart';
 import 'widgets/mq/mq_splash_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,16 +27,34 @@ class MyApp extends StatefulWidget {
     super.key,
     this.themeController,
     this.historyController,
+    this.libraryController,
+    this.shareInboxController,
     this.densityController,
+    this.detectionPreferenceController,
     this.viewModeController,
+    this.workSessionController,
+    this.toolDraftController,
+    this.externalInputImporter,
+    this.qrScanner,
+    this.isWebOverride,
     this.desktopShellOverride,
     this.skipSplash = false,
   });
 
   final ThemeController? themeController;
   final HistoryController? historyController;
+  final LibraryController? libraryController;
+  final ShareInboxController? shareInboxController;
   final DensityController? densityController;
+  final DetectionPreferenceController? detectionPreferenceController;
   final ViewModeController? viewModeController;
+  final WorkSessionController? workSessionController;
+  final ToolDraftController? toolDraftController;
+  final ExternalInputImporter? externalInputImporter;
+  final Future<String?> Function(BuildContext context)? qrScanner;
+
+  /// Test seam for web-only behavior such as native input importing.
+  final bool? isWebOverride;
 
   /// Test seam for the desktop shell. Null in production, where wide web and
   /// native macOS surfaces support the desktop OS.
@@ -52,9 +79,15 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   late final ThemeController _theme;
   late final HistoryController _history;
+  late final LibraryController _library;
+  late final ShareInboxController _shareInbox;
+  late final SensitiveSessionController _sensitiveSession;
   late final DensityController _density;
+  late final DetectionPreferenceController _detectionPreference;
   late final ViewModeController _viewMode;
   late final WallpaperController _wallpaper;
+  late final WorkSessionController _workSession;
+  late final ToolDraftController _toolDrafts;
   late final Listenable _appListenable;
 
   Brightness _platformBrightness = Brightness.light;
@@ -65,7 +98,22 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     super.initState();
     _theme = widget.themeController ?? ThemeController();
     _history = widget.historyController ?? HistoryController();
+    _library = widget.libraryController ?? LibraryController();
+    _shareInbox = widget.shareInboxController ?? ShareInboxController();
+    _workSession = widget.workSessionController ?? WorkSessionController();
+    _workSession.addListener(_syncShortcutWorkflows);
+    unawaited(_shareInbox.syncWorkflows(_workSession.savedWorkflows));
+    _toolDrafts = widget.toolDraftController ?? ToolDraftController();
+    unawaited(_toolDrafts.attach());
+    _sensitiveSession = SensitiveSessionController(
+      _history,
+      workSession: _workSession,
+      toolDrafts: _toolDrafts,
+      shareInbox: _shareInbox,
+    );
     _density = widget.densityController ?? DensityController();
+    _detectionPreference =
+        widget.detectionPreferenceController ?? DetectionPreferenceController();
     _viewMode = widget.viewModeController ?? ViewModeController();
     _wallpaper = WallpaperController();
     _attachWallpaperPrefs();
@@ -106,6 +154,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _workSession.removeListener(_syncShortcutWorkflows);
+    _sensitiveSession.dispose();
     super.dispose();
   }
 
@@ -117,6 +167,21 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       setState(() => _platformBrightness = next);
     }
   }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(
+        Future.wait(<Future<void>>[
+          _shareInbox.refresh(),
+          _shareInbox.refreshIntents(),
+        ]),
+      );
+    }
+  }
+
+  void _syncShortcutWorkflows() =>
+      unawaited(_shareInbox.syncWorkflows(_workSession.savedWorkflows));
 
   Brightness _resolveBrightness(MqThemeMode mode) => switch (mode) {
     MqThemeMode.light => Brightness.light,
@@ -132,48 +197,81 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         controller: _theme,
         child: DensityScope(
           controller: _density,
-          child: HistoryScope(
-            controller: _history,
-            child: WallpaperScope(
-              controller: _wallpaper,
-              child: ListenableBuilder(
-                listenable: _appListenable,
-                builder: (BuildContext context, _) {
-                  final Brightness brightness = _resolveBrightness(_theme.mode);
-                  final MqColors colors = brightness == Brightness.dark
-                      ? MqColors.dark()
-                      : MqColors.light();
-                  final MqTokens tokens = MqTokens(
-                    colors: colors,
-                    brightness: brightness,
-                    density: _density.density,
-                  );
-                  return CupertinoApp(
-                    debugShowCheckedModeBanner: false,
-                    title: 'Masquerade',
-                    theme: buildCupertinoTheme(brightness),
-                    builder: (BuildContext context, Widget? child) => MqTheme(
-                      tokens: tokens,
-                      child: ResponsiveLayout(
-                        desktopShellOverride: widget.desktopShellOverride,
-                        child: AnimatedSwitcher(
-                          duration: _splashFade,
-                          child: _showSplash
-                              ? const MqSplashScreen(
-                                  key: ValueKey<String>('splash'),
-                                )
-                              : KeyedSubtree(
-                                  key: const ValueKey<String>('shell'),
-                                  child: child ?? const SizedBox.shrink(),
-                                ),
+          child: DetectionPreferenceScope(
+            controller: _detectionPreference,
+            child: HistoryScope(
+              controller: _history,
+              child: WallpaperScope(
+                controller: _wallpaper,
+                child: ListenableBuilder(
+                  listenable: _appListenable,
+                  builder: (BuildContext context, _) {
+                    final Brightness brightness = _resolveBrightness(
+                      _theme.mode,
+                    );
+                    final MqColors colors = brightness == Brightness.dark
+                        ? MqColors.dark()
+                        : MqColors.light();
+                    final MqTokens tokens = MqTokens(
+                      colors: colors,
+                      brightness: brightness,
+                      density: _density.density,
+                    );
+                    return CupertinoApp(
+                      debugShowCheckedModeBanner: false,
+                      title: 'Masquerade',
+                      theme: buildCupertinoTheme(brightness),
+                      builder: (BuildContext context, Widget? child) => MqTheme(
+                        tokens: tokens,
+                        child: ResponsiveLayout(
+                          desktopShellOverride:
+                              widget.desktopShellOverride ??
+                              widget.isWebOverride,
+                          child: AnimatedSwitcher(
+                            duration: _splashFade,
+                            child: _showSplash
+                                ? const MqSplashScreen(
+                                    key: ValueKey<String>('splash'),
+                                  )
+                                : KeyedSubtree(
+                                    key: const ValueKey<String>('shell'),
+                                    child: child ?? const SizedBox.shrink(),
+                                  ),
+                          ),
                         ),
                       ),
-                    ),
-                    home: RootTabScaffold(
-                      desktopShellOverride: widget.desktopShellOverride,
-                    ),
-                  );
-                },
+                      home: ToolDraftScope(
+                        controller: _toolDrafts,
+                        child: ShareInboxScope(
+                          controller: _shareInbox,
+                          child: WorkSessionScope(
+                            controller: _workSession,
+                            child: SensitiveSessionScope(
+                              controller: _sensitiveSession,
+                              child: ListenableBuilder(
+                                listenable: _sensitiveSession,
+                                builder: (BuildContext context, _) =>
+                                    RootTabScaffold(
+                                      key: ValueKey<int>(
+                                        _sensitiveSession.revision,
+                                      ),
+                                      isWebOverride: widget.isWebOverride,
+                                      desktopShellOverride:
+                                          widget.desktopShellOverride ??
+                                          widget.isWebOverride,
+                                      libraryController: _library,
+                                      externalInputImporter:
+                                          widget.externalInputImporter,
+                                      qrScanner: widget.qrScanner,
+                                    ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
           ),

@@ -1,0 +1,44 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Push a new build to TestFlight"
+  lane :beta do
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_content: ENV.fetch("ASC_KEY_P8"),
+      is_key_content_base64: true,
+    )
+
+    # The distribution cert is already in the keychain (imported by CI); this only
+    # fetches the matching App Store profile.
+    get_provisioning_profile(
+      api_key: api_key,
+      app_identifier: "dev.howardism.Masquerade",
+    )
+
+    # The checked-in project uses automatic signing, which needs a signed-in Xcode
+    # and so cannot work on a CI runner. Flip to manual for this build only --
+    # ephemeral checkout, so the pbxproj edit is never committed.
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: "Runner.xcodeproj",
+      team_id: "9KRJ83FMAF",
+      code_sign_identity: "Apple Distribution",
+      profile_name: lane_context[SharedValues::SIGH_NAME],
+    )
+
+    # CI runs `flutter build ios --no-codesign` first, so the Flutter assets and
+    # Runner.app already exist; fastlane owns archive + sign + export from here.
+    build_app(
+      workspace: "Runner.xcworkspace",
+      scheme: "Runner",
+      export_method: "app-store",
+    )
+
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: true,
+    )
+  end
+end

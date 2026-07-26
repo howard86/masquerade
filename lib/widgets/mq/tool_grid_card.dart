@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/cupertino.dart';
 
 import '../../state/history_controller.dart';
 import '../../theme/mq_density.dart';
@@ -6,7 +6,8 @@ import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
-import '../../utils/text_truncate.dart';
+import '../../utils/sensitive_data_policy.dart';
+import 'mq_icons.dart';
 
 /// Editorial home-grid tile. Hairline border resting; accent border + pulsing
 /// dot when [matched]; mono preview line when [lastEntry] is present
@@ -19,6 +20,9 @@ class ToolGridCard extends StatelessWidget {
     required this.lastEntry,
     required this.onTap,
     this.onLongPress,
+    this.favorite = false,
+    this.onToggleFavorite,
+    this.showMetadata = false,
   });
 
   final UtilityDescriptor descriptor;
@@ -26,6 +30,9 @@ class ToolGridCard extends StatelessWidget {
   final HistoryEntry? lastEntry;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
+  final bool favorite;
+  final VoidCallback? onToggleFavorite;
+  final bool showMetadata;
 
   static const int _previewMax = 24;
 
@@ -36,9 +43,12 @@ class ToolGridCard extends StatelessWidget {
     final HistoryEntry? entry = lastEntry;
     final bool hasPreview = entry != null;
     final String? preview = hasPreview
-        ? (entry.sensitive
-              ? '••••'
-              : truncateWithEllipsis(entry.input, max: _previewMax))
+        ? SensitiveDataPolicy.safePreview(
+            entry.input,
+            max: _previewMax,
+            utilityId: entry.utilityId,
+            sensitive: entry.sensitive,
+          )
         : null;
     final Color borderColor = matched ? c.accent : c.border;
     final double borderWidth = matched ? 1.0 : 0.5;
@@ -72,6 +82,23 @@ class ToolGridCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  if (onToggleFavorite != null)
+                    Semantics(
+                      label: 'Favorite ${descriptor.name}',
+                      button: true,
+                      toggled: favorite,
+                      excludeSemantics: true,
+                      child: CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size.square(44),
+                        onPressed: onToggleFavorite,
+                        child: Icon(
+                          MqIcons.star,
+                          size: 18,
+                          color: favorite ? c.accent : c.textTer,
+                        ),
+                      ),
+                    ),
                   if (matched) ...<Widget>[
                     const SizedBox(width: MqSpacing.xs),
                     _MatchDot(color: c.accent),
@@ -87,7 +114,9 @@ class ToolGridCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     )
                   : Text(
-                      descriptor.description,
+                      showMetadata
+                          ? descriptor.metadataSummary
+                          : descriptor.description,
                       style: MqTextStyles.caption1.copyWith(color: c.textSec),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

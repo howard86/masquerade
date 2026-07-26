@@ -2,7 +2,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import '../../models/artifact.dart';
 import '../../state/canvas_controller.dart';
+import '../../state/detection_preference_controller.dart';
 import '../../state/link_group.dart';
 import '../../state/window_content.dart';
 import '../../theme/mq_theme.dart';
@@ -37,20 +39,6 @@ const Map<String, ({String partnerId, ContentType type})> _linkPartners =
       'list': (partnerId: 'diff', type: ContentType.text),
       'diff': (partnerId: 'list', type: ContentType.text),
     };
-
-/// Which canonical [ContentType]s a tool's card can RECEIVE via a pipe drop.
-/// A cell→card drop links the two cards iff the target tool's set contains the
-/// dragged payload's type. Phase 6 extends this as more link pairs land.
-const Map<String, Set<ContentType>> _linkableTypes = <String, Set<ContentType>>{
-  'base64': <ContentType>{ContentType.text},
-  'json': <ContentType>{ContentType.text},
-  'number_base': <ContentType>{ContentType.number},
-  'math': <ContentType>{ContentType.number, ContentType.epoch},
-  'timestamp': <ContentType>{ContentType.epoch, ContentType.number},
-  'list': <ContentType>{ContentType.lines, ContentType.text},
-  'diff': <ContentType>{ContentType.text, ContentType.lines},
-  'color': <ContentType>{ContentType.color, ContentType.text},
-};
 
 /// The desktop work surface: a pannable canvas hosting the fixed
 /// [DesktopIconGrid] (single-click an icon to open a tool) with draggable tool
@@ -314,15 +302,22 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
   }
 
   void _onDropOnCanvas(DragTargetDetails<PipePayload> details) {
-    final List<UtilityDescriptor> matches = UtilityCatalog.detectAll(
-      details.data.value,
-    );
+    final List<DetectionMatch<Object?>> matches =
+        DetectionPreferenceScope.of(context).rank(
+          UtilityCatalog.detectArtifacts(
+            details.data.value,
+            provenance: ArtifactProvenance.liveLink,
+          ),
+        );
     if (matches.isEmpty) return;
     final RenderBox? box =
         _surfaceKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null) return;
     final Offset local = box.globalToLocal(details.offset);
-    final int id = _c.openTool(matches.first, seed: details.data.value);
+    final int id = _c.openTool(
+      UtilityCatalog.byId(matches.first.primaryToolId),
+      seed: matches.first.artifact.rawValue,
+    );
     _c.moveTo(id, local.dx - _pan.dx, local.dy - _pan.dy);
     _c.commit();
   }
@@ -505,7 +500,8 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     return DragTarget<PipePayload>(
       onWillAcceptWithDetails: (DragTargetDetails<PipePayload> d) =>
           d.data.sourceCardId != card.id &&
-          (_linkableTypes[descriptor.id]?.contains(d.data.type) ?? false),
+          descriptor.inputSources.contains(UtilityInputSource.liveLink) &&
+          descriptor.liveLinkTypes.contains(d.data.type),
       onAcceptWithDetails: (DragTargetDetails<PipePayload> d) => _c.linkCards(
         d.data.sourceCardId,
         card.id,

@@ -1,10 +1,13 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
+import '../../models/artifact.dart';
+import '../../state/detection_preference_controller.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
+import '../../utils/sensitive_data_policy.dart';
 import '../mq/mq_empty_hint.dart';
 import '../mq/mq_icons.dart';
 
@@ -61,7 +64,8 @@ class _CommandPaletteState extends State<_CommandPalette> {
   final TextEditingController _query = TextEditingController();
   final FocusNode _focus = FocusNode();
   List<UtilityDescriptor> _results = UtilityCatalog.searchByName('');
-  UtilityDescriptor? _detected;
+  DetectionMatch<Object?>? _detected;
+  bool _queryProtected = false;
   int _highlight = 0;
 
   @override
@@ -80,9 +84,17 @@ class _CommandPaletteState extends State<_CommandPalette> {
 
   void _recompute() {
     final String text = _query.text;
-    final List<UtilityDescriptor> detected = UtilityCatalog.detectAll(text);
+    final bool protected = SensitiveDataPolicy.containsSensitiveArtifact(text);
+    final List<DetectionMatch<Object?>> detected = protected
+        ? const <DetectionMatch<Object?>>[]
+        : DetectionPreferenceScope.of(
+            context,
+          ).rank(UtilityCatalog.detectArtifacts(text));
     setState(() {
-      _results = UtilityCatalog.searchByName(text);
+      _queryProtected = protected;
+      _results = protected
+          ? const <UtilityDescriptor>[]
+          : UtilityCatalog.searchByName(text);
       _detected = detected.isNotEmpty ? detected.first : null;
       _highlight = 0;
     });
@@ -95,7 +107,10 @@ class _CommandPaletteState extends State<_CommandPalette> {
 
   void _pickHighlighted() {
     if (_detected != null && _highlight == 0) {
-      _pick(_detected!, seed: _query.text);
+      _pick(
+        UtilityCatalog.byId(_detected!.primaryToolId),
+        seed: _detected!.artifact.rawValue,
+      );
     } else {
       final int idx = _highlight - (_detected != null ? 1 : 0);
       if (idx >= 0 && idx < _results.length) _pick(_results[idx]);
@@ -155,7 +170,9 @@ class _CommandPaletteState extends State<_CommandPalette> {
                   padding: const EdgeInsets.symmetric(horizontal: MqSpacing.md),
                   child: MqEmptyHint(
                     label: 'No tools found',
-                    detail: 'Nothing matched “${_query.text}”.',
+                    detail: _queryProtected
+                        ? 'Sensitive values stay out of search results.'
+                        : 'Nothing matched “${_query.text}”.',
                   ),
                 )
               else
@@ -167,9 +184,14 @@ class _CommandPaletteState extends State<_CommandPalette> {
                     itemBuilder: (BuildContext _, int i) {
                       if (_detected != null && i == 0) {
                         return _DetectRow(
-                          descriptor: _detected!,
+                          descriptor: UtilityCatalog.byId(
+                            _detected!.primaryToolId,
+                          ),
                           highlighted: _highlight == 0,
-                          onTap: () => _pick(_detected!, seed: _query.text),
+                          onTap: () => _pick(
+                            UtilityCatalog.byId(_detected!.primaryToolId),
+                            seed: _detected!.artifact.rawValue,
+                          ),
                         );
                       }
                       final int idx = i - (_detected != null ? 1 : 0);

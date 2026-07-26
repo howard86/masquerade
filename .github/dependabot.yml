@@ -23,14 +23,13 @@ updates:
       - dependency-name: "flutter_native_splash"
         versions: [">=2.4.8"]
     assignees:
-      - "howard"
+      - "howard86"
     commit-message:
       prefix: "deps"
       prefix-development: "deps-dev"
       include: "scope"
     labels:
       - "dependencies"
-      - "flutter"
 
   # Enable version updates for GitHub Actions
   - package-ecosystem: "github-actions"
@@ -46,10 +45,9 @@ updates:
         patterns:
           - "*"
     assignees:
-      - "howard"
+      - "howard86"
     commit-message:
       prefix: "ci"
       include: "scope"
     labels:
       - "dependencies"
-      - "github-actions"

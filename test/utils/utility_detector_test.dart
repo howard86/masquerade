@@ -1,13 +1,18 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:masquerade/models/artifact.dart';
 import 'package:masquerade/utility_catalog.dart';
 
 void main() {
-  List<String> ids(String input) => UtilityCatalog.detectAll(
-    input,
+  List<DetectionMatch<Object?>> matches(String input) =>
+      UtilityCatalog.detectArtifacts(input);
+  List<String> ids(String input) => UtilityCatalog.detectedTools(
+    matches(input),
   ).map((UtilityDescriptor u) => u.id).toList();
 
-  group('UtilityCatalog.detectAll', () {
+  group('UtilityCatalog.detectArtifacts', () {
     test('empty / whitespace returns no candidates', () {
       expect(ids(''), isEmpty);
       expect(ids('   '), isEmpty);
@@ -53,7 +58,7 @@ void main() {
     test('unix seconds suggests Timestamp + Number Base, not bps', () {
       // 1700000000 has length 10, not divisible by 4, so isBase64 rejects.
       // bps detector requires explicit suffix or abs ≤ 1, so it stays quiet.
-      expect(ids('1700000000'), <String>['number_base', 'timestamp']);
+      expect(ids('1700000000'), <String>['timestamp', 'number_base']);
     });
 
     test('arithmetic expression suggests Math only', () {
@@ -154,7 +159,7 @@ void main() {
     });
 
     test('unix milliseconds suggests Timestamp + Number Base', () {
-      expect(ids('1700000000000'), <String>['number_base', 'timestamp']);
+      expect(ids('1700000000000'), <String>['timestamp', 'number_base']);
     });
 
     test('ISO 8601 only suggests Timestamp', () {
@@ -237,6 +242,85 @@ void main() {
       expect(
         ids('the quick brown fox\njumped over the lazy dog'),
         isNot(contains('list')),
+      );
+    });
+
+    test('JWT interpretation ranks above its Base64 header sub-artifact', () {
+      const String token = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.signature';
+      final List<DetectionMatch<Object?>> ranked = matches(token);
+
+      expect(
+        ranked.map((DetectionMatch<Object?> m) => m.artifact.kind),
+        <ArtifactKind>[ArtifactKind.jwt, ArtifactKind.base64],
+      );
+      expect(ranked.first.primaryToolId, 'jwt');
+      expect(ranked.first.confidence, greaterThan(ranked.last.confidence));
+      expect(ranked.first.reason, contains('JSON JWT header and payload'));
+    });
+
+    test('ten-digit decimal explains Timestamp versus Number ambiguity', () {
+      final List<DetectionMatch<Object?>> ranked = matches('1700000000');
+
+      expect(
+        ranked.map((DetectionMatch<Object?> m) => m.artifact.kind),
+        <ArtifactKind>[ArtifactKind.timestamp, ArtifactKind.number],
+      );
+      expect(ranked.first.reason, contains('ordinary number'));
+      expect(ranked.last.reason, contains('Timestamp is ranked first'));
+    });
+
+    test('preserves raw whitespace and every explicit provenance', () {
+      const String raw = '  {"ok":true}\n';
+      for (final ArtifactProvenance provenance in ArtifactProvenance.values) {
+        final DetectionMatch<Object?> match = UtilityCatalog.detectArtifacts(
+          raw,
+          provenance: provenance,
+        ).first;
+
+        expect(match.artifact.rawValue, raw);
+        expect(match.artifact.provenance, provenance);
+      }
+    });
+
+    test('routes certificates to X.509 and public keys to fingerprinting', () {
+      final String certificate = File(
+        'test/fixtures/x509_leaf.pem',
+      ).readAsStringSync();
+      const String publicKey =
+          '-----BEGIN PUBLIC KEY-----\nYWJj\n-----END PUBLIC KEY-----';
+      const String rsaPublicKey =
+          '-----BEGIN RSA PUBLIC KEY-----\nYWJj\n-----END RSA PUBLIC KEY-----';
+      const String privateKey =
+          '-----BEGIN PRIVATE KEY-----\nYWJj\n-----END PRIVATE KEY-----';
+
+      final DetectionMatch<Object?> certificateMatch =
+          UtilityCatalog.detectArtifacts(
+            certificate,
+            provenance: ArtifactProvenance.fileImport,
+          ).first;
+      expect(certificateMatch.primaryToolId, 'x509_inspector');
+      expect(certificateMatch.artifact.rawValue, certificate);
+      expect(
+        certificateMatch.artifact.provenance,
+        ArtifactProvenance.fileImport,
+      );
+
+      for (final String value in <String>[publicKey, rsaPublicKey]) {
+        final DetectionMatch<Object?> publicKeyMatch =
+            UtilityCatalog.detectArtifacts(
+              value,
+              provenance: ArtifactProvenance.fileImport,
+            ).first;
+        expect(publicKeyMatch.primaryToolId, 'hash');
+        expect(publicKeyMatch.artifact.kind, ArtifactKind.hash);
+        expect(publicKeyMatch.artifact.rawValue, value);
+      }
+      expect(
+        UtilityCatalog.detectArtifacts(privateKey).where(
+          (DetectionMatch<Object?> match) =>
+              match.primaryToolId == 'hash' && match.reason.contains('PEM'),
+        ),
+        isEmpty,
       );
     });
   });
