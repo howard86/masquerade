@@ -17,10 +17,7 @@ import 'desktop_canvas.dart';
 /// [DesktopWallpaper]. Replaces the former centered/bordered/height-capped
 /// window + sidebar layout.
 class DesktopShell extends StatefulWidget {
-  const DesktopShell({super.key, this.isWebOverride});
-
-  /// See `MyApp.isWebOverride`. Passed through to Settings dialog.
-  final bool? isWebOverride;
+  const DesktopShell({super.key});
 
   @override
   State<DesktopShell> createState() => _DesktopShellState();

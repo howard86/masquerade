@@ -33,9 +33,8 @@ class MqLayout {
   /// breathing room). Used by every screen mounted inside RootTabScaffold.
   static const double tabBarClearance = 96;
 
-  /// Minimum viewport width (logical px) at which the web desktop shell and
-  /// the desktop↔mobile toggle become available. Below this, web falls back
-  /// to the mobile UI with no toggle.
+  /// Minimum viewport width (logical px) at which a supported desktop surface
+  /// shows the desktop OS and desktop↔mobile toggle.
   static const double desktopBreakpoint = 900;
 
   /// Max width of the desktop Home content (tool grid) before it stops growing

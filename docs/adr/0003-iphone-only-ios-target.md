@@ -10,7 +10,7 @@ The iOS target drops iPad. `TARGETED_DEVICE_FAMILY` is `1` (iPhone) across all t
 
 Runner shipped the Flutter template default `"1,2"` (iPhone + iPad) — never a deliberate choice, and never designed for. There are exactly two shells (`lib/utils/shell_layout.dart`):
 
-- `desktop` — gated on `isWeb && width >= 900 && viewMode == desktop`. Web-only by construction, per **ADR-0002**.
+- `desktop` — gated on `(web || native macOS) && width >= 900 && viewMode == desktop`, per **ADR-0002**.
 - `framedMobile` / `bareMobile` — the mobile UI, framed inside the hand-drawn iPhone silhouette (`lib/widgets/iphone_frame.dart`) once the viewport exceeds ~493×1052.
 
 An iPad is native, so it can never reach `desktop`; it is large, so it always lands in `framedMobile`. The shipped result was the mobile UI letterboxed inside a *fake drawn iPhone bezel* on a real 13″ iPad — which reads as a bug, not a design, and violates App Store Guideline 2.4.1 (make full use of the screen).

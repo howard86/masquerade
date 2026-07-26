@@ -8,7 +8,7 @@ import 'package:masquerade/widgets/mq/view_mode_toggle_button.dart';
 
 Widget _harness(
   Widget child, {
-  bool? isWeb,
+  bool? desktopShell = false,
   MqViewMode initial = MqViewMode.desktop,
 }) {
   return CupertinoApp(
@@ -19,7 +19,10 @@ Widget _harness(
           colors: MqColors.light(),
           brightness: Brightness.light,
         ),
-        child: ResponsiveLayout(isWebOverride: isWeb, child: child),
+        child: ResponsiveLayout(
+          desktopShellOverride: desktopShell,
+          child: child,
+        ),
       ),
     ),
   );
@@ -37,7 +40,7 @@ void main() {
 
       expect(find.text('Test Content'), findsOneWidget);
       expect(find.byType(IphoneFrame), findsOneWidget);
-      // No web override → kIsWeb is false in tests → no toggle.
+      // Unsupported desktop surface → no toggle.
       expect(find.byKey(ViewModeToggleButton.compactKey), findsNothing);
     });
 
@@ -50,7 +53,7 @@ void main() {
         await tester.pumpWidget(
           _harness(
             const Text('Test Content'),
-            isWeb: true,
+            desktopShell: true,
             initial: MqViewMode.mobile,
           ),
         );

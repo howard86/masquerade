@@ -5,10 +5,8 @@ import '../../theme/mq_theme.dart';
 import 'mq_button.dart';
 import 'mq_icons.dart';
 
-/// Glass button that switches the app to [target] layout. Used in three places:
-/// the desktop sidebar (target: mobile, full-width labelled), and — in [compact]
-/// form — an icon-only chip tucked into the iPhone frame's status strip on wide
-/// web (target: desktop).
+/// Glass button that switches the app to [target] layout. The [compact] form is
+/// an icon-only chip tucked into the iPhone frame's status strip.
 class ViewModeToggleButton extends StatelessWidget {
   const ViewModeToggleButton({
     super.key,

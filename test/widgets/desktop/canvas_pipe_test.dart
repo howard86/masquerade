@@ -16,7 +16,7 @@ Future<void> _pumpDesktop(WidgetTester tester) async {
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
     MyApp(
-      isWebOverride: true,
+      desktopShellOverride: true,
       viewModeController: ViewModeController(initial: MqViewMode.desktop),
       skipSplash: true,
     ),
@@ -121,11 +121,11 @@ void main() {
       await tester.pumpAndSettle(_settle);
       expect(find.byType(ToolCardFrame), findsOneWidget);
 
-      // Drop on empty space far from the single card (bottom-right of canvas).
+      // Drop on empty space between the card and right-aligned launchers.
       await _pipeDrag(
         tester,
         tester.getCenter(_outputPipe),
-        const Offset(1050, 800),
+        const Offset(800, 800),
       );
 
       // A second card opened, seeded by the dropped value.

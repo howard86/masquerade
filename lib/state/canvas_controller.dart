@@ -255,6 +255,13 @@ class CanvasController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Moves card [id] relative to its latest position.
+  void moveBy(int id, double dx, double dy) {
+    final int i = _cards.indexWhere((CanvasCard c) => c.id == id);
+    if (i < 0) return;
+    moveTo(id, _cards[i].x + dx, _cards[i].y + dy);
+  }
+
   /// Resizes card [id] to [width], clamped to [minCardWidth]..[maxCardWidth].
   /// Does not persist per-tick — call [commit] when the drag ends.
   void resize(int id, double width) {

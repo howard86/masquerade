@@ -121,7 +121,9 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(1200, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    await tester.pumpWidget(const MyApp(skipSplash: true));
+    await tester.pumpWidget(
+      const MyApp(skipSplash: true, desktopShellOverride: false),
+    );
     await tester.pumpAndSettle();
 
     expect(
