@@ -10,12 +10,19 @@ platform :ios do
       is_key_content_base64: true,
     )
 
-    # The distribution cert is already in the keychain (imported by CI); this only
-    # fetches the matching App Store profile.
+    # The distribution cert is already in the keychain (imported by CI). The app
+    # and extension have different bundle IDs, so each needs its own profile.
     get_provisioning_profile(
       api_key: api_key,
       app_identifier: "dev.howardism.Masquerade",
     )
+    runner_profile = lane_context[SharedValues::SIGH_NAME]
+
+    get_provisioning_profile(
+      api_key: api_key,
+      app_identifier: "dev.howardism.Masquerade.ShareExtension",
+    )
+    share_extension_profile = lane_context[SharedValues::SIGH_NAME]
 
     # The checked-in project uses automatic signing, which needs a signed-in Xcode
     # and so cannot work on a CI runner. Flip to manual for this build only --
@@ -25,7 +32,16 @@ platform :ios do
       path: "Runner.xcodeproj",
       team_id: "9KRJ83FMAF",
       code_sign_identity: "Apple Distribution",
-      profile_name: lane_context[SharedValues::SIGH_NAME],
+      profile_name: runner_profile,
+      targets: ["Runner"],
+    )
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: "Runner.xcodeproj",
+      team_id: "9KRJ83FMAF",
+      code_sign_identity: "Apple Distribution",
+      profile_name: share_extension_profile,
+      targets: ["ShareExtension"],
     )
 
     # CI runs `flutter build ios --no-codesign` first, so the Flutter assets and
@@ -34,6 +50,12 @@ platform :ios do
       workspace: "Runner.xcworkspace",
       scheme: "Runner",
       export_method: "app-store",
+      export_options: {
+        provisioningProfiles: {
+          "dev.howardism.Masquerade" => runner_profile,
+          "dev.howardism.Masquerade.ShareExtension" => share_extension_profile,
+        },
+      },
     )
 
     upload_to_testflight(
