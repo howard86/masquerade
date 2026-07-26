@@ -207,7 +207,11 @@ void main() {
 
     test('pin and session metadata serialize and pin persists', () async {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
-      final HistoryController c = HistoryController(prefs: prefs);
+      await prefs.setInt('mb.history.retention.days', 0);
+      final HistoryController c = HistoryController(
+        prefs: prefs,
+        retention: Duration.zero,
+      );
       final HistoryEntry item = HistoryEntry(
         utilityId: 'json',
         input: '{"hello":"world"}',
@@ -290,7 +294,7 @@ void main() {
     });
 
     test('search covers tool, date, input, and output', () async {
-      final HistoryController c = HistoryController();
+      final HistoryController c = HistoryController(retention: Duration.zero);
       await c.add(
         HistoryEntry(
           utilityId: 'json',

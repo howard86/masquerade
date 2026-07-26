@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
 import 'package:masquerade/state/view_mode_controller.dart';
+import 'package:masquerade/state/window_content.dart';
 import 'package:masquerade/theme/mq_colors.dart';
 import 'package:masquerade/theme/mq_theme.dart';
 import 'package:masquerade/utility_catalog.dart';
@@ -17,7 +18,7 @@ Future<void> _pump(WidgetTester tester) async {
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
     MyApp(
-      isWebOverride: true,
+      desktopShellOverride: true,
       viewModeController: ViewModeController(initial: MqViewMode.desktop),
       skipSplash: true,
     ),
@@ -84,6 +85,39 @@ void main() {
       }
     });
 
+    testWidgets('flows launchers into visible right-aligned columns', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      final List<UtilityDescriptor> opened = <UtilityDescriptor>[];
+      await _pumpGrid(tester, opened);
+      await tester.binding.setSurfaceSize(const Size(900, 800));
+      await tester.pumpAndSettle();
+      final Rect viewport = tester.getRect(find.byType(DesktopIconGrid));
+      final Set<double> columns = <double>{};
+      final List<String> labels = <String>[
+        for (final UtilityDescriptor d in UtilityCatalog.all) d.name,
+        for (final SystemApp app in SystemApp.values) SystemWindow(app).title,
+      ];
+
+      for (final String label in labels) {
+        final Rect tile = tester.getRect(find.bySemanticsLabel(label));
+        expect(
+          tile.left >= viewport.left &&
+              tile.top >= viewport.top &&
+              tile.right <= viewport.right &&
+              tile.bottom <= viewport.bottom,
+          isTrue,
+          reason: '$label should be fully visible without scrolling',
+        );
+        columns.add(tile.center.dx);
+      }
+
+      expect(columns.length, greaterThan(1));
+      handle.dispose();
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('tapping a tile opens a card with the correct tool', (
       WidgetTester tester,
     ) async {
@@ -106,8 +140,7 @@ void main() {
       await _pumpGrid(tester, opened);
 
       // Each launcher tile merges to one node: a button, labelled with the tool
-      // name, carrying the tap action Enter/Space activate. (Tiles scrolled
-      // below the right-edge fold are hidden, which is orthogonal to this.)
+      // name, carrying the tap action Enter/Space activate.
       for (final UtilityDescriptor d in UtilityCatalog.all) {
         final SemanticsData data = tester
             .getSemantics(find.bySemanticsLabel(d.name))
@@ -166,6 +199,14 @@ void main() {
 
         // Tab onto the first tile (visual order).
         await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+        expect(_focusedTileLabel(), UtilityCatalog.all[0].name);
+
+        // ArrowLeft crosses to the next visual column; ArrowRight reverses.
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+        await tester.pumpAndSettle();
+        expect(_focusedTileLabel(), UtilityCatalog.all[9].name);
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
         await tester.pumpAndSettle();
         expect(_focusedTileLabel(), UtilityCatalog.all[0].name);
 

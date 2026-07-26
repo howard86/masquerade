@@ -43,7 +43,7 @@ Plus, across every tool:
 
 - **Live, debounced parsing** — results update as you type with a 200 ms debounce; unrecognized input surfaces an inline error banner instead of silent failure.
 - **Light / dark / system theme + searchable history** — theme choice and per-tool history persist via `shared_preferences`.
-- **Desktop OS on wide web** — at ≥ 900 px the app becomes a full-bleed macOS-style desktop: menubar, wallpaper, desktop icons, a dock, and a ⌘K Spotlight palette. Tools open as windows (traffic-light chrome, minimize / maximize / edge-snap) with live links that pipe one window's output into the next and saved layouts that persist. History and Settings open as system windows; a menu item drops back to the mobile view.
+- **Desktop OS on macOS and wide web** — at ≥ 900 px the native Mac app and web app become a full-bleed macOS-style desktop: menubar, wallpaper, desktop icons, a dock, and a ⌘K Spotlight palette. Tools open as windows (traffic-light chrome, minimize / maximize / edge-snap) with live links that pipe one window's output into the next and saved layouts that persist. History and Settings open as system windows; a menu item drops back to the mobile view.
 
 ## Requirements
 
@@ -57,7 +57,7 @@ Plus, across every tool:
 flutter pub get
 flutter run                    # first connected device
 flutter run -d chrome          # web
-flutter run -d macos           # desktop
+flutter run -d macos           # native desktop OS
 ```
 
 CI builds and ships the iOS release itself: a green `main` uploads to TestFlight automatically. Run `flutter build <target> --release` locally only when you need to debug a specific platform.

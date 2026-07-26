@@ -27,7 +27,7 @@ Masquerade is a Flutter utility-toolbox app. iOS-first (`CupertinoApp`). Tab sca
 
 Add new tools by registering in `UtilityCatalog` plus an embeddable body widget under `lib/widgets/tool_bodies/<tool>_body.dart`. Home reads the catalog directly and renders each entry as a `ToolGridCard` — there is no manual wiring elsewhere.
 
-On wide web (≥ 900 px) the same catalog tools also open on a **desktop OS** (`lib/screens/desktop/`) — a full-bleed, skeuomorphic macOS-style desktop with a menubar, wallpaper, desktop icon grid, windowed cards (traffic-light chrome + a window manager with z-order, minimize/maximize, edge-snap), a dock, a Spotlight ⌘K palette, and History/Settings as system windows. Live links pipe one window's output into another. See `CONTEXT.md` for the domain language and `docs/adr/` (0001 for the link engine, 0002 for the desktop OS metaphor).
+On native macOS and wide web (≥ 900 px) the same catalog tools open on a **desktop OS** (`lib/screens/desktop/`) — a full-bleed, skeuomorphic macOS-style desktop with a menubar, wallpaper, desktop icon grid, windowed cards (traffic-light chrome + a window manager with z-order, minimize/maximize, edge-snap), a dock, a Spotlight ⌘K palette, and History/Settings as system windows. Live links pipe one window's output into another. See `CONTEXT.md` for the domain language and `docs/adr/` (0001 for the link engine, 0002 for the desktop OS metaphor).
 
 ## Stack
 
@@ -105,4 +105,4 @@ Hooks (in `.pre-commit-config.yaml`):
 - The `PostToolUse` hook in `.claude/settings.json` runs `dart format` on edited `*.dart` files. If a format error surfaces in the transcript, fix the syntax — don't silence it.
 - Prefer `widgets/mq/*` (`MqButton`, `MqInput`, `MqSurface`, `MqMonoCell`, ...) over raw Cupertino primitives — they carry theme + spacing tokens. Read colors via `MqTheme.of(context)`, not hardcoded `CupertinoColors`.
 - Tool registration is centralized: adding a tool means editing `lib/utility_catalog.dart` AND adding a body widget under `lib/widgets/tool_bodies/<tool>_body.dart`. Home auto-picks it up via `UtilityCatalog.all`.
-- iOS ships **iPhone-only** (`TARGETED_DEVICE_FAMILY = 1`, all three configs). iPad has no layout — it can't reach the web-only desktop shell and lands in `framedMobile`, i.e. a fake iPhone bezel on a real iPad. Re-enabling it needs a real layout first, not a manifest edit (`docs/adr/0003`). Release/submission gotchas live in `docs/launch-metadata.md` §8.
+- iOS ships **iPhone-only** (`TARGETED_DEVICE_FAMILY = 1`, all three configs). iPad has no layout — native iOS can't reach the macOS/web desktop shell and lands in `framedMobile`, i.e. a fake iPhone bezel on a real iPad. Re-enabling it needs a real layout first, not a manifest edit (`docs/adr/0003`). Release/submission gotchas live in `docs/launch-metadata.md` §8.

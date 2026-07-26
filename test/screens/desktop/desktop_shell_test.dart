@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
 import 'package:masquerade/screens/desktop/desktop_shell.dart';
@@ -17,14 +18,14 @@ const Size _phone = Size(393, 852);
 Future<void> _pump(
   WidgetTester tester, {
   required Size size,
-  bool? isWeb = true,
+  bool? desktopShell = true,
   MqViewMode initial = MqViewMode.desktop,
 }) async {
   await tester.binding.setSurfaceSize(size);
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
     MyApp(
-      isWebOverride: isWeb,
+      desktopShellOverride: desktopShell,
       viewModeController: ViewModeController(initial: initial),
       skipSplash: true,
     ),
@@ -85,7 +86,7 @@ void main() {
 
       await tester.pumpWidget(
         MyApp(
-          isWebOverride: true,
+          desktopShellOverride: true,
           viewModeController: ViewModeController(initial: MqViewMode.desktop),
           skipSplash: true,
         ),
@@ -120,6 +121,20 @@ void main() {
   });
 
   group('view-mode gating', () {
+    testWidgets('native macOS opens the desktop OS without an override', (
+      WidgetTester tester,
+    ) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      try {
+        await _pump(tester, size: _desktop, desktopShell: null);
+
+        expect(find.byType(DesktopShell), findsOneWidget);
+        expect(find.byType(IphoneFrame), findsNothing);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
     testWidgets('mobile mode on wide web frames + offers "Desktop view"', (
       WidgetTester tester,
     ) async {
@@ -143,10 +158,10 @@ void main() {
       expect(find.byKey(ViewModeToggleButton.compactKey), findsNothing);
     });
 
-    testWidgets('non-web wide viewport is unchanged (framed, no toggle)', (
+    testWidgets('unsupported wide viewport stays framed with no toggle', (
       WidgetTester tester,
     ) async {
-      await _pump(tester, size: _desktop, isWeb: false);
+      await _pump(tester, size: _desktop, desktopShell: false);
       expect(find.byType(IphoneFrame), findsOneWidget);
       expect(find.byType(DesktopShell), findsNothing);
       expect(find.byKey(ViewModeToggleButton.compactKey), findsNothing);

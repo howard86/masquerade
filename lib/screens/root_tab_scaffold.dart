@@ -18,6 +18,7 @@ class RootTabScaffold extends StatefulWidget {
   const RootTabScaffold({
     super.key,
     this.isWebOverride,
+    this.desktopShellOverride,
     required this.libraryController,
     this.externalInputImporter,
     this.qrScanner,
@@ -25,6 +26,10 @@ class RootTabScaffold extends StatefulWidget {
 
   /// See `MyApp.isWebOverride`. Null in production → reads [kIsWeb].
   final bool? isWebOverride;
+
+  /// See `MyApp.desktopShellOverride`.
+  final bool? desktopShellOverride;
+
   final LibraryController libraryController;
   final ExternalInputImporter? externalInputImporter;
   final Future<String?> Function(BuildContext context)? qrScanner;
@@ -68,6 +73,9 @@ class _RootTabScaffoldState extends State<RootTabScaffold> {
   @override
   Widget build(BuildContext context) {
     final bool isWeb = widget.isWebOverride ?? kIsWeb;
+    final bool desktopSupported = desktopShellSupported(
+      override: widget.desktopShellOverride ?? widget.isWebOverride,
+    );
     final MqViewMode viewMode = ViewModeScope.of(context).mode;
     // Measure actual available space via LayoutBuilder (not MediaQuery) so the
     // decision matches ResponsiveLayout's and stays correct when this scaffold
@@ -75,13 +83,13 @@ class _RootTabScaffoldState extends State<RootTabScaffold> {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final MqShellLayout layout = resolveShellLayout(
-          isWeb: isWeb,
+          desktopSupported: desktopSupported,
           width: constraints.maxWidth,
           height: constraints.maxHeight,
           viewMode: viewMode,
         );
         if (layout == MqShellLayout.desktop) {
-          return DesktopShell(isWebOverride: widget.isWebOverride);
+          return const DesktopShell();
         }
         return _buildTabScaffold(context, importEnabled: !isWeb);
       },
@@ -184,8 +192,10 @@ class _RootTabScaffoldState extends State<RootTabScaffold> {
           minimumSize: const Size.square(44),
           onPressed: () => Navigator.of(context).push<void>(
             CupertinoPageRoute<void>(
-              builder: (_) =>
-                  SettingsScreen(isWebOverride: widget.isWebOverride),
+              builder: (_) => SettingsScreen(
+                desktopShellOverride:
+                    widget.desktopShellOverride ?? widget.isWebOverride,
+              ),
             ),
           ),
           child: const Icon(MqIcons.setting),

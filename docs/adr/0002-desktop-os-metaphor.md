@@ -4,7 +4,7 @@ status: accepted
 
 # Desktop presentation adopts a skeuomorphic macOS-style OS metaphor
 
-The wide-web (≥ 900 px) desktop presentation becomes a full-bleed, skeuomorphic macOS-style OS — a `DesktopMenubar` (File / Edit / View / Window + live clock), a themed `DesktopWallpaper`, a `DesktopIconGrid` of all catalog tools + system apps, windowed cards with real window-manager chrome (traffic-light close/minimize/maximize, z-order bring-to-front, edge-snap/half-tiling via `CanvasController`), a `DesktopDock` per-window switcher, a Spotlight ⌘K command palette (`showCommandPalette`), and History/Settings as first-class system windows (`WindowContent` sealed union: `ToolWindow | SystemWindow`) — replacing the former bordered-window + sidebar shell.
+The native macOS and wide-web (≥ 900 px) desktop presentations use a full-bleed, skeuomorphic macOS-style OS — a `DesktopMenubar` (File / Edit / View / Window + live clock), a themed `DesktopWallpaper`, a `DesktopIconGrid` of all catalog tools + system apps, windowed cards with real window-manager chrome (traffic-light close/minimize/maximize, z-order bring-to-front, edge-snap/half-tiling via `CanvasController`), a `DesktopDock` per-window switcher, a Spotlight ⌘K command palette (`showCommandPalette`), and History/Settings as first-class system windows (`WindowContent` sealed union: `ToolWindow | SystemWindow`) — replacing the former bordered-window + sidebar shell.
 
 ## Considered options
 
@@ -17,7 +17,8 @@ The wide-web (≥ 900 px) desktop presentation becomes a full-bleed, skeuomorphi
 - Reuses the existing multi-card engine (`CanvasController`) as the window manager; z-order bring-to-front (`CanvasCard.z`), minimize, maximize, and edge-snap were added on top of the existing move/resize/open/close primitives.
 - Code keeps `Canvas`/`Card` identifiers (`CanvasController`, `DesktopCanvas`, `CanvasCard`); **docs adopt Desktop/Window** vocabulary (this ADR + `CONTEXT.md` re-map). No repo-wide rename.
 - A `WindowContent` sealed union lets non-tool windows (History via `SystemApp.history`, Settings via `SystemApp.settings`) live in the same manager without polluting `UtilityCatalog`.
-- Mobile (< 900 px) is unaffected — the same tool bodies render in the mobile shell via the shared seam.
+- Mobile platforms and narrow surfaces are unaffected — the same tool bodies render in the mobile shell via the shared seam.
+- Native macOS launches at 1200×800 with a 900×800 minimum, so its first frame always reaches the desktop presentation and a full-height system window remains reachable.
 - This does NOT change the live-link engine — **ADR-0001 still stands**; this ADR only reframes the shell/presentation and its vocabulary.
-- Delivered as a no-flag phased migration on `main` (PRs: shell, icons + Spotlight, window manager + dock, system windows, docs).
+- Delivered as a no-flag phased migration on `main` (PRs: shell, icons + Spotlight, window manager + dock, system windows, docs), then extended to native macOS through the shared shell classifier.
 - Open follow-ups: real still-life wallpaper images (currently a gradient placeholder in `DesktopWallpaper`), optional right-click context menus / boot-splash polish, dock pin customization.

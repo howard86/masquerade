@@ -23,6 +23,37 @@ env:
   CI: true
 
 jobs:
+  release-source-policy:
+    name: Release source policy
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Require the release-please branch
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          case "$HEAD_REF" in
+            release-please--branches--develop--*) ;;
+            *)
+              echo "::error::PRs to main must come from release-please for develop."
+              exit 1
+              ;;
+          esac
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Require current develop ancestry
+        run: |
+          git fetch origin develop
+          git merge-base --is-ancestor origin/develop HEAD || {
+            echo "::error::The release branch does not contain current develop."
+            exit 1
+          }
+
   # Pre-commit checks (run first)
   pre-commit:
     name: Pre-commit hooks

@@ -14,7 +14,9 @@ import 'package:masquerade/state/wallpaper_controller.dart';
 import 'package:masquerade/theme/mq_colors.dart';
 import 'package:masquerade/theme/mq_theme.dart';
 
-Widget _host({Widget home = const SettingsScreen(isWebOverride: false)}) {
+Widget _host({
+  Widget home = const SettingsScreen(desktopShellOverride: false),
+}) {
   return CupertinoApp(
     builder: (BuildContext context, Widget? child) => MqTheme(
       tokens: MqTokens(colors: MqColors.light(), brightness: Brightness.light),

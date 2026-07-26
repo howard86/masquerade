@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/gestures.dart' show DragStartBehavior;
 
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
@@ -427,6 +428,7 @@ class _HeaderState extends State<_Header> {
   Widget build(BuildContext context) {
     final c = context.mq.colors;
     return GestureDetector(
+      dragStartBehavior: DragStartBehavior.down,
       behavior: HitTestBehavior.opaque,
       onTap: widget.onFocus,
       onPanStart: widget.maximized
