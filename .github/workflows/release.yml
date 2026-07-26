@@ -71,7 +71,11 @@ jobs:
             exit 0
           fi
           gh pr edit "$pr" --base main
-          echo "Retargeted PR #$pr onto main."
+          # Reopening emits a fresh pull_request event against the final base, so
+          # main's source-policy check runs instead of retaining the develop skip.
+          gh pr close "$pr"
+          gh pr reopen "$pr"
+          echo "Retargeted PR #$pr onto main and restarted its checks."
 
       # The version bump and CHANGELOG land on main via the Release PR. Open a PR
       # back to protected develop or the next cycle starts from a stale version.
