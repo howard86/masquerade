@@ -30,7 +30,8 @@ const Map<ShortcutActivator, Intent> _arrowTraversal =
     };
 
 /// Always-present launcher icon grid. Aligned vertically on the right edge of
-/// the desktop viewport (macOS style), keeping the center workspace spacious.
+/// the desktop viewport (macOS style), flowing into columns from right to left
+/// so every launcher remains visible at the native Mac window's minimum size.
 class DesktopIconGrid extends StatelessWidget {
   const DesktopIconGrid({
     super.key,
@@ -41,6 +42,9 @@ class DesktopIconGrid extends StatelessWidget {
   final void Function(UtilityDescriptor descriptor) onOpen;
   final void Function(SystemApp app) onOpenSystem;
 
+  static const double _columnWidth = 84;
+  static const double _tileStride = 78 + MqSpacing.sm;
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -50,49 +54,76 @@ class DesktopIconGrid extends StatelessWidget {
         MqSpacing.md,
         MqSpacing.xl * 2 + 16, // clear the menubar top and dock bottom
       ),
-      child: Align(
-        alignment: Alignment.topRight,
-        child: SingleChildScrollView(
-          // Keyboard users Tab/Shift-Tab through the launcher in visual order;
-          // the arrow keys move focus to the spatially-adjacent tile.
-          child: Shortcuts(
-            shortcuts: _arrowTraversal,
-            child: FocusTraversalGroup(
-              child: SizedBox(
-                width: 84,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    for (final UtilityDescriptor d
-                        in UtilityCatalog.all) ...<Widget>[
-                      _LauncherTile(
-                        icon: d.icon,
-                        tint: d.tint,
-                        label: d.name,
-                        onOpen: () => onOpen(d),
-                      ),
-                      const SizedBox(height: MqSpacing.sm),
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final List<Widget> tiles = <Widget>[
+            for (final UtilityDescriptor d in UtilityCatalog.all)
+              _LauncherTile(
+                icon: d.icon,
+                tint: d.tint,
+                label: d.name,
+                onOpen: () => onOpen(d),
+              ),
+            for (final SystemApp app in SystemApp.values)
+              _LauncherTile(
+                icon: SystemWindow(app).icon,
+                tint: SystemWindow(app).tint,
+                label: SystemWindow(app).title,
+                onOpen: () => onOpenSystem(app),
+              ),
+          ];
+          final int availableRows = (constraints.maxHeight / _tileStride)
+              .floor();
+          final int rowCount = availableRows.clamp(1, tiles.length);
+          final int columnCount = (tiles.length + rowCount - 1) ~/ rowCount;
+
+          return Align(
+            alignment: Alignment.topRight,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              reverse: true,
+              // Keyboard users Tab/Shift-Tab through the launcher in visual
+              // order; arrow keys move to the spatially-adjacent tile.
+              child: Shortcuts(
+                shortcuts: _arrowTraversal,
+                child: FocusTraversalGroup(
+                  policy: OrderedTraversalPolicy(),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    textDirection: TextDirection.rtl,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      for (int column = 0; column < columnCount; column++)
+                        SizedBox(
+                          width: _columnWidth,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              for (
+                                int index = column * rowCount;
+                                index <
+                                    ((column + 1) * rowCount).clamp(
+                                      0,
+                                      tiles.length,
+                                    );
+                                index++
+                              ) ...<Widget>[
+                                FocusTraversalOrder(
+                                  order: NumericFocusOrder(index.toDouble()),
+                                  child: tiles[index],
+                                ),
+                                const SizedBox(height: MqSpacing.sm),
+                              ],
+                            ],
+                          ),
+                        ),
                     ],
-                    for (final SystemApp app in SystemApp.values) ...<Widget>[
-                      Builder(
-                        builder: (BuildContext context) {
-                          final SystemWindow sw = SystemWindow(app);
-                          return _LauncherTile(
-                            icon: sw.icon,
-                            tint: sw.tint,
-                            label: sw.title,
-                            onOpen: () => onOpenSystem(app),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: MqSpacing.sm),
-                    ],
-                  ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
