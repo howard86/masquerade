@@ -1,14 +1,12 @@
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Which layout the user wants on a wide web window. Only meaningful when the
-/// desktop shell is available (web + viewport ≥ [MqLayout.desktopBreakpoint]);
-/// elsewhere it is ignored and the mobile UI always renders.
+/// Which layout the user wants on a supported wide desktop surface.
 enum MqViewMode { desktop, mobile }
 
-/// Persisted desktop↔mobile layout preference for web. Mirrors the
+/// Persisted desktop↔mobile layout preference. Mirrors the
 /// [DensityController] / [ThemeController] pattern. Defaults to [desktop] so a
-/// brand-new visitor on a wide browser lands in the desktop layout.
+/// brand-new desktop visitor lands in the desktop layout.
 class ViewModeController extends ChangeNotifier {
   ViewModeController({
     MqViewMode initial = MqViewMode.desktop,

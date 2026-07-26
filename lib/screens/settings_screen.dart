@@ -1,5 +1,4 @@
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../state/history_controller.dart';
@@ -22,11 +21,10 @@ import '../widgets/mq/mq_surface.dart';
 final Future<PackageInfo> _packageInfoFuture = PackageInfo.fromPlatform();
 
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key, this.isWebOverride});
+  const SettingsScreen({super.key, this.desktopShellOverride});
 
-  /// See `MyApp.isWebOverride`. Null in production → reads [kIsWeb]. Gates the
-  /// desktop↔mobile "Layout" row, which is only meaningful on wide web.
-  final bool? isWebOverride;
+  /// See `MyApp.desktopShellOverride`. Gates desktop-only settings.
+  final bool? desktopShellOverride;
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +33,7 @@ class SettingsScreen extends StatelessWidget {
       backgroundColor: c.bg,
       child: SafeArea(
         bottom: false,
-        child: SettingsBody(isWebOverride: isWebOverride),
+        child: SettingsBody(desktopShellOverride: desktopShellOverride),
       ),
     );
   }
@@ -44,9 +42,9 @@ class SettingsScreen extends StatelessWidget {
 /// The inner content of the Settings screen, reusable without a scaffold.
 /// Used directly by the desktop window manager.
 class SettingsBody extends StatelessWidget {
-  const SettingsBody({super.key, this.isWebOverride});
+  const SettingsBody({super.key, this.desktopShellOverride});
 
-  final bool? isWebOverride;
+  final bool? desktopShellOverride;
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +53,7 @@ class SettingsBody extends StatelessWidget {
     final HistoryController history = HistoryScope.of(context);
     final ViewModeController viewMode = ViewModeScope.of(context);
     final bool showViewToggle = toggleAvailable(
-      isWeb: isWebOverride ?? kIsWeb,
+      desktopSupported: desktopShellSupported(override: desktopShellOverride),
       width: MediaQuery.sizeOf(context).width,
     );
 

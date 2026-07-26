@@ -15,7 +15,7 @@ Future<void> _pumpDesktop(WidgetTester tester) async {
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
     MyApp(
-      isWebOverride: true,
+      desktopShellOverride: true,
       viewModeController: ViewModeController(initial: MqViewMode.desktop),
       skipSplash: true,
     ),

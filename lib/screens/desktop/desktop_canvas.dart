@@ -368,7 +368,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
   }) {
     final Widget body = switch (sw.app) {
       SystemApp.history => const HistoryBody(),
-      SystemApp.settings => SettingsBody(isWebOverride: true),
+      SystemApp.settings => const SettingsBody(desktopShellOverride: true),
     };
     return ToolCardFrame(
       title: sw.title,

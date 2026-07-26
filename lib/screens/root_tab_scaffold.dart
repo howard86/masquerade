@@ -1,5 +1,4 @@
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../state/view_mode_controller.dart';
 import '../theme/mq_theme.dart';
@@ -11,10 +10,10 @@ import 'home_screen.dart';
 import 'settings_screen.dart';
 
 class RootTabScaffold extends StatefulWidget {
-  const RootTabScaffold({super.key, this.isWebOverride});
+  const RootTabScaffold({super.key, this.desktopShellOverride});
 
-  /// See `MyApp.isWebOverride`. Null in production → reads [kIsWeb].
-  final bool? isWebOverride;
+  /// See `MyApp.desktopShellOverride`.
+  final bool? desktopShellOverride;
 
   @override
   State<RootTabScaffold> createState() => _RootTabScaffoldState();
@@ -37,7 +36,9 @@ class _RootTabScaffoldState extends State<RootTabScaffold> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isWeb = widget.isWebOverride ?? kIsWeb;
+    final bool desktopSupported = desktopShellSupported(
+      override: widget.desktopShellOverride,
+    );
     final MqViewMode viewMode = ViewModeScope.of(context).mode;
     // Measure actual available space via LayoutBuilder (not MediaQuery) so the
     // decision matches ResponsiveLayout's and stays correct when this scaffold
@@ -45,13 +46,13 @@ class _RootTabScaffoldState extends State<RootTabScaffold> {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final MqShellLayout layout = resolveShellLayout(
-          isWeb: isWeb,
+          desktopSupported: desktopSupported,
           width: constraints.maxWidth,
           height: constraints.maxHeight,
           viewMode: viewMode,
         );
         if (layout == MqShellLayout.desktop) {
-          return DesktopShell(isWebOverride: widget.isWebOverride);
+          return const DesktopShell();
         }
         return _buildTabScaffold(context);
       },
