@@ -4,6 +4,17 @@
 
 - **deps**: pin flutter_native_splash to ^2.4.7 for SDK compatibility
 
+## [1.26.1](https://github.com/howard86/masquerade/compare/v1.26.0...v1.26.1) (2026-07-26)
+
+
+### Bug Fixes
+
+* **ci:** repair release automation ([21e5698](https://github.com/howard86/masquerade/commit/21e56982139fbed0cf78a6154d6f66afd5264bb0))
+* **ci:** rerun checks after release retarget ([ff631ec](https://github.com/howard86/masquerade/commit/ff631ec2f75c8fe367979499bc31f36087218c07))
+* **ci:** rerun checks after release retarget ([fc43def](https://github.com/howard86/masquerade/commit/fc43def56f1510f2e90d9bd9a77e311f1aac9880))
+* **ci:** sign share extension separately ([b32cb39](https://github.com/howard86/masquerade/commit/b32cb39aed953367c446faac575316de53ac7793))
+* **ci:** sync releases through pull requests ([c4e974a](https://github.com/howard86/masquerade/commit/c4e974a2533fe9ef69e06e73476e57b2bcb10e20))
+
 ## [1.26.0](https://github.com/howard86/masquerade/compare/v1.25.2...v1.26.0) (2026-07-26)
 
 
