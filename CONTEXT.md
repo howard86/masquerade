@@ -1,6 +1,6 @@
 # Masquerade
 
-A privacy-first developer utility toolbox. iOS-first Flutter app (Cupertino only) that also runs as a web app. Each utility is a self-contained tool; the same tool bodies render unchanged across mobile and the skeuomorphic **desktop OS** presentation. This glossary fixes the language for the desktop OS and the shared-UI architecture it builds on.
+A privacy-first developer utility toolbox. iOS-first Flutter app (Cupertino only) with native macOS and web presentations. Each utility is a self-contained tool; the same tool bodies render unchanged across mobile and the skeuomorphic **desktop OS** presentation. This glossary fixes the language for the desktop OS and the shared-UI architecture it builds on.
 
 ## Language
 

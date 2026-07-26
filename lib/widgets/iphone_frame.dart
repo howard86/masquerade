@@ -1,5 +1,4 @@
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../state/view_mode_controller.dart';
 import '../theme/mq_metrics.dart';
@@ -7,18 +6,20 @@ import '../theme/mq_theme.dart';
 import '../utils/shell_layout.dart';
 import 'mq/view_mode_toggle_button.dart';
 
-/// Responsive wrapper. On a wide web window in desktop mode it renders [child]
-/// full-bleed (the desktop shell supplies its own chrome). Otherwise it renders
-/// [child] inside the hand-rolled iPhone silhouette on large viewports —
-/// overlaying a "Desktop view" toggle when the desktop shell is available — or
-/// directly on small viewports.
+/// Responsive wrapper. On a supported wide desktop surface it renders [child]
+/// full-bleed. Otherwise it renders [child] inside the hand-rolled iPhone
+/// silhouette on large viewports, or directly on small viewports.
 class ResponsiveLayout extends StatelessWidget {
-  const ResponsiveLayout({super.key, required this.child, this.isWebOverride});
+  const ResponsiveLayout({
+    super.key,
+    required this.child,
+    this.desktopShellOverride,
+  });
 
   final Widget child;
 
-  /// See `MyApp.isWebOverride`. Null in production → reads [kIsWeb].
-  final bool? isWebOverride;
+  /// See `MyApp.desktopShellOverride`.
+  final bool? desktopShellOverride;
 
   static const double _maxScale = 2;
 
@@ -30,12 +31,14 @@ class ResponsiveLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isWeb = isWebOverride ?? kIsWeb;
+    final bool desktopSupported = desktopShellSupported(
+      override: desktopShellOverride,
+    );
     final MqViewMode viewMode = ViewModeScope.of(context).mode;
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final MqShellLayout layout = resolveShellLayout(
-          isWeb: isWeb,
+          desktopSupported: desktopSupported,
           width: constraints.maxWidth,
           height: constraints.maxHeight,
           viewMode: viewMode,
@@ -48,7 +51,7 @@ class ResponsiveLayout extends StatelessWidget {
           context,
           constraints,
           showToggle: toggleAvailable(
-            isWeb: isWeb,
+            desktopSupported: desktopSupported,
             width: constraints.maxWidth,
           ),
         );

@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
 import 'package:masquerade/models/artifact.dart';
@@ -13,6 +14,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const Size _desktop = Size(1200, 900);
 
+String _timeLabel(DateTime time) =>
+    '${time.hour.toString().padLeft(2, '0')}:'
+    '${time.minute.toString().padLeft(2, '0')}';
+
 Future<void> _pump(
   WidgetTester tester, {
   DetectionPreferenceController? detectionPreferenceController,
@@ -21,7 +26,7 @@ Future<void> _pump(
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
     MyApp(
-      isWebOverride: true,
+      desktopShellOverride: true,
       viewModeController: ViewModeController(initial: MqViewMode.desktop),
       skipSplash: true,
       detectionPreferenceController: detectionPreferenceController,
@@ -142,12 +147,18 @@ void main() {
     });
 
     testWidgets('displays a live clock', (WidgetTester tester) async {
+      final DateTime beforePump = DateTime.now();
       await _pump(tester);
-      // The clock should show the current time in HH:MM format.
-      final DateTime now = DateTime.now();
-      final String h = now.hour.toString().padLeft(2, '0');
-      final String m = now.minute.toString().padLeft(2, '0');
-      expect(find.text('$h:$m'), findsOneWidget);
+      final Set<String> expected = <String>{
+        _timeLabel(beforePump),
+        _timeLabel(DateTime.now()),
+      };
+      expect(
+        find.byWidgetPredicate(
+          (Widget widget) => widget is Text && expected.contains(widget.data),
+        ),
+        findsOneWidget,
+      );
     });
   });
 }

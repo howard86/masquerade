@@ -22,7 +22,10 @@ Future<HistoryController> _pumpActivity(
   await tester.binding.setSurfaceSize(_phone);
   addTearDown(() => tester.binding.setSurfaceSize(null));
   final SharedPreferences prefs = await SharedPreferences.getInstance();
-  final HistoryController history = HistoryController(prefs: prefs);
+  final HistoryController history = HistoryController(
+    prefs: prefs,
+    retention: Duration.zero,
+  );
   await history.add(
     HistoryEntry(
       utilityId: 'json',

@@ -1,3 +1,6 @@
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
+
 import '../state/view_mode_controller.dart';
 import '../theme/mq_metrics.dart';
 
@@ -22,19 +25,27 @@ enum MqShellLayout {
   /// App Store build no longer targets (see `docs/adr/0003`).
   framedMobile,
 
-  /// Full desktop layout: sidebar nav + multi-column content (web only).
+  /// Full desktop OS layout on supported wide surfaces.
   desktop,
 }
 
-/// Pure classifier for the shell layout. Kept free of `kIsWeb` so it can be
-/// unit-tested directly — callers pass [isWeb] (production passes `kIsWeb`).
+/// Whether this runtime can present the desktop OS.
+///
+/// Web keeps its existing wide-screen experience; native macOS now receives
+/// the same shell instead of a framed phone preview. [override] is a test seam.
+bool desktopShellSupported({bool? override}) {
+  if (override != null) return override;
+  return kIsWeb || defaultTargetPlatform == TargetPlatform.macOS;
+}
+
+/// Pure classifier for the shell layout.
 MqShellLayout resolveShellLayout({
-  required bool isWeb,
+  required bool desktopSupported,
   required double width,
   required double height,
   required MqViewMode viewMode,
 }) {
-  if (isWeb &&
+  if (desktopSupported &&
       width >= MqLayout.desktopBreakpoint &&
       viewMode == MqViewMode.desktop) {
     return MqShellLayout.desktop;
@@ -45,7 +56,6 @@ MqShellLayout resolveShellLayout({
   return MqShellLayout.bareMobile;
 }
 
-/// Whether the desktop↔mobile toggle should be offered. True only on a wide
-/// web window, regardless of the current [MqViewMode].
-bool toggleAvailable({required bool isWeb, required double width}) =>
-    isWeb && width >= MqLayout.desktopBreakpoint;
+/// Whether the desktop↔mobile toggle should be offered.
+bool toggleAvailable({required bool desktopSupported, required double width}) =>
+    desktopSupported && width >= MqLayout.desktopBreakpoint;

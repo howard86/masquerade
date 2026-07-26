@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
 import 'package:masquerade/models/artifact.dart';
@@ -50,7 +51,7 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(
         MyApp(
-          isWebOverride: true,
+          desktopShellOverride: true,
           viewModeController: ViewModeController(initial: MqViewMode.desktop),
           skipSplash: true,
         ),
@@ -79,6 +80,29 @@ void main() {
       expect(find.byType(ToolCardFrame), findsOneWidget);
     });
 
+    testWidgets('opens with Command-K', (WidgetTester tester) async {
+      await tester.binding.setSurfaceSize(const Size(1200, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        MyApp(
+          desktopShellOverride: true,
+          viewModeController: ViewModeController(initial: MqViewMode.desktop),
+          skipSplash: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyK);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey<String>('command-palette-field')),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('a query matching no tool shows the empty-state hint', (
       WidgetTester tester,
     ) async {
@@ -86,7 +110,7 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(
         MyApp(
-          isWebOverride: true,
+          desktopShellOverride: true,
           viewModeController: ViewModeController(initial: MqViewMode.desktop),
           skipSplash: true,
         ),
@@ -122,7 +146,7 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(
         MyApp(
-          isWebOverride: true,
+          desktopShellOverride: true,
           viewModeController: ViewModeController(initial: MqViewMode.desktop),
           skipSplash: true,
         ),

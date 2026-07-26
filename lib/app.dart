@@ -37,6 +37,7 @@ class MyApp extends StatefulWidget {
     this.externalInputImporter,
     this.qrScanner,
     this.isWebOverride,
+    this.desktopShellOverride,
     this.skipSplash = false,
   });
 
@@ -52,10 +53,12 @@ class MyApp extends StatefulWidget {
   final ExternalInputImporter? externalInputImporter;
   final Future<String?> Function(BuildContext context)? qrScanner;
 
-  /// Test seam for the web-gated desktop shell. `kIsWeb` is always false under
-  /// `flutter test`, so widget tests pass `true` here to exercise the desktop
-  /// path. Null in production — the shell reads `kIsWeb` directly.
+  /// Test seam for web-only behavior such as native input importing.
   final bool? isWebOverride;
+
+  /// Test seam for the desktop shell. Null in production, where wide web and
+  /// native macOS surfaces support the desktop OS.
+  final bool? desktopShellOverride;
 
   /// Tests pump `MyApp` directly without going through `main.dart`'s
   /// `FlutterNativeSplash.preserve()`, so the splash crossfade adds 600 ms
@@ -221,7 +224,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                       builder: (BuildContext context, Widget? child) => MqTheme(
                         tokens: tokens,
                         child: ResponsiveLayout(
-                          isWebOverride: widget.isWebOverride,
+                          desktopShellOverride:
+                              widget.desktopShellOverride ??
+                              widget.isWebOverride,
                           child: AnimatedSwitcher(
                             duration: _splashFade,
                             child: _showSplash
@@ -251,6 +256,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                                         _sensitiveSession.revision,
                                       ),
                                       isWebOverride: widget.isWebOverride,
+                                      desktopShellOverride:
+                                          widget.desktopShellOverride ??
+                                          widget.isWebOverride,
                                       libraryController: _library,
                                       externalInputImporter:
                                           widget.externalInputImporter,
