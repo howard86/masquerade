@@ -48,7 +48,7 @@ class MqChip extends StatelessWidget {
     final Widget chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: emphasized ? c.accentBg : const Color(0x00000000),
+        color: emphasized ? c.accentBg : c.transparent,
         borderRadius: BorderRadius.circular(MqRadius.pill),
         border: Border.all(color: emphasized ? c.accent : c.border, width: 0.5),
       ),
