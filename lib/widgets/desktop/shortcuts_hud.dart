@@ -75,11 +75,20 @@ class _ShortcutsHUD extends StatelessWidget {
                       style: MqTextStyles.title3.copyWith(color: c.textPri),
                     ),
                     const Spacer(),
-                    GestureDetector(
+                    Semantics(
+                      button: true,
+                      label: 'Close',
                       onTap: () => Navigator.of(context).pop(),
-                      child: MouseRegion(
-                        cursor: SystemMouseCursors.click,
-                        child: Icon(MqIcons.clear, size: 18, color: c.textTer),
+                      child: GestureDetector(
+                        onTap: () => Navigator.of(context).pop(),
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: Icon(
+                            MqIcons.clear,
+                            size: 18,
+                            color: c.textTer,
+                          ),
+                        ),
                       ),
                     ),
                   ],

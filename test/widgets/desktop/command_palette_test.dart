@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
@@ -74,6 +75,18 @@ void main() {
         'diff',
       );
       await tester.pumpAndSettle();
+
+      // The result row is a labelled Semantics button (name + description).
+      final UtilityDescriptor diff = UtilityCatalog.byId('diff');
+      final String rowLabel = '${diff.name}. ${diff.description}';
+      final SemanticsHandle handle = tester.ensureSemantics();
+      final SemanticsData rowData = tester
+          .getSemantics(find.bySemanticsLabel(rowLabel))
+          .getSemanticsData();
+      expect(rowData.flagsCollection.isButton, isTrue);
+      expect(rowData.hasAction(SemanticsAction.tap), isTrue);
+      handle.dispose();
+
       await tester.tap(find.text('Diff').last);
       await tester.pumpAndSettle();
 
@@ -168,6 +181,16 @@ void main() {
 
       // The detect row should appear.
       expect(find.text('Open UUID with this value'), findsOneWidget);
+
+      // It exposes a labelled Semantics button so screen readers can operate
+      // it, not just visually locate it.
+      final SemanticsHandle handle = tester.ensureSemantics();
+      final SemanticsData detectData = tester
+          .getSemantics(find.bySemanticsLabel('Open UUID with this value'))
+          .getSemanticsData();
+      expect(detectData.flagsCollection.isButton, isTrue);
+      expect(detectData.hasAction(SemanticsAction.tap), isTrue);
+      handle.dispose();
 
       // Tapping it opens the tool seeded.
       await tester.tap(find.text('Open UUID with this value'));

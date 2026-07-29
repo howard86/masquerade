@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/theme/mq_colors.dart';
 import 'package:masquerade/theme/mq_theme.dart';
@@ -53,6 +54,15 @@ void main() {
         expect(find.text('D'), findsOneWidget);
         expect(find.text('Esc'), findsOneWidget);
         expect(find.text('/'), findsOneWidget);
+
+        // The close icon exposes a labelled Semantics button for VoiceOver.
+        final SemanticsHandle handle = tester.ensureSemantics();
+        final SemanticsData closeData = tester
+            .getSemantics(find.bySemanticsLabel('Close'))
+            .getSemanticsData();
+        expect(closeData.flagsCollection.isButton, isTrue);
+        expect(closeData.hasAction(SemanticsAction.tap), isTrue);
+        handle.dispose();
 
         // Close the HUD via the close clear icon
         await tester.tap(find.byIcon(MqIcons.clear));

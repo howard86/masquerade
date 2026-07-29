@@ -124,34 +124,58 @@ class _SheetTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.mq.colors;
     final bool enabled = onTap != null;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Opacity(
-        opacity: enabled ? 1 : 0.4,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: MqSpacing.sm + 2),
-          child: Row(
-            children: <Widget>[
-              Icon(icon, size: 18, color: tint),
-              const SizedBox(width: MqSpacing.md),
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: MqTextStyles.body.copyWith(color: c.textPri),
+    // Two independent tap targets (open/restore vs. delete) get their own
+    // Semantics scope as siblings — nesting one inside the other's
+    // `excludeSemantics` would silently drop the inner node from the tree.
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: MqSpacing.sm + 2),
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: Semantics(
+              button: true,
+              enabled: enabled,
+              label: label,
+              onTap: onTap,
+              excludeSemantics: true,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                excludeFromSemantics: true,
+                onTap: onTap,
+                child: Opacity(
+                  opacity: enabled ? 1 : 0.4,
+                  child: Row(
+                    children: <Widget>[
+                      Icon(icon, size: 18, color: tint),
+                      const SizedBox(width: MqSpacing.md),
+                      Expanded(
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: MqTextStyles.body.copyWith(color: c.textPri),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              if (onTrailingTap != null)
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: onTrailingTap,
-                  child: Icon(MqIcons.trash, size: 16, color: c.textTer),
-                ),
-            ],
+            ),
           ),
-        ),
+          if (onTrailingTap != null)
+            Semantics(
+              button: true,
+              label: 'Delete $label',
+              onTap: onTrailingTap,
+              excludeSemantics: true,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                excludeFromSemantics: true,
+                onTap: onTrailingTap,
+                child: Icon(MqIcons.trash, size: 16, color: c.textTer),
+              ),
+            ),
+        ],
       ),
     );
   }

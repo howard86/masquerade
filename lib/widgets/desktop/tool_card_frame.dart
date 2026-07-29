@@ -492,14 +492,24 @@ class _HeaderState extends State<_Header> {
               ),
               const SizedBox(width: MqSpacing.sm - 2),
               Expanded(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onDoubleTap: widget.onToggleMaximize,
-                  child: Text(
-                    widget.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: MqTextStyles.sectionLabel.copyWith(color: c.textPri),
+                child: Semantics(
+                  button: true,
+                  label:
+                      '${widget.maximized ? 'Restore' : 'Maximize'} ${widget.title}',
+                  onTap: widget.onToggleMaximize,
+                  excludeSemantics: true,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    excludeFromSemantics: true,
+                    onDoubleTap: widget.onToggleMaximize,
+                    child: Text(
+                      widget.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: MqTextStyles.sectionLabel.copyWith(
+                        color: c.textPri,
+                      ),
+                    ),
                   ),
                 ),
               ),
