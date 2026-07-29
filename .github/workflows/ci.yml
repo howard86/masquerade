@@ -194,16 +194,15 @@ jobs:
           p12-file-base64: ${{ secrets.IOS_DIST_CERT_P12 }}
           p12-password: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
 
-      # `flutter build ipa` has no --no-codesign and would try to sign the archive
-      # with automatic signing, which needs an Xcode account this runner lacks --
-      # and it exits 0 when the export fails, hiding it. Build unsigned and let
-      # fastlane archive/sign/export instead.
+      # Generate Generated.xcconfig + run pod install, but do NOT build: fastlane's
+      # build_app archives the project itself, so a full build here is compiled twice.
+      # --config-only still writes the build number, which is what gym reads.
       #
       # --build-number overrides pubspec's +N: release-please rewrites that line
       # every release, and TestFlight rejects a build number it has already seen.
       # run_number is monotonic and is already past the builds uploaded by hand.
-      - name: Build (unsigned)
-        run: flutter build ios --release --no-codesign --build-number=${{ github.run_number }}
+      - name: Configure Xcode project
+        run: flutter build ios --release --config-only --build-number=${{ github.run_number }}
 
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
