@@ -71,5 +71,37 @@ void main() {
         expect(find.text('Desktop Shortcuts'), findsNothing);
       },
     );
+
+    test('overlayScrim is exposed and equal in light and dark modes', () {
+      expect(MqColors.light().overlayScrim, const Color(0x99000000));
+      expect(MqColors.dark().overlayScrim, const Color(0x99000000));
+    });
+
+    testWidgets('divider uses the border token, not a raw white literal', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          Builder(
+            builder: (BuildContext context) {
+              return CupertinoButton(
+                child: const Text('Show HUD'),
+                onPressed: () => showShortcutsHUD(context),
+              );
+            },
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Show HUD'));
+      await tester.pumpAndSettle();
+
+      final List<Color?> colors = tester
+          .widgetList<ColoredBox>(find.byType(ColoredBox))
+          .map((ColoredBox box) => box.color)
+          .toList();
+      expect(colors, contains(MqColors.light().border));
+      expect(colors, isNot(contains(const Color(0x22FFFFFF))));
+    });
   });
 }
