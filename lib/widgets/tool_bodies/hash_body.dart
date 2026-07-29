@@ -10,6 +10,7 @@ import '../mq/mq_input.dart';
 import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/tool_action_bar.dart';
+import 'copy_all_button.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 import 'tool_body_scaffold.dart';
@@ -51,6 +52,14 @@ class _HashBodyState extends State<HashBody> with ToolBodyScaffold<HashBody> {
   // including clearing to empty — recomputes rather than resetting.
   @override
   bool isBlank(String input) => false;
+
+  @override
+  Widget? actionBarCenter() {
+    if (controller.text.isEmpty) return null;
+    return CopyAllButton(
+      payload: <String>[_md5, _sha1, _sha256, _sha512].join('\n'),
+    );
+  }
 
   @override
   void didUpdateWidget(HashBody oldWidget) {

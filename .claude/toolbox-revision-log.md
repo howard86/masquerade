@@ -21,6 +21,10 @@ Format: `YYYY-MM-DD — <change> (<why>)`.
   (`toolbox-improvement-backlog.md`, `toolbox-improve-claims/`) and repointed the claim helper to
   `$HOME/.claude` instead of `$SCRIPT_DIR`. (The tracked helper was forking claims/lock per git
   worktree; a global path keeps every loop on one shared backlog + claim set. Maintainer request.)
+- 2026-07-29 — Base branch switched `main` → `develop` throughout (ORIENT fetch, worker branch point,
+  `gh pr create --base`, next-iteration note); HARD RULES strengthened to forbid direct pushes to
+  `develop` as well. Matches the repo's gitflow: `develop` is the default branch, `main` only receives
+  Release PRs. (Maintainer request.)
 
 ## /toolbox-review
 

@@ -1,8 +1,11 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:masquerade/widgets/mq/mq_input.dart';
 import 'package:masquerade/widgets/mq/mq_mono_cell.dart';
+import 'package:masquerade/widgets/mq/mq_status.dart';
 import 'package:masquerade/widgets/tool_bodies/color_body.dart';
 
 import '_helpers.dart';
@@ -53,15 +56,51 @@ void main() {
     expect(find.text('AA'), findsWidgets);
   });
 
-  testWidgets('Color — unparseable input surfaces error cell', (
+  testWidgets(
+    'Color — unparseable input surfaces error via MqInput.error/MqStatus, '
+    'not an MqMonoCell',
+    (WidgetTester tester) async {
+      await pumpHomeAndOpen(tester, 'Color');
+
+      await tester.enterText(find.byType(EditableText).last, 'not a color');
+      await tester.pumpAndSettle(kDebouncePump);
+
+      // Precise parser message is preserved and routed to the standard surface:
+      // the MqInput's `error` slot and an MqStatus(danger) banner.
+      expect(find.textContaining('Could not parse color'), findsWidgets);
+
+      final MqInput input = tester.widget<MqInput>(find.byType(MqInput));
+      expect(input.error, contains('Could not parse color'));
+
+      expect(find.byType(MqStatus), findsWidgets);
+
+      // The error is no longer rendered in an MqMonoCell labeled 'Error'.
+      expect(find.text('Error'), findsNothing);
+
+      // Output cells are gone while errored.
+      expect(find.text('HEX'), findsNothing);
+    },
+  );
+
+  testWidgets('Color — recovering from an error restores the output cells', (
     WidgetTester tester,
   ) async {
     await pumpHomeAndOpen(tester, 'Color');
 
     await tester.enterText(find.byType(EditableText).last, 'not a color');
     await tester.pumpAndSettle(kDebouncePump);
+    expect(find.byType(MqStatus), findsWidgets);
 
-    expect(find.textContaining('Could not parse color'), findsOneWidget);
+    await tester.enterText(find.byType(EditableText).last, '#FF0000');
+    await tester.pumpAndSettle(kDebouncePump);
+
+    final MqInput input = tester.widget<MqInput>(find.byType(MqInput));
+    expect(input.error, isNull);
+    expect(_outputCell('#FF0000'), findsOneWidget);
+    expect(find.text('HEX'), findsOneWidget);
+    expect(find.text('RGB'), findsOneWidget);
+    expect(find.text('HSL'), findsOneWidget);
+    expect(find.text('OKLCH'), findsOneWidget);
   });
 
   testWidgets('Color — each palette swatch exposes a "Select #…" semantics '
@@ -78,5 +117,58 @@ void main() {
     expect(find.bySemanticsLabel(RegExp('Select #')), findsNWidgets(2));
     expect(find.bySemanticsLabel('Select #FF0000'), findsOneWidget);
     expect(find.bySemanticsLabel('Select #00FF00'), findsOneWidget);
+  });
+
+  testWidgets('Color — Copy all writes every color form to the clipboard', (
+    WidgetTester tester,
+  ) async {
+    final List<String> clipboardWrites = <String>[];
+    final TestDefaultBinaryMessenger messenger =
+        tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (
+      MethodCall call,
+    ) async {
+      if (call.method == 'Clipboard.setData') {
+        final Map<dynamic, dynamic> args = call.arguments as Map;
+        clipboardWrites.add(args['text'] as String);
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+
+    await pumpHomeAndOpen(tester, 'Color');
+
+    await tester.enterText(find.byType(EditableText).last, 'rgb(255, 0, 0)');
+    await tester.pumpAndSettle(kDebouncePump);
+
+    await tester.tap(find.text('Copy all'));
+    await tester.pump();
+
+    expect(clipboardWrites, hasLength(1));
+    final String written = clipboardWrites.single;
+    expect(written, contains('#FF0000')); // HEX
+    expect(written, contains('rgb(255, 0, 0)')); // RGB
+    expect(written, contains('hsl(0, 100%, 50%)')); // HSL
+    expect(written, contains('oklch(')); // OKLCH
+
+    // Drain the copy toast's 3s auto-dismiss timer so the test ends clean.
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('Color — Copy all is hidden when input is unparseable', (
+    WidgetTester tester,
+  ) async {
+    await pumpHomeAndOpen(tester, 'Color');
+
+    // The cold seed renders output, so Copy all is shown initially.
+    expect(find.text('Copy all'), findsOneWidget);
+
+    // An unparseable color clears the output → the center action hides.
+    await tester.enterText(find.byType(EditableText).last, 'not a color');
+    await tester.pumpAndSettle(kDebouncePump);
+    expect(find.text('Copy all'), findsNothing);
   });
 }

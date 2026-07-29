@@ -4,6 +4,35 @@
 
 - **deps**: pin flutter_native_splash to ^2.4.7 for SDK compatibility
 
+## [1.27.0](https://github.com/howard86/masquerade/compare/v1.26.1...v1.27.0) (2026-07-29)
+
+
+### Features
+
+* **a11y:** extend Copy-all to Hash, JWT, and bps tool bodies ([23037b6](https://github.com/howard86/masquerade/commit/23037b622083298b125a0e055a41f06df65d3ba9))
+* **a11y:** extend Copy-all to Hash, JWT, and bps tool bodies ([4ba3610](https://github.com/howard86/masquerade/commit/4ba36108105f6b399d4f8ad0e32014dff5dadc70))
+* **a11y:** Semantics(button) for Timestamp picker rows ([1659d03](https://github.com/howard86/masquerade/commit/1659d0332393a0313e86030af084ef8d764006b5))
+* **a11y:** Semantics(button) for Timestamp picker rows ([0cfd8ec](https://github.com/howard86/masquerade/commit/0cfd8eca962f226b6f9ef1fcd09164dae209f77b))
+* add Copy-all action for multi-output tools (Number Base, Color) ([5e54dc4](https://github.com/howard86/masquerade/commit/5e54dc493bc17e213dcc9d9cac1f9d266abd25e3))
+* Copy-all action for multi-output tools (Number Base, Color) ([075de98](https://github.com/howard86/masquerade/commit/075de9851f0e1e596ee60c29b167d820b655aa8d))
+
+
+### Bug Fixes
+
+* **ci:** auto-merge the release sync PR ([36ee878](https://github.com/howard86/masquerade/commit/36ee878e16f5e1bffc3e70ac12264c43f2d86a6e))
+* **ci:** auto-merge the release sync PR ([914c31b](https://github.com/howard86/masquerade/commit/914c31bbd7c09bd2422494fb9002c7bd4ea03970))
+* **utils:** clamp text_truncate max and avoid splitting surrogate pairs ([8b16b9d](https://github.com/howard86/masquerade/commit/8b16b9d58d797cc5832f335728cf93cf87be15a4))
+* **utils:** clamp text_truncate max and avoid splitting surrogate pairs ([f63966f](https://github.com/howard86/masquerade/commit/f63966f26930a2255667188c1c1cc54aefcad3a1))
+
+
+### Performance Improvements
+
+* **ci:** parallelise CI and drop duplicate work ([5632c77](https://github.com/howard86/masquerade/commit/5632c7716723ad0059f1b8a61d04ccfb575dc74e))
+* **ci:** parallelise jobs and drop duplicate pub cache ([c79981c](https://github.com/howard86/masquerade/commit/c79981c47f378f48b08986900b9570f7d71fe556))
+* **ci:** shard the test suite across three runners ([7ed67aa](https://github.com/howard86/masquerade/commit/7ed67aa4bc8afe7f7ec0bbe4499165fa2f70da6c))
+* **ci:** shard the test suite across three runners ([8fe8d44](https://github.com/howard86/masquerade/commit/8fe8d440d70fce005230e1dfbeb957617d77febe))
+* **ci:** skip duplicate Xcode build before fastlane archive ([5a51451](https://github.com/howard86/masquerade/commit/5a51451da7e9ad464603b01006e1d13a3a907d13))
+
 ## [1.26.1](https://github.com/howard86/masquerade/compare/v1.26.0...v1.26.1) (2026-07-26)
 
 

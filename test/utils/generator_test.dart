@@ -246,5 +246,27 @@ void main() {
       expect(ok.version, 7);
       expect(ok.timestamp, isNotNull);
     });
+
+    test('v4 is deterministic given a seeded random', () {
+      final String u = Generator.uuid(GenUuidVersion.v4, random: Random(42));
+      expect(u, '33aec45d-b568-4f3d-b0b8-ffe433734d1a');
+      final UuidOk ok = UuidParser.parse(u) as UuidOk;
+      expect(ok.version, 4);
+      expect(ok.variant, 2);
+    });
+
+    test('v7 is deterministic given a seeded random and fixed timestamp', () {
+      final DateTime at = DateTime.utc(2026);
+      final String u = Generator.uuid(
+        GenUuidVersion.v7,
+        random: Random(7),
+        at: at,
+      );
+      expect(u, '019b76da-a800-7a17-bbd4-77b6d81ae550');
+      final UuidOk ok = UuidParser.parse(u) as UuidOk;
+      expect(ok.version, 7);
+      expect(ok.variant, 2);
+      expect(ok.timestamp, at);
+    });
   });
 }

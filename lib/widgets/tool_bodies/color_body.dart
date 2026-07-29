@@ -14,6 +14,7 @@ import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_status.dart';
 import '../mq/tool_action_bar.dart';
+import 'copy_all_button.dart';
 import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
@@ -139,6 +140,17 @@ class _ColorBodyState extends State<ColorBody>
     emitToLink();
   }
 
+  /// Copies every color form (HEX/RGB/HSL/OKLCH) at once. Hidden until a color
+  /// parses, so the action bar shows it only when there is output to copy.
+  @override
+  Widget? actionBarCenter() {
+    final MqColorValue? v = _value;
+    if (v == null) return null;
+    return CopyAllButton(
+      payload: <String>[v.hex, v.rgb, v.hsl, v.oklch].join('\n'),
+    );
+  }
+
   /// Records [color] at the head of the session palette, deduping by hex and
   /// capping at [_paletteCap]. Always called inside a [setState].
   void _pushPalette(MqColorValue color) {
@@ -189,6 +201,7 @@ class _ColorBodyState extends State<ColorBody>
           placeholder: '#00B8C4 or rgb(0,184,196)',
           onChanged: _onChanged,
           onPaste: (_) => markPaste(),
+          error: _error,
         ),
         // Canvas-only: sticky swatches of colors entered this session; tap to
         // reload. Hidden at phone width so the body matches mobile exactly.
@@ -198,7 +211,9 @@ class _ColorBodyState extends State<ColorBody>
         ],
         const SizedBox(height: MqSpacing.lg),
         if (_error != null)
-          MqMonoCell(label: 'Error', value: _error!, copyable: false)
+          // The precise message rides the input's `error` slot (which wraps);
+          // this short pill flags the invalid state without overflowing.
+          const MqStatus(label: 'Invalid color', kind: MqStatusKind.danger)
         else if (_value != null) ...<Widget>[
           Container(
             height: 140,

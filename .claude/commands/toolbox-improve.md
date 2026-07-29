@@ -1,5 +1,5 @@
 ---
-description: One toolbox auto-improvement iteration — select one backlog item, delegate implement+verify to a fresh worker, open a PR off main. Loop via `/loop /toolbox-improve`.
+description: One toolbox auto-improvement iteration — select one backlog item, delegate implement+verify to a fresh worker, open a PR off develop. Loop via `/loop /toolbox-improve`.
 ---
 
 MISSION: Evolve Masquerade into the ultimate developer toolbox with the best UX — a fast, delightful,
@@ -42,7 +42,8 @@ REPO FACTS (pass relevant ones to the worker verbatim):
   `CONTEXT.md`.
 - Tests MIRROR `lib/` under `test/`, REQUIRED for new functionality (CI runs all of `test/`,
   untagged). `dynamic_type_test` auto-covers new catalog tools for overflow.
-- Base `main`, Conventional Commits (commitizen at commit-msg; caps apply). Branches `feature/<slug>`.
+- Base `develop` (gitflow default; `main` only receives Release PRs), Conventional Commits
+  (commitizen at commit-msg; caps apply). Branches `feature/<slug>`.
   Don't use Dependabot's grandfathered `deps(deps):` prefix.
 - DEP GOTCHA (LIVE): keep `flutter_native_splash` at `^2.4.7` — 2.4.8 needs `meta ^1.18.0` but
   flutter_test pins `meta 1.17.0`, breaking `pub get`. NEVER bump it; if `pub get` fails on this,
@@ -77,7 +78,7 @@ The CLAIM is the gate; the Index `in-progress` text is a human mirror only.
 
 PROCEDURE — all seven steps, then end:
 
-0. ORIENT: generate + print OWNER once; `git fetch origin main`. PRECONDITION `flutter pub get` — if
+0. ORIENT: generate + print OWNER once; `git fetch origin develop`. PRECONDITION `flutter pub get` — if
    it fails on the meta/native_splash conflict, this run's item is: re-pin `^2.4.7`, regen lock,
    verify, ship a `fix:` PR (skip the rest of SELECT). Read ONLY the `## Index` table (small `limit`,
    ~70 lines) of the GLOBAL backlog at `~/.claude/toolbox-improvement-backlog.md` (shared across all
@@ -108,16 +109,16 @@ PROCEDURE — all seven steps, then end:
    verbatim: relevant REPO FACTS, the VERIFY GATE, the HARD RULES, the PLAN, and the item's detail
    block INLINE (never "read the backlog"). The worker, in its own context, returns ONLY the step-iv
    result:
-     i.   IMPLEMENT on a fresh `feature/<slug>` off `origin/main` (prior PRs are likely unmerged —
-          branch from main, not a prior branch; exception: a genuine dependency → stack on that branch
-          and say so). Surgical, style-matched, Cupertino-only; reuse `ToolBodyScaffold`/
+     i.   IMPLEMENT on a fresh `feature/<slug>` off `origin/develop` (prior PRs are likely unmerged —
+          branch from develop, not a prior branch; exception: a genuine dependency → stack on that
+          branch and say so). Surgical, style-matched, Cupertino-only; reuse `ToolBodyScaffold`/
           `LinkableToolBody`/`mq/*`; colors via `MqTheme.of(context)`.
      ii.  VERIFY with the gate (quiet-capture, foreground). UX items: the success check is usually a
           new/updated widget test (a Semantics finder, an overflow check, an error-state finder). If a
           claimed win can't be demonstrated, REVERT and report.
      iii. COMMIT atomically (Conventional Commits: feat/fix/refactor/test/docs/perf, NOT deps(deps)),
           staging ONLY your paths (`git add <paths>`, never `-A`/`.`; ignore pre-existing root
-          untracked files and the apparatus). Then `gh pr create --base main --label
+          untracked files and the apparatus). Then `gh pr create --base develop --label
           toolbox-autoimprove` with body: motivation, what changed, UX impact, verification evidence,
           risk/rollback. Do NOT merge.
      iv.  RETURN compact JSON only (no logs): `{ id, status: shipped|blocked|reverted, pr_url,
@@ -153,9 +154,9 @@ PROCEDURE — all seven steps, then end:
 7. REPORT one paragraph, then END (don't wait for CI/merge): `item:` <ID + one-line> · `status:`
    shipped|blocked|reverted|survey|bootstrap · `pr:` <URL or —> · `evidence:` <test summary + UX
    impact, or why blocked> · `follow-ups:` <new rows> · `meta:` <self-edit, or none>. The next
-   iteration branches fresh off `origin/main`, skipping anything still open.
+   iteration branches fresh off `origin/develop`, skipping anything still open.
 
-HARD RULES: never push to or merge `main`; never merge your own PR; never commit generated/gitignored
+HARD RULES: never push to or merge `main` or `develop` directly; never merge your own PR; never commit generated/gitignored
 files or the apparatus; never introduce `Material*`/`Scaffold`/`MaterialApp` or a new third-party UI
 dependency; never bump `flutter_native_splash` off `^2.4.7`; keep diffs small, reversible,
 style-matched; tests required for new functionality; if nothing is genuinely worth doing, say so and

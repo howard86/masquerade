@@ -111,10 +111,14 @@ class Generator {
   }
 
   /// A fresh UUID of the requested version, via the shared [UuidParser].
-  static String uuid(GenUuidVersion version) => switch (version) {
-    GenUuidVersion.v4 => UuidParser.generateV4(),
-    GenUuidVersion.v7 => UuidParser.generateV7(),
-  };
+  /// [random] and [at] are the same seams [UuidParser.generateV4]/
+  /// [UuidParser.generateV7] expose — pass them for deterministic tests;
+  /// both default to the secure RNG / current time. [at] is ignored for v4.
+  static String uuid(GenUuidVersion version, {Random? random, DateTime? at}) =>
+      switch (version) {
+        GenUuidVersion.v4 => UuidParser.generateV4(random: random),
+        GenUuidVersion.v7 => UuidParser.generateV7(random: random, at: at),
+      };
 
   static List<int> _randomBytes(int n, Random rng) =>
       List<int>.generate(n, (_) => rng.nextInt(256));

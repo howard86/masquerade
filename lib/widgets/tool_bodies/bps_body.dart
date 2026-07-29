@@ -13,6 +13,7 @@ import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_status.dart';
 import '../mq/tool_action_bar.dart';
+import 'copy_all_button.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 import 'tool_body_scaffold.dart';
@@ -52,6 +53,19 @@ class _BpsBodyState extends State<BpsBody> with ToolBodyScaffold<BpsBody> {
 
   @override
   Duration get debounceDuration => const Duration(milliseconds: 200);
+
+  @override
+  Widget? actionBarCenter() {
+    final BpsResult? r = _result;
+    if (r == null) return null;
+    return CopyAllButton(
+      payload: <String>[
+        r.bps.toStringAsFixed(2),
+        '${r.percent.toStringAsFixed(4)}%',
+        r.decimal.toStringAsFixed(6),
+      ].join('\n'),
+    );
+  }
 
   @override
   void parse(String input) {
