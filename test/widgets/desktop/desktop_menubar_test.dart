@@ -1,3 +1,4 @@
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -52,6 +53,16 @@ void main() {
       // File → Close All.
       await tester.tap(find.text('File'));
       await tester.pumpAndSettle();
+
+      // Menu items are labelled Semantics buttons, not bare tap regions.
+      final SemanticsHandle handle = tester.ensureSemantics();
+      final SemanticsData closeAllData = tester
+          .getSemantics(find.bySemanticsLabel('Close All').last)
+          .getSemanticsData();
+      expect(closeAllData.flagsCollection.isButton, isTrue);
+      expect(closeAllData.hasAction(SemanticsAction.tap), isTrue);
+      handle.dispose();
+
       await tester.tap(find.text('Close All').last);
       await tester.pumpAndSettle();
       expect(find.byType(ToolCardFrame), findsNothing);

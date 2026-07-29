@@ -110,4 +110,57 @@ void main() {
       expect(duplicated, isTrue);
     });
   });
+
+  group('ToolCardFrame title bar', () {
+    testWidgets(
+      'title exposes a Semantics-tap bridge for the double-tap-to-maximize '
+      'gesture',
+      (WidgetTester tester) async {
+        bool maximized = false;
+
+        await tester.pumpWidget(
+          _wrap(
+            ToolCardFrame(
+              title: desc.name,
+              slot: 1,
+              focused: true,
+              onFocus: () {},
+              onClose: () {},
+              onMinimize: () {},
+              onToggleMaximize: () => maximized = true,
+              onDuplicate: () {},
+              onMoveDelta: (_) {},
+              onMoveEnd: () {},
+              onResizeEdge:
+                  (
+                    dx,
+                    dy, {
+                    required left,
+                    required right,
+                    required top,
+                    required bottom,
+                    required measuredHeight,
+                  }) {},
+              onResizeEnd: () {},
+              child: const Text('body'),
+            ),
+          ),
+        );
+
+        // A real double-tap gesture has no built-in Semantics action, so
+        // screen-reader users get an explicit single-activate bridge instead.
+        final Finder titleSemantics = find.bySemanticsLabel(
+          'Maximize ${desc.name}',
+        );
+        expect(titleSemantics, findsOneWidget);
+        expect(
+          tester.widget<Semantics>(titleSemantics).properties.onTap,
+          isNotNull,
+        );
+
+        tester.widget<Semantics>(titleSemantics).properties.onTap!();
+        expect(maximized, isTrue);
+      },
+    );
+  });
 }

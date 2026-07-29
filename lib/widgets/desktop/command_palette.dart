@@ -265,42 +265,52 @@ class _ResultRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+    return Semantics(
+      button: true,
+      label: '${descriptor.name}. ${descriptor.description}',
       onTap: onTap,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: Container(
-          color: highlighted ? c.accentBg : null,
-          padding: const EdgeInsets.symmetric(
-            horizontal: MqSpacing.md,
-            vertical: MqSpacing.sm + 2,
-          ),
-          child: Row(
-            children: <Widget>[
-              Icon(descriptor.icon, size: 18, color: descriptor.tint),
-              const SizedBox(width: MqSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      descriptor.name,
-                      style: MqTextStyles.body.copyWith(
-                        color: highlighted ? c.accent : c.textPri,
-                        fontWeight: FontWeight.w600,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        excludeFromSemantics: true,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: Container(
+            color: highlighted ? c.accentBg : null,
+            padding: const EdgeInsets.symmetric(
+              horizontal: MqSpacing.md,
+              vertical: MqSpacing.sm + 2,
+            ),
+            child: Row(
+              children: <Widget>[
+                Icon(descriptor.icon, size: 18, color: descriptor.tint),
+                const SizedBox(width: MqSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        descriptor.name,
+                        style: MqTextStyles.body.copyWith(
+                          color: highlighted ? c.accent : c.textPri,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                    Text(
-                      descriptor.description,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: MqTextStyles.caption1.copyWith(color: c.textSec),
-                    ),
-                  ],
+                      Text(
+                        descriptor.description,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: MqTextStyles.caption1.copyWith(color: c.textSec),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -322,31 +332,42 @@ class _DetectRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+    final String label = 'Open ${descriptor.name} with this value';
+    return Semantics(
+      button: true,
+      label: label,
       onTap: onTap,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: Container(
-          color: highlighted ? c.accentBg : null,
-          padding: const EdgeInsets.symmetric(
-            horizontal: MqSpacing.md,
-            vertical: MqSpacing.sm + 2,
-          ),
-          child: Row(
-            children: <Widget>[
-              Icon(descriptor.icon, size: 18, color: descriptor.tint),
-              const SizedBox(width: MqSpacing.md),
-              Expanded(
-                child: Text(
-                  'Open ${descriptor.name} with this value',
-                  style: MqTextStyles.body.copyWith(
-                    color: highlighted ? c.accent : c.textPri,
-                    fontWeight: FontWeight.w600,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        excludeFromSemantics: true,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: Container(
+            color: highlighted ? c.accentBg : null,
+            padding: const EdgeInsets.symmetric(
+              horizontal: MqSpacing.md,
+              vertical: MqSpacing.sm + 2,
+            ),
+            child: Row(
+              children: <Widget>[
+                Icon(descriptor.icon, size: 18, color: descriptor.tint),
+                const SizedBox(width: MqSpacing.md),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: MqTextStyles.body.copyWith(
+                      color: highlighted ? c.accent : c.textPri,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
