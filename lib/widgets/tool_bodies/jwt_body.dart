@@ -16,6 +16,7 @@ import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_status.dart';
 import '../mq/tool_action_bar.dart';
+import 'copy_all_button.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 import 'tool_body_scaffold.dart';
@@ -49,6 +50,20 @@ class _JwtBodyState extends State<JwtBody> with ToolBodyScaffold<JwtBody> {
 
   @override
   String get utilityId => 'jwt';
+
+  @override
+  Widget? actionBarCenter() {
+    final JwtParseResult? r = _result;
+    if (r is! JwtOk) return null;
+    const JsonEncoder encoder = JsonEncoder.withIndent('  ');
+    return CopyAllButton(
+      payload: <String>[
+        encoder.convert(r.header),
+        encoder.convert(r.payload),
+        r.signature,
+      ].join('\n'),
+    );
+  }
 
   @override
   void parse(String input) {

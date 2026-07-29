@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/models/artifact.dart';
@@ -109,5 +110,63 @@ void main() {
 
     expect(find.textContaining('cached-sub'), findsWidgets);
     expect(find.textContaining('Invalid'), findsNothing);
+  });
+
+  testWidgets(
+    'JWT — Copy all writes header, payload and signature to the clipboard',
+    (WidgetTester tester) async {
+      final List<String> clipboardWrites = <String>[];
+      final TestDefaultBinaryMessenger messenger =
+          tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(SystemChannels.platform, (
+        MethodCall call,
+      ) async {
+        if (call.method == 'Clipboard.setData') {
+          final Map<dynamic, dynamic> args = call.arguments as Map;
+          clipboardWrites.add(args['text'] as String);
+        }
+        return null;
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+
+      await pumpHomeAndOpen(tester, 'JWT');
+
+      await tester.enterText(find.byType(EditableText).last, token);
+      await tester.pumpAndSettle(kDebouncePump);
+
+      await tester.tap(find.text('Copy all'));
+      await tester.pump();
+
+      expect(clipboardWrites, hasLength(1));
+      final String written = clipboardWrites.single;
+      expect(written, contains('HS256')); // Header
+      expect(written, contains('"sub": "123"')); // Payload
+      expect(written, contains('sig')); // Signature
+
+      // Drain the copy toast's 3s auto-dismiss timer so the test ends clean.
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets('JWT — Copy all is hidden when there is no valid output', (
+    WidgetTester tester,
+  ) async {
+    await pumpHomeAndOpen(tester, 'JWT');
+
+    // Empty input → nothing parsed → the center action stays hidden.
+    expect(find.text('Copy all'), findsNothing);
+
+    // Invalid token keeps it hidden.
+    await tester.enterText(find.byType(EditableText).last, 'not.a.jwt!');
+    await tester.pumpAndSettle(kDebouncePump);
+    expect(find.text('Copy all'), findsNothing);
+
+    // A valid token surfaces it.
+    await tester.enterText(find.byType(EditableText).last, token);
+    await tester.pumpAndSettle(kDebouncePump);
+    expect(find.text('Copy all'), findsOneWidget);
   });
 }
