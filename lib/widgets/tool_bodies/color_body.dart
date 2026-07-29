@@ -201,6 +201,7 @@ class _ColorBodyState extends State<ColorBody>
           placeholder: '#00B8C4 or rgb(0,184,196)',
           onChanged: _onChanged,
           onPaste: (_) => markPaste(),
+          error: _error,
         ),
         // Canvas-only: sticky swatches of colors entered this session; tap to
         // reload. Hidden at phone width so the body matches mobile exactly.
@@ -210,7 +211,9 @@ class _ColorBodyState extends State<ColorBody>
         ],
         const SizedBox(height: MqSpacing.lg),
         if (_error != null)
-          MqMonoCell(label: 'Error', value: _error!, copyable: false)
+          // The precise message rides the input's `error` slot (which wraps);
+          // this short pill flags the invalid state without overflowing.
+          const MqStatus(label: 'Invalid color', kind: MqStatusKind.danger)
         else if (_value != null) ...<Widget>[
           Container(
             height: 140,
