@@ -55,7 +55,7 @@ jobs:
           }
 
   # Pre-commit checks. Runs the repo-hygiene hooks only -- dart format and
-  # flutter analyze are skipped here because analyze-and-test owns them.
+  # flutter analyze are skipped here because analyze owns them.
   pre-commit:
     name: Pre-commit hooks
     runs-on: ubuntu-latest
@@ -82,9 +82,9 @@ jobs:
         env:
           SKIP: dart-format,flutter-analyze
 
-  # Code analysis and tests
-  analyze-and-test:
-    name: Analyze and Test
+  # Format + analyze: fast, and independent of the test shards.
+  analyze:
+    name: Analyze
     runs-on: ubuntu-latest
 
     steps:
@@ -106,16 +106,46 @@ jobs:
       - name: Analyze project source
         run: flutter analyze
 
-      # The runner has 4 vCPUs but package:test defaults concurrency to cores/2 = 2
-      - name: Run tests
-        run: flutter test --coverage --concurrency=4
+  # The suite is the CI critical path (224s of a 275s job) and the hosted runner
+  # is already CPU-saturated around -j2, so raising --concurrency buys almost
+  # nothing -- measured, it was only -9%. Sharding adds runners instead.
+  #
+  # --shard-index is 0-based (flutter_tools rejects < 0). The three shards were
+  # verified locally to cover the whole suite exactly: 441 + 435 + 440 = 1316
+  # tests, 2 skipped, with even 20s/20s/19s balance.
+  test:
+    name: Test (shard ${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    strategy:
+      # One failing shard must not cancel the others -- we want the full picture.
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
 
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run tests
+        run: flutter test --coverage --concurrency=4 --total-shards=3 --shard-index=${{ matrix.shard }}
+
+      # Codecov merges multiple uploads for the same commit; each shard needs a
+      # distinct name or they are treated as re-uploads of one report.
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v7
         with:
           files: ./coverage/lcov.info
           flags: unittests
-          name: codecov-umbrella
+          name: shard-${{ matrix.shard }}
           fail_ci_if_error: false
 
   # Build web
@@ -159,6 +189,27 @@ jobs:
         with:
           sarif_file: "trivy-results.sarif"
 
+  # The single required status check for the develop-gate / main-gate rulesets.
+  # Pointing branch protection at one aggregate context means the job list above
+  # (shard count in particular) can change without re-registering contexts --
+  # renaming a directly-required job silently blocks every PR, and adding one
+  # silently stops gating on it. Both have already happened here.
+  ci-ok:
+    name: CI OK
+    runs-on: ubuntu-latest
+    needs: [pre-commit, analyze, test, build-web, security]
+    if: always()
+
+    steps:
+      # `needs` results default to letting this job pass, so an aggregate gate
+      # that does not assert on them stops gating the moment anything skips.
+      # None of the five should ever skip, so treat skipped as failure too.
+      - name: Fail unless every required job succeeded
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}
+        run: |
+          echo "::error::A required CI job did not succeed."
+          exit 1
+
   # main only ever receives release-please's Release PR, retargeted from develop
   # (see release.yml), so a green main means a new version just landed -- ship it.
   # Skipped entirely on develop and on PRs.
@@ -172,7 +223,7 @@ jobs:
   deploy-ios:
     name: Deploy to TestFlight
     runs-on: macos-latest
-    needs: [pre-commit, analyze-and-test, build-web, security]
+    needs: [pre-commit, analyze, test, build-web, security]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
