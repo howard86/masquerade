@@ -294,13 +294,29 @@ class _QueryEditorState extends State<_QueryEditor> {
     ]);
   }
 
+  void _addPair() {
+    setState(() {
+      _keys.add(TextEditingController());
+      _values.add(TextEditingController());
+    });
+    _emit();
+  }
+
+  void _removePair(int index) {
+    setState(() {
+      _keys.removeAt(index).dispose();
+      _values.removeAt(index).dispose();
+    });
+    _emit();
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        for (int i = 0; i < widget.pairs.length; i++) ...<Widget>[
+        for (int i = 0; i < _keys.length; i++) ...<Widget>[
           if (i > 0) const SizedBox(height: MqSpacing.sm),
           DecoratedBox(
             decoration: BoxDecoration(
@@ -313,27 +329,56 @@ class _QueryEditorState extends State<_QueryEditor> {
                 horizontal: MqSpacing.md,
                 vertical: 10,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  MqInput(
-                    controller: _keys[i],
-                    label: 'Key',
-                    placeholder: '(empty key)',
-                    onChanged: (_) => _emit(),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        MqInput(
+                          controller: _keys[i],
+                          label: 'Key',
+                          placeholder: '(empty key)',
+                          onChanged: (_) => _emit(),
+                        ),
+                        const SizedBox(height: MqSpacing.sm),
+                        MqInput(
+                          controller: _values[i],
+                          label: 'Value',
+                          placeholder: '(empty value)',
+                          onChanged: (_) => _emit(),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: MqSpacing.sm),
-                  MqInput(
-                    controller: _values[i],
-                    label: 'Value',
-                    placeholder: '(empty value)',
-                    onChanged: (_) => _emit(),
+                  const SizedBox(width: MqSpacing.sm),
+                  Semantics(
+                    button: true,
+                    label: _keys[i].text.isEmpty
+                        ? 'Remove pair'
+                        : 'Remove ${_keys[i].text}',
+                    child: CupertinoButton(
+                      padding: const EdgeInsets.all(MqSpacing.sm),
+                      minimumSize: const Size(40, 40),
+                      borderRadius: BorderRadius.circular(MqRadius.sm),
+                      onPressed: () => _removePair(i),
+                      child: Icon(MqIcons.trash, size: 18, color: c.danger),
+                    ),
                   ),
                 ],
               ),
             ),
           ),
         ],
+        const SizedBox(height: MqSpacing.sm),
+        MqButton(
+          label: 'Add pair',
+          icon: MqIcons.plus,
+          variant: MqButtonVariant.glass,
+          size: MqButtonSize.sm,
+          onPressed: _addPair,
+        ),
       ],
     );
   }

@@ -91,6 +91,66 @@ void main() {
     expect(find.text(expected), findsOneWidget);
   });
 
+  testWidgets('URL — adding a query pair rebuilds the encoded query', (
+    WidgetTester tester,
+  ) async {
+    await pumpHomeAndOpen(tester, 'URL');
+
+    await tester.tap(find.text('Decode'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byType(EditableText).last,
+      'https://x.com/s?q=cats&n=10',
+    );
+    await tester.pumpAndSettle(kDebouncePump);
+
+    expect(find.text('Add pair'), findsOneWidget);
+    await tester.tap(find.text('Add pair'));
+    await tester.pump();
+
+    // The new row's Key/Value fields are appended last, after the existing
+    // two rows (URL input field + 2 rows × 2 fields = 5 EditableTexts before).
+    final List<Element> fields = find.byType(EditableText).evaluate().toList();
+    expect(fields.length, 7);
+    await tester.enterText(find.byWidget(fields[5].widget), 'x');
+    await tester.pump();
+    await tester.enterText(find.byWidget(fields[6].widget), 'y');
+    await tester.pump();
+
+    final String expected = UrlParser.buildQuery(<QueryPair>[
+      const QueryPair('q', 'cats'),
+      const QueryPair('n', '10'),
+      const QueryPair('x', 'y'),
+    ]);
+    expect(find.text(expected), findsOneWidget);
+  });
+
+  testWidgets('URL — removing a query pair rebuilds the encoded query', (
+    WidgetTester tester,
+  ) async {
+    await pumpHomeAndOpen(tester, 'URL');
+
+    await tester.tap(find.text('Decode'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byType(EditableText).last,
+      'https://x.com/s?q=cats&n=10',
+    );
+    await tester.pumpAndSettle(kDebouncePump);
+
+    expect(find.bySemanticsLabel('Remove n'), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel('Remove n'));
+    await tester.pump();
+
+    final String expected = UrlParser.buildQuery(<QueryPair>[
+      const QueryPair('q', 'cats'),
+    ]);
+    expect(find.text(expected), findsOneWidget);
+    expect(find.text('10'), findsNothing);
+  });
+
   testWidgets('URL — malformed decode input shows error cell', (
     WidgetTester tester,
   ) async {
