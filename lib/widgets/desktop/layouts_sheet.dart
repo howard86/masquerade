@@ -127,23 +127,27 @@ class _SheetTile extends StatelessWidget {
     // Two independent tap targets (open/restore vs. delete) get their own
     // Semantics scope as siblings — nesting one inside the other's
     // `excludeSemantics` would silently drop the inner node from the tree.
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: MqSpacing.sm + 2),
-      child: Row(
-        children: <Widget>[
-          Expanded(
-            child: Semantics(
-              button: true,
-              enabled: enabled,
-              label: label,
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: Semantics(
+            button: true,
+            enabled: enabled,
+            label: label,
+            onTap: onTap,
+            excludeSemantics: true,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              excludeFromSemantics: true,
               onTap: onTap,
-              excludeSemantics: true,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                excludeFromSemantics: true,
-                onTap: onTap,
-                child: Opacity(
-                  opacity: enabled ? 1 : 0.4,
+              child: Opacity(
+                opacity: enabled ? 1 : 0.4,
+                // Padding lives inside the tap target so the row keeps its
+                // full ~40px hit area.
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: MqSpacing.sm + 2,
+                  ),
                   child: Row(
                     children: <Widget>[
                       Icon(icon, size: 18, color: tint),
@@ -162,21 +166,21 @@ class _SheetTile extends StatelessWidget {
               ),
             ),
           ),
-          if (onTrailingTap != null)
-            Semantics(
-              button: true,
-              label: 'Delete $label',
+        ),
+        if (onTrailingTap != null)
+          Semantics(
+            button: true,
+            label: 'Delete $label',
+            onTap: onTrailingTap,
+            excludeSemantics: true,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              excludeFromSemantics: true,
               onTap: onTrailingTap,
-              excludeSemantics: true,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                excludeFromSemantics: true,
-                onTap: onTrailingTap,
-                child: Icon(MqIcons.trash, size: 16, color: c.textTer),
-              ),
+              child: Icon(MqIcons.trash, size: 16, color: c.textTer),
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 }
