@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -58,5 +59,67 @@ void main() {
     // The SHA-256 row should now be accented (accent: true renders with
     // accentBg background). We verify by checking the label still renders.
     expect(find.text('SHA-256'), findsOneWidget);
+  });
+
+  testWidgets('hash — Copy all writes every digest to the clipboard', (
+    WidgetTester tester,
+  ) async {
+    final List<String> clipboardWrites = <String>[];
+    final TestDefaultBinaryMessenger messenger =
+        tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (
+      MethodCall call,
+    ) async {
+      if (call.method == 'Clipboard.setData') {
+        final Map<dynamic, dynamic> args = call.arguments as Map;
+        clipboardWrites.add(args['text'] as String);
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+
+    await pumpHomeAndOpen(tester, 'Hash');
+
+    await tester.enterText(find.byType(EditableText).first, 'abc');
+    await tester.pumpAndSettle(kDebouncePump);
+
+    await tester.tap(find.text('Copy all'));
+    await tester.pump();
+
+    expect(clipboardWrites, hasLength(1));
+    final String written = clipboardWrites.single;
+    expect(written, contains('900150983cd24fb0d6963f7d28e17f72')); // MD5
+    expect(
+      written,
+      contains('a9993e364706816aba3e25717850c26c9cd0d89'),
+    ); // SHA-1
+    expect(written, contains('ba7816bf8f01cfea414140de5dae2223')); // SHA-256
+    expect(
+      written,
+      contains('ddaf35a193617abacc417349ae20413112e6fa4'),
+    ); // SHA-512
+
+    // Drain the copy toast's 3s auto-dismiss timer so the test ends clean.
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('hash — Copy all is hidden when the input is empty', (
+    WidgetTester tester,
+  ) async {
+    await pumpHomeAndOpen(tester, 'Hash');
+
+    // Empty input → nothing typed yet → the center action stays hidden.
+    expect(find.text('Copy all'), findsNothing);
+
+    await tester.enterText(find.byType(EditableText).first, 'abc');
+    await tester.pumpAndSettle(kDebouncePump);
+    expect(find.text('Copy all'), findsOneWidget);
+
+    await tester.enterText(find.byType(EditableText).first, '');
+    await tester.pumpAndSettle(kDebouncePump);
+    expect(find.text('Copy all'), findsNothing);
   });
 }
