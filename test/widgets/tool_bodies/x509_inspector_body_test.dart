@@ -225,6 +225,63 @@ void main() {
     await pumpHomeAndOpen(tester, 'X.509 Inspector');
     expect(find.byType(X509InspectorBody), findsOneWidget);
   });
+
+  testWidgets(
+    'x509 — Copy all writes every certificate field to the clipboard',
+    (WidgetTester tester) async {
+      final List<String> clipboardWrites = <String>[];
+      final TestDefaultBinaryMessenger messenger =
+          tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(SystemChannels.platform, (
+        MethodCall call,
+      ) async {
+        if (call.method == 'Clipboard.setData') {
+          final Map<dynamic, dynamic> args = call.arguments as Map;
+          clipboardWrites.add(args['text'] as String);
+        }
+        return null;
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+
+      await pumpHomeAndOpen(tester, 'X.509 Inspector');
+
+      await tester.enterText(find.byType(EditableText).first, leaf);
+      await tester.pumpAndSettle(kDebouncePump);
+
+      final Finder copyAll = find.text('Copy all');
+      await tester.ensureVisible(copyAll);
+      await tester.tap(copyAll);
+      await tester.pump();
+
+      expect(clipboardWrites, hasLength(1));
+      final String written = clipboardWrites.single;
+      expect(written, contains('CN=api.example.test')); // Subject
+      expect(written, contains('CN=Masquerade-Test-Root')); // Issuer
+      expect(written, contains('DNS:api.example.test')); // SANs
+      expect(written, contains('RSA · 2048 bits')); // Public key
+
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets('x509 — Copy all is hidden when there is no valid output', (
+    WidgetTester tester,
+  ) async {
+    await pumpHomeAndOpen(tester, 'X.509 Inspector');
+
+    expect(find.text('Copy all'), findsNothing);
+
+    await tester.enterText(find.byType(EditableText).first, 'not a cert');
+    await tester.pumpAndSettle(kDebouncePump);
+    expect(find.text('Copy all'), findsNothing);
+
+    await tester.enterText(find.byType(EditableText).first, leaf);
+    await tester.pumpAndSettle(kDebouncePump);
+    expect(find.text('Copy all'), findsOneWidget);
+  });
 }
 
 void _expectNoOutputActions() {

@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -86,5 +87,61 @@ void main() {
     await tester.pumpAndSettle(kDebouncePump);
 
     expect(find.textContaining('Quartz'), findsOneWidget);
+  });
+
+  testWidgets('cron — Copy all writes every output cell to the clipboard', (
+    WidgetTester tester,
+  ) async {
+    final List<String> clipboardWrites = <String>[];
+    final TestDefaultBinaryMessenger messenger =
+        tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (
+      MethodCall call,
+    ) async {
+      if (call.method == 'Clipboard.setData') {
+        final Map<dynamic, dynamic> args = call.arguments as Map;
+        clipboardWrites.add(args['text'] as String);
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+
+    await pumpHomeAndOpen(tester, 'Cron');
+
+    await tester.enterText(find.byType(EditableText).last, '@daily');
+    await tester.pumpAndSettle(kDebouncePump);
+
+    await tester.tap(find.text('Copy all'));
+    await tester.pump();
+
+    expect(clipboardWrites, hasLength(1));
+    final String written = clipboardWrites.single;
+    expect(written, contains('0 0 * * *')); // Cron canonical
+    expect(written, contains('@daily')); // Macro
+    expect(written, contains('At 00:00 every day.')); // Description
+
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('cron — Copy all is hidden when there is no valid output', (
+    WidgetTester tester,
+  ) async {
+    await pumpHomeAndOpen(tester, 'Cron');
+
+    expect(find.text('Copy all'), findsNothing);
+
+    await tester.enterText(
+      find.byType(EditableText).last,
+      'penguins ride bicycles',
+    );
+    await tester.pumpAndSettle(kDebouncePump);
+    expect(find.text('Copy all'), findsNothing);
+
+    await tester.enterText(find.byType(EditableText).last, '@daily');
+    await tester.pumpAndSettle(kDebouncePump);
+    expect(find.text('Copy all'), findsOneWidget);
   });
 }
