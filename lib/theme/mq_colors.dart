@@ -39,6 +39,7 @@ class MqColors {
     required this.shadow,
     required this.shadowLg,
     required this.transparent,
+    required this.overlayScrim,
   });
 
   factory MqColors.light() => const MqColors(
@@ -86,6 +87,7 @@ class MqColors {
       BoxShadow(color: Color(0x141B1813), blurRadius: 6, offset: Offset(0, 2)),
     ],
     transparent: Color(0x00000000),
+    overlayScrim: Color(0x99000000),
   );
 
   factory MqColors.dark() => const MqColors(
@@ -133,6 +135,7 @@ class MqColors {
       BoxShadow(color: Color(0x66000000), blurRadius: 6, offset: Offset(0, 2)),
     ],
     transparent: Color(0x00000000),
+    overlayScrim: Color(0x99000000),
   );
 
   final Color bg;
@@ -186,6 +189,11 @@ class MqColors {
   /// definition (zero alpha has no hue to theme).
   final Color transparent;
 
+  /// Modal barrier scrim (e.g. shortcuts HUD). Same value in both modes —
+  /// a translucent black overlay behind a floating dialog reads the same
+  /// regardless of the app's own light/dark surface tones.
+  final Color overlayScrim;
+
   static MqColors lerp(MqColors a, MqColors b, double t) => MqColors(
     bg: Color.lerp(a.bg, b.bg, t)!,
     surface: Color.lerp(a.surface, b.surface, t)!,
@@ -221,5 +229,6 @@ class MqColors {
     shadow: t < 0.5 ? a.shadow : b.shadow,
     shadowLg: t < 0.5 ? a.shadowLg : b.shadowLg,
     transparent: Color.lerp(a.transparent, b.transparent, t)!,
+    overlayScrim: Color.lerp(a.overlayScrim, b.overlayScrim, t)!,
   );
 }
