@@ -435,15 +435,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _currentSession(BuildContext context) {
     final WorkSessionController sessions = WorkSessionScope.of(context);
     final WorkSession? session = sessions.session;
-    if (session == null) {
-      return const Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          SectionRule(label: 'Current session'),
-          MqEmptyHint(label: 'No current session'),
-        ],
-      );
-    }
+    if (session == null) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -492,6 +484,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _savedWorkflows(BuildContext context) {
     final WorkSessionController sessions = WorkSessionScope.of(context);
+    if (sessions.savedWorkflows.isEmpty && sessions.workflowError == null) {
+      return const SizedBox.shrink();
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -513,20 +508,17 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: MqSpacing.sm),
         ],
-        if (sessions.savedWorkflows.isEmpty)
-          const MqEmptyHint(label: 'No saved workflows')
-        else
-          for (final SavedWorkflow workflow
-              in sessions.savedWorkflows) ...<Widget>[
-            _SavedWorkflowCard(
-              workflow: workflow,
-              canRun: _hero.text.trim().isNotEmpty,
-              onRun: () => _runWorkflow(workflow),
-              onRename: () => _renameWorkflow(workflow),
-              onDelete: () => _deleteWorkflow(workflow),
-            ),
-            const SizedBox(height: MqSpacing.sm),
-          ],
+        for (final SavedWorkflow workflow
+            in sessions.savedWorkflows) ...<Widget>[
+          _SavedWorkflowCard(
+            workflow: workflow,
+            canRun: _hero.text.trim().isNotEmpty,
+            onRun: () => _runWorkflow(workflow),
+            onRename: () => _renameWorkflow(workflow),
+            onDelete: () => _deleteWorkflow(workflow),
+          ),
+          const SizedBox(height: MqSpacing.sm),
+        ],
       ],
     );
   }
@@ -798,9 +790,11 @@ class _HomeScreenState extends State<HomeScreen> {
         container: true,
         liveRegion: true,
         label: 'Empty Workbench',
-        child: const MqEmptyHint(
+        child: MqEmptyHint(
           label: 'Capture something to begin',
-          detail: 'Type, paste, or scan a QR code.',
+          detail: widget.importEnabled
+              ? 'Type, paste, import a file, or scan a QR code.'
+              : 'Type, paste, or scan a QR code.',
         ),
       );
     }

@@ -37,8 +37,10 @@ class SettingsScreen extends StatelessWidget {
       backgroundColor: c.bg,
       navigationBar: const CupertinoNavigationBar(middle: Text('Settings')),
       child: SafeArea(
-        bottom: false,
-        child: SettingsBody(desktopShellOverride: desktopShellOverride),
+        child: SettingsBody(
+          desktopShellOverride: desktopShellOverride,
+          showTitle: false,
+        ),
       ),
     );
   }
@@ -47,9 +49,14 @@ class SettingsScreen extends StatelessWidget {
 /// The inner content of the Settings screen, reusable without a scaffold.
 /// Used directly by the desktop window manager.
 class SettingsBody extends StatelessWidget {
-  const SettingsBody({super.key, this.desktopShellOverride});
+  const SettingsBody({
+    super.key,
+    this.desktopShellOverride,
+    this.showTitle = true,
+  });
 
   final bool? desktopShellOverride;
+  final bool showTitle;
 
   @override
   Widget build(BuildContext context) {
@@ -72,11 +79,13 @@ class SettingsBody extends StatelessWidget {
         MqSpacing.lg,
       ),
       children: <Widget>[
-        Text(
-          'Settings',
-          style: MqTextStyles.largeTitle.copyWith(color: c.textPri),
-        ),
-        const SizedBox(height: MqSpacing.xl),
+        if (showTitle) ...<Widget>[
+          Text(
+            'Settings',
+            style: MqTextStyles.largeTitle.copyWith(color: c.textPri),
+          ),
+          const SizedBox(height: MqSpacing.xl),
+        ],
         const MqSectionHeader(label: 'Detection'),
         MqSurface(
           child: Column(

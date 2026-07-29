@@ -3,7 +3,6 @@ import 'package:flutter/widgets.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import 'mq_button.dart';
-import 'mq_icons.dart';
 
 /// Holds the paste/clear handlers and optional center action that a
 /// [ToolDetailRoute] should render in its pinned bottom action bar.
@@ -49,6 +48,26 @@ class ToolActionBar extends StatelessWidget {
       listenable: controller,
       builder: (BuildContext context, _) {
         if (!controller.hasBinding) return const SizedBox.shrink();
+        final List<Widget> actions = <Widget>[
+          // Tools that take no single input (e.g. Diff's two fields) bind no
+          // paste handler; hide the leading Paste rather than show a dead button.
+          if (controller.onPaste != null)
+            MqButton(
+              label: 'Paste',
+              variant: MqButtonVariant.glass,
+              onPressed: controller.onPaste!,
+              full: true,
+            ),
+          if (controller.center != null) controller.center!,
+          MqButton(
+            label: 'Clear',
+            variant: MqButtonVariant.glass,
+            onPressed: controller.onClear ?? () {},
+            full: true,
+          ),
+        ];
+        final bool stackActions = media.textScaler.scale(1) >= 2;
+
         return DecoratedBox(
           decoration: BoxDecoration(
             color: c.surface,
@@ -61,38 +80,24 @@ class ToolActionBar extends StatelessWidget {
               MqSpacing.lg,
               MqSpacing.sm + bottomInset,
             ),
-            child: Row(
-              children: <Widget>[
-                // Tools that take no single input (e.g. Diff's two fields) bind
-                // no paste handler; hide the leading Paste rather than show a
-                // dead button.
-                if (controller.onPaste != null) ...<Widget>[
-                  Expanded(
-                    child: MqButton(
-                      label: 'Paste',
-                      icon: MqIcons.paste,
-                      variant: MqButtonVariant.glass,
-                      onPressed: controller.onPaste!,
-                      full: true,
-                    ),
+            child: stackActions
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      for (int index = 0; index < actions.length; index++) ...[
+                        if (index > 0) const SizedBox(height: MqSpacing.sm),
+                        actions[index],
+                      ],
+                    ],
+                  )
+                : Row(
+                    children: <Widget>[
+                      for (int index = 0; index < actions.length; index++) ...[
+                        if (index > 0) const SizedBox(width: MqSpacing.sm),
+                        Expanded(child: actions[index]),
+                      ],
+                    ],
                   ),
-                  const SizedBox(width: MqSpacing.sm),
-                ],
-                if (controller.center != null) ...<Widget>[
-                  Expanded(child: controller.center!),
-                  const SizedBox(width: MqSpacing.sm),
-                ],
-                Expanded(
-                  child: MqButton(
-                    label: 'Clear',
-                    icon: MqIcons.clear,
-                    variant: MqButtonVariant.glass,
-                    onPressed: controller.onClear ?? () {},
-                    full: true,
-                  ),
-                ),
-              ],
-            ),
           ),
         );
       },

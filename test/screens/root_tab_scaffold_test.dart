@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
 import 'package:masquerade/screens/desktop/desktop_shell.dart';
+import 'package:masquerade/screens/history_screen.dart';
 import 'package:masquerade/screens/settings_screen.dart';
 import 'package:masquerade/state/view_mode_controller.dart';
 import 'package:masquerade/state/share_inbox_controller.dart';
@@ -43,6 +44,13 @@ void main() {
     await tester.tap(find.text('Activity').last);
     await tester.pumpAndSettle();
     expect(find.text('Activity'), findsWidgets);
+    expect(
+      find.descendant(
+        of: find.byType(HistoryBody),
+        matching: find.text('Activity'),
+      ),
+      findsNothing,
+    );
     expect(find.text('Nothing yet'), findsOneWidget);
   });
 
@@ -64,6 +72,13 @@ void main() {
       await tester.tap(settings);
       await tester.pumpAndSettle();
       expect(find.byType(SettingsScreen), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(SettingsBody),
+          matching: find.text('Settings'),
+        ),
+        findsNothing,
+      );
 
       await tester.tap(find.byType(CupertinoNavigationBarBackButton));
       await tester.pumpAndSettle();
