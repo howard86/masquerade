@@ -40,6 +40,10 @@ class _AnimatedCopyIconState extends State<AnimatedCopyIcon> {
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
+    // Reduce Motion (iOS accessibility setting): swap the icon instantly
+    // instead of cross-fading.
+    final bool reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     return Semantics(
       button: true,
       label: widget.semanticsLabel,
@@ -53,7 +57,9 @@ class _AnimatedCopyIconState extends State<AnimatedCopyIcon> {
           constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
           child: Center(
             child: AnimatedCrossFade(
-              duration: const Duration(milliseconds: 250),
+              duration: reduceMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 250),
               crossFadeState: _copied
                   ? CrossFadeState.showSecond
                   : CrossFadeState.showFirst,
@@ -89,13 +95,33 @@ class _CopyToastState extends State<_CopyToast>
     end: Offset.zero,
   ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
 
+  /// Reduce Motion (iOS accessibility setting): jump the slide to its end
+  /// state instead of animating in/out over 300ms. Read in
+  /// [didChangeDependencies] — `MediaQuery` can't be looked up in
+  /// `initState`.
+  bool _reduceMotion = false;
+  bool _started = false;
+
   @override
   void initState() {
     super.initState();
-    _controller.forward();
     Future<void>.delayed(const Duration(seconds: 3), () {
       if (mounted) _dismiss();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (!_started) {
+      _started = true;
+      if (_reduceMotion) {
+        _controller.value = 1;
+      } else {
+        _controller.forward();
+      }
+    }
   }
 
   @override
@@ -105,7 +131,11 @@ class _CopyToastState extends State<_CopyToast>
   }
 
   Future<void> _dismiss() async {
-    await _controller.reverse();
+    if (_reduceMotion) {
+      _controller.value = 0;
+    } else {
+      await _controller.reverse();
+    }
     widget.onDismiss();
   }
 
