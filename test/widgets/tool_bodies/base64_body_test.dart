@@ -94,7 +94,7 @@ void main() {
         .widgetList<MqMonoCell>(find.byType(MqMonoCell))
         .firstWhere((MqMonoCell cell) => cell.label == 'Base64');
     expect(output.sensitive, isTrue);
-    expect(find.bySemanticsLabel('Copy ••••'), findsOneWidget);
+    expect(find.bySemanticsLabel('Copy Base64'), findsOneWidget);
   });
 
   testWidgets('Base64 — decoded credentials keep protection', (
@@ -114,6 +114,6 @@ void main() {
         .widgetList<MqMonoCell>(find.byType(MqMonoCell))
         .firstWhere((MqMonoCell cell) => cell.label == 'Plain text');
     expect(output.sensitive, isTrue);
-    expect(find.bySemanticsLabel('Copy ••••'), findsOneWidget);
+    expect(find.bySemanticsLabel('Copy Plain text'), findsOneWidget);
   });
 }

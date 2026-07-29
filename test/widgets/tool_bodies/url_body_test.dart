@@ -190,6 +190,6 @@ void main() {
         .widgetList<MqMonoCell>(find.byType(MqMonoCell))
         .firstWhere((MqMonoCell cell) => cell.label == 'Decoded');
     expect(output.sensitive, isTrue);
-    expect(find.bySemanticsLabel('Copy ••••'), findsOneWidget);
+    expect(find.bySemanticsLabel('Copy Decoded'), findsOneWidget);
   });
 }

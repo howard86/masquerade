@@ -85,6 +85,7 @@ class MqMonoCell extends StatelessWidget {
                     value: copyValue ?? value,
                     color: c.textTer,
                     sensitive: protected,
+                    label: label,
                   ),
               ],
             ),
@@ -165,10 +166,12 @@ class _CopyButton extends StatefulWidget {
     required this.value,
     required this.color,
     required this.sensitive,
+    required this.label,
   });
   final String value;
   final Color color;
   final bool sensitive;
+  final String label;
 
   @override
   State<_CopyButton> createState() => _CopyButtonState();
@@ -193,10 +196,18 @@ class _CopyButtonState extends State<_CopyButton> {
   @override
   Widget build(BuildContext context) {
     final tokens = context.mq;
+    // Name the button by the cell's caption ("Copy SHA-256"), not a value
+    // preview: a screen-reader user tabbing between several copy buttons on
+    // one screen (e.g. Hash's four digests) needs to tell them apart, and a
+    // truncated hex preview doesn't do that. Cells without a caption (label
+    // empty) fall back to today's preview-based label so they don't regress
+    // to a bare "Copy".
+    final String semanticsLabel = widget.label.isEmpty
+        ? 'Copy ${SensitiveDataPolicy.safePreview(widget.value, max: 32, sensitive: widget.sensitive)}'
+        : 'Copy ${widget.label}';
     return Semantics(
       button: true,
-      label:
-          'Copy ${SensitiveDataPolicy.safePreview(widget.value, max: 32, sensitive: widget.sensitive)}',
+      label: semanticsLabel,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: _handle,
