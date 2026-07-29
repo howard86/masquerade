@@ -273,7 +273,11 @@ class _ListToolBodyState extends State<ListToolBody>
             if (_quote)
               MqChip(
                 label: _quoteStyle == QuoteStyle.doubleQuote ? '"x"' : "'x'",
-                accent: true,
+                // Two-state toggle (double vs single quote) — `selected`
+                // (not `accent`) so a screen reader announces which style is
+                // active. Double-quote is the default/"on" state, so the
+                // default visual (accented) is unchanged from before.
+                selected: _quoteStyle == QuoteStyle.doubleQuote,
                 onTap: () {
                   setState(
                     () => _quoteStyle = _quoteStyle == QuoteStyle.doubleQuote
