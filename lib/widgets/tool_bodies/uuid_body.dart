@@ -15,6 +15,7 @@ import '../mq/mq_empty_hint.dart';
 import '../mq/mq_input.dart';
 import '../mq/mq_mono_cell.dart';
 import '../mq/tool_action_bar.dart';
+import 'copy_all_button.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 
@@ -88,7 +89,40 @@ class _UuidBodyState extends State<UuidBody> {
   }
 
   void _updateActionBar() {
-    widget.actionBar?.bind(onPaste: _paste, onClear: _clear);
+    widget.actionBar?.bind(
+      onPaste: _paste,
+      onClear: _clear,
+      center: _actionBarCenter(),
+    );
+  }
+
+  /// Copies every derived value (Canonical/No-dashes/Uppercase/Version/
+  /// Variant/Timestamp for a UUID, or Canonical/Timestamp for a ULID) at once.
+  /// Hidden until something parses, so the action bar shows it only when there
+  /// is output to copy.
+  Widget? _actionBarCenter() {
+    final UuidParseResult? result = _result;
+    if (result is UuidOk) {
+      return CopyAllButton(
+        payload: <String>[
+          result.canonical,
+          result.canonical.replaceAll('-', ''),
+          result.canonical.toUpperCase(),
+          result.version.toString(),
+          result.variant.toString(),
+          if (result.timestamp != null) result.timestamp!.toIso8601String(),
+        ].join('\n'),
+      );
+    }
+    if (result is UlidOk) {
+      return CopyAllButton(
+        payload: <String>[
+          result.canonical,
+          result.timestamp.toIso8601String(),
+        ].join('\n'),
+      );
+    }
+    return null;
   }
 
   void _onChanged(String _) {
@@ -100,6 +134,7 @@ class _UuidBodyState extends State<UuidBody> {
     final String input = _controller.text.trim();
     if (input.isEmpty) {
       setState(() => _result = null);
+      _updateActionBar();
       return;
     }
     final UuidParseResult result = UuidParser.parse(input);
@@ -109,6 +144,7 @@ class _UuidBodyState extends State<UuidBody> {
     } else if (result is UlidOk) {
       _recorder?.record(input, result.canonical);
     }
+    _updateActionBar();
   }
 
   Future<void> _paste() async {
@@ -122,6 +158,7 @@ class _UuidBodyState extends State<UuidBody> {
   void _clear() {
     _controller.clear();
     setState(() => _result = null);
+    _updateActionBar();
   }
 
   void _generateV4() {
