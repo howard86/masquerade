@@ -189,6 +189,27 @@ jobs:
         with:
           sarif_file: "trivy-results.sarif"
 
+  # The single required status check for the develop-gate / main-gate rulesets.
+  # Pointing branch protection at one aggregate context means the job list above
+  # (shard count in particular) can change without re-registering contexts --
+  # renaming a directly-required job silently blocks every PR, and adding one
+  # silently stops gating on it. Both have already happened here.
+  ci-ok:
+    name: CI OK
+    runs-on: ubuntu-latest
+    needs: [pre-commit, analyze, test, build-web, security]
+    if: always()
+
+    steps:
+      # `needs` results default to letting this job pass, so an aggregate gate
+      # that does not assert on them stops gating the moment anything skips.
+      # None of the five should ever skip, so treat skipped as failure too.
+      - name: Fail unless every required job succeeded
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}
+        run: |
+          echo "::error::A required CI job did not succeed."
+          exit 1
+
   # main only ever receives release-please's Release PR, retargeted from develop
   # (see release.yml), so a green main means a new version just landed -- ship it.
   # Skipped entirely on develop and on PRs.
