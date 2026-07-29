@@ -120,6 +120,23 @@ class UrlParser {
       )
       .join('&');
 
+  /// Splices [query] into [url]'s query component, mirroring [splitQuery]'s
+  /// boundary logic so the two are inverses: everything up to and including
+  /// the first `?` (or, if there's no `?`, nothing — the whole body is the
+  /// query, as `splitQuery` treats it) is kept as-is, and any trailing
+  /// `#fragment` is preserved after [query]. An empty [query] leaves a bare
+  /// trailing `?` in place rather than stripping it — `splitQuery` reads that
+  /// the same as no query at all, so the round-trip still holds.
+  static String replaceQuery(String url, String query) {
+    final String body = url.trim();
+    final int q = body.indexOf('?');
+    final String prefix = q >= 0 ? body.substring(0, q + 1) : '';
+    final String rest = body.substring(prefix.length);
+    final int hash = rest.indexOf('#');
+    final String fragment = hash >= 0 ? rest.substring(hash) : '';
+    return '$prefix$query$fragment';
+  }
+
   /// Percent-decodes a query token, treating `+` as a space (form-encoding) and
   /// falling back to the raw token if the bytes are malformed.
   static String _decode(String token) {

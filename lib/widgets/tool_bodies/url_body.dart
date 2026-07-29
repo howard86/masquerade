@@ -148,13 +148,32 @@ class _UrlBodyState extends State<UrlBody>
     });
   }
 
+  /// Swaps mode and feeds the output back in as input. When the query table
+  /// has been edited, splices the rebuilt [_query] back into the input (via
+  /// [UrlParser.replaceQuery]) and re-parses that under the current mode, so
+  /// the edit survives the swap instead of being silently dropped.
   void _swap() {
     final String? out = _output;
     if (out == null) return;
+    String payload = out;
+    if (_query != null) {
+      final String effectiveInput = UrlParser.replaceQuery(
+        controller.text,
+        _query!,
+      );
+      if (effectiveInput != controller.text) {
+        switch (UrlParser.parse(effectiveInput, mode: _mode)) {
+          case UrlOk(:final output):
+            payload = output;
+          case UrlError():
+            break;
+        }
+      }
+    }
     setState(() {
       _mode = _mode == UrlMode.encode ? UrlMode.decode : UrlMode.encode;
     });
-    setInput(out, asPaste: true);
+    setInput(payload, asPaste: true);
   }
 
   @override
