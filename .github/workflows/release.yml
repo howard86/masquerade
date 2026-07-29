@@ -89,12 +89,16 @@ jobs:
           set -euo pipefail
           pr=$(gh pr list --state open --base develop --head main \
             --json number --jq '.[0].number // empty')
-          if [ -n "$pr" ]; then
-            echo "Sync PR #$pr already exists."
-            exit 0
+          if [ -z "$pr" ]; then
+            pr=$(gh pr create \
+              --base develop \
+              --head main \
+              --title "chore: sync release $TAG back to develop" \
+              --body "Syncs the released version, manifest, and changelog from main." \
+              | grep -o '[0-9]*$')
           fi
-          gh pr create \
-            --base develop \
-            --head main \
-            --title "chore: sync release $TAG back to develop" \
-            --body "Syncs the released version, manifest, and changelog from main."
+          # The sync PR carries only the version bump, manifest and CHANGELOG, so
+          # it merges itself. develop has no required checks, which makes GitHub
+          # reject --auto on an already-mergeable PR -- merge outright instead.
+          gh pr merge "$pr" --auto --merge || gh pr merge "$pr" --merge
+          echo "Sync PR #$pr queued for merge."
