@@ -14,6 +14,7 @@ import '../mq/mq_button.dart';
 import '../mq/mq_empty_hint.dart';
 import '../mq/mq_input.dart';
 import '../mq/mq_mono_cell.dart';
+import '../mq/mq_status.dart';
 import '../mq/tool_action_bar.dart';
 import 'copy_all_button.dart';
 import 'open_in_footer.dart';
@@ -206,10 +207,9 @@ class _UuidBodyState extends State<UuidBody> {
         ),
         const SizedBox(height: MqSpacing.lg),
         if (_result is UuidErr)
-          MqMonoCell(
-            label: 'Error',
-            value: (_result! as UuidErr).message,
-            copyable: false,
+          MqStatus(
+            label: (_result! as UuidErr).message,
+            kind: MqStatusKind.danger,
           )
         else if (_result is UuidOk)
           ..._buildUuidOk(_result! as UuidOk)

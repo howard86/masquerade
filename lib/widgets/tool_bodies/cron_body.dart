@@ -146,7 +146,7 @@ class _CronBodyState extends State<CronBody> with ToolBodyScaffold<CronBody> {
         ),
         const SizedBox(height: MqSpacing.lg),
         if (_error != null)
-          MqMonoCell(label: 'Error', value: _error!, copyable: false)
+          MqStatus(label: _error!, kind: MqStatusKind.danger)
         else if (_schedule != null && _referenceNow != null) ...<Widget>[
           const MqSectionHeader(label: 'Detected'),
           MqStatus(

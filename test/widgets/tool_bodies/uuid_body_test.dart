@@ -1,6 +1,8 @@
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:masquerade/widgets/mq/mq_status.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '_helpers.dart';
@@ -23,6 +25,27 @@ void main() {
 
     expect(find.text('Version'), findsOneWidget);
     expect(find.text('Canonical'), findsOneWidget);
+  });
+
+  testWidgets('uuid — invalid input announces via a live-region error pill', (
+    WidgetTester tester,
+  ) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+
+    await pumpHomeAndOpen(tester, 'UUID');
+
+    await tester.enterText(find.byType(EditableText).first, 'not-a-uuid');
+    await tester.pumpAndSettle(kDebouncePump);
+
+    final MqStatus status = tester.widget<MqStatus>(find.byType(MqStatus).last);
+    expect(status.kind, MqStatusKind.danger);
+    expect(status.label, contains('Not a valid UUID or ULID'));
+
+    final SemanticsNode node = tester.getSemantics(find.byType(MqStatus).last);
+    expect(node.label, status.label);
+    expect(node.flagsCollection.isLiveRegion, isTrue);
+
+    handle.dispose();
   });
 
   testWidgets('uuid — tapping Generate v4 populates a value', (
