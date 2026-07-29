@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/models/artifact.dart';
 import 'package:masquerade/utils/timestamp_parser.dart';
+import 'package:masquerade/widgets/mq/mq_status.dart';
 import 'package:masquerade/widgets/tool_bodies/timestamp_body.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -17,6 +18,29 @@ void main() {
   Future<void> openTimestamp(WidgetTester tester) async {
     await pumpHomeAndOpen(tester, 'Timestamp');
   }
+
+  testWidgets(
+    'Timestamp — invalid input announces via a live-region error pill',
+    (WidgetTester tester) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+
+      await openTimestamp(tester);
+
+      final Finder input = find.byType(EditableText).last;
+      await tester.enterText(input, 'not a timestamp');
+      await tester.pumpAndSettle(const Duration(milliseconds: 300));
+
+      final MqStatus status = tester.widget<MqStatus>(find.byType(MqStatus));
+      expect(status.kind, MqStatusKind.danger);
+      expect(status.label, contains('Invalid input format'));
+
+      final SemanticsNode node = tester.getSemantics(find.byType(MqStatus));
+      expect(node.label, status.label);
+      expect(node.flagsCollection.isLiveRegion, isTrue);
+
+      handle.dispose();
+    },
+  );
 
   testWidgets(
     'Timestamp ambiguity banner shows for values in seconds/ms overlap range',

@@ -116,7 +116,7 @@ class _BpsBodyState extends State<BpsBody> with ToolBodyScaffold<BpsBody> {
             ),
             const SizedBox(height: MqSpacing.lg),
             if (_error != null)
-              MqMonoCell(label: 'Error', value: _error!, copyable: false)
+              MqStatus(label: _error!, kind: MqStatusKind.danger)
             else if (_result != null) ...<Widget>[
               const MqSectionHeader(label: 'Detected'),
               MqStatus(label: _result!.detected.name, kind: MqStatusKind.info),
