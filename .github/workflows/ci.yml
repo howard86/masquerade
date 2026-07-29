@@ -152,6 +152,11 @@ jobs:
   build-web:
     name: Build web
     runs-on: ubuntu-latest
+    # Job-level permissions replace the workflow defaults wholesale, so
+    # contents: read has to be restated alongside the comment permission.
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v7
       - name: Setup Flutter
@@ -163,9 +168,130 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
       # Catches web-only regressions (manifest, splash injection, asset
-      # paths, tree-shake-icons). Output is discarded -- gate only.
+      # paths, tree-shake-icons). The output also feeds the size report below.
       - name: Build web (release)
         run: flutter build web --release
+
+      # Free to measure: this job already builds and discards the bundle.
+      # main.dart.js gzipped is the number that actually moves per PR --
+      # canvaskit ships several multi-MB variants of which one loads, so it
+      # swamps any real diff and is only folded into the total.
+      - name: Measure bundle size
+        run: |
+          printf 'gzip_main\t%s\tmain.dart.js (gzip)\n' \
+            "$(gzip -9c build/web/main.dart.js | wc -c)" > size.tsv
+          printf 'total\t%s\tbuild/web total\n' \
+            "$(du -sb build/web | cut -f1)" >> size.tsv
+
+      # Cache entries are immutable, so the key carries the SHA and the prefix
+      # restore-key picks up the most recent published baseline. PR runs can
+      # read caches from the default branch, which here is develop.
+      - name: Restore size baseline
+        uses: actions/cache/restore@v6
+        with:
+          path: baseline.tsv
+          key: websize-${{ github.sha }}
+          restore-keys: websize-
+
+      - name: Report bundle size
+        run: |
+          bash .github/scripts/bundle-size.sh "Web bundle size" \
+            | tee size-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      # --edit-last keeps one comment updated across pushes instead of stacking
+      # a new one per run; --create-if-none writes the first. No other workflow
+      # comments as github-actions[bot], so --edit-last cannot hijack one.
+      #
+      # Fork PRs get a read-only GITHUB_TOKEN and cannot be commented on, so
+      # they are skipped rather than left to fail the job.
+      - name: Comment size report on the PR
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --body-file size-report.md --edit-last --create-if-none
+
+      - name: Publish baseline
+        if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+        run: cp size.tsv baseline.tsv
+      - name: Save size baseline
+        if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+        uses: actions/cache/save@v6
+        with:
+          path: baseline.tsv
+          key: websize-${{ github.sha }}
+
+  # Reports the iOS bundle size trend, one build per merged PR.
+  #
+  # develop pushes only, deliberately. Nothing gates on this number, so a
+  # per-PR trigger would rebuild on every push of a PR to deliver a report
+  # that still lands after the merge decision -- same attribution for a
+  # fraction of the macOS minutes. Measured ~30s from a clean checkout
+  # locally; budget 3-5 min on a cold runner (pub download, cold pod install).
+  #
+  # MUST stay out of ci-ok's `needs`: it is skipped on every PR, and ci-ok
+  # treats a skipped dependency as failure -- listing it there blocks every PR.
+  build-ios-size:
+    name: iOS bundle size
+    runs-on: macos-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # --no-codesign needs none of the ASC/cert secrets that deploy-ios wants,
+      # and produces the same .app layout we measure.
+      - name: Build iOS (release, unsigned)
+        run: flutter build ios --release --no-codesign
+
+      # App.framework/App is the Dart AOT snapshot -- the iOS counterpart to
+      # main.dart.js, and the only part of the bundle a code change moves.
+      # The rest of Runner.app is fixed Flutter engine weight.
+      - name: Measure bundle size
+        run: |
+          app=build/ios/iphoneos/Runner.app
+          sz() { find "$1" -type f -exec stat -f%z {} + | awk '{s+=$1} END{print s+0}'; }
+          printf 'aot\t%s\tApp.framework/App (Dart AOT)\n' \
+            "$(stat -f%z "$app/Frameworks/App.framework/App")" > size.tsv
+          printf 'assets\t%s\tflutter_assets\n' \
+            "$(sz "$app/Frameworks/App.framework/flutter_assets")" >> size.tsv
+          printf 'total\t%s\tRunner.app total\n' "$(sz "$app")" >> size.tsv
+
+      # Every run compares against the previous develop push and republishes,
+      # so the baseline needs no conditional handling here.
+      - name: Restore size baseline
+        uses: actions/cache/restore@v6
+        with:
+          path: baseline.tsv
+          key: iossize-${{ github.sha }}
+          restore-keys: iossize-
+
+      # Summary only: this job runs on develop pushes, where there is no PR to
+      # comment on. The pre-merge signal is the web report.
+      - name: Report bundle size
+        run: |
+          bash .github/scripts/bundle-size.sh "iOS bundle size" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish baseline
+        run: cp size.tsv baseline.tsv
+      - name: Save size baseline
+        uses: actions/cache/save@v6
+        with:
+          path: baseline.tsv
+          key: iossize-${{ github.sha }}
 
   # Security scan
   security:
