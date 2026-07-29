@@ -152,6 +152,11 @@ jobs:
   build-web:
     name: Build web
     runs-on: ubuntu-latest
+    # Job-level permissions replace the workflow defaults wholesale, so
+    # contents: read has to be restated alongside the comment permission.
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v7
       - name: Setup Flutter
@@ -189,7 +194,25 @@ jobs:
           restore-keys: websize-
 
       - name: Report bundle size
-        run: bash .github/scripts/bundle-size.sh "Web bundle size"
+        run: |
+          bash .github/scripts/bundle-size.sh "Web bundle size" \
+            | tee size-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      # --edit-last keeps one comment updated across pushes instead of stacking
+      # a new one per run; --create-if-none writes the first. No other workflow
+      # comments as github-actions[bot], so --edit-last cannot hijack one.
+      #
+      # Fork PRs get a read-only GITHUB_TOKEN and cannot be commented on, so
+      # they are skipped rather than left to fail the job.
+      - name: Comment size report on the PR
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --body-file size-report.md --edit-last --create-if-none
 
       - name: Publish baseline
         if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
@@ -256,8 +279,11 @@ jobs:
           key: iossize-${{ github.sha }}
           restore-keys: iossize-
 
+      # Summary only: this job runs on develop pushes, where there is no PR to
+      # comment on. The pre-merge signal is the web report.
       - name: Report bundle size
-        run: bash .github/scripts/bundle-size.sh "iOS bundle size"
+        run: |
+          bash .github/scripts/bundle-size.sh "iOS bundle size" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish baseline
         run: cp size.tsv baseline.tsv
