@@ -144,4 +144,18 @@ void main() {
       expect(c.keycapShadow, const Color(0xFF18181A));
     });
   });
+
+  group('MqColors transparent token', () {
+    // mq_button (plain/glass variants) and mq_chip (unemphasized fill) used
+    // to inline CupertinoColors.transparent / Color(0x00000000) directly —
+    // this token replaces both so the design-system core itself reads colors
+    // from MqColors, matching the rule every other tool follows.
+    test('light exposes fully transparent', () {
+      expect(MqColors.light().transparent, const Color(0x00000000));
+    });
+
+    test('dark exposes fully transparent', () {
+      expect(MqColors.dark().transparent, const Color(0x00000000));
+    });
+  });
 }
