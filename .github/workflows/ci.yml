@@ -54,65 +54,41 @@ jobs:
             exit 1
           }
 
-  # Pre-commit checks (run first)
+  # Pre-commit checks. Runs the repo-hygiene hooks only -- dart format and
+  # flutter analyze are skipped here because analyze-and-test owns them.
   pre-commit:
     name: Pre-commit hooks
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Setup Java
-        uses: actions/setup-java@v5
-        with:
-          distribution: "zulu"
-          java-version: "17"
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: ${{ env.FLUTTER_CHANNEL }}
-          cache: true
-
-      - name: Cache pub dependencies
-        uses: actions/cache@v6
-        with:
-          path: ~/.pub-cache
-          key: pub-${{ hashFiles('**/pubspec.lock') }}
-          restore-keys: |
-            pub-
-
-      - name: Install dependencies
-        run: flutter pub get
 
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
+      - name: Cache pre-commit environments
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+
       - name: Install pre-commit
         run: pip install pre-commit
 
       - name: Run pre-commit hooks
         run: pre-commit run --all-files
+        env:
+          SKIP: dart-format,flutter-analyze
 
   # Code analysis and tests
   analyze-and-test:
     name: Analyze and Test
     runs-on: ubuntu-latest
-    needs: pre-commit
 
     steps:
       - uses: actions/checkout@v7
-
-      - name: Setup Java
-        uses: actions/setup-java@v5
-        with:
-          distribution: "zulu"
-          java-version: "17"
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -120,14 +96,6 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: ${{ env.FLUTTER_CHANNEL }}
           cache: true
-
-      - name: Cache pub dependencies
-        uses: actions/cache@v6
-        with:
-          path: ~/.pub-cache
-          key: pub-${{ hashFiles('**/pubspec.lock') }}
-          restore-keys: |
-            pub-
 
       - name: Install dependencies
         run: flutter pub get
@@ -138,8 +106,9 @@ jobs:
       - name: Analyze project source
         run: flutter analyze
 
+      # The runner has 4 vCPUs but package:test defaults concurrency to cores/2 = 2
       - name: Run tests
-        run: flutter test --coverage
+        run: flutter test --coverage --concurrency=4
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v7
@@ -149,8 +118,22 @@ jobs:
           name: codecov-umbrella
           fail_ci_if_error: false
 
+  # Build web
+  build-web:
+    name: Build web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+      - name: Install dependencies
+        run: flutter pub get
       # Catches web-only regressions (manifest, splash injection, asset
-      # paths, tree-shake-icons). Output is discarded — gate only.
+      # paths, tree-shake-icons). Output is discarded -- gate only.
       - name: Build web (release)
         run: flutter build web --release
 
@@ -158,7 +141,6 @@ jobs:
   security:
     name: Security scan
     runs-on: ubuntu-latest
-    needs: analyze-and-test
 
     steps:
       - uses: actions/checkout@v7
@@ -190,7 +172,7 @@ jobs:
   deploy-ios:
     name: Deploy to TestFlight
     runs-on: macos-latest
-    needs: [analyze-and-test, security]
+    needs: [pre-commit, analyze-and-test, build-web, security]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
