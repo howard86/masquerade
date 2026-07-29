@@ -35,5 +35,26 @@ void main() {
       expect(result.endsWith('…'), isTrue);
       expect(result.endsWith('...'), isFalse);
     });
+
+    test('negative max is clamped to 0 instead of throwing', () {
+      expect(truncateWithEllipsis('abc', max: -5), '…');
+    });
+
+    test('max greater than length returns the original string unchanged', () {
+      expect(truncateWithEllipsis('abc', max: 100), 'abc');
+    });
+
+    test(
+      'cutting mid-surrogate-pair backs off instead of splitting the emoji',
+      () {
+        // U+1F600 (😀) is a surrogate pair in UTF-16: 2 code units.
+        // 'ab😀cd' is 6 code units long; max: 3 lands the cut between the
+        // high and low surrogate, so it must back off to max: 2.
+        final String result = truncateWithEllipsis('ab😀cd', max: 3);
+        expect(result, 'ab…');
+        // No lone surrogate left dangling in the output.
+        expect(() => result.runes.toList(), returnsNormally);
+      },
+    );
   });
 }
