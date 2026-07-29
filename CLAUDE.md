@@ -6,24 +6,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Masquerade is a Flutter utility-toolbox app. iOS-first (`CupertinoApp`). Tab scaffold (`lib/screens/root_tab_scaffold.dart`) with three tabs — home / history / settings (search is a field on Home, not a tab). Tools render on Home as `ToolGridCard` tiles and open full-screen through the shared `lib/screens/detail/tool_detail_route.dart`. Every tool is registered in `lib/utility_catalog.dart`:
 
+- Environment & Config Inspector (normalize/compare/redact .env, properties, headers, config)
+- Log & Stack Inspector (group/search/redact logs and stack traces)
+- Unicode Inspector (code points, grapheme clusters, hidden/bidi chars)
+- X.509 Inspector (inspect certificates and PEM/DER chains)
+- HTTP Inspector (inspect/redact/convert static HTTP requests)
+- Artifact Inspector (recursively trace nested encoded data)
 - UUID (generate v4/v7, validate, inspect, ULID)
 - IP / CIDR (IPv4/IPv6, subnet math, scope flags)
 - Number Base (hex/binary/octal/decimal)
 - Timestamp (Unix s/ms, ISO 8601)
 - Cron (cron expressions ↔ natural language)
-- JSON (pretty/minify/tree, plus YAML/TOML conversion)
+- JSON / YAML / TOML (pretty/minify/tree, plus YAML/TOML conversion)
+- CSV / TSV (tabular ↔ JSON, table view)
 - JWT (decode header/payload/claims — no signature verification)
 - Base64 (encode/decode, URL-safe)
+- Case (camel/snake/kebab/pascal/… identifier conversion)
 - URL (percent encode/decode, editable query params)
 - Color (HEX/RGB/HSL/OKLCH, WCAG contrast)
 - Math (expression evaluator)
 - bps (basis points ↔ % ↔ decimal)
 - Bytes (byte array ↔ text, UTF-8)
 - List (split ↔ join)
+- Regex (test patterns, numbered/named captures)
 - Diff (compare two texts, line/word)
 - Hash (MD5/SHA-1/SHA-256/SHA-512, verify mode)
 - QR Code (scan / generate)
 - Generator (passwords, random tokens, UUIDs)
+- Markdown (preview headings, code, lists, links, tables)
 
 Add new tools by registering in `UtilityCatalog` plus an embeddable body widget under `lib/widgets/tool_bodies/<tool>_body.dart`. Home reads the catalog directly and renders each entry as a `ToolGridCard` — there is no manual wiring elsewhere.
 
