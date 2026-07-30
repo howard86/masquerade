@@ -8,6 +8,7 @@ import 'package:masquerade/state/history_controller.dart';
 import 'package:masquerade/theme/mq_colors.dart';
 import 'package:masquerade/theme/mq_theme.dart';
 import 'package:masquerade/utility_catalog.dart';
+import 'package:masquerade/utils/sensitive_data_policy.dart';
 import 'package:masquerade/utils/x509_inspector.dart';
 import 'package:masquerade/widgets/mq/mq_button.dart';
 import 'package:masquerade/widgets/mq/tool_action_bar.dart';
@@ -266,6 +267,87 @@ void main() {
       await tester.pumpAndSettle();
     },
   );
+
+  testWidgets('x509 — Copy all toast masks output in a protected session', (
+    WidgetTester tester,
+  ) async {
+    final ToolActionBarController actionBar = ToolActionBarController();
+    addTearDown(actionBar.dispose);
+    final List<String> clipboardWrites = <String>[];
+    final TestDefaultBinaryMessenger messenger =
+        tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (
+      MethodCall call,
+    ) async {
+      if (call.method == 'Clipboard.setData') {
+        final Map<dynamic, dynamic> args = call.arguments as Map;
+        clipboardWrites.add(args['text'] as String);
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+
+    final Artifact<Object?> sensitive = Artifact<Object?>(
+      kind: ArtifactKind.unknown,
+      rawValue: leaf,
+      provenance: ArtifactProvenance.generated,
+      sensitivity: ArtifactSensitivity.sensitive,
+    );
+
+    // The copy toast mounts on the app-level Overlay, above `home:` — wrap
+    // MqTheme via `builder:` (as the real app does) instead of nesting it
+    // inside `home:`, so the toast can find it too.
+    await tester.pumpWidget(
+      CupertinoApp(
+        builder: (BuildContext context, Widget? child) => MqTheme(
+          tokens: MqTokens(
+            colors: MqColors.light(),
+            brightness: Brightness.light,
+          ),
+          child: child!,
+        ),
+        home: HistoryScope(
+          controller: HistoryController(),
+          child: CupertinoPageScaffold(
+            child: SingleChildScrollView(
+              child: MobileSessionRouteScope(
+                addNext: true,
+                protectedSession: true,
+                child: Column(
+                  children: <Widget>[
+                    X509InspectorBody(
+                      initialInput: leaf,
+                      initialArtifact: sensitive,
+                      actionBar: actionBar,
+                    ),
+                    ToolActionBar(controller: actionBar),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final Finder copyAll = find.text('Copy all');
+    await tester.ensureVisible(copyAll);
+    await tester.tap(copyAll);
+    await tester.pump();
+
+    // The clipboard still receives the real payload...
+    expect(clipboardWrites, hasLength(1));
+    expect(clipboardWrites.single, contains('CN=api.example.test'));
+    // ...but the on-screen toast preview is masked, not the raw payload.
+    expect(find.text(SensitiveDataPolicy.mask), findsOneWidget);
+    expect(find.text('Copied to clipboard'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+  });
 
   testWidgets('x509 — Copy all is hidden when there is no valid output', (
     WidgetTester tester,

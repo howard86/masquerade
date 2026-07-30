@@ -57,6 +57,7 @@ class _JwtBodyState extends State<JwtBody> with ToolBodyScaffold<JwtBody> {
     if (r is! JwtOk) return null;
     const JsonEncoder encoder = JsonEncoder.withIndent('  ');
     return CopyAllButton(
+      sensitive: true,
       payload: <String>[
         encoder.convert(r.header),
         encoder.convert(r.payload),

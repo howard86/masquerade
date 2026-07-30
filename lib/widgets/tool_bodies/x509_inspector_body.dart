@@ -142,7 +142,20 @@ class _X509InspectorBodyState extends State<X509InspectorBody>
   Widget? actionBarCenter() {
     final X509Inspection? inspection = _inspection;
     if (inspection == null || inspection.certificates.isEmpty) return null;
-    return CopyAllButton(payload: _outputValues(inspection).join('\n'));
+    return CopyAllButton(
+      payload: _outputValues(inspection).join('\n'),
+      sensitive: _protectedLineage,
+    );
+  }
+
+  /// Whether the current certificate/chain came from a sensitive artifact or
+  /// a protected session — mirrors the per-cell `sensitive:` flag below.
+  bool get _protectedLineage {
+    final MobileSessionRouteScope? route = MobileSessionRouteScope.maybeOf(
+      context,
+    );
+    return widget.initialArtifact?.isSensitive == true ||
+        route?.protectedSession == true;
   }
 
   /// The copyable values for [inspection], in display order — mirrors the
@@ -163,12 +176,7 @@ class _X509InspectorBodyState extends State<X509InspectorBody>
   @override
   Widget build(BuildContext context) {
     final X509Inspection? inspection = _inspection;
-    final MobileSessionRouteScope? route = MobileSessionRouteScope.maybeOf(
-      context,
-    );
-    final bool protectedLineage =
-        widget.initialArtifact?.isSensitive == true ||
-        route?.protectedSession == true;
+    final bool protectedLineage = _protectedLineage;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
