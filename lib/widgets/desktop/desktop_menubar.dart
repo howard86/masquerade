@@ -268,6 +268,7 @@ class _MenuOverlay extends StatelessWidget {
       children: <Widget>[
         GestureDetector(
           behavior: HitTestBehavior.opaque,
+          excludeFromSemantics: true,
           onTap: onDismiss,
           child: const SizedBox.expand(),
         ),

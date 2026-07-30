@@ -171,5 +171,31 @@ void main() {
         findsOneWidget,
       );
     });
+
+    testWidgets('dropdown dismiss barrier excludes itself from semantics', (
+      WidgetTester tester,
+    ) async {
+      await _pump(tester);
+
+      await tester.tap(find.text('File'));
+      await tester.pumpAndSettle();
+
+      // The full-viewport tap-to-dismiss barrier behind the dropdown must
+      // not surface as an unlabelled tappable node to assistive tech; the
+      // menu items are individually labelled Semantics buttons instead.
+      final GestureDetector barrier = tester
+          .widgetList<GestureDetector>(find.byType(GestureDetector))
+          .firstWhere(
+            (GestureDetector d) =>
+                d.child is SizedBox &&
+                (d.child! as SizedBox).width == double.infinity,
+          );
+      expect(barrier.excludeFromSemantics, isTrue);
+
+      // Dismiss still works: tap the barrier and the dropdown closes.
+      await tester.tapAt(const Offset(10, 500));
+      await tester.pumpAndSettle();
+      expect(find.text('Close All'), findsNothing);
+    });
   });
 }

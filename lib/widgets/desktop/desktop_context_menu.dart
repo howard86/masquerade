@@ -54,6 +54,7 @@ class _ContextMenuOverlay extends StatelessWidget {
         // Dismiss tap detector covering full viewport
         GestureDetector(
           behavior: HitTestBehavior.opaque,
+          excludeFromSemantics: true,
           onTap: onDismiss,
           onSecondaryTap: onDismiss,
           child: const SizedBox.expand(),

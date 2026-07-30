@@ -430,6 +430,7 @@ class _HeaderState extends State<_Header> {
     return GestureDetector(
       dragStartBehavior: DragStartBehavior.down,
       behavior: HitTestBehavior.opaque,
+      excludeFromSemantics: true,
       onTap: widget.onFocus,
       onPanStart: widget.maximized
           ? null
