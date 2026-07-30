@@ -9,22 +9,30 @@ import 'package:masquerade/widgets/mq/mq_icons.dart';
 
 /// Wraps [child] in the minimal CupertinoApp + MqTheme scope `AnimatedCopyIcon`
 /// needs to read `context.mq`. Optionally forces a [textScaler] so the hit
-/// target can be checked under Dynamic Type.
-Widget _harness(Widget child, {TextScaler textScaler = TextScaler.noScaling}) =>
-    CupertinoApp(
-      home: MqTheme(
-        tokens: MqTokens(
-          colors: MqColors.light(),
-          brightness: Brightness.light,
-        ),
-        child: Builder(
-          builder: (BuildContext context) => MediaQuery(
-            data: MediaQuery.of(context).copyWith(textScaler: textScaler),
-            child: CupertinoPageScaffold(child: Center(child: child)),
-          ),
-        ),
-      ),
-    );
+/// target can be checked under Dynamic Type, or [disableAnimations] to
+/// simulate iOS's Reduce Motion accessibility setting.
+///
+/// `MqTheme`/`MediaQuery` are applied via `CupertinoApp.builder` — same as
+/// production `app.dart` — rather than nested under `home`, so they also
+/// scope `Overlay`-inserted content (the `CopyToClipboardUtil` toast lives in
+/// its own `OverlayEntry`, a sibling of the route content, not a descendant
+/// of `home`).
+Widget _harness(
+  Widget child, {
+  TextScaler textScaler = TextScaler.noScaling,
+  bool disableAnimations = false,
+}) => CupertinoApp(
+  builder: (BuildContext context, Widget? navigator) => MqTheme(
+    tokens: MqTokens(colors: MqColors.light(), brightness: Brightness.light),
+    child: MediaQuery(
+      data: MediaQuery.of(
+        context,
+      ).copyWith(textScaler: textScaler, disableAnimations: disableAnimations),
+      child: navigator!,
+    ),
+  ),
+  home: CupertinoPageScaffold(child: Center(child: child)),
+);
 
 /// The 44×44 min-size hit region inside an [AnimatedCopyIcon].
 Finder _hitTarget() => find.descendant(
@@ -137,4 +145,122 @@ void main() {
     expect(size.width, greaterThanOrEqualTo(44.0));
     expect(size.height, greaterThanOrEqualTo(44.0));
   });
+
+  testWidgets(
+    'AnimatedCopyIcon cross-fade duration collapses to zero under Reduce Motion',
+    (WidgetTester tester) async {
+      await tester.pumpWidget(
+        _harness(AnimatedCopyIcon(onCopy: () {}), disableAnimations: true),
+      );
+
+      final AnimatedCrossFade crossFade = tester.widget<AnimatedCrossFade>(
+        find.descendant(
+          of: find.byType(AnimatedCopyIcon),
+          matching: find.byType(AnimatedCrossFade),
+        ),
+      );
+      expect(
+        crossFade.duration,
+        Duration.zero,
+        reason: 'Reduce Motion must skip the 250ms cross-fade entirely',
+      );
+
+      await tester.tap(find.byType(AnimatedCopyIcon));
+      // Let the copied → idle reset timer fire so no timer outlives the tree.
+      await tester.pump(const Duration(seconds: 1));
+    },
+  );
+
+  testWidgets(
+    'AnimatedCopyIcon keeps its 250ms cross-fade with motion enabled',
+    (WidgetTester tester) async {
+      await tester.pumpWidget(_harness(AnimatedCopyIcon(onCopy: () {})));
+
+      final AnimatedCrossFade crossFade = tester.widget<AnimatedCrossFade>(
+        find.descendant(
+          of: find.byType(AnimatedCopyIcon),
+          matching: find.byType(AnimatedCrossFade),
+        ),
+      );
+      expect(crossFade.duration, const Duration(milliseconds: 250));
+
+      await tester.tap(find.byType(AnimatedCopyIcon));
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.pump(const Duration(seconds: 1));
+    },
+  );
+
+  testWidgets(
+    'CopyToClipboardUtil toast appears instantly under Reduce Motion',
+    (WidgetTester tester) async {
+      await tester.pumpWidget(
+        _harness(
+          Builder(
+            builder: (BuildContext context) => CupertinoButton(
+              onPressed: () =>
+                  CopyToClipboardUtil.copyToClipboard(context, 'hello'),
+              child: const Text('go'),
+            ),
+          ),
+          disableAnimations: true,
+        ),
+      );
+
+      await tester.tap(find.byType(CupertinoButton));
+      await tester.pump(); // single frame — no 300ms slide-in wait needed
+
+      expect(find.text('Copied to clipboard'), findsOneWidget);
+      // Scoped to the toast's own SlideTransition: a `CupertinoPageRoute`
+      // page transition is also a SlideTransition and (with motion enabled)
+      // coexists in the tree, so an unscoped `find.byType` is ambiguous.
+      final SlideTransition slide = tester.widget<SlideTransition>(
+        find.ancestor(
+          of: find.text('Copied to clipboard'),
+          matching: find.byType(SlideTransition),
+        ),
+      );
+      expect(slide.position.value, Offset.zero);
+
+      // Let the 3s auto-dismiss timer fire so no timer outlives the tree.
+      await tester.pump(const Duration(seconds: 3));
+    },
+  );
+
+  testWidgets(
+    'CopyToClipboardUtil toast still starts its 300ms slide-in with motion enabled',
+    (WidgetTester tester) async {
+      await tester.pumpWidget(
+        _harness(
+          Builder(
+            builder: (BuildContext context) => CupertinoButton(
+              onPressed: () =>
+                  CopyToClipboardUtil.copyToClipboard(context, 'hello'),
+              child: const Text('go'),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byType(CupertinoButton));
+      await tester.pump(); // mounts the toast; the slide-in has not ticked yet
+
+      // Scoped to the toast's own SlideTransition: a `CupertinoPageRoute`
+      // page transition is also a SlideTransition and (with motion enabled)
+      // coexists in the tree, so an unscoped `find.byType` is ambiguous.
+      final SlideTransition slide = tester.widget<SlideTransition>(
+        find.ancestor(
+          of: find.text('Copied to clipboard'),
+          matching: find.byType(SlideTransition),
+        ),
+      );
+      expect(
+        slide.position.value,
+        isNot(Offset.zero),
+        reason: 'motion enabled must still start off-screen and slide in',
+      );
+
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(seconds: 3));
+    },
+  );
 }
