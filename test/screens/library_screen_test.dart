@@ -203,4 +203,27 @@ void main() {
     );
     expect(find.text('SEARCH RESULTS'), findsOneWidget);
   });
+
+  testWidgets('clear affordance empties the field and resets the filter', (
+    WidgetTester tester,
+  ) async {
+    await _pumpLibrary(tester);
+
+    await tester.enterText(find.byType(CupertinoTextField), 'encode');
+    await tester.pump();
+    expect(find.text('SEARCH RESULTS'), findsOneWidget);
+
+    await tester.tap(find.bySemanticsLabel('Clear search'));
+    await tester.pump();
+
+    expect(
+      tester
+          .widget<CupertinoTextField>(find.byType(CupertinoTextField))
+          .controller!
+          .text,
+      isEmpty,
+    );
+    expect(find.text('SEARCH RESULTS'), findsNothing);
+    await _expectStableMainCatalog(tester);
+  });
 }
