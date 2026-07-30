@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/models/artifact.dart';
 import 'package:masquerade/utils/jwt_parser.dart';
+import 'package:masquerade/utils/sensitive_data_policy.dart';
 import 'package:masquerade/widgets/mq/mq_status.dart';
 import 'package:masquerade/widgets/tool_bodies/jwt_body.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -162,6 +163,26 @@ void main() {
       await tester.pumpAndSettle();
     },
   );
+
+  testWidgets('JWT — Copy all toast masks the decoded payload preview', (
+    WidgetTester tester,
+  ) async {
+    await pumpHomeAndOpen(tester, 'JWT');
+
+    await tester.enterText(find.byType(EditableText).last, token);
+    await tester.pumpAndSettle(kDebouncePump);
+
+    await tester.tap(find.text('Copy all'));
+    await tester.pump();
+
+    // The toast shows the masked preview, never the raw header/payload/signature.
+    expect(find.text(SensitiveDataPolicy.mask), findsOneWidget);
+    expect(find.text('Copied to clipboard'), findsOneWidget);
+
+    // Drain the copy toast's 3s auto-dismiss timer so the test ends clean.
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+  });
 
   testWidgets('JWT — Copy all is hidden when there is no valid output', (
     WidgetTester tester,
