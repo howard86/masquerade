@@ -327,32 +327,40 @@ class _Hexdump extends StatelessWidget {
 
   final Uint8List bytes;
 
+  // Caps the hexdump's own height so large inputs virtualize (ListView only
+  // builds rows near the viewport) instead of building every row up front;
+  // inputs that fit within this cap still render at their natural height
+  // via ListView's shrinkWrap, with no internal scrollbar.
+  static const double _maxHeight = 320;
+
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
-    final List<int> rows = <int>[for (int i = 0; i < bytes.length; i += 16) i];
+    final int rowCount = (bytes.length / 16).ceil();
     return DecoratedBox(
       decoration: BoxDecoration(
         color: c.monoBg,
         borderRadius: BorderRadius.circular(MqRadius.sm),
         border: Border.all(color: c.border, width: 0.5),
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(
-          horizontal: MqSpacing.md,
-          vertical: MqSpacing.sm,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            for (final int offset in rows)
-              Text(
-                _row(offset),
-                style: MqTextStyles.monoSm.copyWith(color: c.monoText),
-              ),
-          ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: MqSpacing.sm),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: _maxHeight),
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: rowCount,
+            itemBuilder: (BuildContext context, int index) {
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: MqSpacing.md),
+                child: Text(
+                  _row(index * 16),
+                  style: MqTextStyles.monoSm.copyWith(color: c.monoText),
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
