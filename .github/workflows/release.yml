@@ -38,6 +38,47 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # release-please only rewrites the release branch when the release contents
+      # change, so a push that produces no changelog entry (chore:, docs:) leaves
+      # the Release PR sitting on an older develop and ci.yml's "Require current
+      # develop ancestry" check fails until something releasable lands. Rebasing
+      # is not the answer -- the release commit rewrites the same pubspec and
+      # CHANGELOG lines develop just touched, so it conflicts by construction.
+      # Drop the PR instead and let the release-please step below rebuild it from
+      # current develop.
+      #
+      # compare(base=<branch>, head=develop) reports develop as "behind" or
+      # "identical" exactly when the branch already contains every develop
+      # commit; "ahead" or "diverged" means it does not.
+      - name: Recreate the Release PR when develop has moved past it
+        if: github.ref_name == 'develop'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          entry=$(gh pr list --state open --json number,headRefName \
+            --jq '[.[] | select(.headRefName | startswith("release-please--branches--develop"))
+                       | "\(.number) \(.headRefName)"] | .[0] // empty')
+          if [ -z "$entry" ]; then
+            echo "No open release PR."
+            exit 0
+          fi
+          pr=${entry%% *}
+          branch=${entry#* }
+          status=$(gh api "repos/$GH_REPO/compare/$branch...develop" --jq .status)
+          case "$status" in
+            behind|identical)
+              echo "Release PR #$pr already contains current develop ($status)."
+              exit 0
+              ;;
+          esac
+          gh pr close "$pr" --delete-branch --comment \
+            "Closing: develop moved past this branch while the release contents
+            did not change, so release-please left it behind and the develop
+            ancestry check fails. Recreating from current develop."
+          echo "develop is $status against $branch; closed PR #$pr to rebuild it."
+
       # release-please only finds -- and therefore only updates -- release PRs
       # whose base is the branch it scans. The retarget step below leaves the PR
       # based on main, so every later push to develop reported "found 0 open
