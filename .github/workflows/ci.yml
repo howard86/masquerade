@@ -23,9 +23,20 @@ env:
   CI: true
 
 jobs:
+  # Gated on the head branch as well as the base: release.yml moves the Release
+  # PR's base to main and then closes/reopens it to restart the checks, but the
+  # run for the original `opened` event can materialise after that reopen and
+  # cancel the reopen's run through the concurrency group above -- leaving the
+  # final status from a base=develop payload, with this job skipped. Both
+  # assertions below hold whatever the base is, so keying on the release-please
+  # head branch too means the race cannot leave the gate unrun. Feature PRs to
+  # develop still skip it.
   release-source-policy:
     name: Release source policy
-    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    if: >-
+      github.event_name == 'pull_request' &&
+      (github.base_ref == 'main' ||
+       startsWith(github.head_ref, 'release-please--branches--develop'))
     runs-on: ubuntu-latest
 
     steps:
