@@ -4,6 +4,21 @@
 
 - **deps**: pin flutter_native_splash to ^2.4.7 for SDK compatibility
 
+## [1.28.1](https://github.com/howard86/masquerade/compare/v1.28.0...v1.28.1) (2026-07-30)
+
+
+### Bug Fixes
+
+* **ci:** keep the Release PR title in step with its version bump ([6315a96](https://github.com/howard86/masquerade/commit/6315a96afdb2432d6183af18814bb88d445cbc63))
+* **ci:** keep the release source policy from being raced out ([541a21e](https://github.com/howard86/masquerade/commit/541a21e44049273e1bfd423d135a224e0152ab4e))
+* **ci:** keep the release source policy from being raced out ([6cde5d5](https://github.com/howard86/masquerade/commit/6cde5d54734d62575b445246f05b14efd8453545))
+* **ci:** only drop the Release PR after release-please has had its turn ([15b3813](https://github.com/howard86/masquerade/commit/15b3813b1b59e601c10348651714e2d254ad7ea4))
+* **ci:** only drop the Release PR after release-please has had its turn ([47c4c4a](https://github.com/howard86/masquerade/commit/47c4c4a0ad85cfa3f88caa70b190ff8a7739da8b))
+* **ci:** rebuild the Release PR when develop moves past it ([a3b13c0](https://github.com/howard86/masquerade/commit/a3b13c0b97fe75c60b8a74e404ea5919cc3edc5a))
+* **ci:** rebuild the Release PR when develop moves past it ([9cf4330](https://github.com/howard86/masquerade/commit/9cf433038b6ac0daa1c70034355afdcad6b2b845))
+* **ci:** restart the TestFlight build count on every version bump ([5fe21f2](https://github.com/howard86/masquerade/commit/5fe21f296ddb66d5ae6af6f72d5d79c5ca95d131))
+* **ci:** stop releases drifting a version behind their tag ([0f8b14d](https://github.com/howard86/masquerade/commit/0f8b14d5769c70e124adb093d367cf8b2df88136))
+
 ## [1.28.0](https://github.com/howard86/masquerade/compare/v1.27.0...v1.28.0) (2026-07-30)
 
 

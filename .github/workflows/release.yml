@@ -38,6 +38,30 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # release-please only finds -- and therefore only updates -- release PRs
+      # whose base is the branch it scans. The retarget step below leaves the PR
+      # based on main, so every later push to develop reported "found 0 open
+      # release pull requests", force-pushed a second version bump onto the
+      # branch, and left the PR title and body describing the first one. The
+      # main run tags from that stale title, so v1.26.2 shipped 1.27.0 and
+      # v1.27.0 shipped 1.28.0. Hand the PR back before release-please runs.
+      - name: Hand the Release PR back to develop
+        if: github.ref_name == 'develop'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          pr=$(gh pr list --state open --base main --json number,headRefName \
+            --jq '[.[] | select(.headRefName | startswith("release-please--branches--develop"))]
+                  | .[0].number // empty')
+          if [ -z "$pr" ]; then
+            echo "No retargeted release PR to hand back."
+            exit 0
+          fi
+          gh pr edit "$pr" --base develop
+          echo "Rebased PR #$pr onto develop so release-please can update it."
+
       # develop: open/update the Release PR. main: tag + publish the release.
       - uses: googleapis/release-please-action@v5
         id: release
@@ -54,8 +78,69 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
+      # release-please only rewrites the release branch when the release contents
+      # change, so a push producing no changelog entry (chore:, docs:) leaves the
+      # Release PR on an older develop. ci.yml's "Require current develop
+      # ancestry" check then fails until something releasable lands, and merging
+      # it anyway reverts whatever that push changed -- #253's pubspec edit was
+      # exactly that. Rebasing is not the answer: the release commit rewrites the
+      # same pubspec and CHANGELOG lines develop just touched, so it conflicts by
+      # construction. The branch is generated, so regenerate it.
+      #
+      # This has to run AFTER release-please. Before it, the branch is always one
+      # push behind by definition and every develop push would churn the PR.
+      #
+      # compare(base=<branch>, head=develop) reports develop as "behind" or
+      # "identical" exactly when the branch already contains every develop commit;
+      # "ahead" or "diverged" means it does not.
+      - name: Drop the Release PR when it is still behind develop
+        id: stale
+        if: github.ref_name == 'develop'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          entry=$(gh pr list --state open --json number,headRefName \
+            --jq '[.[] | select(.headRefName | startswith("release-please--branches--develop"))
+                       | "\(.number) \(.headRefName)"] | .[0] // empty')
+          if [ -z "$entry" ]; then
+            echo "No open release PR."
+            exit 0
+          fi
+          pr=${entry%% *}
+          branch=${entry#* }
+          status=$(gh api "repos/$GH_REPO/compare/$branch...develop" --jq .status)
+          case "$status" in
+            behind|identical)
+              echo "Release PR #$pr already contains current develop ($status)."
+              exit 0
+              ;;
+          esac
+          gh pr close "$pr" --delete-branch --comment \
+            "Closing: develop moved past this branch while the release contents
+            did not change, so release-please left it behind and the develop
+            ancestry check fails. Recreating from current develop."
+          echo "dropped=true" >> "$GITHUB_OUTPUT"
+          echo "develop is $status against $branch; closed PR #$pr to rebuild it."
+
+      # Only reached when the step above dropped a stranded PR. Keep the inputs
+      # identical to the invocation above.
+      - name: Release Please (rebuild dropped PR)
+        if: steps.stale.outputs.dropped == 'true'
+        uses: googleapis/release-please-action@v5
+        with:
+          target-branch: develop
+          skip-github-release: true
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
       # release-please opened the PR against develop; point it at main so merging
-      # promotes the code and cuts the release in a single PR.
+      # promotes the code and cuts the release in a single PR. Paired with the
+      # hand-back above this round-trips on every develop push -- the CI run the
+      # force-push kicks off is cancelled by the reopen through ci.yml's
+      # flutter-ci-refs/pull/<n>/merge concurrency group, so it costs one run.
       - name: Retarget Release PR to main
         if: github.ref_name == 'develop'
         env:

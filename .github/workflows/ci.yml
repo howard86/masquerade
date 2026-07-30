@@ -23,9 +23,20 @@ env:
   CI: true
 
 jobs:
+  # Gated on the head branch as well as the base: release.yml moves the Release
+  # PR's base to main and then closes/reopens it to restart the checks, but the
+  # run for the original `opened` event can materialise after that reopen and
+  # cancel the reopen's run through the concurrency group above -- leaving the
+  # final status from a base=develop payload, with this job skipped. Both
+  # assertions below hold whatever the base is, so keying on the release-please
+  # head branch too means the race cannot leave the gate unrun. Feature PRs to
+  # develop still skip it.
   release-source-policy:
     name: Release source policy
-    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    if: >-
+      github.event_name == 'pull_request' &&
+      (github.base_ref == 'main' ||
+       startsWith(github.head_ref, 'release-please--branches--develop'))
     runs-on: ubuntu-latest
 
     steps:
@@ -371,22 +382,34 @@ jobs:
           p12-file-base64: ${{ secrets.IOS_DIST_CERT_P12 }}
           p12-password: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
 
-      # Generate Generated.xcconfig + run pod install, but do NOT build: fastlane's
-      # build_app archives the project itself, so a full build here is compiled twice.
-      # --config-only still writes the build number, which is what gym reads.
-      #
-      # --build-number overrides pubspec's +N: release-please rewrites that line
-      # every release, and TestFlight rejects a build number it has already seen.
-      # run_number is monotonic and is already past the builds uploaded by hand.
-      - name: Configure Xcode project
-        run: flutter build ios --release --config-only --build-number=${{ github.run_number }}
-
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.3"
           working-directory: ios
           bundler-cache: true
+
+      # App Store Connect is the only thing that knows how many builds this
+      # marketing version already has, so it is what the count comes from: the
+      # number restarts at 1 on every version bump and still advances if this
+      # job is re-run for the same version. pubspec's +N is not consulted --
+      # release-please keeps its own running total there that never resets.
+      - name: Resolve the next TestFlight build number
+        id: build_number
+        run: bundle exec fastlane next_build_number
+        working-directory: ios
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+
+      # Generate Generated.xcconfig + run pod install, but do NOT build: fastlane's
+      # build_app archives the project itself, so a full build here is compiled twice.
+      # --config-only still writes the build number, which is what gym reads --
+      # FLUTTER_BUILD_NUMBER feeds CFBundleVersion for Runner and, through
+      # CURRENT_PROJECT_VERSION, for the ShareExtension too.
+      - name: Configure Xcode project
+        run: flutter build ios --release --config-only --build-number=${{ steps.build_number.outputs.value }}
 
       - name: Upload to TestFlight
         run: bundle exec fastlane beta
