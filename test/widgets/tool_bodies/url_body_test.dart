@@ -1,7 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:masquerade/state/link_group.dart';
 import 'package:masquerade/utils/url_parser.dart';
 import 'package:masquerade/widgets/mq/mq_mono_cell.dart';
+import 'package:masquerade/widgets/tool_bodies/url_body.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '_helpers.dart';
@@ -181,6 +183,58 @@ void main() {
     expect(find.textContaining('dogs'), findsWidgets);
     expect(find.textContaining('cats'), findsNothing);
   });
+
+  testWidgets(
+    'URL — Link canonical carries an edited query pair through, not just Swap',
+    (WidgetTester tester) async {
+      String? emitted;
+      final ValueNotifier<String> inbound = ValueNotifier<String>('');
+      final ValueNotifier<LinkChannel?> linkNotifier =
+          ValueNotifier<LinkChannel?>(null);
+
+      await pumpBodyAtWidth(
+        tester,
+        ValueListenableBuilder<LinkChannel?>(
+          valueListenable: linkNotifier,
+          builder: (BuildContext context, LinkChannel? link, Widget? _) =>
+              UrlBody(link: link),
+        ),
+        480,
+      );
+
+      await tester.tap(find.text('Decode'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byType(EditableText).last,
+        'https://x.com/s?q=cats&n=10',
+      );
+      await tester.pumpAndSettle(kDebouncePump);
+
+      // Edit the 'q' value from 'cats' to 'dogs' in the query table.
+      final Finder valueField = find.byWidgetPredicate(
+        (Widget w) => w is EditableText && w.controller.text == 'cats',
+      );
+      expect(valueField, findsOneWidget);
+      await tester.enterText(valueField, 'dogs');
+      await tester.pump();
+
+      // Pipe this card to another tool by attaching a Link now, after the
+      // edit — this is what publishes the canonical the link engine reads.
+      // Without the fix, currentCanonical() ignores the edited query and the
+      // published value still says 'cats'.
+      linkNotifier.value = LinkChannel(
+        canonicalType: ContentType.text,
+        inbound: inbound,
+        onEmit: (String canonical) => emitted = canonical,
+      );
+      await tester.pumpAndSettle();
+
+      expect(emitted, isNotNull);
+      expect(emitted, contains('dogs'));
+      expect(emitted, isNot(contains('cats')));
+    },
+  );
 
   testWidgets('URL — malformed decode input shows error cell', (
     WidgetTester tester,

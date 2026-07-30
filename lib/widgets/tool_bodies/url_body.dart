@@ -90,10 +90,23 @@ class _UrlBodyState extends State<UrlBody>
   LinkChannel? get linkChannel => widget.link;
 
   /// The canonical (plain text) is the input in Encode mode and the decoded
-  /// output in Decode mode.
+  /// output in Decode mode. When the query table has been edited, splices the
+  /// rebuilt [_query] back into the input first (via [UrlParser.replaceQuery])
+  /// so the edit is published to the Link instead of being silently dropped —
+  /// mirrors [_swap]'s recomposition, on the other exit path.
   @override
-  String currentCanonical() =>
-      _mode == UrlMode.encode ? controller.text : (_output ?? '');
+  String currentCanonical() {
+    final String effectiveInput = _query == null
+        ? controller.text
+        : UrlParser.replaceQuery(controller.text, _query!);
+    if (_mode == UrlMode.encode) return effectiveInput;
+    switch (UrlParser.parse(effectiveInput, mode: _mode)) {
+      case UrlOk(:final output):
+        return output;
+      case UrlError():
+        return _output ?? '';
+    }
+  }
 
   @override
   void applyInbound(String canonical) {
