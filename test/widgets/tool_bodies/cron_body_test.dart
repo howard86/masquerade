@@ -1,6 +1,8 @@
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:masquerade/widgets/mq/mq_status.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '_helpers.dart';
@@ -61,7 +63,32 @@ void main() {
     );
     await tester.pumpAndSettle(kDebouncePump);
 
-    expect(find.textContaining('Unsupported'), findsOneWidget);
+    // MqStatus uppercases the label.
+    expect(find.textContaining('UNSUPPORTED'), findsOneWidget);
+  });
+
+  testWidgets('cron — invalid input announces via a live-region error pill', (
+    WidgetTester tester,
+  ) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+
+    await pumpHomeAndOpen(tester, 'Cron');
+
+    await tester.enterText(
+      find.byType(EditableText).last,
+      'penguins ride bicycles',
+    );
+    await tester.pumpAndSettle(kDebouncePump);
+
+    final MqStatus status = tester.widget<MqStatus>(find.byType(MqStatus).last);
+    expect(status.kind, MqStatusKind.danger);
+    expect(status.label, contains('Unsupported'));
+
+    final SemanticsNode node = tester.getSemantics(find.byType(MqStatus).last);
+    expect(node.label, status.label);
+    expect(node.flagsCollection.isLiveRegion, isTrue);
+
+    handle.dispose();
   });
 
   testWidgets('cron — impossible schedule shows "no upcoming runs"', (
@@ -86,7 +113,8 @@ void main() {
     await tester.enterText(find.byType(EditableText).last, '0 0 ? * MON');
     await tester.pumpAndSettle(kDebouncePump);
 
-    expect(find.textContaining('Quartz'), findsOneWidget);
+    // MqStatus uppercases the label.
+    expect(find.textContaining('QUARTZ'), findsOneWidget);
   });
 
   testWidgets('cron — Copy all writes every output cell to the clipboard', (
