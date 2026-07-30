@@ -38,6 +38,30 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # release-please only finds -- and therefore only updates -- release PRs
+      # whose base is the branch it scans. The retarget step below leaves the PR
+      # based on main, so every later push to develop reported "found 0 open
+      # release pull requests", force-pushed a second version bump onto the
+      # branch, and left the PR title and body describing the first one. The
+      # main run tags from that stale title, so v1.26.2 shipped 1.27.0 and
+      # v1.27.0 shipped 1.28.0. Hand the PR back before release-please runs.
+      - name: Hand the Release PR back to develop
+        if: github.ref_name == 'develop'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          pr=$(gh pr list --state open --base main --json number,headRefName \
+            --jq '[.[] | select(.headRefName | startswith("release-please--branches--develop"))]
+                  | .[0].number // empty')
+          if [ -z "$pr" ]; then
+            echo "No retargeted release PR to hand back."
+            exit 0
+          fi
+          gh pr edit "$pr" --base develop
+          echo "Rebased PR #$pr onto develop so release-please can update it."
+
       # develop: open/update the Release PR. main: tag + publish the release.
       - uses: googleapis/release-please-action@v5
         id: release
@@ -55,7 +79,10 @@ jobs:
           manifest-file: .release-please-manifest.json
 
       # release-please opened the PR against develop; point it at main so merging
-      # promotes the code and cuts the release in a single PR.
+      # promotes the code and cuts the release in a single PR. Paired with the
+      # hand-back above this round-trips on every develop push -- the CI run the
+      # force-push kicks off is cancelled by the reopen through ci.yml's
+      # flutter-ci-refs/pull/<n>/merge concurrency group, so it costs one run.
       - name: Retarget Release PR to main
         if: github.ref_name == 'develop'
         env:
