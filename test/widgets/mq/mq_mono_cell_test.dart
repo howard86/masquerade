@@ -60,8 +60,8 @@ void main() {
       _wrap(const MqMonoCell(label: 'Password', value: raw, sensitive: true)),
     );
 
-    expect(find.bySemanticsLabel('Copy ••••'), findsOneWidget);
-    await tester.tap(find.bySemanticsLabel('Copy ••••'));
+    expect(find.bySemanticsLabel('Copy Password'), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel('Copy Password'));
     await tester.pump();
 
     expect(clipboard, raw);

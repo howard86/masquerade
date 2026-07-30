@@ -131,13 +131,13 @@ void main() {
     expect(
       find.descendant(
         of: textCell,
-        matching: find.bySemanticsLabel('Copy ••••'),
+        matching: find.bySemanticsLabel('Copy Text (UTF-8)'),
       ),
       findsOneWidget,
     );
     final Finder hexCopy = find.descendant(
       of: hexCell,
-      matching: find.bySemanticsLabel('Copy ••••'),
+      matching: find.bySemanticsLabel('Copy Hex'),
     );
     expect(hexCopy, findsOneWidget);
 

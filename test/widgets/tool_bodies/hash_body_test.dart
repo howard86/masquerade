@@ -61,6 +61,31 @@ void main() {
     expect(find.text('SHA-256'), findsOneWidget);
   });
 
+  testWidgets('hash — copy buttons announce which digest they copy', (
+    WidgetTester tester,
+  ) async {
+    await pumpHomeAndOpen(tester, 'Hash');
+
+    await tester.enterText(find.byType(EditableText).first, 'abc');
+    await tester.pumpAndSettle(kDebouncePump);
+
+    // Four indistinguishable "Copy <hex preview>" labels can't be told
+    // apart by a screen reader; each copy button must instead name its
+    // own algorithm.
+    for (final String algorithm in <String>[
+      'MD5',
+      'SHA-1',
+      'SHA-256',
+      'SHA-512',
+    ]) {
+      expect(
+        find.bySemanticsLabel('Copy $algorithm'),
+        findsOneWidget,
+        reason: 'missing copy label for $algorithm',
+      );
+    }
+  });
+
   testWidgets('hash — Copy all writes every digest to the clipboard', (
     WidgetTester tester,
   ) async {
