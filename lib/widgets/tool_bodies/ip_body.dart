@@ -10,6 +10,7 @@ import '../mq/mq_empty_hint.dart';
 import '../mq/mq_input.dart';
 import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
+import '../mq/mq_status.dart';
 import '../mq/tool_action_bar.dart';
 import 'copy_all_button.dart';
 import 'open_in_footer.dart';
@@ -123,10 +124,9 @@ class _IpBodyState extends State<IpBody> with ToolBodyScaffold<IpBody> {
         ),
         const SizedBox(height: MqSpacing.lg),
         if (_result is IpErr)
-          MqMonoCell(
-            label: 'Error',
-            value: (_result! as IpErr).message,
-            copyable: false,
+          MqStatus(
+            label: (_result! as IpErr).message,
+            kind: MqStatusKind.danger,
           )
         else if (_result is IpOk)
           ..._buildOk(_result! as IpOk)

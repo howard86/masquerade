@@ -110,10 +110,9 @@ class _JwtBodyState extends State<JwtBody> with ToolBodyScaffold<JwtBody> {
         ),
         const SizedBox(height: MqSpacing.lg),
         if (_result is JwtErr)
-          MqMonoCell(
-            label: 'Error',
-            value: (_result! as JwtErr).message,
-            copyable: false,
+          MqStatus(
+            label: (_result! as JwtErr).message,
+            kind: MqStatusKind.danger,
           )
         else if (_result is JwtOk)
           ..._buildOk(_result! as JwtOk, c)

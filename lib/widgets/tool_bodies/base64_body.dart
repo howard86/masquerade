@@ -17,6 +17,7 @@ import '../mq/mq_input.dart';
 import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_segmented.dart';
+import '../mq/mq_status.dart';
 import '../mq/tool_action_bar.dart';
 import 'linkable_body.dart';
 import 'open_in_footer.dart';
@@ -253,7 +254,7 @@ class _Base64BodyState extends State<Base64Body>
             ),
             const SizedBox(height: MqSpacing.lg),
             if (_error != null)
-              MqMonoCell(label: 'Error', value: _error!, copyable: false)
+              MqStatus(label: _error!, kind: MqStatusKind.danger)
             else if (_output != null) ...<Widget>[
               const MqSectionHeader(label: 'Output'),
               // Canvas-only (decode): if the raw bytes sniff as an image, show a

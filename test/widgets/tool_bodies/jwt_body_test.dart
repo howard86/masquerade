@@ -1,8 +1,10 @@
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/models/artifact.dart';
 import 'package:masquerade/utils/jwt_parser.dart';
+import 'package:masquerade/widgets/mq/mq_status.dart';
 import 'package:masquerade/widgets/tool_bodies/jwt_body.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -53,15 +55,25 @@ void main() {
     expect(find.textContaining('EXPIRED'), findsOneWidget);
   });
 
-  testWidgets('JWT — shows error for invalid input', (
+  testWidgets('JWT — invalid input announces via a live-region error pill', (
     WidgetTester tester,
   ) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+
     await pumpHomeAndOpen(tester, 'JWT');
 
     await tester.enterText(find.byType(EditableText).last, 'not.a.jwt!');
     await tester.pumpAndSettle(kDebouncePump);
 
-    expect(find.textContaining('Invalid'), findsWidgets);
+    final MqStatus status = tester.widget<MqStatus>(find.byType(MqStatus));
+    expect(status.kind, MqStatusKind.danger);
+    expect(status.label, contains('Invalid'));
+
+    final SemanticsNode node = tester.getSemantics(find.byType(MqStatus));
+    expect(node.label, status.label);
+    expect(node.flagsCollection.isLiveRegion, isTrue);
+
+    handle.dispose();
   });
 
   testWidgets('JWT — pumps body at narrow width without overflow', (

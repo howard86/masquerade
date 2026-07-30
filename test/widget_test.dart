@@ -55,12 +55,13 @@ void main() {
 
     await tester.enterText(inputField, 'not a timestamp');
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
-    expect(find.textContaining('Invalid input format'), findsOneWidget);
+    // The error renders through MqStatus, which upper-cases its label.
+    expect(find.textContaining('INVALID INPUT FORMAT'), findsOneWidget);
 
     await tester.enterText(inputField, '');
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
     expect(find.text('UTC'), findsNothing);
-    expect(find.textContaining('Invalid input format'), findsNothing);
+    expect(find.textContaining('INVALID INPUT FORMAT'), findsNothing);
   });
 
   testWidgets('Timestamp copy notification', (WidgetTester tester) async {
