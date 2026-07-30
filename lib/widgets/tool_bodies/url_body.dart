@@ -55,6 +55,14 @@ class _UrlBodyState extends State<UrlBody>
   /// The live re-encoded query string for the (possibly edited) [_pairs], kept
   /// in sync via [UrlParser.buildQuery]. Null until a parse yields pairs.
   String? _query;
+
+  /// True once the user has edited the query table in place, so [_query] no
+  /// longer matches what the input alone would produce. Splicing [_query] back
+  /// into the input is only correct then: [UrlParser.buildQuery] is not the
+  /// identity on an untouched input (it turns a space into `+`, a stray `=`
+  /// into `%3D`), so doing it unconditionally would rewrite text the user never
+  /// touched. Cleared on every fresh parse and on [reset].
+  bool _queryEdited = false;
   String? _error;
 
   /// Bumped on every fresh parse so the editable query table re-keys (and
@@ -90,10 +98,27 @@ class _UrlBodyState extends State<UrlBody>
   LinkChannel? get linkChannel => widget.link;
 
   /// The canonical (plain text) is the input in Encode mode and the decoded
-  /// output in Decode mode.
+  /// output in Decode mode. When the query table has been edited, splices the
+  /// rebuilt [_query] back into the input first (via [UrlParser.replaceQuery])
+  /// so the edit is published to the Link instead of being silently dropped —
+  /// mirrors [_swap]'s recomposition, on the other exit path.
   @override
-  String currentCanonical() =>
-      _mode == UrlMode.encode ? controller.text : (_output ?? '');
+  String currentCanonical() {
+    if (!_queryEdited) {
+      return _mode == UrlMode.encode ? controller.text : (_output ?? '');
+    }
+    final String effectiveInput = UrlParser.replaceQuery(
+      controller.text,
+      _query!,
+    );
+    if (_mode == UrlMode.encode) return effectiveInput;
+    switch (UrlParser.parse(effectiveInput, mode: _mode)) {
+      case UrlOk(:final output):
+        return output;
+      case UrlError():
+        return _output ?? '';
+    }
+  }
 
   @override
   void applyInbound(String canonical) {
@@ -111,6 +136,7 @@ class _UrlBodyState extends State<UrlBody>
           _output = output;
           _pairs = pairs;
           _query = pairs.isEmpty ? null : UrlParser.buildQuery(pairs);
+          _queryEdited = false;
           _error = null;
           _parseSeq++;
         });
@@ -121,6 +147,7 @@ class _UrlBodyState extends State<UrlBody>
           _output = null;
           _pairs = const <QueryPair>[];
           _query = null;
+          _queryEdited = false;
           _error = message;
         });
     }
@@ -132,6 +159,7 @@ class _UrlBodyState extends State<UrlBody>
       _output = null;
       _pairs = const <QueryPair>[];
       _query = null;
+      _queryEdited = false;
       _error = null;
     });
     emitToLink();
@@ -145,16 +173,33 @@ class _UrlBodyState extends State<UrlBody>
     setState(() {
       _pairs = pairs;
       _query = UrlParser.buildQuery(pairs);
+      _queryEdited = true;
     });
   }
 
+  /// Swaps mode and feeds the output back in as input. When the query table
+  /// has been edited, splices the rebuilt [_query] back into the input (via
+  /// [UrlParser.replaceQuery]) and re-parses that under the current mode, so
+  /// the edit survives the swap instead of being silently dropped.
   void _swap() {
     final String? out = _output;
     if (out == null) return;
+    String payload = out;
+    if (_queryEdited) {
+      switch (UrlParser.parse(
+        UrlParser.replaceQuery(controller.text, _query!),
+        mode: _mode,
+      )) {
+        case UrlOk(:final output):
+          payload = output;
+        case UrlError():
+          break;
+      }
+    }
     setState(() {
       _mode = _mode == UrlMode.encode ? UrlMode.decode : UrlMode.encode;
     });
-    setInput(out, asPaste: true);
+    setInput(payload, asPaste: true);
   }
 
   @override
@@ -294,13 +339,29 @@ class _QueryEditorState extends State<_QueryEditor> {
     ]);
   }
 
+  void _addPair() {
+    setState(() {
+      _keys.add(TextEditingController());
+      _values.add(TextEditingController());
+    });
+    _emit();
+  }
+
+  void _removePair(int index) {
+    setState(() {
+      _keys.removeAt(index).dispose();
+      _values.removeAt(index).dispose();
+    });
+    _emit();
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        for (int i = 0; i < widget.pairs.length; i++) ...<Widget>[
+        for (int i = 0; i < _keys.length; i++) ...<Widget>[
           if (i > 0) const SizedBox(height: MqSpacing.sm),
           DecoratedBox(
             decoration: BoxDecoration(
@@ -313,27 +374,56 @@ class _QueryEditorState extends State<_QueryEditor> {
                 horizontal: MqSpacing.md,
                 vertical: 10,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  MqInput(
-                    controller: _keys[i],
-                    label: 'Key',
-                    placeholder: '(empty key)',
-                    onChanged: (_) => _emit(),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        MqInput(
+                          controller: _keys[i],
+                          label: 'Key',
+                          placeholder: '(empty key)',
+                          onChanged: (_) => _emit(),
+                        ),
+                        const SizedBox(height: MqSpacing.sm),
+                        MqInput(
+                          controller: _values[i],
+                          label: 'Value',
+                          placeholder: '(empty value)',
+                          onChanged: (_) => _emit(),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: MqSpacing.sm),
-                  MqInput(
-                    controller: _values[i],
-                    label: 'Value',
-                    placeholder: '(empty value)',
-                    onChanged: (_) => _emit(),
+                  const SizedBox(width: MqSpacing.sm),
+                  Semantics(
+                    button: true,
+                    label: _keys[i].text.isEmpty
+                        ? 'Remove pair'
+                        : 'Remove ${_keys[i].text}',
+                    child: CupertinoButton(
+                      padding: const EdgeInsets.all(MqSpacing.sm),
+                      minimumSize: const Size(40, 40),
+                      borderRadius: BorderRadius.circular(MqRadius.sm),
+                      onPressed: () => _removePair(i),
+                      child: Icon(MqIcons.trash, size: 18, color: c.danger),
+                    ),
                   ),
                 ],
               ),
             ),
           ),
         ],
+        const SizedBox(height: MqSpacing.sm),
+        MqButton(
+          label: 'Add pair',
+          icon: MqIcons.plus,
+          variant: MqButtonVariant.glass,
+          size: MqButtonSize.sm,
+          onPressed: _addPair,
+        ),
       ],
     );
   }

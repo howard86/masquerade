@@ -1,7 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:masquerade/state/link_group.dart';
 import 'package:masquerade/utils/url_parser.dart';
 import 'package:masquerade/widgets/mq/mq_mono_cell.dart';
+import 'package:masquerade/widgets/tool_bodies/url_body.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '_helpers.dart';
@@ -91,6 +93,185 @@ void main() {
     expect(find.text(expected), findsOneWidget);
   });
 
+  testWidgets('URL — adding a query pair rebuilds the encoded query', (
+    WidgetTester tester,
+  ) async {
+    await pumpHomeAndOpen(tester, 'URL');
+
+    await tester.tap(find.text('Decode'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byType(EditableText).last,
+      'https://x.com/s?q=cats&n=10',
+    );
+    await tester.pumpAndSettle(kDebouncePump);
+
+    expect(find.text('Add pair'), findsOneWidget);
+    await tester.tap(find.text('Add pair'));
+    await tester.pump();
+
+    // The new row's Key/Value fields are appended last, after the existing
+    // two rows (URL input field + 2 rows × 2 fields = 5 EditableTexts before).
+    final List<Element> fields = find.byType(EditableText).evaluate().toList();
+    expect(fields.length, 7);
+    await tester.enterText(find.byWidget(fields[5].widget), 'x');
+    await tester.pump();
+    await tester.enterText(find.byWidget(fields[6].widget), 'y');
+    await tester.pump();
+
+    final String expected = UrlParser.buildQuery(<QueryPair>[
+      const QueryPair('q', 'cats'),
+      const QueryPair('n', '10'),
+      const QueryPair('x', 'y'),
+    ]);
+    expect(find.text(expected), findsOneWidget);
+  });
+
+  testWidgets('URL — removing a query pair rebuilds the encoded query', (
+    WidgetTester tester,
+  ) async {
+    await pumpHomeAndOpen(tester, 'URL');
+
+    await tester.tap(find.text('Decode'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byType(EditableText).last,
+      'https://x.com/s?q=cats&n=10',
+    );
+    await tester.pumpAndSettle(kDebouncePump);
+
+    expect(find.bySemanticsLabel('Remove n'), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel('Remove n'));
+    await tester.pump();
+
+    final String expected = UrlParser.buildQuery(<QueryPair>[
+      const QueryPair('q', 'cats'),
+    ]);
+    expect(find.text(expected), findsOneWidget);
+    expect(find.text('10'), findsNothing);
+  });
+
+  testWidgets('URL — Swap carries an edited query pair through', (
+    WidgetTester tester,
+  ) async {
+    await pumpHomeAndOpen(tester, 'URL');
+
+    await tester.tap(find.text('Decode'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byType(EditableText).last,
+      'https://x.com/s?q=cats&n=10',
+    );
+    await tester.pumpAndSettle(kDebouncePump);
+
+    // Edit the 'q' value from 'cats' to 'dogs' in the query table.
+    final Finder valueField = find.byWidgetPredicate(
+      (Widget w) => w is EditableText && w.controller.text == 'cats',
+    );
+    expect(valueField, findsOneWidget);
+    await tester.enterText(valueField, 'dogs');
+    await tester.pump();
+
+    // Swap flips mode and feeds the output back as input; without the fix
+    // the edit is dropped and the swapped-in text still says 'cats'.
+    await tester.tap(find.text('Swap'));
+    await tester.pumpAndSettle(kDebouncePump);
+
+    expect(find.textContaining('dogs'), findsWidgets);
+    expect(find.textContaining('cats'), findsNothing);
+  });
+
+  testWidgets(
+    'URL — Link canonical carries an edited query pair through, not just Swap',
+    (WidgetTester tester) async {
+      String? emitted;
+      final ValueNotifier<String> inbound = ValueNotifier<String>('');
+      final ValueNotifier<LinkChannel?> linkNotifier =
+          ValueNotifier<LinkChannel?>(null);
+
+      await pumpBodyAtWidth(
+        tester,
+        ValueListenableBuilder<LinkChannel?>(
+          valueListenable: linkNotifier,
+          builder: (BuildContext context, LinkChannel? link, Widget? _) =>
+              UrlBody(link: link),
+        ),
+        480,
+      );
+
+      await tester.tap(find.text('Decode'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byType(EditableText).last,
+        'https://x.com/s?q=cats&n=10',
+      );
+      await tester.pumpAndSettle(kDebouncePump);
+
+      // Edit the 'q' value from 'cats' to 'dogs' in the query table.
+      final Finder valueField = find.byWidgetPredicate(
+        (Widget w) => w is EditableText && w.controller.text == 'cats',
+      );
+      expect(valueField, findsOneWidget);
+      await tester.enterText(valueField, 'dogs');
+      await tester.pump();
+
+      // Pipe this card to another tool by attaching a Link now, after the
+      // edit — this is what publishes the canonical the link engine reads.
+      // Without the fix, currentCanonical() ignores the edited query and the
+      // published value still says 'cats'.
+      linkNotifier.value = LinkChannel(
+        canonicalType: ContentType.text,
+        inbound: inbound,
+        onEmit: (String canonical) => emitted = canonical,
+      );
+      await tester.pumpAndSettle();
+
+      expect(emitted, isNotNull);
+      expect(emitted, contains('dogs'));
+      expect(emitted, isNot(contains('cats')));
+    },
+  );
+
+  testWidgets(
+    'URL — Link canonical leaves an unedited input verbatim (no re-encoding)',
+    (WidgetTester tester) async {
+      // buildQuery() is not the identity on arbitrary text containing '=' — it
+      // turns a space into '+' and a stray '=' into '%3D'. Without an edit
+      // there is nothing to splice, so the canonical must be the input as
+      // typed, not the rebuilt query.
+      String? emitted;
+      final ValueNotifier<String> inbound = ValueNotifier<String>('');
+      final ValueNotifier<LinkChannel?> linkNotifier =
+          ValueNotifier<LinkChannel?>(null);
+
+      await pumpBodyAtWidth(
+        tester,
+        ValueListenableBuilder<LinkChannel?>(
+          valueListenable: linkNotifier,
+          builder: (BuildContext context, LinkChannel? link, Widget? _) =>
+              UrlBody(link: link),
+        ),
+        480,
+      );
+
+      await tester.enterText(find.byType(EditableText).first, 'name=John Doe');
+      await tester.pumpAndSettle(kDebouncePump);
+
+      linkNotifier.value = LinkChannel(
+        canonicalType: ContentType.text,
+        inbound: inbound,
+        onEmit: (String canonical) => emitted = canonical,
+      );
+      await tester.pumpAndSettle();
+
+      expect(emitted, 'name=John Doe');
+    },
+  );
+
   testWidgets('URL — malformed decode input shows error cell', (
     WidgetTester tester,
   ) async {
@@ -130,6 +311,6 @@ void main() {
         .widgetList<MqMonoCell>(find.byType(MqMonoCell))
         .firstWhere((MqMonoCell cell) => cell.label == 'Decoded');
     expect(output.sensitive, isTrue);
-    expect(find.bySemanticsLabel('Copy ••••'), findsOneWidget);
+    expect(find.bySemanticsLabel('Copy Decoded'), findsOneWidget);
   });
 }

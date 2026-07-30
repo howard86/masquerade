@@ -13,6 +13,7 @@ import '../mq/mq_section_header.dart';
 import '../mq/mq_status.dart';
 import '../mq/mq_surface.dart';
 import '../mq/tool_action_bar.dart';
+import 'copy_all_button.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 import 'tool_body_scaffold.dart';
@@ -134,15 +135,48 @@ class _X509InspectorBodyState extends State<X509InspectorBody>
     _error = null;
   });
 
+  /// Copies every certificate's Subject/Issuer/Valid from/Valid until/SANs/
+  /// Public key/fingerprints, in chain order. Hidden until a certificate
+  /// parses, so the action bar shows it only when there is output to copy.
   @override
-  Widget build(BuildContext context) {
+  Widget? actionBarCenter() {
     final X509Inspection? inspection = _inspection;
+    if (inspection == null || inspection.certificates.isEmpty) return null;
+    return CopyAllButton(
+      payload: _outputValues(inspection).join('\n'),
+      sensitive: _protectedLineage,
+    );
+  }
+
+  /// Whether the current certificate/chain came from a sensitive artifact or
+  /// a protected session — mirrors the per-cell `sensitive:` flag below.
+  bool get _protectedLineage {
     final MobileSessionRouteScope? route = MobileSessionRouteScope.maybeOf(
       context,
     );
-    final bool protectedLineage =
-        widget.initialArtifact?.isSensitive == true ||
+    return widget.initialArtifact?.isSensitive == true ||
         route?.protectedSession == true;
+  }
+
+  /// The copyable values for [inspection], in display order — mirrors the
+  /// rows built by [_CertificateCard] for every certificate in the chain.
+  List<String> _outputValues(X509Inspection inspection) => <String>[
+    for (final X509CertificateInfo cert in inspection.certificates) ...<String>[
+      cert.subject,
+      cert.issuer,
+      cert.notBefore.toIso8601String(),
+      cert.notAfter.toIso8601String(),
+      if (cert.sans.isNotEmpty) cert.sans.join('\n'),
+      cert.keyDescription,
+      _fingerprint(cert.sha1Hex),
+      _fingerprint(cert.sha256Hex),
+    ],
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final X509Inspection? inspection = _inspection;
+    final bool protectedLineage = _protectedLineage;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

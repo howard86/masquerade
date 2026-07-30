@@ -103,7 +103,7 @@ class _QrScannerRouteState extends State<QrScannerRoute> {
           Positioned(
             left: 0,
             right: 0,
-            bottom: MqSpacing.xl,
+            bottom: MqSpacing.xl + MediaQuery.paddingOf(context).bottom,
             child: Center(
               child: Container(
                 padding: const EdgeInsets.symmetric(

@@ -137,7 +137,6 @@ class _ToolDetailRouteState extends State<ToolDetailRoute> {
         ),
       ),
       child: SafeArea(
-        bottom: false,
         child: Column(
           children: <Widget>[
             Expanded(

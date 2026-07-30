@@ -52,6 +52,37 @@ void main() {
     expect(find.text('"BTC","ETH"'), findsOneWidget);
   });
 
+  testWidgets(
+    'List — quote-style chip announces selected and flips on toggle',
+    (WidgetTester tester) async {
+      await pumpHomeAndOpen(tester, 'List');
+
+      await tester.enterText(find.byType(EditableText).last, 'BTC\nETH');
+      await tester.pumpAndSettle(kDebouncePump);
+
+      await tester.tap(find.text('Quote'));
+      await tester.pumpAndSettle();
+
+      // Default quote style is double-quote — the chip shows '"x"' and
+      // announces itself as the active (selected) style.
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('"x"')),
+        isSemantics(isButton: true, isSelected: true),
+      );
+      expect(find.text('"BTC","ETH"'), findsOneWidget);
+
+      await tester.tap(find.text('"x"'));
+      await tester.pumpAndSettle();
+
+      // Toggling to single-quote flips both the label and the selected flag.
+      expect(
+        tester.getSemantics(find.bySemanticsLabel("'x'")),
+        isSemantics(isButton: true, isSelected: false),
+      );
+      expect(find.text("'BTC','ETH'"), findsOneWidget);
+    },
+  );
+
   testWidgets('List — separator field exposes an a11y button label', (
     WidgetTester tester,
   ) async {

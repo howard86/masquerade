@@ -51,13 +51,9 @@ class MqButton extends StatelessWidget {
     final ({Color bg, Color fg, Color? border}) style = switch (variant) {
       MqButtonVariant.filled => (bg: tint, fg: c.onTint, border: null),
       MqButtonVariant.tinted => (bg: tintBg, fg: tintInk, border: null),
-      MqButtonVariant.plain => (
-        bg: CupertinoColors.transparent,
-        fg: tint,
-        border: null,
-      ),
+      MqButtonVariant.plain => (bg: c.transparent, fg: tint, border: null),
       MqButtonVariant.glass => (
-        bg: CupertinoColors.transparent,
+        bg: c.transparent,
         fg: c.textPri,
         border: c.borderStrong,
       ),
@@ -118,6 +114,8 @@ class MqButton extends StatelessWidget {
       button: true,
       enabled: onPressed != null,
       label: semanticsLabel ?? label,
+      onTap: onPressed,
+      excludeSemantics: true,
       child: sized,
     );
   }

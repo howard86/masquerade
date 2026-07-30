@@ -53,4 +53,31 @@ void main() {
     await tester.pumpAndSettle(kDebouncePump);
     expect(find.text('È'), findsOneWidget);
   });
+
+  testWidgets('Bytes — hexdump virtualizes rows on large input', (
+    WidgetTester tester,
+  ) async {
+    await pumpBodyAtWidth(tester, const BytesBody(), 640);
+
+    // 3200 bytes -> 200 hexdump rows (16 bytes/row). A fully-eager Column
+    // would build a Text widget per row; a lazy ListView.builder only
+    // builds the rows near its bounded viewport.
+    const int rowCount = 200;
+    final String input = List<String>.filled(rowCount * 16, '65').join(' ');
+    await decode(tester, input);
+
+    expect(find.byType(ListView), findsOneWidget);
+
+    final int builtRows = find
+        .descendant(of: find.byType(ListView), matching: find.byType(Text))
+        .evaluate()
+        .length;
+
+    expect(builtRows, greaterThan(0));
+    expect(
+      builtRows,
+      lessThan(rowCount ~/ 2),
+      reason: 'expected only rows near the viewport to be built lazily',
+    );
+  });
 }

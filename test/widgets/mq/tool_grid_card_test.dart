@@ -13,6 +13,9 @@ Widget _harness({
   HistoryEntry? lastEntry,
   VoidCallback? onTap,
   VoidCallback? onLongPress,
+  bool favorite = false,
+  VoidCallback? onToggleFavorite,
+  bool showMetadata = false,
 }) {
   return CupertinoApp(
     home: MqTheme(
@@ -20,7 +23,7 @@ Widget _harness({
       child: CupertinoPageScaffold(
         child: SizedBox(
           width: 200,
-          height: 120,
+          height: 180,
           child: Center(
             child: ToolGridCard(
               descriptor: descriptor,
@@ -28,6 +31,9 @@ Widget _harness({
               lastEntry: lastEntry,
               onTap: onTap ?? () {},
               onLongPress: onLongPress,
+              favorite: favorite,
+              onToggleFavorite: onToggleFavorite,
+              showMetadata: showMetadata,
             ),
           ),
         ),
@@ -56,7 +62,7 @@ void main() {
     expect(find.text(sample.description), findsOneWidget);
   });
 
-  testWidgets('with lastEntry renders mono preview, hides description', (
+  testWidgets('metadata and history preview supplement the description', (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
@@ -64,10 +70,12 @@ void main() {
         descriptor: sample,
         matched: false,
         lastEntry: _entry('base64', 'hello-world'),
+        showMetadata: true,
       ),
     );
     expect(find.text('hello-world'), findsOneWidget);
-    expect(find.text(sample.description), findsNothing);
+    expect(find.text(sample.description), findsOneWidget);
+    expect(find.text(sample.metadataSummary), findsNothing);
   });
 
   testWidgets('preview truncates over 24 chars', (WidgetTester tester) async {
@@ -158,5 +166,47 @@ void main() {
     );
     await tester.longPress(find.byType(ToolGridCard));
     expect(presses, 1);
+  });
+
+  testWidgets('open and favorite are independent semantic actions', (
+    WidgetTester tester,
+  ) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+    int opens = 0;
+    int favorites = 0;
+    await tester.pumpWidget(
+      _harness(
+        descriptor: sample,
+        matched: false,
+        onTap: () => opens++,
+        onToggleFavorite: () => favorites++,
+      ),
+    );
+
+    final Finder open = find.bySemanticsLabel('Open ${sample.name}');
+    final Finder favorite = find.bySemanticsLabel('Favorite ${sample.name}');
+    expect(open, findsOneWidget);
+    expect(favorite, findsOneWidget);
+    expect(
+      tester.getSemantics(open),
+      isSemantics(isButton: true, hasTapAction: true),
+    );
+    expect(
+      tester.getSemantics(favorite),
+      isSemantics(
+        isButton: true,
+        isEnabled: true,
+        hasTapAction: true,
+        isToggled: false,
+      ),
+    );
+    expect(tester.getSize(favorite).shortestSide, greaterThanOrEqualTo(44));
+
+    await tester.tap(favorite);
+    expect(favorites, 1);
+    expect(opens, 0);
+    await tester.tap(open);
+    expect(opens, 1);
+    handle.dispose();
   });
 }

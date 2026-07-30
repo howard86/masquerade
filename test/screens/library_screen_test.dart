@@ -91,6 +91,41 @@ void main() {
       ),
       findsOneWidget,
     );
+    expect(
+      find.descendant(
+        of: find.byWidgetPredicate((Widget widget) => identical(widget, uuid)),
+        matching: find.text(uuid.descriptor.description),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('portrait cards use the readable full-width layout', (
+    WidgetTester tester,
+  ) async {
+    await _pumpLibrary(tester);
+
+    final Finder cards = find.byType(ToolGridCard);
+    final Size firstCard = tester.getSize(cards.first);
+    expect(firstCard.width, greaterThan(340));
+    expect(firstCard.height, inInclusiveRange(112, 132));
+    expect(
+      tester.getTopLeft(cards.at(1)).dy,
+      greaterThan(tester.getTopLeft(cards.first).dy),
+    );
+  });
+
+  testWidgets('portrait cards do not overflow at 2x Dynamic Type', (
+    WidgetTester tester,
+  ) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+    await _pumpLibrary(tester);
+
+    expect(find.text(UtilityCatalog.all.first.name), findsOneWidget);
+    expect(find.text(UtilityCatalog.all.first.description), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(
@@ -131,10 +166,14 @@ void main() {
             matching: find.byType(CupertinoButton),
           )
           .first;
+      await tester.ensureVisible(base64Favorite);
+      await tester.pumpAndSettle();
       await tester.tap(base64Favorite);
       await tester.pumpAndSettle();
-      expect(find.text('FAVORITES'), findsOneWidget);
       expect(library.isFavorite('base64'), isTrue);
+      await tester.fling(find.byType(ListView), const Offset(0, 4000), 5000);
+      await tester.pumpAndSettle();
+      expect(find.text('FAVORITES'), findsOneWidget);
       await _expectStableMainCatalog(tester);
 
       await history.add(
@@ -163,5 +202,28 @@ void main() {
       UtilityCatalog.searchStable('encode').map((UtilityDescriptor u) => u.id),
     );
     expect(find.text('SEARCH RESULTS'), findsOneWidget);
+  });
+
+  testWidgets('clear affordance empties the field and resets the filter', (
+    WidgetTester tester,
+  ) async {
+    await _pumpLibrary(tester);
+
+    await tester.enterText(find.byType(CupertinoTextField), 'encode');
+    await tester.pump();
+    expect(find.text('SEARCH RESULTS'), findsOneWidget);
+
+    await tester.tap(find.bySemanticsLabel('Clear search'));
+    await tester.pump();
+
+    expect(
+      tester
+          .widget<CupertinoTextField>(find.byType(CupertinoTextField))
+          .controller!
+          .text,
+      isEmpty,
+    );
+    expect(find.text('SEARCH RESULTS'), findsNothing);
+    await _expectStableMainCatalog(tester);
   });
 }

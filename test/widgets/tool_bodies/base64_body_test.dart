@@ -1,6 +1,8 @@
+import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/widgets/mq/mq_mono_cell.dart';
+import 'package:masquerade/widgets/mq/mq_status.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '_helpers.dart';
@@ -65,19 +67,30 @@ void main() {
     expect(find.text('aA'), findsOneWidget);
   });
 
-  testWidgets('Base64 — invalid decode input shows error cell', (
-    WidgetTester tester,
-  ) async {
-    await pumpHomeAndOpen(tester, 'Base64');
+  testWidgets(
+    'Base64 — invalid decode input announces via a live-region error pill',
+    (WidgetTester tester) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
 
-    await tester.tap(find.text('Decode'));
-    await tester.pumpAndSettle();
+      await pumpHomeAndOpen(tester, 'Base64');
 
-    await tester.enterText(find.byType(EditableText).last, 'not@valid');
-    await tester.pumpAndSettle(kDebouncePump);
+      await tester.tap(find.text('Decode'));
+      await tester.pumpAndSettle();
 
-    expect(find.textContaining('Invalid base64'), findsOneWidget);
-  });
+      await tester.enterText(find.byType(EditableText).last, 'not@valid');
+      await tester.pumpAndSettle(kDebouncePump);
+
+      final MqStatus status = tester.widget<MqStatus>(find.byType(MqStatus));
+      expect(status.kind, MqStatusKind.danger);
+      expect(status.label, contains('Invalid base64'));
+
+      final SemanticsNode node = tester.getSemantics(find.byType(MqStatus));
+      expect(node.label, status.label);
+      expect(node.flagsCollection.isLiveRegion, isTrue);
+
+      handle.dispose();
+    },
+  );
 
   testWidgets('Base64 — transformed credential output keeps protection', (
     WidgetTester tester,
@@ -94,7 +107,7 @@ void main() {
         .widgetList<MqMonoCell>(find.byType(MqMonoCell))
         .firstWhere((MqMonoCell cell) => cell.label == 'Base64');
     expect(output.sensitive, isTrue);
-    expect(find.bySemanticsLabel('Copy ••••'), findsOneWidget);
+    expect(find.bySemanticsLabel('Copy Base64'), findsOneWidget);
   });
 
   testWidgets('Base64 — decoded credentials keep protection', (
@@ -114,6 +127,6 @@ void main() {
         .widgetList<MqMonoCell>(find.byType(MqMonoCell))
         .firstWhere((MqMonoCell cell) => cell.label == 'Plain text');
     expect(output.sensitive, isTrue);
-    expect(find.bySemanticsLabel('Copy ••••'), findsOneWidget);
+    expect(find.bySemanticsLabel('Copy Plain text'), findsOneWidget);
   });
 }

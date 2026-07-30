@@ -36,7 +36,11 @@ class HistoryScreen extends StatelessWidget {
       navigationBar: navigationBar,
       child: SafeArea(
         bottom: false,
-        child: HistoryBody(title: title, onResume: onResume),
+        child: HistoryBody(
+          title: title,
+          showTitle: navigationBar == null,
+          onResume: onResume,
+        ),
       ),
     );
   }
@@ -45,9 +49,15 @@ class HistoryScreen extends StatelessWidget {
 /// The inner content of the History screen, reusable without a scaffold.
 /// Used directly by the desktop window manager.
 class HistoryBody extends StatefulWidget {
-  const HistoryBody({super.key, this.title = 'History', this.onResume});
+  const HistoryBody({
+    super.key,
+    this.title = 'History',
+    this.showTitle = true,
+    this.onResume,
+  });
 
   final String title;
+  final bool showTitle;
   final VoidCallback? onResume;
 
   @override
@@ -85,37 +95,40 @@ class _HistoryBodyState extends State<HistoryBody> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            MqSpacing.lg,
-            MqSpacing.md,
-            MqSpacing.lg,
-            MqSpacing.md,
-          ),
-          child: Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  widget.title,
-                  style: MqTextStyles.largeTitle.copyWith(color: c.textPri),
-                ),
-              ),
-              if (history.entries.isNotEmpty || recent.isNotEmpty)
-                MqButton(
-                  label: 'Clear',
-                  icon: MqIcons.trash,
-                  variant: MqButtonVariant.glass,
-                  size: MqButtonSize.sm,
-                  destructive: true,
-                  onPressed: () => _confirmClear(
-                    context,
-                    history,
-                    WorkSessionScope.maybeOf(context),
+        if (widget.showTitle || history.entries.isNotEmpty || recent.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              MqSpacing.lg,
+              MqSpacing.md,
+              MqSpacing.lg,
+              MqSpacing.md,
+            ),
+            child: Row(
+              children: <Widget>[
+                if (widget.showTitle)
+                  Expanded(
+                    child: Text(
+                      widget.title,
+                      style: MqTextStyles.largeTitle.copyWith(color: c.textPri),
+                    ),
                   ),
-                ),
-            ],
+                if (!widget.showTitle) const Spacer(),
+                if (history.entries.isNotEmpty || recent.isNotEmpty)
+                  MqButton(
+                    label: 'Clear',
+                    icon: MqIcons.trash,
+                    variant: MqButtonVariant.glass,
+                    size: MqButtonSize.sm,
+                    destructive: true,
+                    onPressed: () => _confirmClear(
+                      context,
+                      history,
+                      WorkSessionScope.maybeOf(context),
+                    ),
+                  ),
+              ],
+            ),
           ),
-        ),
         if (recent.isNotEmpty) ...<Widget>[
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: MqSpacing.lg),

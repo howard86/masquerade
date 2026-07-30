@@ -186,19 +186,27 @@ class _MqInputState extends State<MqInput> {
           ),
         ),
         if (hasError)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(0, 6, 0, 0),
-            child: Row(
-              children: <Widget>[
-                Icon(MqIcons.warn, size: 13, color: c.danger),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    widget.error!,
-                    style: MqTextStyles.footnote.copyWith(color: c.danger),
+          // Errors must announce as they appear — same rationale as the
+          // live region in MqStatus (mq_status.dart), extended here since
+          // parse failures route through MqInput.error just as often.
+          Semantics(
+            liveRegion: true,
+            label: widget.error!,
+            excludeSemantics: true,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(0, 6, 0, 0),
+              child: Row(
+                children: <Widget>[
+                  Icon(MqIcons.warn, size: 13, color: c.danger),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      widget.error!,
+                      style: MqTextStyles.footnote.copyWith(color: c.danger),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
       ],

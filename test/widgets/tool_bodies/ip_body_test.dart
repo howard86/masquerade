@@ -1,6 +1,8 @@
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:masquerade/widgets/mq/mq_status.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '_helpers.dart';
@@ -35,6 +37,27 @@ void main() {
     // No subnet rows for bare address
     expect(find.text('Network'), findsNothing);
     expect(find.text('Broadcast'), findsNothing);
+  });
+
+  testWidgets('ip — invalid address announces via a live-region error pill', (
+    WidgetTester tester,
+  ) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+
+    await pumpHomeAndOpen(tester, 'IP / CIDR');
+
+    await tester.enterText(find.byType(EditableText).first, 'not an ip');
+    await tester.pumpAndSettle(kDebouncePump);
+
+    final MqStatus status = tester.widget<MqStatus>(find.byType(MqStatus));
+    expect(status.kind, MqStatusKind.danger);
+    expect(status.label, contains('IPv4 requires 4 octets'));
+
+    final SemanticsNode node = tester.getSemantics(find.byType(MqStatus));
+    expect(node.label, status.label);
+    expect(node.flagsCollection.isLiveRegion, isTrue);
+
+    handle.dispose();
   });
 
   testWidgets('ip — Copy all writes every output cell to the clipboard', (

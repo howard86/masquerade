@@ -118,6 +118,47 @@ void main() {
     });
   });
 
+  group('UrlParser.replaceQuery', () {
+    test('splices a new query into a full URL with no fragment', () {
+      expect(
+        UrlParser.replaceQuery('https://x.com/s?q=cats&n=10', 'q=dogs&n=10'),
+        'https://x.com/s?q=dogs&n=10',
+      );
+    });
+
+    test('preserves a trailing #fragment', () {
+      expect(
+        UrlParser.replaceQuery(
+          'https://x.com/s?q=cats&n=10#section',
+          'q=dogs&n=10',
+        ),
+        'https://x.com/s?q=dogs&n=10#section',
+      );
+    });
+
+    test('treats a bare query string (no ?) as the whole body', () {
+      expect(UrlParser.replaceQuery('a=b&c=d', 'x=y'), 'x=y');
+    });
+
+    test('an empty replacement leaves a bare trailing ? and round-trips', () {
+      final String replaced = UrlParser.replaceQuery(
+        'https://x.com/s?q=cats',
+        '',
+      );
+      expect(replaced, 'https://x.com/s?');
+      expect(UrlParser.splitQuery(replaced), isEmpty);
+    });
+
+    test('round-trips through splitQuery + buildQuery', () {
+      const String url = 'https://x.com/s?q=cats&n=10#frag';
+      final String rebuilt = UrlParser.buildQuery(UrlParser.splitQuery(url));
+      expect(
+        UrlParser.splitQuery(UrlParser.replaceQuery(url, rebuilt)),
+        UrlParser.splitQuery(url),
+      );
+    });
+  });
+
   group('UrlParser.parse exposes query pairs alongside the transform', () {
     test('decode of a full URL surfaces its query pairs', () {
       final UrlResult r = UrlParser.parse(

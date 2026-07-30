@@ -8,11 +8,12 @@ import '../mq/mq_icons.dart';
 
 /// Shows the keyboard shortcuts HUD cheatsheet modal.
 Future<void> showShortcutsHUD(BuildContext context) {
+  final Color barrierColor = context.mq.colors.overlayScrim;
   return showGeneralDialog<void>(
     context: context,
     barrierDismissible: true,
     barrierLabel: 'Keyboard shortcuts',
-    barrierColor: const Color(0x99000000),
+    barrierColor: barrierColor,
     transitionDuration: const Duration(milliseconds: 200),
     pageBuilder:
         (BuildContext ctx, Animation<double> anim, Animation<double> sec) {
@@ -75,21 +76,30 @@ class _ShortcutsHUD extends StatelessWidget {
                       style: MqTextStyles.title3.copyWith(color: c.textPri),
                     ),
                     const Spacer(),
-                    GestureDetector(
+                    Semantics(
+                      button: true,
+                      label: 'Close',
                       onTap: () => Navigator.of(context).pop(),
-                      child: MouseRegion(
-                        cursor: SystemMouseCursors.click,
-                        child: Icon(MqIcons.clear, size: 18, color: c.textTer),
+                      child: GestureDetector(
+                        onTap: () => Navigator.of(context).pop(),
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: Icon(
+                            MqIcons.clear,
+                            size: 18,
+                            color: c.textTer,
+                          ),
+                        ),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: MqSpacing.md),
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: MqSpacing.xs),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: MqSpacing.xs),
                   child: SizedBox(
                     height: 0.5,
-                    child: ColoredBox(color: Color(0x22FFFFFF)),
+                    child: ColoredBox(color: c.border),
                   ),
                 ),
                 const SizedBox(height: MqSpacing.sm),

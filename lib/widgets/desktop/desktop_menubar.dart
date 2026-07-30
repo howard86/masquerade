@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../state/canvas_controller.dart';
@@ -267,6 +268,7 @@ class _MenuOverlay extends StatelessWidget {
       children: <Widget>[
         GestureDetector(
           behavior: HitTestBehavior.opaque,
+          excludeFromSemantics: true,
           onTap: onDismiss,
           child: const SizedBox.expand(),
         ),
@@ -288,23 +290,34 @@ class _MenuOverlay extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   for (final _MenuItem item in items)
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
+                    Semantics(
+                      button: true,
+                      label: item.label,
                       onTap: () {
                         onDismiss();
                         item.action();
                       },
-                      child: MouseRegion(
-                        cursor: SystemMouseCursors.click,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: MqSpacing.md,
-                            vertical: MqSpacing.xs + 2,
-                          ),
-                          child: Text(
-                            item.label,
-                            style: MqTextStyles.caption1.copyWith(
-                              color: c.textPri,
+                      excludeSemantics: true,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        excludeFromSemantics: true,
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          onDismiss();
+                          item.action();
+                        },
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: MqSpacing.md,
+                              vertical: MqSpacing.xs + 2,
+                            ),
+                            child: Text(
+                              item.label,
+                              style: MqTextStyles.caption1.copyWith(
+                                color: c.textPri,
+                              ),
                             ),
                           ),
                         ),

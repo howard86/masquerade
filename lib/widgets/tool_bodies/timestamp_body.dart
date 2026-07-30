@@ -259,12 +259,7 @@ class _TimestampBodyState extends State<TimestampBody>
             ],
             const SizedBox(height: MqSpacing.lg),
             if (_error != null)
-              MqMonoCell(
-                label: 'Error',
-                value: _error!,
-                copyable: false,
-                accent: false,
-              )
+              MqStatus(label: _error!, kind: MqStatusKind.danger)
             else if (_parsed != null) ...<Widget>[
               const MqSectionHeader(label: 'Output'),
               Wrap(

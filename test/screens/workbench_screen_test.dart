@@ -106,8 +106,12 @@ void main() {
     expect(_semantics('Empty Workbench'), findsOneWidget);
     expect(find.bySemanticsLabel('Paste'), findsOneWidget);
     expect(find.bySemanticsLabel('Scan QR'), findsOneWidget);
-    expect(find.text('CURRENT SESSION'), findsOneWidget);
-    expect(find.text('SAVED WORKFLOWS'), findsOneWidget);
+    expect(find.text('CURRENT SESSION'), findsNothing);
+    expect(find.text('SAVED WORKFLOWS'), findsNothing);
+    expect(
+      find.text('Type, paste, import a file, or scan a QR code.'),
+      findsOneWidget,
+    );
 
     await _enter(tester, '{"ok":true}');
     expect(find.text('Artifact detected'), findsOneWidget);
@@ -401,6 +405,8 @@ void main() {
   ) async {
     await _pumpWorkbench(tester, isWebOverride: true);
     expect(find.bySemanticsLabel('Import file'), findsNothing);
+    expect(find.text('Type, paste, or scan a QR code.'), findsOneWidget);
+    expect(find.textContaining('import a file'), findsNothing);
   });
 
   testWidgets('protected file import remains ephemeral across controllers', (
@@ -1071,7 +1077,23 @@ void main() {
     await tester.tap(find.text('Delete').last);
     await tester.pumpAndSettle();
     expect(sessions.savedWorkflows, isEmpty);
-    expect(find.text('No saved workflows'), findsOneWidget);
+    expect(find.text('SAVED WORKFLOWS'), findsNothing);
+  });
+
+  testWidgets('workflow errors reveal the saved workflows section', (
+    WidgetTester tester,
+  ) async {
+    final WorkSessionController sessions = WorkSessionController();
+    await _pumpWorkbench(tester, workSessionController: sessions);
+
+    await sessions.saveCurrent('');
+    await tester.pump();
+
+    expect(find.text('SAVED WORKFLOWS'), findsOneWidget);
+    expect(
+      find.text('Choose a safe name for this completed workflow.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('saving current workflow and incompatible rerun errors inline', (

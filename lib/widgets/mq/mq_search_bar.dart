@@ -51,15 +51,46 @@ class MqSearchBar extends StatelessWidget {
               onSubmitted: onSubmitted,
             ),
           ),
-          if (showShortcutHint)
-            Text(
-              '⌘K',
-              style: MqTextStyles.footnote.copyWith(
-                color: c.textTer,
-                fontFamily: MqTextStyles.monoFamily,
-                fontFamilyFallback: MqTextStyles.monoFallback,
-              ),
-            ),
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: controller,
+            builder: (BuildContext context, TextEditingValue value, _) {
+              if (value.text.isNotEmpty) {
+                return Semantics(
+                  button: true,
+                  label: 'Clear search',
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      controller.clear();
+                      onChanged?.call('');
+                    },
+                    // Grow the tappable region toward the 44×44 iOS HIG
+                    // minimum without enlarging the glyph or the bar itself.
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minWidth: 44,
+                        minHeight: 44,
+                      ),
+                      child: Center(
+                        child: Icon(MqIcons.clear, size: 16, color: c.textTer),
+                      ),
+                    ),
+                  ),
+                );
+              }
+              if (showShortcutHint) {
+                return Text(
+                  '⌘K',
+                  style: MqTextStyles.footnote.copyWith(
+                    color: c.textTer,
+                    fontFamily: MqTextStyles.monoFamily,
+                    fontFamilyFallback: MqTextStyles.monoFallback,
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
         ],
       ),
     );

@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/theme/mq_colors.dart';
 import 'package:masquerade/theme/mq_theme.dart';
@@ -54,6 +55,15 @@ void main() {
         expect(find.text('Esc'), findsOneWidget);
         expect(find.text('/'), findsOneWidget);
 
+        // The close icon exposes a labelled Semantics button for VoiceOver.
+        final SemanticsHandle handle = tester.ensureSemantics();
+        final SemanticsData closeData = tester
+            .getSemantics(find.bySemanticsLabel('Close'))
+            .getSemanticsData();
+        expect(closeData.flagsCollection.isButton, isTrue);
+        expect(closeData.hasAction(SemanticsAction.tap), isTrue);
+        handle.dispose();
+
         // Close the HUD via the close clear icon
         await tester.tap(find.byIcon(MqIcons.clear));
         await tester.pumpAndSettle();
@@ -61,5 +71,37 @@ void main() {
         expect(find.text('Desktop Shortcuts'), findsNothing);
       },
     );
+
+    test('overlayScrim is exposed and equal in light and dark modes', () {
+      expect(MqColors.light().overlayScrim, const Color(0x99000000));
+      expect(MqColors.dark().overlayScrim, const Color(0x99000000));
+    });
+
+    testWidgets('divider uses the border token, not a raw white literal', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          Builder(
+            builder: (BuildContext context) {
+              return CupertinoButton(
+                child: const Text('Show HUD'),
+                onPressed: () => showShortcutsHUD(context),
+              );
+            },
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Show HUD'));
+      await tester.pumpAndSettle();
+
+      final List<Color?> colors = tester
+          .widgetList<ColoredBox>(find.byType(ColoredBox))
+          .map((ColoredBox box) => box.color)
+          .toList();
+      expect(colors, contains(MqColors.light().border));
+      expect(colors, isNot(contains(const Color(0x22FFFFFF))));
+    });
   });
 }

@@ -53,78 +53,102 @@ class ToolGridCard extends StatelessWidget {
     final Color borderColor = matched ? c.accent : c.border;
     final double borderWidth = matched ? 1.0 : 0.5;
 
-    return Semantics(
-      button: true,
-      label: descriptor.name,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        onLongPress: onLongPress,
-        child: Container(
-          padding: EdgeInsets.all(d.cardPadding),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(MqRadius.md),
-            border: Border.all(color: borderColor, width: borderWidth),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: <Widget>[
-              Row(
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        Semantics(
+          button: true,
+          label: 'Open ${descriptor.name}',
+          excludeSemantics: true,
+          onTap: onTap,
+          onLongPress: onLongPress,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            excludeFromSemantics: true,
+            onTap: onTap,
+            onLongPress: onLongPress,
+            child: Container(
+              padding: EdgeInsets.all(d.cardPadding),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(MqRadius.md),
+                border: Border.all(color: borderColor, width: borderWidth),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Icon(descriptor.icon, size: 18, color: descriptor.tint),
-                  const SizedBox(width: MqSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      descriptor.name,
-                      style: MqTextStyles.headline.copyWith(color: c.textPri),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (onToggleFavorite != null)
-                    Semantics(
-                      label: 'Favorite ${descriptor.name}',
-                      button: true,
-                      toggled: favorite,
-                      excludeSemantics: true,
-                      child: CupertinoButton(
-                        padding: EdgeInsets.zero,
-                        minimumSize: const Size.square(44),
-                        onPressed: onToggleFavorite,
-                        child: Icon(
-                          MqIcons.star,
-                          size: 18,
-                          color: favorite ? c.accent : c.textTer,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Icon(descriptor.icon, size: 18, color: descriptor.tint),
+                      const SizedBox(width: MqSpacing.sm),
+                      Expanded(
+                        child: Text(
+                          descriptor.name,
+                          style: MqTextStyles.headline.copyWith(
+                            color: c.textPri,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                    ),
-                  if (matched) ...<Widget>[
-                    const SizedBox(width: MqSpacing.xs),
-                    _MatchDot(color: c.accent),
-                  ],
-                ],
-              ),
-              const SizedBox(height: MqSpacing.xs),
-              hasPreview
-                  ? Text(
+                      if (onToggleFavorite != null) const SizedBox(width: 44),
+                      if (matched) ...<Widget>[
+                        const SizedBox(width: MqSpacing.xs),
+                        _MatchDot(color: c.accent),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: MqSpacing.sm),
+                  Text(
+                    descriptor.description,
+                    style: MqTextStyles.caption1.copyWith(color: c.textSec),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const Spacer(),
+                  if (hasPreview)
+                    Text(
                       preview!,
                       style: MqTextStyles.monoSm.copyWith(color: c.textTer),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     )
-                  : Text(
-                      showMetadata
-                          ? descriptor.metadataSummary
-                          : descriptor.description,
-                      style: MqTextStyles.caption1.copyWith(color: c.textSec),
+                  else if (showMetadata)
+                    Text(
+                      descriptor.metadataSummary,
+                      style: MqTextStyles.monoSm.copyWith(color: c.textTer),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-            ],
+                ],
+              ),
+            ),
           ),
         ),
-      ),
+        if (onToggleFavorite != null)
+          Positioned(
+            top: d.cardPadding,
+            right: d.cardPadding,
+            child: Semantics(
+              label: 'Favorite ${descriptor.name}',
+              button: true,
+              enabled: true,
+              toggled: favorite,
+              excludeSemantics: true,
+              onTap: onToggleFavorite,
+              child: CupertinoButton(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size.square(44),
+                onPressed: onToggleFavorite,
+                child: Icon(
+                  MqIcons.star,
+                  size: 18,
+                  color: favorite ? c.accent : c.textTer,
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

@@ -1,3 +1,4 @@
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -52,6 +53,16 @@ void main() {
       // File → Close All.
       await tester.tap(find.text('File'));
       await tester.pumpAndSettle();
+
+      // Menu items are labelled Semantics buttons, not bare tap regions.
+      final SemanticsHandle handle = tester.ensureSemantics();
+      final SemanticsData closeAllData = tester
+          .getSemantics(find.bySemanticsLabel('Close All').last)
+          .getSemanticsData();
+      expect(closeAllData.flagsCollection.isButton, isTrue);
+      expect(closeAllData.hasAction(SemanticsAction.tap), isTrue);
+      handle.dispose();
+
       await tester.tap(find.text('Close All').last);
       await tester.pumpAndSettle();
       expect(find.byType(ToolCardFrame), findsNothing);
@@ -159,6 +170,32 @@ void main() {
         ),
         findsOneWidget,
       );
+    });
+
+    testWidgets('dropdown dismiss barrier excludes itself from semantics', (
+      WidgetTester tester,
+    ) async {
+      await _pump(tester);
+
+      await tester.tap(find.text('File'));
+      await tester.pumpAndSettle();
+
+      // The full-viewport tap-to-dismiss barrier behind the dropdown must
+      // not surface as an unlabelled tappable node to assistive tech; the
+      // menu items are individually labelled Semantics buttons instead.
+      final GestureDetector barrier = tester
+          .widgetList<GestureDetector>(find.byType(GestureDetector))
+          .firstWhere(
+            (GestureDetector d) =>
+                d.child is SizedBox &&
+                (d.child! as SizedBox).width == double.infinity,
+          );
+      expect(barrier.excludeFromSemantics, isTrue);
+
+      // Dismiss still works: tap the barrier and the dropdown closes.
+      await tester.tapAt(const Offset(10, 500));
+      await tester.pumpAndSettle();
+      expect(find.text('Close All'), findsNothing);
     });
   });
 }

@@ -57,6 +57,7 @@ class _JwtBodyState extends State<JwtBody> with ToolBodyScaffold<JwtBody> {
     if (r is! JwtOk) return null;
     const JsonEncoder encoder = JsonEncoder.withIndent('  ');
     return CopyAllButton(
+      sensitive: true,
       payload: <String>[
         encoder.convert(r.header),
         encoder.convert(r.payload),
@@ -110,10 +111,9 @@ class _JwtBodyState extends State<JwtBody> with ToolBodyScaffold<JwtBody> {
         ),
         const SizedBox(height: MqSpacing.lg),
         if (_result is JwtErr)
-          MqMonoCell(
-            label: 'Error',
-            value: (_result! as JwtErr).message,
-            copyable: false,
+          MqStatus(
+            label: (_result! as JwtErr).message,
+            kind: MqStatusKind.danger,
           )
         else if (_result is JwtOk)
           ..._buildOk(_result! as JwtOk, c)

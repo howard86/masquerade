@@ -1,9 +1,11 @@
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:masquerade/utils/bps_parser.dart';
+import 'package:masquerade/widgets/mq/mq_status.dart';
 
 import '_helpers.dart';
 
@@ -54,19 +56,27 @@ void main() {
     expect(find.text('0.025000'), findsOneWidget);
   });
 
-  testWidgets('bps — non-numeric input surfaces error cell', (
-    WidgetTester tester,
-  ) async {
-    await pumpHomeAndOpen(tester, 'bps · % · decimal');
+  testWidgets(
+    'bps — non-numeric input announces via a live-region error pill',
+    (WidgetTester tester) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
 
-    await tester.enterText(find.byType(EditableText).last, 'not a rate');
-    await tester.pumpAndSettle(kDebouncePump);
+      await pumpHomeAndOpen(tester, 'bps · % · decimal');
 
-    expect(
-      find.textContaining('Could not parse as bps, % or decimal'),
-      findsOneWidget,
-    );
-  });
+      await tester.enterText(find.byType(EditableText).last, 'not a rate');
+      await tester.pumpAndSettle(kDebouncePump);
+
+      final MqStatus status = tester.widget<MqStatus>(find.byType(MqStatus));
+      expect(status.kind, MqStatusKind.danger);
+      expect(status.label, contains('Could not parse as bps, % or decimal'));
+
+      final SemanticsNode node = tester.getSemantics(find.byType(MqStatus));
+      expect(node.label, status.label);
+      expect(node.flagsCollection.isLiveRegion, isTrue);
+
+      handle.dispose();
+    },
+  );
 
   testWidgets('bps — Copy all writes every output value to the clipboard', (
     WidgetTester tester,

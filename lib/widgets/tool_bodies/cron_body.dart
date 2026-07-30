@@ -14,6 +14,7 @@ import '../mq/mq_section_header.dart';
 import '../mq/mq_status.dart';
 import '../mq/mq_surface.dart';
 import '../mq/tool_action_bar.dart';
+import 'copy_all_button.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 import 'tool_body_scaffold.dart';
@@ -78,6 +79,25 @@ class _CronBodyState extends State<CronBody> with ToolBodyScaffold<CronBody> {
     });
   }
 
+  /// Copies every derived value (Cron/Macro/Description/Fields/Next 5) at
+  /// once. Hidden until a schedule parses, so the action bar shows it only
+  /// when there is output to copy.
+  @override
+  Widget? actionBarCenter() {
+    final CronSchedule? schedule = _schedule;
+    final DateTime? referenceNow = _referenceNow;
+    if (schedule == null || referenceNow == null) return null;
+    return CopyAllButton(
+      payload: <String>[
+        schedule.canonical,
+        if (schedule.macro != null) schedule.macro!,
+        schedule.description,
+        _renderFields(schedule),
+        _renderNextRuns(schedule, referenceNow),
+      ].join('\n'),
+    );
+  }
+
   static final RegExp _cronShapeRe = RegExp(r'^[\d*@]');
 
   String _buildErrorMessage(CronParseResult r) {
@@ -126,7 +146,7 @@ class _CronBodyState extends State<CronBody> with ToolBodyScaffold<CronBody> {
         ),
         const SizedBox(height: MqSpacing.lg),
         if (_error != null)
-          MqMonoCell(label: 'Error', value: _error!, copyable: false)
+          MqStatus(label: _error!, kind: MqStatusKind.danger)
         else if (_schedule != null && _referenceNow != null) ...<Widget>[
           const MqSectionHeader(label: 'Detected'),
           MqStatus(
