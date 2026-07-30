@@ -151,6 +151,37 @@ void main() {
     expect(find.text('10'), findsNothing);
   });
 
+  testWidgets('URL — Swap carries an edited query pair through', (
+    WidgetTester tester,
+  ) async {
+    await pumpHomeAndOpen(tester, 'URL');
+
+    await tester.tap(find.text('Decode'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byType(EditableText).last,
+      'https://x.com/s?q=cats&n=10',
+    );
+    await tester.pumpAndSettle(kDebouncePump);
+
+    // Edit the 'q' value from 'cats' to 'dogs' in the query table.
+    final Finder valueField = find.byWidgetPredicate(
+      (Widget w) => w is EditableText && w.controller.text == 'cats',
+    );
+    expect(valueField, findsOneWidget);
+    await tester.enterText(valueField, 'dogs');
+    await tester.pump();
+
+    // Swap flips mode and feeds the output back as input; without the fix
+    // the edit is dropped and the swapped-in text still says 'cats'.
+    await tester.tap(find.text('Swap'));
+    await tester.pumpAndSettle(kDebouncePump);
+
+    expect(find.textContaining('dogs'), findsWidgets);
+    expect(find.textContaining('cats'), findsNothing);
+  });
+
   testWidgets('URL — malformed decode input shows error cell', (
     WidgetTester tester,
   ) async {
