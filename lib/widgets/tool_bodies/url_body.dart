@@ -55,6 +55,14 @@ class _UrlBodyState extends State<UrlBody>
   /// The live re-encoded query string for the (possibly edited) [_pairs], kept
   /// in sync via [UrlParser.buildQuery]. Null until a parse yields pairs.
   String? _query;
+
+  /// True once the user has edited the query table in place, so [_query] no
+  /// longer matches what the input alone would produce. Splicing [_query] back
+  /// into the input is only correct then: [UrlParser.buildQuery] is not the
+  /// identity on an untouched input (it turns a space into `+`, a stray `=`
+  /// into `%3D`), so doing it unconditionally would rewrite text the user never
+  /// touched. Cleared on every fresh parse and on [reset].
+  bool _queryEdited = false;
   String? _error;
 
   /// Bumped on every fresh parse so the editable query table re-keys (and
@@ -96,9 +104,13 @@ class _UrlBodyState extends State<UrlBody>
   /// mirrors [_swap]'s recomposition, on the other exit path.
   @override
   String currentCanonical() {
-    final String effectiveInput = _query == null
-        ? controller.text
-        : UrlParser.replaceQuery(controller.text, _query!);
+    if (!_queryEdited) {
+      return _mode == UrlMode.encode ? controller.text : (_output ?? '');
+    }
+    final String effectiveInput = UrlParser.replaceQuery(
+      controller.text,
+      _query!,
+    );
     if (_mode == UrlMode.encode) return effectiveInput;
     switch (UrlParser.parse(effectiveInput, mode: _mode)) {
       case UrlOk(:final output):
@@ -124,6 +136,7 @@ class _UrlBodyState extends State<UrlBody>
           _output = output;
           _pairs = pairs;
           _query = pairs.isEmpty ? null : UrlParser.buildQuery(pairs);
+          _queryEdited = false;
           _error = null;
           _parseSeq++;
         });
@@ -134,6 +147,7 @@ class _UrlBodyState extends State<UrlBody>
           _output = null;
           _pairs = const <QueryPair>[];
           _query = null;
+          _queryEdited = false;
           _error = message;
         });
     }
@@ -145,6 +159,7 @@ class _UrlBodyState extends State<UrlBody>
       _output = null;
       _pairs = const <QueryPair>[];
       _query = null;
+      _queryEdited = false;
       _error = null;
     });
     emitToLink();
@@ -158,6 +173,7 @@ class _UrlBodyState extends State<UrlBody>
     setState(() {
       _pairs = pairs;
       _query = UrlParser.buildQuery(pairs);
+      _queryEdited = true;
     });
   }
 
@@ -169,18 +185,15 @@ class _UrlBodyState extends State<UrlBody>
     final String? out = _output;
     if (out == null) return;
     String payload = out;
-    if (_query != null) {
-      final String effectiveInput = UrlParser.replaceQuery(
-        controller.text,
-        _query!,
-      );
-      if (effectiveInput != controller.text) {
-        switch (UrlParser.parse(effectiveInput, mode: _mode)) {
-          case UrlOk(:final output):
-            payload = output;
-          case UrlError():
-            break;
-        }
+    if (_queryEdited) {
+      switch (UrlParser.parse(
+        UrlParser.replaceQuery(controller.text, _query!),
+        mode: _mode,
+      )) {
+        case UrlOk(:final output):
+          payload = output;
+        case UrlError():
+          break;
       }
     }
     setState(() {

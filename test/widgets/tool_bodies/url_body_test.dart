@@ -236,6 +236,42 @@ void main() {
     },
   );
 
+  testWidgets(
+    'URL — Link canonical leaves an unedited input verbatim (no re-encoding)',
+    (WidgetTester tester) async {
+      // buildQuery() is not the identity on arbitrary text containing '=' — it
+      // turns a space into '+' and a stray '=' into '%3D'. Without an edit
+      // there is nothing to splice, so the canonical must be the input as
+      // typed, not the rebuilt query.
+      String? emitted;
+      final ValueNotifier<String> inbound = ValueNotifier<String>('');
+      final ValueNotifier<LinkChannel?> linkNotifier =
+          ValueNotifier<LinkChannel?>(null);
+
+      await pumpBodyAtWidth(
+        tester,
+        ValueListenableBuilder<LinkChannel?>(
+          valueListenable: linkNotifier,
+          builder: (BuildContext context, LinkChannel? link, Widget? _) =>
+              UrlBody(link: link),
+        ),
+        480,
+      );
+
+      await tester.enterText(find.byType(EditableText).first, 'name=John Doe');
+      await tester.pumpAndSettle(kDebouncePump);
+
+      linkNotifier.value = LinkChannel(
+        canonicalType: ContentType.text,
+        inbound: inbound,
+        onEmit: (String canonical) => emitted = canonical,
+      );
+      await tester.pumpAndSettle();
+
+      expect(emitted, 'name=John Doe');
+    },
+  );
+
   testWidgets('URL — malformed decode input shows error cell', (
     WidgetTester tester,
   ) async {
