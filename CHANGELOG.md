@@ -4,6 +4,15 @@
 
 - **deps**: pin flutter_native_splash to ^2.4.7 for SDK compatibility
 
+## [1.28.1](https://github.com/howard86/masquerade/compare/v1.28.0...v1.28.1) (2026-07-30)
+
+
+### Bug Fixes
+
+* **ci:** keep the Release PR title in step with its version bump ([6315a96](https://github.com/howard86/masquerade/commit/6315a96afdb2432d6183af18814bb88d445cbc63))
+* **ci:** restart the TestFlight build count on every version bump ([5fe21f2](https://github.com/howard86/masquerade/commit/5fe21f296ddb66d5ae6af6f72d5d79c5ca95d131))
+* **ci:** stop releases drifting a version behind their tag ([0f8b14d](https://github.com/howard86/masquerade/commit/0f8b14d5769c70e124adb093d367cf8b2df88136))
+
 ## [1.28.0](https://github.com/howard86/masquerade/compare/v1.27.0...v1.28.0) (2026-07-30)
 
 
