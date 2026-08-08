@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Favicon mark: the bracket device only. The full hammer+quill glyph mushes
+     below ~32px, so the favicon drops to the brand's most legible signature. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <rect width="32" height="32" rx="6" fill="#FAF7F2"/>
+  <g fill="none" stroke="#8B2635" stroke-width="3.4" stroke-linecap="square">
+    <path d="M13 8 H9 V24 H13"/>
+    <path d="M19 8 H23 V24 H19"/>
+  </g>
+</svg>

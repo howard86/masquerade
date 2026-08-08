@@ -10,14 +10,21 @@
         <path d="M334 296H248V728H334"/>
         <path d="M690 296H776V728H690"/>
       </g>
-      <g transform="rotate(45 512 512)" fill="#E0B872">
-        <rect x="447" y="372" width="130" height="78" rx="14"/>
-        <rect x="497" y="440" width="30" height="212" rx="15"/>
+      <g transform="rotate(50 512 512)" fill="#E0B872">
+        <rect x="476" y="360" width="138" height="78" rx="10"/>
+        <rect x="486" y="438" width="34" height="246" rx="16"/>
       </g>
-      <g transform="rotate(-45 512 512)">
-        <path fill="#E0B872" d="M512 372C468 452 464 548 500 622C506 638 518 638 524 622C560 548 556 452 512 372Z"/>
-        <path fill="#E0B872" d="M502 616L522 616L512 686Z"/>
-        <path stroke="#1C1814" stroke-width="8" stroke-linecap="round" d="M512 396V618"/>
+      <g transform="rotate(-16 512 512)">
+        <path fill="#E0B872" d="M512 330 C560 380 572 452 556 520 C548 566 530 596 521 622 L512 700 L503 622 C494 596 476 566 468 520 C452 452 464 380 512 330 Z"/>
+        <g stroke="#1C1814" stroke-width="7" stroke-linecap="round">
+          <path d="M512 366 L512 636"/>
+          <path d="M512 420 L470 452"/>
+          <path d="M512 470 L466 500"/>
+          <path d="M512 520 L474 544"/>
+          <path d="M512 400 L554 430"/>
+          <path d="M512 452 L556 480"/>
+          <path d="M512 504 L550 528"/>
+        </g>
       </g>
     </g>
   </g>
