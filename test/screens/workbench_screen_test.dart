@@ -689,11 +689,27 @@ void main() {
   testWidgets('suggestions open the detected tool with the captured input', (
     WidgetTester tester,
   ) async {
+    final SemanticsHandle semantics = tester.ensureSemantics();
     final WorkSessionController sessions = WorkSessionController();
     await _pumpWorkbench(tester, workSessionController: sessions);
     await _enter(tester, '{"ok":true}');
 
-    await tester.tap(find.text('JSON / YAML / TOML'));
+    final Finder suggestion = _semanticsStarts(
+      'Open JSON / YAML / TOML. Primary',
+    );
+    expect(suggestion, findsOneWidget);
+    expect(
+      tester
+          .getSemantics(suggestion)
+          .getSemanticsData()
+          .hasAction(SemanticsAction.tap),
+      isTrue,
+    );
+    tester.semantics.tap(
+      find.semantics.byLabel(
+        tester.getSemantics(suggestion).getSemanticsData().label,
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.byType(ToolDetailRoute), findsOneWidget);
     final ToolDetailRoute route = tester.widget(find.byType(ToolDetailRoute));
@@ -708,6 +724,7 @@ void main() {
           ),
       isTrue,
     );
+    semantics.dispose();
   });
 
   testWidgets('shows ranked reasons and preserves the captured artifact', (
