@@ -23,7 +23,7 @@ Future<HistoryController> _pumpActivity(
   double textScale = 1,
   WorkSessionController? workSessions,
   bool addHistory = true,
-  Duration retention = Duration.zero,
+  Duration retention = const Duration(days: 365),
 }) async {
   await tester.binding.setSurfaceSize(_phone);
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -96,7 +96,7 @@ Future<HistoryController> _pumpHistory(
   final SharedPreferences prefs = await SharedPreferences.getInstance();
   final HistoryController history = HistoryController(
     prefs: prefs,
-    retention: Duration.zero,
+    retention: const Duration(days: 365),
   );
   await _addHistory(history);
   await tester.pumpWidget(
@@ -267,7 +267,7 @@ void main() {
   testWidgets('zero retention copy describes only the Off setting', (
     WidgetTester tester,
   ) async {
-    await _pumpActivity(tester, addHistory: false);
+    await _pumpActivity(tester, addHistory: false, retention: Duration.zero);
 
     expect(find.text('No utility history'), findsOneWidget);
     expect(find.text('Nothing yet'), findsNothing);

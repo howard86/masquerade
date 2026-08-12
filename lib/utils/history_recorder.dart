@@ -15,7 +15,9 @@ class HistoryRecorder {
     required this.utilityId,
     this.sensitive = false,
     Duration typingDelay = const Duration(seconds: 5),
-  }) : _typingDelay = typingDelay;
+  }) : _typingDelay = typingDelay {
+    controller.addListener(_onControllerChanged);
+  }
 
   final HistoryController controller;
   final String utilityId;
@@ -46,14 +48,16 @@ class HistoryRecorder {
   }
 
   void recordPaste(String input, String output) {
-    _timer?.cancel();
-    _timer = null;
-    _pendingInput = null;
-    _pendingOutput = null;
+    _dropPending();
+    if (controller.retention == Duration.zero) return;
     _add(input, output);
   }
 
   void recordTyping(String input, String output) {
+    if (controller.retention == Duration.zero) {
+      _dropPending();
+      return;
+    }
     _pendingInput = input;
     _pendingOutput = output;
     _timer?.cancel();
@@ -82,11 +86,20 @@ class HistoryRecorder {
     );
   }
 
-  void dispose() {
+  void _onControllerChanged() {
+    if (controller.retention == Duration.zero) _dropPending();
+  }
+
+  void _dropPending() {
     _timer?.cancel();
     _timer = null;
     _pendingInput = null;
     _pendingOutput = null;
+  }
+
+  void dispose() {
+    controller.removeListener(_onControllerChanged);
+    _dropPending();
     _nextIsPaste = false;
   }
 }

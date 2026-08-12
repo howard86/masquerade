@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/state/history_controller.dart';
@@ -121,6 +123,48 @@ void main() {
         async.elapse(const Duration(milliseconds: 1));
         async.flushMicrotasks();
         expect(controller.entries.length, 1);
+        recorder.dispose();
+      });
+    });
+
+    test('typing while off stays unrecorded after re-enabling', () {
+      fakeAsync((FakeAsync async) {
+        final HistoryController controller = HistoryController(
+          retention: Duration.zero,
+        );
+        final HistoryRecorder recorder = HistoryRecorder(
+          controller: controller,
+          utilityId: 'base64',
+        );
+
+        recorder.recordTyping('while off', 'ignored');
+        unawaited(controller.setRetention(const Duration(days: 7)));
+        async.flushMicrotasks();
+        async.elapse(const Duration(seconds: 5));
+        async.flushMicrotasks();
+
+        expect(controller.entries, isEmpty);
+        recorder.dispose();
+      });
+    });
+
+    test('switching off drops an existing pending draft', () {
+      fakeAsync((FakeAsync async) {
+        final HistoryController controller = HistoryController();
+        final HistoryRecorder recorder = HistoryRecorder(
+          controller: controller,
+          utilityId: 'base64',
+        );
+
+        recorder.recordTyping('before', 'pending');
+        unawaited(controller.setRetention(Duration.zero));
+        async.flushMicrotasks();
+        unawaited(controller.setRetention(const Duration(days: 7)));
+        async.flushMicrotasks();
+        async.elapse(const Duration(seconds: 5));
+        async.flushMicrotasks();
+
+        expect(controller.entries, isEmpty);
         recorder.dispose();
       });
     });
