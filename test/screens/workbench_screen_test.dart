@@ -1148,6 +1148,39 @@ void main() {
     expect(find.text('SAVED WORKFLOWS'), findsNothing);
   });
 
+  testWidgets('unavailable saved workflow cannot run', (
+    WidgetTester tester,
+  ) async {
+    final WorkSessionController sessions = WorkSessionController(
+      savedWorkflows: <SavedWorkflow>[
+        SavedWorkflow(
+          id: 'retired',
+          name: 'Retired workflow',
+          createdAt: DateTime.fromMillisecondsSinceEpoch(1),
+          updatedAt: DateTime.fromMillisecondsSinceEpoch(2),
+          steps: <SavedWorkflowStep>[
+            SavedWorkflowStep(
+              toolId: 'retired-tool',
+              settings: const <String, Object?>{},
+              available: false,
+            ),
+          ],
+        ),
+      ],
+    );
+    await _pumpWorkbench(tester, workSessionController: sessions);
+    await _enter(tester, 'input');
+    await tester.ensureVisible(find.text('Run'));
+
+    expect(find.text('retired-tool (unavailable)'), findsOneWidget);
+    final Semantics run = tester.widget<Semantics>(_semantics('Run'));
+    expect(run.properties.enabled, isFalse);
+    expect(run.properties.onTap, isNull);
+    expect(find.text('Rename'), findsOneWidget);
+    expect(find.text('Delete'), findsOneWidget);
+    expect(sessions.workflowError, isNull);
+  });
+
   testWidgets('workflow errors reveal the saved workflows section', (
     WidgetTester tester,
   ) async {
