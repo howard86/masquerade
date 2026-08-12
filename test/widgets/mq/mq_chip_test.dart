@@ -109,4 +109,27 @@ void main() {
     expect(taps, 1);
     expect(haptics, isNotEmpty);
   });
+
+  testWidgets('keyboard focus skips decorative chips and activates buttons', (
+    WidgetTester tester,
+  ) async {
+    int taps = 0;
+    await tester.pumpWidget(
+      _wrap(
+        Column(
+          children: <Widget>[
+            const MqChip(label: 'Decorative'),
+            MqChip(label: 'Interactive', onTap: () => taps++),
+          ],
+        ),
+      ),
+    );
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    expect(FocusManager.instance.primaryFocus?.context?.widget, isA<Focus>());
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    expect(taps, 1);
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    expect(taps, 2);
+  });
 }
