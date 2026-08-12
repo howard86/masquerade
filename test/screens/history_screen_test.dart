@@ -18,34 +18,39 @@ Future<HistoryController> _pumpActivity(
   WidgetTester tester, {
   double textScale = 1,
   WorkSessionController? workSessions,
+  bool addHistory = true,
+  Duration retention = Duration.zero,
 }) async {
   await tester.binding.setSurfaceSize(_phone);
   addTearDown(() => tester.binding.setSurfaceSize(null));
   final SharedPreferences prefs = await SharedPreferences.getInstance();
   final HistoryController history = HistoryController(
     prefs: prefs,
-    retention: Duration.zero,
+    retention: retention,
   );
-  await history.add(
-    HistoryEntry(
-      utilityId: 'json',
-      input: '{"hello":"world"}',
-      output: 'pretty result',
-      timestamp: DateTime(2026, 7, 18, 10, 30),
-    ),
-  );
-  await history.add(
-    HistoryEntry(
-      utilityId: 'base64',
-      input: 'ordinary',
-      output: 'b3JkaW5hcnk=',
-      timestamp: DateTime(2026, 7, 18, 11),
-    ),
-  );
+  if (addHistory) {
+    await history.add(
+      HistoryEntry(
+        utilityId: 'json',
+        input: '{"hello":"world"}',
+        output: 'pretty result',
+        timestamp: DateTime(2026, 7, 18, 10, 30),
+      ),
+    );
+    await history.add(
+      HistoryEntry(
+        utilityId: 'base64',
+        input: 'ordinary',
+        output: 'b3JkaW5hcnk=',
+        timestamp: DateTime(2026, 7, 18, 11),
+      ),
+    );
+  }
   await tester.pumpWidget(
     MediaQuery(
       data: MediaQueryData(textScaler: TextScaler.linear(textScale)),
       child: MyApp(
+        key: UniqueKey(),
         isWebOverride: false,
         skipSplash: true,
         historyController: history,
@@ -80,6 +85,69 @@ WorkSession _recentSession() => WorkSession(
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues(<String, Object>{}));
+
+  testWidgets('empty Activity distinguishes resumable sessions', (
+    WidgetTester tester,
+  ) async {
+    final WorkSessionController sessions = WorkSessionController(
+      recentSessions: <WorkSession>[_recentSession()],
+    );
+    await _pumpActivity(
+      tester,
+      workSessions: sessions,
+      addHistory: false,
+      retention: const Duration(days: 7),
+    );
+
+    expect(find.text('RESUMABLE SESSIONS'), findsOneWidget);
+    expect(find.text('No utility history'), findsOneWidget);
+    expect(find.text('Nothing yet'), findsNothing);
+    expect(
+      find.text(
+        'The last 7 days of utility usage will appear here. On-device only.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('empty history uses configured singular and plural windows', (
+    WidgetTester tester,
+  ) async {
+    for (final (int days, String window, double textScale)
+        in <(int, String, double)>[(1, 'day', 1), (30, '30 days', 2)]) {
+      await _pumpActivity(
+        tester,
+        textScale: textScale,
+        addHistory: false,
+        retention: Duration(days: days),
+      );
+
+      expect(find.text('Nothing yet'), findsOneWidget);
+      expect(
+        find.text(
+          'The last $window of utility usage will appear here. On-device only.',
+        ),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets('zero retention copy describes only the Off setting', (
+    WidgetTester tester,
+  ) async {
+    await _pumpActivity(tester, addHistory: false);
+
+    expect(find.text('No utility history'), findsOneWidget);
+    expect(find.text('Nothing yet'), findsNothing);
+    expect(
+      find.text(
+        'History retention is set to Off. You can change it in Settings.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('last 7 days'), findsNothing);
+  });
 
   testWidgets('search filters by value, tool, and date', (
     WidgetTester tester,
