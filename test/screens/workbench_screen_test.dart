@@ -854,6 +854,32 @@ void main() {
     expect(route.sessionStepIndex, 0);
   });
 
+  testWidgets('session steps support keyboard activation', (
+    WidgetTester tester,
+  ) async {
+    final WorkSessionController sessions = _safeCompletedSession();
+    await _pumpWorkbench(tester, workSessionController: sessions);
+    final Finder first = _stepSemantics(1, 'bps', 'Completed');
+
+    await tester.ensureVisible(first);
+    final Rect stepRect = tester.getRect(first);
+    for (int i = 0; i < 20; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      final BuildContext? context = FocusManager.instance.primaryFocus?.context;
+      final RenderObject? renderObject = context?.findRenderObject();
+      if (renderObject is RenderBox &&
+          stepRect.contains(renderObject.localToGlobal(Offset.zero))) {
+        break;
+      }
+    }
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Step 1 actions'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('protected step omits clipboard and share actions', (
     WidgetTester tester,
   ) async {
