@@ -470,6 +470,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Semantics(
             label:
                 'Original path preserved with ${original.steps.length} steps',
+            excludeSemantics: true,
             child: Text(
               'Original path · ${original.steps.length} steps',
               style: MqTextStyles.caption1.copyWith(
