@@ -357,8 +357,12 @@ class _ImagePreview extends StatelessWidget {
             const SizedBox(height: MqSpacing.sm),
             ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 240),
-              child: Image.memory(
-                bytes,
+              child: Image(
+                image: ResizeImage(
+                  MemoryImage(bytes),
+                  height: (240 * MediaQuery.devicePixelRatioOf(context)).ceil(),
+                  policy: ResizeImagePolicy.fit,
+                ),
                 fit: BoxFit.contain,
                 alignment: Alignment.centerLeft,
                 gaplessPlayback: true,
