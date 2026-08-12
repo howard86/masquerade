@@ -512,7 +512,7 @@ class _HomeScreenState extends State<HomeScreen> {
             in sessions.savedWorkflows) ...<Widget>[
           _SavedWorkflowCard(
             workflow: workflow,
-            canRun: _hero.text.trim().isNotEmpty,
+            canRun: workflow.available && _hero.text.trim().isNotEmpty,
             onRun: () => _runWorkflow(workflow),
             onRename: () => _renameWorkflow(workflow),
             onDelete: () => _deleteWorkflow(workflow),
