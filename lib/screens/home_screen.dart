@@ -1104,6 +1104,7 @@ class _SuggestionRow extends StatelessWidget {
               ? 'Open ${tool.name}'
               : 'Open ${tool.name}. $detail',
           button: true,
+          onTap: onTap,
           excludeSemantics: true,
           child: CupertinoButton(
             padding: const EdgeInsets.symmetric(vertical: MqSpacing.sm),
