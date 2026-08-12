@@ -360,6 +360,26 @@ void main() {
     expect(find.textContaining('not supported'), findsNothing);
   });
 
+  testWidgets('file picker failure has one live warning announcement', (
+    WidgetTester tester,
+  ) async {
+    final ExternalInputImporter importer = ExternalInputImporter(
+      pickFile: ({required List<XTypeGroup> acceptedTypeGroups}) async =>
+          throw StateError('picker failed'),
+    );
+    await _pumpWorkbench(tester, externalInputImporter: importer);
+    await tester.tap(find.bySemanticsLabel('Import file'));
+    await tester.pumpAndSettle();
+
+    const String error = 'The file picker could not be opened.';
+    expect(find.text(error.toUpperCase()), findsOneWidget);
+    expect(_semantics(error), findsOneWidget);
+    expect(
+      tester.getSemantics(_semantics(error)).flagsCollection.isLiveRegion,
+      isTrue,
+    );
+  });
+
   testWidgets(
     'cancel is silent and stale file result cannot overwrite typing',
     (WidgetTester tester) async {
@@ -564,6 +584,14 @@ void main() {
     );
     expect(inbox.items, hasLength(1));
     expect(inbox.error, 'Shared item could not be removed.');
+    expect(_semantics(inbox.error!), findsOneWidget);
+    expect(
+      tester
+          .getSemantics(_semantics(inbox.error!))
+          .flagsCollection
+          .isLiveRegion,
+      isTrue,
+    );
   });
 
   testWidgets('unknown text opens inline or routes to a chosen tool', (

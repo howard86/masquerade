@@ -361,11 +361,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             if (_importError case final String error) ...<Widget>[
               const SizedBox(height: MqSpacing.sm),
-              Semantics(
-                liveRegion: true,
-                label: error,
-                child: MqStatus(label: error, kind: MqStatusKind.warning),
-              ),
+              MqStatus(label: error, kind: MqStatusKind.warning),
             ],
             _shareInbox(context),
             _result(context, state, detected, nameMatches),
@@ -387,11 +383,7 @@ class _HomeScreenState extends State<HomeScreen> {
       children: <Widget>[
         const SectionRule(label: 'Shared inbox'),
         if (inbox.error case final String error)
-          Semantics(
-            liveRegion: true,
-            label: error,
-            child: MqStatus(label: error, kind: MqStatusKind.warning),
-          ),
+          MqStatus(label: error, kind: MqStatusKind.warning),
         for (final ShareInboxItem item in inbox.items) ...<Widget>[
           MqSurface(
             child: Column(
