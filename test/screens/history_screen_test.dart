@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
@@ -269,6 +270,7 @@ void main() {
   testWidgets('recent session opens its last tool at large text scale', (
     WidgetTester tester,
   ) async {
+    final SemanticsHandle semantics = tester.ensureSemantics();
     final WorkSession recent = _recentSession();
     final WorkSessionController sessions = WorkSessionController(
       recentSessions: <WorkSession>[recent],
@@ -276,8 +278,16 @@ void main() {
     await _pumpActivity(tester, textScale: 2, workSessions: sessions);
 
     expect(find.text('RESUMABLE SESSIONS'), findsOneWidget);
-    expect(find.bySemanticsLabel('Resume Rates session'), findsOneWidget);
-    await tester.tap(find.bySemanticsLabel('Resume Rates session'));
+    final Finder resume = find.bySemanticsLabel('Resume Rates session');
+    expect(resume, findsOneWidget);
+    expect(
+      tester
+          .getSemantics(resume)
+          .getSemanticsData()
+          .hasAction(SemanticsAction.tap),
+      isTrue,
+    );
+    tester.semantics.tap(find.semantics.byLabel('Resume Rates session'));
     await tester.pumpAndSettle();
 
     expect(sessions.session, same(recent));
@@ -292,6 +302,7 @@ void main() {
     expect(find.text('CURRENT SESSION'), findsOneWidget);
     expect(find.text('2. Timestamp'), findsOneWidget);
     expect(tester.takeException(), isNull);
+    semantics.dispose();
   });
 
   testWidgets('Activity clear removes history-only activity from persistence', (
