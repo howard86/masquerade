@@ -94,6 +94,14 @@ class _HistoryBodyState extends State<HistoryBody> {
     final List<WorkSession> recent = activity
         ? sessions?.recentSessions ?? const <WorkSession>[]
         : const <WorkSession>[];
+    final bool historyOff = history.retention == Duration.zero;
+    final int retentionDays = history.retention.inDays;
+    final String emptyTitle = historyOff || recent.isNotEmpty
+        ? 'No utility history'
+        : 'Nothing yet';
+    final String emptyMessage = historyOff
+        ? 'History retention is set to Off. You can change it in Settings.'
+        : 'The last ${retentionDays == 1 ? 'day' : '$retentionDays days'} of utility usage will appear here. On-device only.';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -177,12 +185,12 @@ class _HistoryBodyState extends State<HistoryBody> {
                         Icon(MqIcons.history, size: 36, color: c.textTer),
                         const SizedBox(height: MqSpacing.md),
                         Text(
-                          'Nothing yet',
+                          emptyTitle,
                           style: MqTextStyles.title3.copyWith(color: c.textPri),
                         ),
                         const SizedBox(height: MqSpacing.xs),
                         Text(
-                          'Your last 7 days of utility usage will appear here. On-device only.',
+                          emptyMessage,
                           style: MqTextStyles.subhead.copyWith(
                             color: c.textSec,
                           ),
