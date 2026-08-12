@@ -45,13 +45,18 @@ class EncodingParser {
       return false;
     }
 
-    // Try to decode it to see if it's valid base64
-    try {
-      base64Decode(trimmedInput);
-      return true;
-    } catch (e) {
+    const String alphabet =
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    if (trimmedInput.endsWith('==') &&
+        alphabet.indexOf(trimmedInput[trimmedInput.length - 3]) & 15 != 0) {
       return false;
     }
+    if (!trimmedInput.endsWith('==') &&
+        trimmedInput.endsWith('=') &&
+        alphabet.indexOf(trimmedInput[trimmedInput.length - 2]) & 3 != 0) {
+      return false;
+    }
+    return true;
   }
 
   /// Detects if a string is hexadecimal encoded.
