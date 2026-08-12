@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
@@ -135,6 +136,7 @@ void main() {
   testWidgets('Settings is one 44-point tap from every mobile tab', (
     WidgetTester tester,
   ) async {
+    final SemanticsHandle semantics = tester.ensureSemantics();
     await _pumpMobile(tester);
 
     for (final String tab in <String>['Workbench', 'Library', 'Activity']) {
@@ -146,8 +148,15 @@ void main() {
       final Size target = tester.getSize(settings);
       expect(target.width, greaterThanOrEqualTo(44));
       expect(target.height, greaterThanOrEqualTo(44));
+      expect(
+        tester
+            .getSemantics(settings)
+            .getSemanticsData()
+            .hasAction(SemanticsAction.tap),
+        isTrue,
+      );
 
-      await tester.tap(settings);
+      tester.semantics.tap(find.semantics.byLabel('Open Settings'));
       await tester.pumpAndSettle();
       expect(find.byType(SettingsScreen), findsOneWidget);
       expect(
@@ -161,6 +170,7 @@ void main() {
       await tester.tap(find.byType(CupertinoNavigationBarBackButton));
       await tester.pumpAndSettle();
     }
+    semantics.dispose();
   });
 
   testWidgets('late shortcuts focus Workbench from Settings and Library', (
