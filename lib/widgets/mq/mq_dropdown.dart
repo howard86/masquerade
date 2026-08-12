@@ -84,6 +84,8 @@ class MqDropdown<T extends Object> extends StatelessWidget {
       button: true,
       enabled: enabled,
       label: '$label, ${selectedLabel ?? ''}',
+      onTap: enabled ? () => _open(context) : null,
+      excludeSemantics: true,
       child: sized,
     );
   }
