@@ -555,6 +555,7 @@ void main() {
   testWidgets('unknown text opens inline or routes to a chosen tool', (
     WidgetTester tester,
   ) async {
+    final SemanticsHandle semantics = tester.ensureSemantics();
     await _pumpWorkbench(tester);
     const String input = '  unrecognized prose value  ';
     await _enter(tester, input);
@@ -562,7 +563,12 @@ void main() {
     await tester.tap(find.text('Open as text'));
     await tester.pump();
     expect(find.text('TEXT'), findsOneWidget);
-    expect(_semantics('Opened text: $input'), findsOneWidget);
+    final Finder opened = _semantics('Opened text: $input');
+    expect(opened, findsOneWidget);
+    expect(
+      tester.getSemantics(opened).getSemanticsData().label,
+      'Opened text: $input',
+    );
 
     await tester.tap(find.text('Send to tool'));
     await tester.pumpAndSettle();
@@ -572,6 +578,7 @@ void main() {
     final ToolDetailRoute route = tester.widget(find.byType(ToolDetailRoute));
     expect(route.descriptor.id, 'uuid');
     expect(route.seed, input);
+    semantics.dispose();
   });
 
   testWidgets('Workbench input never reorders the Library catalog', (
