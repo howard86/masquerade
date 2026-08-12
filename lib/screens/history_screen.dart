@@ -547,6 +547,7 @@ class _HistoryAction extends StatelessWidget {
       button: true,
       enabled: onPressed != null,
       label: label,
+      onTap: onPressed,
       excludeSemantics: true,
       child: CupertinoButton(
         padding: EdgeInsets.zero,
