@@ -64,6 +64,25 @@ void main() {
       expect(_contrast(c.textSec, c.bg), greaterThan(4.5));
     });
 
+    test('text hierarchy meets AA on every text surface', () {
+      for (final MqColors c in <MqColors>[MqColors.light(), MqColors.dark()]) {
+        for (final Color surface in <Color>[
+          c.bg,
+          c.surface,
+          c.surface2,
+          c.surface3,
+          c.monoBg,
+        ]) {
+          final double primary = _contrast(c.textPri, surface);
+          final double secondary = _contrast(c.textSec, surface);
+          final double tertiary = _contrast(c.textTer, surface);
+          expect(tertiary, greaterThanOrEqualTo(4.5));
+          expect(primary, greaterThan(secondary));
+          expect(secondary, greaterThan(tertiary));
+        }
+      }
+    });
+
     test('accent on bg meets AA (≥4.5) both modes', () {
       expect(
         _contrast(MqColors.light().accent, MqColors.light().bg),
@@ -88,43 +107,55 @@ void main() {
       );
     });
 
-    test(
-      'status pills meet WCAG UI threshold (≥3.0) on composited tinted bg',
-      () {
-        // Status pills pair colour with a glyph + uppercase caption2 label, so
-        // they qualify as UI components — WCAG AA floor is 3.0 here. The
-        // editorial amber/gold deliberately stays softer than text ink.
-        for (final MqColors c in <MqColors>[
-          MqColors.light(),
-          MqColors.dark(),
+    test('status text meets AA on every composited tinted surface', () {
+      for (final MqColors c in <MqColors>[MqColors.light(), MqColors.dark()]) {
+        for (final Color surface in <Color>[
+          c.bg,
+          c.surface,
+          c.surface2,
+          c.surface3,
         ]) {
           expect(
-            _contrast(c.success, _composite(c.successBg, c.bg)),
-            greaterThan(3.0),
+            _contrast(c.success, _composite(c.successBg, surface)),
+            greaterThanOrEqualTo(4.5),
           );
           expect(
-            _contrast(c.warning, _composite(c.warningBg, c.bg)),
-            greaterThan(3.0),
+            _contrast(c.warning, _composite(c.warningBg, surface)),
+            greaterThanOrEqualTo(4.5),
           );
           expect(
-            _contrast(c.danger, _composite(c.dangerBg, c.bg)),
-            greaterThan(3.0),
+            _contrast(c.danger, _composite(c.dangerBg, surface)),
+            greaterThanOrEqualTo(4.5),
           );
         }
-      },
-    );
+      }
+    });
+
+    test('accent cell text meets AA on every composited surface', () {
+      for (final MqColors c in <MqColors>[MqColors.light(), MqColors.dark()]) {
+        for (final Color surface in <Color>[
+          c.bg,
+          c.surface,
+          c.surface2,
+          c.surface3,
+        ]) {
+          expect(
+            _contrast(c.accentInk, _composite(c.accentBg, surface)),
+            greaterThanOrEqualTo(4.5),
+          );
+        }
+      }
+    });
 
     test('mono syntax tokens meet WCAG floor on monoBg', () {
-      // monoText is body code — full AAA. Semantic syntax tones
-      // (string/key/comment) carry meaning alongside font weight, so AA
-      // (≥4.5) applies. monoNumber leans on amber and stays at the UI
-      // floor (≥3.0) by design — number glyphs read by shape too.
+      // monoText is body code — full AAA. Semantic syntax tones carry meaning
+      // alongside font weight, so AA (≥4.5) applies to every textual token.
       for (final MqColors c in <MqColors>[MqColors.light(), MqColors.dark()]) {
         expect(_contrast(c.monoText, c.monoBg), greaterThan(7.0));
         expect(_contrast(c.monoString, c.monoBg), greaterThan(4.5));
         expect(_contrast(c.monoKey, c.monoBg), greaterThan(4.5));
         expect(_contrast(c.monoComment, c.monoBg), greaterThan(4.5));
-        expect(_contrast(c.monoNumber, c.monoBg), greaterThan(3.0));
+        expect(_contrast(c.monoNumber, c.monoBg), greaterThanOrEqualTo(4.5));
       }
     });
   });

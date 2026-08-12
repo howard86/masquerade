@@ -22,6 +22,24 @@ Widget _wrap(Widget child) => CupertinoApp(
 );
 
 void main() {
+  testWidgets('accent hints use accent ink', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      _wrap(
+        const MqMonoCell(
+          label: 'Result',
+          value: 'value',
+          hint: 'hint',
+          accent: true,
+        ),
+      ),
+    );
+
+    expect(
+      tester.widget<Text>(find.text('hint')).style?.color,
+      MqColors.light().accentInk,
+    );
+  });
+
   testWidgets('wraps a long no-whitespace value without overflow', (
     WidgetTester tester,
   ) async {

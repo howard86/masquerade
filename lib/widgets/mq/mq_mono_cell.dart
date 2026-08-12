@@ -96,7 +96,7 @@ class MqMonoCell extends StatelessWidget {
               Text(
                 hint!,
                 style: MqTextStyles.caption1.copyWith(
-                  color: c.textTer,
+                  color: accent ? c.accentInk : c.textTer,
                   fontFamily: MqTextStyles.monoFamily,
                   fontFamilyFallback: MqTextStyles.monoFallback,
                 ),
