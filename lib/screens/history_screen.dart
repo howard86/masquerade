@@ -71,6 +71,7 @@ class _HistoryBodyState extends State<HistoryBody> {
   Widget build(BuildContext context) {
     final c = context.mq.colors;
     final HistoryController history = HistoryScope.of(context);
+    final bool activity = widget.title == 'Activity';
     final List<HistoryEntry> filtered = history.search(
       _query,
       toolName: (HistoryEntry entry) => _toolName(entry.utilityId),
@@ -87,9 +88,11 @@ class _HistoryBodyState extends State<HistoryBody> {
     final Map<String, List<HistoryEntry>> grouped = _groupByDay(
       filtered.where((HistoryEntry entry) => !entry.pinned).toList(),
     );
-    final List<WorkSession> recent = widget.title == 'Activity'
-        ? WorkSessionScope.maybeOf(context)?.recentSessions ??
-              const <WorkSession>[]
+    final WorkSessionController? sessions = activity
+        ? WorkSessionScope.maybeOf(context)
+        : null;
+    final List<WorkSession> recent = activity
+        ? sessions?.recentSessions ?? const <WorkSession>[]
         : const <WorkSession>[];
 
     return Column(
@@ -116,6 +119,9 @@ class _HistoryBodyState extends State<HistoryBody> {
                 if (history.entries.isNotEmpty || recent.isNotEmpty)
                   MqButton(
                     label: 'Clear',
+                    semanticsLabel: activity
+                        ? 'Clear activity'
+                        : 'Clear history',
                     icon: MqIcons.trash,
                     variant: MqButtonVariant.glass,
                     size: MqButtonSize.sm,
@@ -123,7 +129,8 @@ class _HistoryBodyState extends State<HistoryBody> {
                     onPressed: () => _confirmClear(
                       context,
                       history,
-                      WorkSessionScope.maybeOf(context),
+                      sessions,
+                      activity: activity,
                     ),
                   ),
               ],
@@ -287,14 +294,17 @@ String _toolName(String utilityId) {
 void _confirmClear(
   BuildContext context,
   HistoryController history,
-  WorkSessionController? sessions,
-) {
+  WorkSessionController? sessions, {
+  required bool activity,
+}) {
   showCupertinoDialog<void>(
     context: context,
     builder: (BuildContext ctx) => CupertinoAlertDialog(
-      title: const Text('Clear all history?'),
-      content: const Text(
-        'This permanently deletes all on-device entries. Cannot be undone.',
+      title: Text(activity ? 'Clear all activity?' : 'Clear all history?'),
+      content: Text(
+        activity
+            ? 'Permanently deletes on-device history entries and resumable sessions. Your current session and saved workflows are kept.'
+            : 'Permanently deletes on-device history entries. Resumable sessions, your current session, and saved workflows are kept.',
       ),
       actions: <Widget>[
         CupertinoDialogAction(
@@ -305,7 +315,7 @@ void _confirmClear(
             if (!ctx.mounted) return;
             Navigator.of(ctx).pop();
           },
-          child: const Text('Clear'),
+          child: Text(activity ? 'Clear activity' : 'Clear history'),
         ),
         CupertinoDialogAction(
           isDefaultAction: true,

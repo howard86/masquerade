@@ -7,8 +7,11 @@ import 'package:masquerade/app.dart';
 import 'package:masquerade/models/artifact.dart';
 import 'package:masquerade/models/work_session.dart';
 import 'package:masquerade/screens/detail/tool_detail_route.dart';
+import 'package:masquerade/screens/history_screen.dart';
 import 'package:masquerade/state/history_controller.dart';
 import 'package:masquerade/state/work_session_controller.dart';
+import 'package:masquerade/theme/mq_colors.dart';
+import 'package:masquerade/theme/mq_theme.dart';
 import 'package:masquerade/utility_catalog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -18,6 +21,7 @@ Future<HistoryController> _pumpActivity(
   WidgetTester tester, {
   double textScale = 1,
   WorkSessionController? workSessions,
+  bool addHistory = true,
 }) async {
   await tester.binding.setSurfaceSize(_phone);
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -26,6 +30,25 @@ Future<HistoryController> _pumpActivity(
     prefs: prefs,
     retention: Duration.zero,
   );
+  if (addHistory) await _addHistory(history);
+  await tester.pumpWidget(
+    MediaQuery(
+      data: MediaQueryData(textScaler: TextScaler.linear(textScale)),
+      child: MyApp(
+        isWebOverride: false,
+        skipSplash: true,
+        historyController: history,
+        workSessionController: workSessions,
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Activity').last);
+  await tester.pumpAndSettle();
+  return history;
+}
+
+Future<void> _addHistory(HistoryController history) async {
   await history.add(
     HistoryEntry(
       utilityId: 'json',
@@ -42,19 +65,60 @@ Future<HistoryController> _pumpActivity(
       timestamp: DateTime(2026, 7, 18, 11),
     ),
   );
-  await tester.pumpWidget(
-    MediaQuery(
-      data: MediaQueryData(textScaler: TextScaler.linear(textScale)),
-      child: MyApp(
-        isWebOverride: false,
-        skipSplash: true,
-        historyController: history,
-        workSessionController: workSessions,
-      ),
+}
+
+Future<WorkSessionController> _sessionsWithRecent(
+  SharedPreferences prefs,
+) async {
+  final WorkSessionController sessions = WorkSessionController(prefs: prefs);
+  sessions.start(
+    UtilityCatalog.byId('bps'),
+    Artifact<Object?>(
+      kind: ArtifactKind.bps,
+      rawValue: '25 bps',
+      provenance: ArtifactProvenance.typed,
     ),
   );
-  await tester.pumpAndSettle();
-  await tester.tap(find.text('Activity').last);
+  await sessions.flush();
+  return sessions;
+}
+
+Future<HistoryController> _pumpHistory(
+  WidgetTester tester, {
+  required WorkSessionController sessions,
+  double textScale = 1,
+}) async {
+  await tester.binding.setSurfaceSize(_phone);
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+  final SharedPreferences prefs = await SharedPreferences.getInstance();
+  final HistoryController history = HistoryController(
+    prefs: prefs,
+    retention: Duration.zero,
+  );
+  await _addHistory(history);
+  await tester.pumpWidget(
+    CupertinoApp(
+      builder: (BuildContext context, Widget? child) => MediaQuery(
+        data: MediaQuery.of(
+          context,
+        ).copyWith(textScaler: TextScaler.linear(textScale)),
+        child: MqTheme(
+          tokens: MqTokens(
+            colors: MqColors.light(),
+            brightness: Brightness.light,
+          ),
+          child: WorkSessionScope(
+            controller: sessions,
+            child: HistoryScope(
+              controller: history,
+              child: child ?? const SizedBox.shrink(),
+            ),
+          ),
+        ),
+      ),
+      home: const HistoryScreen(),
+    ),
+  );
   await tester.pumpAndSettle();
   return history;
 }
@@ -192,8 +256,81 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Activity clear removes history-only activity from persistence', (
+    WidgetTester tester,
+  ) async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final WorkSessionController sessions = WorkSessionController(prefs: prefs);
+    final HistoryController history = await _pumpActivity(
+      tester,
+      workSessions: sessions,
+    );
+
+    await tester.tap(find.bySemanticsLabel('Clear activity'));
+    await tester.pumpAndSettle();
+    expect(find.text('Clear all activity?'), findsOneWidget);
+    expect(
+      find.text(
+        'Permanently deletes on-device history entries and resumable sessions. Your current session and saved workflows are kept.',
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Clear activity'));
+    await tester.pumpAndSettle();
+
+    expect(history.entries, isEmpty);
+    expect((await HistoryController.load()).entries, isEmpty);
+    expect((await WorkSessionController.load()).recentSessions, isEmpty);
+  });
+
+  testWidgets('Activity clear removes recent-only activity from persistence', (
+    WidgetTester tester,
+  ) async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final WorkSessionController sessions = await _sessionsWithRecent(prefs);
+    final HistoryController history = await _pumpActivity(
+      tester,
+      workSessions: sessions,
+      addHistory: false,
+    );
+    expect(history.entries, isEmpty);
+    expect(sessions.recentSessions, hasLength(1));
+
+    await tester.tap(find.bySemanticsLabel('Clear activity'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Clear activity'));
+    await tester.pumpAndSettle();
+
+    expect(sessions.recentSessions, isEmpty);
+    expect((await WorkSessionController.load()).recentSessions, isEmpty);
+  });
+
+  testWidgets('Activity clear cancellation preserves both stores', (
+    WidgetTester tester,
+  ) async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final WorkSessionController sessions = await _sessionsWithRecent(prefs);
+    final HistoryController history = await _pumpActivity(
+      tester,
+      workSessions: sessions,
+    );
+
+    await tester.tap(find.bySemanticsLabel('Clear activity'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(history.entries, hasLength(2));
+    expect(sessions.recentSessions, hasLength(1));
+    expect(
+      jsonDecode(prefs.getString('mb.history.entries')!) as List<dynamic>,
+      hasLength(2),
+    );
+    expect((await WorkSessionController.load()).recentSessions, hasLength(1));
+  });
+
   testWidgets(
-    'Activity Clear removes history and recents but keeps live work',
+    'Activity clear removes both stores but keeps live, branch, and saved work',
     (WidgetTester tester) async {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       final WorkSessionController sessions = WorkSessionController(
@@ -217,9 +354,9 @@ void main() {
         workSessions: sessions,
       );
 
-      await tester.tap(find.text('Clear'));
+      await tester.tap(find.bySemanticsLabel('Clear activity'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Clear').last);
+      await tester.tap(find.text('Clear activity'));
       await tester.pumpAndSettle();
 
       expect(history.entries, isEmpty);
@@ -227,8 +364,52 @@ void main() {
       expect(sessions.session, same(live));
       expect(sessions.branchOrigin, same(original));
       expect(sessions.savedWorkflows.single.name, 'Rates');
+      final WorkSessionController restored = await WorkSessionController.load();
+      expect(restored.recentSessions, isEmpty);
+      expect(restored.savedWorkflows.single.name, 'Rates');
     },
   );
+
+  testWidgets('History clear leaves resumable sessions intact', (
+    WidgetTester tester,
+  ) async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final WorkSessionController sessions = await _sessionsWithRecent(prefs);
+    final HistoryController history = await _pumpHistory(
+      tester,
+      sessions: sessions,
+    );
+
+    expect(find.text('RESUMABLE SESSIONS'), findsNothing);
+    await tester.tap(find.bySemanticsLabel('Clear history'));
+    await tester.pumpAndSettle();
+    expect(find.text('Clear all history?'), findsOneWidget);
+    expect(
+      find.text(
+        'Permanently deletes on-device history entries. Resumable sessions, your current session, and saved workflows are kept.',
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Clear history'));
+    await tester.pumpAndSettle();
+
+    expect(history.entries, isEmpty);
+    expect(sessions.recentSessions, hasLength(1));
+    expect((await HistoryController.load()).entries, isEmpty);
+    expect((await WorkSessionController.load()).recentSessions, hasLength(1));
+  });
+
+  testWidgets('Activity clear stays compact with a full semantics label', (
+    WidgetTester tester,
+  ) async {
+    await _pumpActivity(tester, textScale: 2);
+
+    final Finder clear = find.bySemanticsLabel('Clear activity');
+    expect(clear, findsOneWidget);
+    expect(find.text('Clear'), findsOneWidget);
+    expect(tester.getSize(clear).height, greaterThanOrEqualTo(32));
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('actions keep 44-point targets at large Dynamic Type', (
     WidgetTester tester,
