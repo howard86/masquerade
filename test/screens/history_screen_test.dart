@@ -110,6 +110,40 @@ void main() {
     );
   });
 
+  testWidgets('recent sessions stay scrollable above compact empty notice', (
+    WidgetTester tester,
+  ) async {
+    final List<WorkSession> recents = <WorkSession>[
+      for (int index = 0; index < 6; index++)
+        WorkSession(
+          id: 'recent-$index',
+          name: 'Rates session $index',
+          createdAt: DateTime.fromMillisecondsSinceEpoch(index + 1),
+          updatedAt: DateTime.fromMillisecondsSinceEpoch(index + 2),
+          steps: _recentSession().steps,
+        ),
+    ];
+    await _pumpActivity(
+      tester,
+      textScale: 2,
+      workSessions: WorkSessionController(recentSessions: recents),
+      addHistory: false,
+      retention: const Duration(days: 7),
+    );
+
+    expect(find.text('No utility history'), findsOneWidget);
+    expect(find.bySemanticsLabel('Resume Rates session 0'), findsOneWidget);
+    expect(find.bySemanticsLabel('Resume Rates session 5'), findsNothing);
+    await tester.scrollUntilVisible(
+      find.bySemanticsLabel('Resume Rates session 5'),
+      150,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.bySemanticsLabel('Resume Rates session 5'), findsOneWidget);
+    expect(find.text('No utility history'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('empty history uses configured singular and plural windows', (
     WidgetTester tester,
   ) async {
