@@ -404,6 +404,9 @@ class _HistoryRow extends StatelessWidget {
     );
     final String toolName = u?.name ?? entry.utilityId;
     final bool protected = entry.protected;
+    final VoidCallback? reopen = u == null || protected
+        ? null
+        : () => ToolDetailRoute.push(context, u!, seed: entry.input);
     return Container(
       decoration: BoxDecoration(
         color: c.surface,
@@ -414,16 +417,15 @@ class _HistoryRow extends StatelessWidget {
         children: <Widget>[
           Semantics(
             button: true,
-            enabled: u != null && !protected,
+            enabled: reopen != null,
             label: 'Reopen $toolName with saved input',
+            onTap: reopen,
             excludeSemantics: true,
             child: CupertinoButton(
               padding: const EdgeInsets.all(MqSpacing.md),
               minimumSize: const Size.fromHeight(44),
               borderRadius: BorderRadius.circular(MqRadius.md),
-              onPressed: u == null || protected
-                  ? null
-                  : () => ToolDetailRoute.push(context, u!, seed: entry.input),
+              onPressed: reopen,
               child: Row(
                 children: <Widget>[
                   Container(
