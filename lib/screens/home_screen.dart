@@ -155,6 +155,21 @@ class _HomeScreenState extends State<HomeScreen> {
                   () => _importError = 'There is no safe session to resume.',
                 );
               }
+              continue;
+            }
+            final int index = sessions.session!.steps.length - 1;
+            final WorkflowStep step = sessions.session!.steps[index];
+            final UtilityDescriptor? tool = UtilityCatalog.byIdOrNull(
+              step.toolId,
+            );
+            if (tool != null && mounted) {
+              await ToolDetailRoute.push(
+                context,
+                tool,
+                seed: step.input.rawValue,
+                initialArtifact: step.input,
+                sessionStepIndex: index,
+              );
             }
           case AppIntentAction.runWorkflow:
             final SavedWorkflow? workflow = sessions.savedWorkflows
