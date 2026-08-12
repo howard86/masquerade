@@ -181,23 +181,26 @@ class _RootTabScaffoldState extends State<RootTabScaffold> {
     BuildContext context,
     String title,
   ) {
+    void openSettings() => Navigator.of(context).push<void>(
+      CupertinoPageRoute<void>(
+        builder: (_) => SettingsScreen(
+          desktopShellOverride:
+              widget.desktopShellOverride ?? widget.isWebOverride,
+        ),
+      ),
+    );
+
     return CupertinoNavigationBar(
       middle: Text(title),
       trailing: Semantics(
         label: 'Open Settings',
         button: true,
+        onTap: openSettings,
         excludeSemantics: true,
         child: CupertinoButton(
           padding: EdgeInsets.zero,
           minimumSize: const Size.square(44),
-          onPressed: () => Navigator.of(context).push<void>(
-            CupertinoPageRoute<void>(
-              builder: (_) => SettingsScreen(
-                desktopShellOverride:
-                    widget.desktopShellOverride ?? widget.isWebOverride,
-              ),
-            ),
-          ),
+          onPressed: openSettings,
           child: const Icon(MqIcons.setting),
         ),
       ),
