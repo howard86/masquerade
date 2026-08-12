@@ -1,4 +1,6 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/semantics.dart';
+import 'dart:ui' show Tristate;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/theme/mq_colors.dart';
 import 'package:masquerade/theme/mq_theme.dart';
@@ -17,6 +19,41 @@ Widget _host(Widget child) => CupertinoApp(
 
 void main() {
   group('MqDropdown', () {
+    testWidgets('exposes one actionable labelled semantics node', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      _F? picked;
+      await tester.pumpWidget(
+        _host(
+          MqDropdown<_F>(
+            label: 'Format',
+            selected: _F.b,
+            options: const <_F, String>{
+              _F.a: 'Alpha',
+              _F.b: 'Beta',
+              _F.c: 'Gamma',
+            },
+            onChanged: (_F value) => picked = value,
+          ),
+        ),
+      );
+
+      final Finder control = find.bySemanticsLabel('Format, Beta');
+      expect(control, findsOneWidget);
+      final SemanticsNode node = tester.getSemantics(control);
+      expect(node.flagsCollection.isButton, isTrue);
+      expect(node.flagsCollection.isEnabled, Tristate.isTrue);
+      expect(node.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
+      tester.semantics.tap(find.semantics.byLabel('Format, Beta'));
+      await tester.pumpAndSettle();
+      expect(find.byType(CupertinoActionSheet), findsOneWidget);
+      await tester.tap(find.text('Gamma'));
+      await tester.pumpAndSettle();
+      expect(picked, _F.c);
+      handle.dispose();
+    });
+
     testWidgets('renders label and selected option', (
       WidgetTester tester,
     ) async {
