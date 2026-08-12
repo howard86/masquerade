@@ -57,23 +57,23 @@ class MqSearchBar extends StatelessWidget {
             valueListenable: controller,
             builder: (BuildContext context, TextEditingValue value, _) {
               if (value.text.isNotEmpty) {
+                void clearSearch() {
+                  controller.clear();
+                  onChanged?.call('');
+                }
+
                 return Semantics(
                   button: true,
                   label: 'Clear search',
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () {
-                      controller.clear();
-                      onChanged?.call('');
-                    },
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        minWidth: 44,
-                        minHeight: 44,
-                      ),
-                      child: Center(
-                        child: Icon(MqIcons.clear, size: 16, color: c.textTer),
-                      ),
+                  onTap: clearSearch,
+                  excludeSemantics: true,
+                  child: CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size.square(44),
+                    borderRadius: BorderRadius.circular(MqRadius.sm),
+                    onPressed: clearSearch,
+                    child: Center(
+                      child: Icon(MqIcons.clear, size: 16, color: c.textTer),
                     ),
                   ),
                 );

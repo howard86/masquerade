@@ -4,6 +4,7 @@ import 'package:masquerade/app.dart';
 import 'package:masquerade/state/history_controller.dart';
 import 'package:masquerade/state/library_controller.dart';
 import 'package:masquerade/utility_catalog.dart';
+import 'package:masquerade/widgets/mq/mq_search_bar.dart';
 import 'package:masquerade/widgets/mq/tool_grid_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -213,7 +214,12 @@ void main() {
     await tester.pump();
     expect(find.text('SEARCH RESULTS'), findsOneWidget);
 
-    await tester.tap(find.bySemanticsLabel('Clear search'));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(MqSearchBar),
+        matching: find.byType(CupertinoButton),
+      ),
+    );
     await tester.pump();
 
     expect(
