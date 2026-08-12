@@ -655,7 +655,7 @@ class _FromToRow extends StatelessWidget {
           label: 'Swap source and target',
           child: CupertinoButton(
             padding: const EdgeInsets.all(MqSpacing.sm),
-            minimumSize: const Size(40, 40),
+            minimumSize: const Size(44, 44),
             borderRadius: BorderRadius.circular(MqRadius.sm),
             onPressed: swapEnabled ? onSwap : null,
             child: Icon(

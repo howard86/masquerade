@@ -142,8 +142,9 @@ void main() {
     );
     await tester.pumpAndSettle(kDebouncePump);
 
-    expect(find.bySemanticsLabel('Remove n'), findsOneWidget);
-    await tester.tap(find.bySemanticsLabel('Remove n'));
+    final Finder remove = find.bySemanticsLabel('Remove n');
+    expect(tester.getSize(remove).shortestSide, greaterThanOrEqualTo(44));
+    await tester.tap(remove);
     await tester.pump();
 
     final String expected = UrlParser.buildQuery(<QueryPair>[
