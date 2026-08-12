@@ -16,6 +16,7 @@ import 'package:masquerade/theme/mq_theme.dart';
 
 Widget _host({
   Widget home = const SettingsScreen(desktopShellOverride: false),
+  HistoryController? history,
 }) {
   return CupertinoApp(
     builder: (BuildContext context, Widget? child) => MqTheme(
@@ -25,7 +26,7 @@ Widget _host({
         child: DetectionPreferenceScope(
           controller: DetectionPreferenceController(),
           child: HistoryScope(
-            controller: HistoryController(),
+            controller: history ?? HistoryController(),
             child: ViewModeScope(
               controller: ViewModeController(),
               child: WallpaperScope(
@@ -42,6 +43,26 @@ Widget _host({
 }
 
 void main() {
+  testWidgets('Settings explains what retention Off preserves', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(393, 852));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final HistoryController history = HistoryController();
+    await tester.pumpWidget(_host(history: history));
+
+    const String disclosure =
+        'While Off, new utility usage is not recorded and existing history is preserved.';
+    expect(find.text(disclosure), findsNothing);
+    await tester.ensureVisible(find.text('Off'));
+    await tester.tap(find.text('Off'));
+    await tester.pump();
+
+    expect(history.retention, Duration.zero);
+    expect(find.text(disclosure), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   test('registers the bundled license for every IBM Plex family', () async {
     LicenseRegistry.reset();
     registerBundledFontLicenses();

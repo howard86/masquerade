@@ -265,6 +265,13 @@ class SettingsBody extends StatelessWidget {
                 onChanged: (int days) =>
                     history.setRetention(Duration(days: days)),
               ),
+              if (history.retention == Duration.zero) ...<Widget>[
+                const SizedBox(height: MqSpacing.sm),
+                Text(
+                  'While Off, new utility usage is not recorded and existing history is preserved.',
+                  style: MqTextStyles.footnote.copyWith(color: c.textSec),
+                ),
+              ],
               const SizedBox(height: MqSpacing.md),
               MqButton(
                 label: 'Clear history',
