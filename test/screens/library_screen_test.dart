@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
+import 'package:masquerade/screens/detail/tool_detail_route.dart';
 import 'package:masquerade/state/history_controller.dart';
 import 'package:masquerade/state/library_controller.dart';
 import 'package:masquerade/utility_catalog.dart';
@@ -188,6 +189,81 @@ void main() {
       await _expectStableMainCatalog(tester);
     },
   );
+
+  testWidgets('recent card opens newest full input while catalog stays blank', (
+    WidgetTester tester,
+  ) async {
+    const String newest =
+        '{"message":"this safe input is deliberately longer than its preview"}';
+    final HistoryController history = HistoryController();
+    final DateTime now = DateTime.now();
+    await history.add(
+      HistoryEntry(
+        utilityId: 'json',
+        input: '{"version":"old"}',
+        output: '{\n  "version": "old"\n}',
+        timestamp: now,
+      ),
+    );
+    await history.add(
+      HistoryEntry(
+        utilityId: 'base64',
+        input: 'hello',
+        output: 'aGVsbG8=',
+        timestamp: now.add(const Duration(seconds: 1)),
+      ),
+    );
+    await history.add(
+      HistoryEntry(
+        utilityId: 'json',
+        input: newest,
+        output:
+            '{\n  "message": "this safe input is deliberately longer than its preview"\n}',
+        timestamp: now.add(const Duration(seconds: 2)),
+      ),
+    );
+
+    await _pumpLibrary(tester, history: history);
+    final List<ToolGridCard> recentCards = tester
+        .widgetList<ToolGridCard>(find.byType(ToolGridCard))
+        .where((ToolGridCard card) => card.lastEntry != null)
+        .toList();
+    expect(recentCards.map((ToolGridCard card) => card.descriptor.id), <String>[
+      'json',
+      'base64',
+    ]);
+    expect(recentCards.first.lastEntry!.input, newest);
+    expect(
+      find.bySemanticsLabel('Open JSON / YAML / TOML with recent input'),
+      findsOneWidget,
+    );
+    expect(find.bySemanticsLabel('Open JSON / YAML / TOML'), findsOneWidget);
+
+    Finder card = find.byWidget(recentCards.first);
+    await tester.ensureVisible(card);
+    await tester.tap(card);
+    await tester.pumpAndSettle();
+    ToolDetailRoute route = tester.widget(find.byType(ToolDetailRoute));
+    expect(route.descriptor.id, 'json');
+    expect(route.seed, newest);
+    expect(route.initialArtifact, isNull);
+    expect(route.sessionStepIndex, isNull);
+
+    await tester.tap(find.byType(CupertinoNavigationBarBackButton));
+    await tester.pumpAndSettle();
+    card = find.byWidgetPredicate(
+      (Widget widget) =>
+          widget is ToolGridCard &&
+          widget.descriptor.id == 'json' &&
+          widget.lastEntry == null,
+    );
+    expect(card, findsOneWidget);
+    tester.widget<ToolGridCard>(card).onTap();
+    await tester.pumpAndSettle();
+    route = tester.widget(find.byType(ToolDetailRoute));
+    expect(route.descriptor.id, 'json');
+    expect(route.seed, isNull);
+  });
 
   testWidgets('search finds tools across categories in stable order', (
     WidgetTester tester,

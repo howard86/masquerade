@@ -136,14 +136,15 @@ class _LibraryScreenState extends State<LibraryScreen> {
       itemCount: tools.length,
       itemBuilder: (BuildContext context, int index) {
         final UtilityDescriptor tool = tools[index];
+        final HistoryEntry? entry = entries[tool.id];
         return ToolGridCard(
           descriptor: tool,
           matched: false,
-          lastEntry: entries[tool.id],
+          lastEntry: entry,
           favorite: library.isFavorite(tool.id),
           onToggleFavorite: () => library.toggleFavorite(tool.id),
           showMetadata: true,
-          onTap: () => ToolDetailRoute.push(context, tool),
+          onTap: () => ToolDetailRoute.push(context, tool, seed: entry?.input),
         );
       },
     );
