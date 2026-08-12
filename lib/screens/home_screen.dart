@@ -1091,10 +1091,12 @@ class _SessionStepRow extends StatelessWidget {
       label:
           'Step ${index + 1}, $name, $status. Input $input.${output == null ? '' : ' Output $output.'} Actions available.',
       excludeSemantics: true,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        excludeFromSemantics: true,
-        onTap: onActions,
+      child: CupertinoButton(
+        padding: EdgeInsets.zero,
+        minimumSize: const Size(0, 44),
+        alignment: AlignmentDirectional.centerStart,
+        borderRadius: BorderRadius.circular(MqRadius.sm),
+        onPressed: onActions,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
