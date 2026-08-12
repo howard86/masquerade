@@ -172,98 +172,126 @@ class _HistoryBodyState extends State<HistoryBody> {
           ),
           const SizedBox(height: MqSpacing.sm),
         ],
-        Expanded(
-          child: history.entries.isEmpty
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: MqSpacing.xl,
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: <Widget>[
-                        Icon(MqIcons.history, size: 36, color: c.textTer),
-                        const SizedBox(height: MqSpacing.md),
-                        Text(
-                          emptyTitle,
-                          style: MqTextStyles.title3.copyWith(color: c.textPri),
-                        ),
-                        const SizedBox(height: MqSpacing.xs),
-                        Text(
-                          emptyMessage,
-                          style: MqTextStyles.subhead.copyWith(
-                            color: c.textSec,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              : ListView(
-                  padding: const EdgeInsets.fromLTRB(
-                    MqSpacing.lg,
-                    0,
-                    MqSpacing.lg,
-                    MqSpacing.lg,
-                  ),
-                  children: <Widget>[
-                    SizedBox(
-                      height: 44,
-                      child: CupertinoSearchTextField(
-                        placeholder: 'Search tool, value, or date',
-                        onChanged: (String value) =>
-                            setState(() => _query = value),
-                      ),
-                    ),
-                    const SizedBox(height: MqSpacing.md),
-                    if (filtered.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: MqSpacing.xl,
-                        ),
-                        child: Text(
-                          'No matching activity',
-                          style: MqTextStyles.subhead.copyWith(
-                            color: c.textSec,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    if (pinned.isNotEmpty) ...<Widget>[
-                      MqSectionHeader(
-                        label: 'PINNED',
-                        trailing: MqStatus(
-                          label: '${pinned.length}',
-                          kind: MqStatusKind.neutral,
-                          showIcon: false,
-                        ),
-                      ),
-                      for (final HistoryEntry entry in pinned) ...<Widget>[
-                        _HistoryRow(entry: entry, history: history),
-                        const SizedBox(height: MqSpacing.sm),
-                      ],
-                      const SizedBox(height: MqSpacing.md),
-                    ],
-                    for (final MapEntry<String, List<HistoryEntry>> g
-                        in grouped.entries) ...<Widget>[
-                      MqSectionHeader(
-                        label: g.key,
-                        trailing: MqStatus(
-                          label: '${g.value.length}',
-                          kind: MqStatusKind.neutral,
-                          showIcon: false,
-                        ),
-                      ),
-                      for (final HistoryEntry e in g.value) ...<Widget>[
-                        _HistoryRow(entry: e, history: history),
-                        const SizedBox(height: MqSpacing.sm),
-                      ],
-                      const SizedBox(height: MqSpacing.md),
-                    ],
-                  ],
+        if (history.entries.isEmpty && recent.isNotEmpty) ...<Widget>[
+          const SizedBox(height: MqSpacing.sm),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              MqSpacing.xl,
+              0,
+              MqSpacing.xl,
+              MqSpacing.md,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  emptyTitle,
+                  style: MqTextStyles.title3.copyWith(color: c.textPri),
                 ),
-        ),
+                const SizedBox(height: MqSpacing.xs),
+                Text(
+                  emptyMessage,
+                  style: MqTextStyles.subhead.copyWith(color: c.textSec),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ] else
+          Expanded(
+            child: history.entries.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: MqSpacing.xl,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: <Widget>[
+                          Icon(MqIcons.history, size: 36, color: c.textTer),
+                          const SizedBox(height: MqSpacing.md),
+                          Text(
+                            emptyTitle,
+                            style: MqTextStyles.title3.copyWith(
+                              color: c.textPri,
+                            ),
+                          ),
+                          const SizedBox(height: MqSpacing.xs),
+                          Text(
+                            emptyMessage,
+                            style: MqTextStyles.subhead.copyWith(
+                              color: c.textSec,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : ListView(
+                    padding: const EdgeInsets.fromLTRB(
+                      MqSpacing.lg,
+                      0,
+                      MqSpacing.lg,
+                      MqSpacing.lg,
+                    ),
+                    children: <Widget>[
+                      SizedBox(
+                        height: 44,
+                        child: CupertinoSearchTextField(
+                          placeholder: 'Search tool, value, or date',
+                          onChanged: (String value) =>
+                              setState(() => _query = value),
+                        ),
+                      ),
+                      const SizedBox(height: MqSpacing.md),
+                      if (filtered.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: MqSpacing.xl,
+                          ),
+                          child: Text(
+                            'No matching activity',
+                            style: MqTextStyles.subhead.copyWith(
+                              color: c.textSec,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      if (pinned.isNotEmpty) ...<Widget>[
+                        MqSectionHeader(
+                          label: 'PINNED',
+                          trailing: MqStatus(
+                            label: '${pinned.length}',
+                            kind: MqStatusKind.neutral,
+                            showIcon: false,
+                          ),
+                        ),
+                        for (final HistoryEntry entry in pinned) ...<Widget>[
+                          _HistoryRow(entry: entry, history: history),
+                          const SizedBox(height: MqSpacing.sm),
+                        ],
+                        const SizedBox(height: MqSpacing.md),
+                      ],
+                      for (final MapEntry<String, List<HistoryEntry>> g
+                          in grouped.entries) ...<Widget>[
+                        MqSectionHeader(
+                          label: g.key,
+                          trailing: MqStatus(
+                            label: '${g.value.length}',
+                            kind: MqStatusKind.neutral,
+                            showIcon: false,
+                          ),
+                        ),
+                        for (final HistoryEntry e in g.value) ...<Widget>[
+                          _HistoryRow(entry: e, history: history),
+                          const SizedBox(height: MqSpacing.sm),
+                        ],
+                        const SizedBox(height: MqSpacing.md),
+                      ],
+                    ],
+                  ),
+          ),
       ],
     );
   }
