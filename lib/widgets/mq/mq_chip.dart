@@ -1,5 +1,5 @@
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/cupertino.dart';
 
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
@@ -87,16 +87,15 @@ class MqChip extends StatelessWidget {
       selected: selected,
       label: label,
       excludeSemantics: true,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () {
+      child: CupertinoButton(
+        padding: EdgeInsets.zero,
+        minimumSize: const Size(0, 44),
+        borderRadius: BorderRadius.circular(MqRadius.pill),
+        onPressed: () {
           HapticFeedback.selectionClick();
           onTap!();
         },
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 44),
-          child: Center(widthFactor: 1, heightFactor: 1, child: chip),
-        ),
+        child: chip,
       ),
     );
   }
