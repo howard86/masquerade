@@ -279,7 +279,9 @@ class SettingsBody extends StatelessWidget {
                 variant: MqButtonVariant.tinted,
                 destructive: true,
                 full: true,
-                onPressed: () => _confirmClear(context, history),
+                onPressed: history.entries.isEmpty
+                    ? null
+                    : () => _confirmClear(context, history),
               ),
               const SizedBox(height: MqSpacing.sm),
               MqButton(

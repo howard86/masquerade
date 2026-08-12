@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:masquerade/main.dart' show registerBundledFontLicenses;
 import 'package:masquerade/screens/acknowledgements_screen.dart';
@@ -61,6 +62,48 @@ void main() {
     expect(history.retention, Duration.zero);
     expect(find.text(disclosure), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  setUp(() => SharedPreferences.setMockInitialValues(<String, Object>{}));
+
+  testWidgets('Clear history is enabled only when entries exist', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(393, 852));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final HistoryController history = HistoryController();
+    await tester.pumpWidget(_host(history: history));
+    await tester.ensureVisible(find.text('Clear history'));
+
+    Finder clearSemantics() => find.byWidgetPredicate(
+      (Widget widget) =>
+          widget is Semantics && widget.properties.label == 'Clear history',
+    );
+    expect(
+      tester.widget<Semantics>(clearSemantics()).properties.enabled,
+      isFalse,
+    );
+    await tester.tap(find.text('Clear history'));
+    await tester.pump();
+    expect(find.byType(CupertinoAlertDialog), findsNothing);
+
+    await history.add(
+      HistoryEntry(
+        utilityId: 'json',
+        input: '{}',
+        output: '{}',
+        timestamp: DateTime.now(),
+      ),
+    );
+    await tester.pump();
+    expect(
+      tester.widget<Semantics>(clearSemantics()).properties.enabled,
+      isTrue,
+    );
+    await tester.tap(find.text('Clear history'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Clear all history?'), findsOneWidget);
   });
 
   test('registers the bundled license for every IBM Plex family', () async {
