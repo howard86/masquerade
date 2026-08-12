@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
@@ -106,6 +107,7 @@ void main() {
   testWidgets('reopen restores exact input and copy writes exact output', (
     WidgetTester tester,
   ) async {
+    final SemanticsHandle semantics = tester.ensureSemantics();
     String? clipboard;
     final TestDefaultBinaryMessenger messenger =
         tester.binding.defaultBinaryMessenger;
@@ -122,9 +124,16 @@ void main() {
     );
     await _pumpActivity(tester);
 
-    await tester.tap(
-      find.bySemanticsLabel('Reopen JSON / YAML / TOML with saved input'),
+    const String reopenLabel = 'Reopen JSON / YAML / TOML with saved input';
+    final Finder reopen = find.bySemanticsLabel(reopenLabel);
+    expect(
+      tester
+          .getSemantics(reopen)
+          .getSemanticsData()
+          .hasAction(SemanticsAction.tap),
+      isTrue,
     );
+    tester.semantics.tap(find.semantics.byLabel(reopenLabel));
     await tester.pumpAndSettle();
     final ToolDetailRoute route = tester.widget(find.byType(ToolDetailRoute));
     expect(route.seed, '{"hello":"world"}');
@@ -137,6 +146,7 @@ void main() {
     await tester.pump();
     expect(clipboard, 'pretty result');
     await tester.pump(const Duration(seconds: 4));
+    semantics.dispose();
   });
 
   testWidgets('pin and delete persist', (WidgetTester tester) async {
