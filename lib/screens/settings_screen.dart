@@ -343,7 +343,9 @@ class SettingsBody extends StatelessWidget {
       context: context,
       builder: (BuildContext ctx) => CupertinoAlertDialog(
         title: const Text('Clear all history?'),
-        content: const Text('Permanently deletes all on-device entries.'),
+        content: const Text(
+          'Permanently deletes on-device history entries. Resumable sessions, your current session, and saved workflows are kept.',
+        ),
         actions: <Widget>[
           CupertinoDialogAction(
             isDestructiveAction: true,
