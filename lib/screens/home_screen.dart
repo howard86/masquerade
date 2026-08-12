@@ -544,6 +544,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Semantics(
             liveRegion: true,
             label: error,
+            excludeSemantics: true,
             child: MqSurface(
               background: context.mq.colors.warningBg,
               borderColor: context.mq.colors.warning,

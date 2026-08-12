@@ -193,6 +193,7 @@ class _ToolDetailRouteState extends State<ToolDetailRoute> {
                     child: Semantics(
                       liveRegion: true,
                       label: error,
+                      excludeSemantics: true,
                       child: MqSurface(
                         background: c.warningBg,
                         borderColor: c.warning,
