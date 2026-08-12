@@ -267,8 +267,13 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
                             context,
                             details.globalPosition,
                           ),
-                      child: CustomPaint(
-                        painter: _DotGridPainter(color: c.border, offset: _pan),
+                      child: RepaintBoundary(
+                        child: CustomPaint(
+                          painter: _DotGridPainter(
+                            color: c.border,
+                            offset: _pan,
+                          ),
+                        ),
                       ),
                     ),
               ),
