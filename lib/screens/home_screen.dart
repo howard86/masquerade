@@ -234,8 +234,12 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _open(UtilityDescriptor tool, {Artifact<Object?>? artifact}) {
-    final String input = artifact?.rawValue ?? _hero.text;
+  void _open(
+    UtilityDescriptor tool, {
+    Artifact<Object?>? artifact,
+    String? seed,
+  }) {
+    final String input = artifact?.rawValue ?? seed ?? _hero.text;
     final OpenInToolCallback? open = widget.onOpenTool;
     if (open != null) {
       open(tool, input);
@@ -254,25 +258,63 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _chooseTool() async {
+    final String seed = _hero.text;
+    String query = '';
     final UtilityDescriptor? choice =
         await showCupertinoModalPopup<UtilityDescriptor>(
           context: context,
-          builder: (BuildContext context) => CupertinoActionSheet(
-            title: const Text('Send to tool'),
-            actions: <Widget>[
-              for (final UtilityDescriptor tool in UtilityCatalog.all)
-                CupertinoActionSheetAction(
-                  onPressed: () => Navigator.of(context).pop(tool),
-                  child: Text(tool.name),
+          builder: (BuildContext context) => StatefulBuilder(
+            builder: (BuildContext context, StateSetter setSheetState) {
+              final List<UtilityDescriptor> tools = UtilityCatalog.searchStable(
+                query,
+              );
+              return AnimatedPadding(
+                duration: MqMotion.fast,
+                curve: MqMotion.dismiss,
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.viewInsetsOf(context).bottom,
                 ),
-            ],
-            cancelButton: CupertinoActionSheetAction(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
+                child: SafeArea(
+                  top: false,
+                  child: CupertinoActionSheet(
+                    title: const Text('Send to tool'),
+                    message: Column(
+                      children: <Widget>[
+                        CupertinoSearchTextField(
+                          placeholder: 'Search tools',
+                          autofocus: true,
+                          onChanged: (String value) =>
+                              setSheetState(() => query = value),
+                        ),
+                        if (tools.isEmpty) ...<Widget>[
+                          const SizedBox(height: MqSpacing.md),
+                          Text(
+                            'No tools found',
+                            style: MqTextStyles.body.copyWith(
+                              color: context.mq.colors.textSec,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    actions: <Widget>[
+                      for (final UtilityDescriptor tool in tools)
+                        CupertinoActionSheetAction(
+                          onPressed: () => Navigator.of(context).pop(tool),
+                          child: Text(tool.name),
+                        ),
+                    ],
+                    cancelButton: CupertinoActionSheetAction(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
         );
-    if (mounted && choice != null) _open(choice);
+    if (mounted && choice != null) _open(choice, seed: seed);
   }
 
   @override

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,6 +25,7 @@ const Size _phone = Size(393, 852);
 Future<void> _pumpWorkbench(
   WidgetTester tester, {
   TextScaler textScaler = TextScaler.noScaling,
+  ValueListenable<EdgeInsets>? viewInsets,
   DetectionPreferenceController? detectionPreferenceController,
   WorkSessionController? workSessionController,
   ShareInboxController? shareInboxController,
@@ -33,19 +35,31 @@ Future<void> _pumpWorkbench(
 }) async {
   await tester.binding.setSurfaceSize(_phone);
   addTearDown(() => tester.binding.setSurfaceSize(null));
-  await tester.pumpWidget(
-    MediaQuery(
-      data: MediaQueryData(size: _phone, textScaler: textScaler),
-      child: MyApp(
-        isWebOverride: isWebOverride,
-        skipSplash: true,
-        detectionPreferenceController: detectionPreferenceController,
-        workSessionController: workSessionController,
-        shareInboxController: shareInboxController,
-        externalInputImporter: externalInputImporter,
-        qrScanner: qrScanner,
-      ),
+  final Widget app = MyApp(
+    isWebOverride: isWebOverride,
+    skipSplash: true,
+    detectionPreferenceController: detectionPreferenceController,
+    workSessionController: workSessionController,
+    shareInboxController: shareInboxController,
+    externalInputImporter: externalInputImporter,
+    qrScanner: qrScanner,
+  );
+  Widget withMediaQuery(EdgeInsets insets) => MediaQuery(
+    data: MediaQueryData(
+      size: _phone,
+      textScaler: textScaler,
+      viewInsets: insets,
     ),
+    child: app,
+  );
+  await tester.pumpWidget(
+    viewInsets == null
+        ? withMediaQuery(EdgeInsets.zero)
+        : ValueListenableBuilder<EdgeInsets>(
+            valueListenable: viewInsets,
+            builder: (BuildContext context, EdgeInsets insets, Widget? child) =>
+                withMediaQuery(insets),
+          ),
   );
   await tester.pumpAndSettle();
 }
@@ -567,11 +581,65 @@ void main() {
     await tester.tap(find.text('Send to tool'));
     await tester.pumpAndSettle();
     expect(find.byType(CupertinoActionSheet), findsOneWidget);
+    await tester.enterText(find.byType(CupertinoTextField).last, 'uuid');
+    await tester.pump();
+    expect(find.text('UUID'), findsOneWidget);
+    expect(find.text('Timestamp'), findsNothing);
+    await tester.enterText(
+      find.byType(CupertinoTextField).first,
+      'mutated behind modal',
+    );
+    await tester.pump();
     await tester.tap(find.text('UUID').last);
     await tester.pumpAndSettle();
     final ToolDetailRoute route = tester.widget(find.byType(ToolDetailRoute));
     expect(route.descriptor.id, 'uuid');
     expect(route.seed, input);
+  });
+
+  testWidgets('tool chooser keeps no-match cancellation above the keyboard', (
+    WidgetTester tester,
+  ) async {
+    final ValueNotifier<EdgeInsets> viewInsets = ValueNotifier<EdgeInsets>(
+      EdgeInsets.zero,
+    );
+    addTearDown(viewInsets.dispose);
+    await _pumpWorkbench(
+      tester,
+      textScaler: const TextScaler.linear(2),
+      viewInsets: viewInsets,
+    );
+    const String input = '  unrecognized prose value  ';
+    await _enter(tester, input);
+
+    await tester.tap(find.text('Send to tool'));
+    await tester.pumpAndSettle();
+    viewInsets.value = const EdgeInsets.only(bottom: 300);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byType(CupertinoTextField).last,
+      'definitely-no-such-tool',
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('No tools found'), findsOneWidget);
+    expect(
+      tester.getBottomRight(find.text('Cancel')).dy,
+      lessThanOrEqualTo(552),
+    );
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CupertinoActionSheet), findsNothing);
+    expect(find.byType(ToolDetailRoute), findsNothing);
+    expect(
+      tester
+          .widget<CupertinoTextField>(find.byType(CupertinoTextField).first)
+          .controller!
+          .text,
+      input,
+    );
   });
 
   testWidgets('Workbench input never reorders the Library catalog', (
