@@ -75,20 +75,22 @@ class _LibraryScreenState extends State<LibraryScreen> {
               showShortcutHint: false,
               onChanged: (_) => setState(() {}),
             ),
-            const SizedBox(height: MqSpacing.md),
-            Wrap(
-              spacing: MqSpacing.sm,
-              runSpacing: MqSpacing.sm,
-              children: <Widget>[
-                for (final UtilityCategory category in UtilityCategory.values)
-                  MqChip(
-                    label: category.label,
-                    mono: false,
-                    selected: _category == category,
-                    onTap: () => setState(() => _category = category),
-                  ),
-              ],
-            ),
+            if (query.isEmpty) ...<Widget>[
+              const SizedBox(height: MqSpacing.md),
+              Wrap(
+                spacing: MqSpacing.sm,
+                runSpacing: MqSpacing.sm,
+                children: <Widget>[
+                  for (final UtilityCategory category in UtilityCategory.values)
+                    MqChip(
+                      label: category.label,
+                      mono: false,
+                      selected: _category == category,
+                      onTap: () => setState(() => _category = category),
+                    ),
+                ],
+              ),
+            ],
             if (query.isEmpty && favorites.isNotEmpty) ...<Widget>[
               const SectionRule(label: 'Favorites'),
               _grid(context, favorites, library),
