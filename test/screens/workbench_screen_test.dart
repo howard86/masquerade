@@ -142,7 +142,7 @@ void main() {
     await _enter(tester, 'unrecognized prose value');
     expect(find.text('Unknown text'), findsOneWidget);
     expect(
-      _semantics('Unknown text. Open as text or send to a tool.'),
+      _semantics('Unknown text. No tool matched this value.'),
       findsOneWidget,
     );
   });

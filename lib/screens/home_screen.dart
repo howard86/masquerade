@@ -866,21 +866,25 @@ class _HomeScreenState extends State<HomeScreen> {
           Semantics(
             container: true,
             liveRegion: true,
-            label: 'Unknown text. Open as text or send to a tool.',
+            label: 'Unknown text. No tool matched this value.',
             child: MqSurface(
               background: c.warningBg,
               borderColor: c.warning,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
-                  Text(
-                    'Unknown text',
-                    style: MqTextStyles.headline.copyWith(color: c.textPri),
+                  ExcludeSemantics(
+                    child: Text(
+                      'Unknown text',
+                      style: MqTextStyles.headline.copyWith(color: c.textPri),
+                    ),
                   ),
                   const SizedBox(height: MqSpacing.xs),
-                  Text(
-                    'No tool matched this value.',
-                    style: MqTextStyles.body.copyWith(color: c.textSec),
+                  ExcludeSemantics(
+                    child: Text(
+                      'No tool matched this value.',
+                      style: MqTextStyles.body.copyWith(color: c.textSec),
+                    ),
                   ),
                   const SizedBox(height: MqSpacing.md),
                   MqButton(
