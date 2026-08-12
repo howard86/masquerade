@@ -1136,6 +1136,7 @@ void main() {
       ),
       'JWT inspector',
     );
+    await tester.pump();
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
     expect(find.text('JWT inspector'), findsOneWidget);
@@ -1197,6 +1198,56 @@ void main() {
     );
   });
 
+  testWidgets('workflow dialog keeps blank names open', (
+    WidgetTester tester,
+  ) async {
+    final WorkSessionController sessions = _safeCompletedSession();
+    await _pumpWorkbench(tester, workSessionController: sessions);
+    await tester.ensureVisible(find.text('Save workflow'));
+    await tester.tap(find.text('Save workflow'));
+    await tester.pumpAndSettle();
+
+    Finder saveAction() => find.ancestor(
+      of: find.text('Save'),
+      matching: find.byType(CupertinoDialogAction),
+    );
+    expect(
+      tester.widget<CupertinoDialogAction>(saveAction()).onPressed,
+      isNotNull,
+    );
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(CupertinoAlertDialog),
+        matching: find.byType(CupertinoTextField),
+      ),
+      '   ',
+    );
+    await tester.pump();
+    expect(
+      tester.widget<CupertinoDialogAction>(saveAction()).onPressed,
+      isNull,
+    );
+    expect(find.byType(CupertinoAlertDialog), findsOneWidget);
+    expect(sessions.workflowError, isNull);
+
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(CupertinoAlertDialog),
+        matching: find.byType(CupertinoTextField),
+      ),
+      'Safe flow',
+    );
+    await tester.pump();
+    expect(
+      tester.widget<CupertinoDialogAction>(saveAction()).onPressed,
+      isNotNull,
+    );
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(sessions.savedWorkflows.single.name, 'Safe flow');
+    expect(find.byType(CupertinoAlertDialog), findsNothing);
+  });
+
   testWidgets('saving current workflow and incompatible rerun errors inline', (
     WidgetTester tester,
   ) async {
@@ -1212,6 +1263,7 @@ void main() {
       ),
       'Rates',
     );
+    await tester.pump();
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
     expect(find.text('Rates'), findsOneWidget);

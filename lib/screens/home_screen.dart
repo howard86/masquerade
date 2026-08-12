@@ -594,21 +594,30 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<String?> _nameDialog(String title, TextEditingController controller) =>
       showCupertinoDialog<String>(
         context: context,
-        builder: (BuildContext dialogContext) => CupertinoAlertDialog(
-          title: Text(title),
-          content: CupertinoTextField(controller: controller, maxLength: 80),
-          actions: <Widget>[
-            CupertinoDialogAction(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Cancel'),
+        builder: (BuildContext dialogContext) =>
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: controller,
+              builder: (_, TextEditingValue value, _) => CupertinoAlertDialog(
+                title: Text(title),
+                content: CupertinoTextField(
+                  controller: controller,
+                  maxLength: 80,
+                ),
+                actions: <Widget>[
+                  CupertinoDialogAction(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: const Text('Cancel'),
+                  ),
+                  CupertinoDialogAction(
+                    isDefaultAction: true,
+                    onPressed: value.text.trim().isEmpty
+                        ? null
+                        : () => Navigator.of(dialogContext).pop(value.text),
+                    child: const Text('Save'),
+                  ),
+                ],
+              ),
             ),
-            CupertinoDialogAction(
-              isDefaultAction: true,
-              onPressed: () => Navigator.of(dialogContext).pop(controller.text),
-              child: const Text('Save'),
-            ),
-          ],
-        ),
       );
 
   Future<void> _deleteWorkflow(SavedWorkflow workflow) async {
