@@ -1,9 +1,13 @@
+import 'dart:ui' show Tristate;
+
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
 import 'package:masquerade/state/history_controller.dart';
 import 'package:masquerade/state/library_controller.dart';
 import 'package:masquerade/utility_catalog.dart';
+import 'package:masquerade/widgets/mq/mq_chip.dart';
 import 'package:masquerade/widgets/mq/tool_grid_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -202,6 +206,46 @@ void main() {
       UtilityCatalog.searchStable('encode').map((UtilityDescriptor u) => u.id),
     );
     expect(find.text('SEARCH RESULTS'), findsOneWidget);
+  });
+
+  testWidgets('search hides and then restores the selected category', (
+    WidgetTester tester,
+  ) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await _pumpLibrary(tester);
+
+    await tester.tap(find.text('Generate'));
+    await tester.pump();
+    expect(
+      _cardIds(tester),
+      UtilityCatalog.inCategory(
+        UtilityCategory.generate,
+      ).map((UtilityDescriptor tool) => tool.id),
+    );
+
+    await tester.enterText(find.byType(CupertinoTextField), 'encode');
+    await tester.pump();
+    expect(find.byType(MqChip), findsNothing);
+    expect(
+      _cardIds(tester),
+      UtilityCatalog.searchStable(
+        'encode',
+      ).map((UtilityDescriptor tool) => tool.id),
+    );
+
+    await tester.tap(find.bySemanticsLabel('Clear search'));
+    await tester.pump();
+    expect(find.byType(MqChip), findsWidgets);
+    final SemanticsNode generate = tester.getSemantics(find.text('Generate'));
+    expect(generate.flagsCollection.isSelected, Tristate.isTrue);
+    expect(
+      _cardIds(tester),
+      UtilityCatalog.inCategory(
+        UtilityCategory.generate,
+      ).map((UtilityDescriptor tool) => tool.id),
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('clear affordance empties the field and resets the filter', (
