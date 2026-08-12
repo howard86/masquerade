@@ -202,6 +202,7 @@ void main() {
   testWidgets(
     'CopyToClipboardUtil toast appears instantly under Reduce Motion',
     (WidgetTester tester) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
       await tester.pumpWidget(
         _harness(
           Builder(
@@ -230,8 +231,26 @@ void main() {
       );
       expect(slide.position.value, Offset.zero);
 
+      final Finder dismiss = find.bySemanticsLabel('Dismiss copy notification');
+      expect(dismiss, findsOneWidget);
+      expect(tester.getSize(dismiss), const Size(44, 44));
+      expect(
+        tester
+            .widget<Icon>(
+              find.descendant(of: dismiss, matching: find.byType(Icon)),
+            )
+            .size,
+        14,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(find.text('Copied to clipboard'), findsNothing);
+
       // Let the 3s auto-dismiss timer fire so no timer outlives the tree.
       await tester.pump(const Duration(seconds: 3));
+      semantics.dispose();
     },
   );
 

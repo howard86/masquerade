@@ -190,15 +190,24 @@ class _CopyToastState extends State<_CopyToast>
               ),
             ),
             const SizedBox(width: MqSpacing.sm),
-            GestureDetector(
+            Semantics(
+              button: true,
+              label: 'Dismiss copy notification',
               onTap: _dismiss,
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: c.surface2,
-                  borderRadius: BorderRadius.circular(MqRadius.xs + 2),
+              excludeSemantics: true,
+              child: CupertinoButton(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size.square(44),
+                borderRadius: BorderRadius.circular(MqRadius.sm),
+                onPressed: _dismiss,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: c.surface2,
+                    borderRadius: BorderRadius.circular(MqRadius.xs + 2),
+                  ),
+                  child: Icon(MqIcons.xmark, color: c.textSec, size: 14),
                 ),
-                child: Icon(MqIcons.xmark, color: c.textSec, size: 14),
               ),
             ),
           ],
