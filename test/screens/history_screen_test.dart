@@ -73,6 +73,41 @@ WorkSession _recentSession() => WorkSession(
         provenance: ArtifactProvenance.typed,
       ),
       settings: const <String, Object?>{},
+      output: Artifact<Object?>(
+        kind: ArtifactKind.bps,
+        rawValue: '25 bps',
+        provenance: ArtifactProvenance.generated,
+      ),
+      status: WorkflowStepStatus.completed,
+    ),
+    WorkflowStep(
+      toolId: 'timestamp',
+      input: Artifact<Object?>(
+        kind: ArtifactKind.timestamp,
+        rawValue: '1700000000',
+        provenance: ArtifactProvenance.generated,
+      ),
+      settings: const <String, Object?>{},
+      status: WorkflowStepStatus.running,
+    ),
+  ],
+);
+
+WorkSession _protectedRecentSession() => WorkSession(
+  id: 'protected-session',
+  name: 'Protected session',
+  createdAt: DateTime.fromMillisecondsSinceEpoch(1),
+  updatedAt: DateTime.fromMillisecondsSinceEpoch(2),
+  steps: <WorkflowStep>[
+    WorkflowStep(
+      toolId: 'bps',
+      input: Artifact<Object?>(
+        kind: ArtifactKind.bps,
+        rawValue: '25 bps',
+        provenance: ArtifactProvenance.typed,
+        sensitivity: ArtifactSensitivity.sensitive,
+      ),
+      settings: const <String, Object?>{},
       status: WorkflowStepStatus.running,
     ),
   ],
@@ -172,7 +207,7 @@ void main() {
     expect(persisted['utilityId'], 'json');
   });
 
-  testWidgets('recent session resumes on Workbench at large text scale', (
+  testWidgets('recent session opens its last tool at large text scale', (
     WidgetTester tester,
   ) async {
     final WorkSession recent = _recentSession();
@@ -187,9 +222,34 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(sessions.session, same(recent));
+    final ToolDetailRoute route = tester.widget(find.byType(ToolDetailRoute));
+    expect(route.descriptor.id, 'timestamp');
+    expect(route.seed, '1700000000');
+    expect(route.initialArtifact, same(recent.steps.last.input));
+    expect(route.sessionStepIndex, 1);
+
+    await tester.tap(find.byType(CupertinoNavigationBarBackButton));
+    await tester.pumpAndSettle();
     expect(find.text('CURRENT SESSION'), findsOneWidget);
-    expect(find.text('1. bps · % · decimal'), findsOneWidget);
+    expect(find.text('2. Timestamp'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('invalid protected recent session does not navigate', (
+    WidgetTester tester,
+  ) async {
+    final WorkSessionController sessions = WorkSessionController(
+      recentSessions: <WorkSession>[_protectedRecentSession()],
+    );
+    await _pumpActivity(tester, workSessions: sessions);
+
+    await tester.tap(find.bySemanticsLabel('Resume Protected session'));
+    await tester.pumpAndSettle();
+
+    expect(sessions.session, isNull);
+    expect(sessions.workflowError, 'This session can no longer be resumed.');
+    expect(find.byType(ToolDetailRoute), findsNothing);
+    expect(find.text('Activity'), findsWidgets);
   });
 
   testWidgets(
