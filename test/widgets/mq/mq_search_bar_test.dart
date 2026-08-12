@@ -1,4 +1,6 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/theme/mq_colors.dart';
 import 'package:masquerade/theme/mq_theme.dart';
@@ -13,7 +15,7 @@ void main() {
       text: 'json',
     );
     addTearDown(controller.dispose);
-    String? changed;
+    final List<String> changes = <String>[];
 
     await tester.pumpWidget(
       CupertinoApp(
@@ -28,7 +30,7 @@ void main() {
                 width: 320,
                 child: MqSearchBar(
                   controller: controller,
-                  onChanged: (String value) => changed = value,
+                  onChanged: changes.add,
                 ),
               ),
             ),
@@ -41,11 +43,34 @@ void main() {
     expect(tester.getSize(find.byType(CupertinoTextField)).height, 44);
     final Finder clear = find.bySemanticsLabel('Clear search');
     expect(tester.getRect(clear).size, const Size(44, 44));
+    expect(
+      tester
+          .getSemantics(clear)
+          .getSemanticsData()
+          .hasAction(SemanticsAction.tap),
+      isTrue,
+    );
 
     await tester.tap(clear);
     await tester.pump();
     expect(controller.text, isEmpty);
-    expect(changed, '');
+    expect(changes, <String>['']);
+
+    controller.text = 'uuid';
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(controller.text, isEmpty);
+    expect(changes, <String>['', '']);
+
+    controller.text = 'base64';
+    await tester.pump();
+    tester.semantics.tap(find.semantics.byLabel('Clear search'));
+    await tester.pump();
+    expect(controller.text, isEmpty);
+    expect(changes, <String>['', '', '']);
     semantics.dispose();
   });
 }
