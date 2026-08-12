@@ -339,9 +339,14 @@ class _RecentSessionRow extends StatelessWidget {
     final String tools = session.steps
         .map((WorkflowStep step) => _toolName(step.toolId))
         .join(' → ');
+    void resume() {
+      if (WorkSessionScope.of(context).resume(session)) onResume?.call();
+    }
+
     return Semantics(
       button: true,
       label: 'Resume ${session.name}',
+      onTap: resume,
       excludeSemantics: true,
       child: CupertinoButton(
         padding: const EdgeInsets.symmetric(
@@ -351,9 +356,7 @@ class _RecentSessionRow extends StatelessWidget {
         minimumSize: const Size.fromHeight(56),
         color: c.surface,
         borderRadius: BorderRadius.circular(MqRadius.md),
-        onPressed: () {
-          if (WorkSessionScope.of(context).resume(session)) onResume?.call();
-        },
+        onPressed: resume,
         child: Row(
           children: <Widget>[
             Expanded(
