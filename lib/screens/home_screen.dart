@@ -905,6 +905,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Semantics(
               container: true,
               label: 'Opened text: ${_hero.text}',
+              excludeSemantics: true,
               child: MqSurface(
                 child: Text(
                   _hero.text,
