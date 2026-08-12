@@ -24,7 +24,7 @@ Future<HistoryController> _pumpActivity(
   final SharedPreferences prefs = await SharedPreferences.getInstance();
   final HistoryController history = HistoryController(
     prefs: prefs,
-    retention: Duration.zero,
+    retention: const Duration(days: 365),
   );
   await history.add(
     HistoryEntry(

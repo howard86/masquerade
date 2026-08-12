@@ -62,6 +62,24 @@ void main() {
   });
 
   group('HistoryController policy', () {
+    test('off preserves existing entries and blocks new entries', () async {
+      final HistoryController c = HistoryController();
+      await c.add(entry('json', 'before'));
+
+      await c.setRetention(Duration.zero);
+      await c.add(entry('json', 'while off'));
+
+      expect(c.entries.map((HistoryEntry e) => e.input), <String>['before']);
+
+      await c.setRetention(const Duration(days: 7));
+      await c.add(entry('json', 'after'));
+
+      expect(c.entries.map((HistoryEntry e) => e.input), <String>[
+        'after',
+        'before',
+      ]);
+    });
+
     test('catalog is authoritative and unknown tools fail closed', () async {
       for (final UtilityDescriptor tool in UtilityCatalog.all) {
         expect(historyPolicyFor(tool.id), tool.historyPolicy, reason: tool.id);
@@ -207,10 +225,10 @@ void main() {
 
     test('pin and session metadata serialize and pin persists', () async {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('mb.history.retention.days', 0);
+      await prefs.setInt('mb.history.retention.days', 365);
       final HistoryController c = HistoryController(
         prefs: prefs,
-        retention: Duration.zero,
+        retention: const Duration(days: 365),
       );
       final HistoryEntry item = HistoryEntry(
         utilityId: 'json',
@@ -294,7 +312,9 @@ void main() {
     });
 
     test('search covers tool, date, input, and output', () async {
-      final HistoryController c = HistoryController(retention: Duration.zero);
+      final HistoryController c = HistoryController(
+        retention: const Duration(days: 365),
+      );
       await c.add(
         HistoryEntry(
           utilityId: 'json',
