@@ -2,8 +2,12 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
+import 'package:masquerade/models/artifact.dart';
+import 'package:masquerade/models/work_session.dart';
 import 'package:masquerade/screens/detail/tool_detail_route.dart';
 import 'package:masquerade/state/share_inbox_controller.dart';
+import 'package:masquerade/state/work_session_controller.dart';
+import 'package:masquerade/utility_catalog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '_helpers.dart';
@@ -151,5 +155,75 @@ void main() {
     );
     expect(field.controller!.text, '{"from":"shortcut"}');
     expect(inbox.intentRequests, isEmpty);
+  });
+
+  testWidgets('resume shortcut opens the last session tool', (
+    WidgetTester tester,
+  ) async {
+    const MethodChannel inboxChannel = MethodChannel(
+      ShareInboxController.channelName,
+    );
+    List<Object?> intents = <Object?>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(inboxChannel, (MethodCall call) async {
+          return switch (call.method) {
+            'list' => <Object?>[],
+            'consumeIntents' => intents,
+            'syncWorkflows' => null,
+            _ => null,
+          };
+        });
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(inboxChannel, null),
+    );
+    final WorkSessionController source = WorkSessionController();
+    source.start(
+      UtilityCatalog.byId('bps'),
+      Artifact<Object?>(
+        kind: ArtifactKind.bps,
+        rawValue: '25 bps',
+        provenance: ArtifactProvenance.typed,
+      ),
+    );
+    source.addNext(0, UtilityCatalog.byId('timestamp'), '1700000000');
+    final WorkSession recent = source.session!;
+    final WorkSessionController sessions = WorkSessionController(
+      recentSessions: <WorkSession>[recent],
+    );
+    final ShareInboxController inbox = ShareInboxController(
+      channel: inboxChannel,
+    );
+    addTearDown(inbox.dispose);
+    await tester.binding.setSurfaceSize(kHomeSurfaceSize);
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MyApp(
+        shareInboxController: inbox,
+        workSessionController: sessions,
+        skipSplash: true,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    intents = <Object?>[
+      <String, Object?>{
+        'id': '11111111-1111-1111-1111-111111111111',
+        'action': 'resumeLastSession',
+        'createdAt': DateTime.now().millisecondsSinceEpoch,
+      },
+    ];
+    await inbox.refreshIntents();
+    await tester.pumpAndSettle();
+
+    expect(sessions.session, same(recent));
+    final ToolDetailRoute route = tester.widget(find.byType(ToolDetailRoute));
+    expect(route.descriptor.id, 'timestamp');
+    expect(route.seed, '1700000000');
+    expect(route.initialArtifact, same(recent.steps.last.input));
+    expect(route.sessionStepIndex, 1);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('CURRENT SESSION'), findsOneWidget);
   });
 }
