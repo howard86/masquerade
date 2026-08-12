@@ -62,6 +62,9 @@ class CsvParser {
     _ReadResult? commaFallback;
     CsvErr? firstError;
     for (final String candidate in delimiters) {
+      if (candidate != ',' && !source.contains(candidate)) {
+        continue;
+      }
       final _ReadResult read = _read(source, candidate);
       if (read.error != null) {
         firstError ??= CsvErr(read.error!);
