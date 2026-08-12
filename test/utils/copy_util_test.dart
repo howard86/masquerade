@@ -37,12 +37,7 @@ Widget _harness(
 /// The 44×44 min-size hit region inside an [AnimatedCopyIcon].
 Finder _hitTarget() => find.descendant(
   of: find.byType(AnimatedCopyIcon),
-  matching: find.byWidgetPredicate(
-    (Widget w) =>
-        w is ConstrainedBox &&
-        w.constraints.minWidth == 44 &&
-        w.constraints.minHeight == 44,
-  ),
+  matching: find.byType(CupertinoButton),
 );
 
 void main() {
@@ -109,6 +104,20 @@ void main() {
     );
 
     // Let the copied → idle reset timer fire so no timer outlives the tree.
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('AnimatedCopyIcon supports keyboard activation', (
+    WidgetTester tester,
+  ) async {
+    int copies = 0;
+    await tester.pumpWidget(_harness(AnimatedCopyIcon(onCopy: () => copies++)));
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    expect(copies, 1);
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    expect(copies, 2);
     await tester.pump(const Duration(seconds: 1));
   });
 
