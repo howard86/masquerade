@@ -10,6 +10,7 @@ import 'package:masquerade/state/canvas_controller.dart';
 import 'package:masquerade/state/link_group.dart';
 import 'package:masquerade/state/view_mode_controller.dart';
 import 'package:masquerade/utility_catalog.dart';
+import 'package:masquerade/widgets/desktop/desktop_dock.dart';
 import 'package:masquerade/widgets/desktop/desktop_menubar.dart';
 import 'package:masquerade/widgets/desktop/tool_card_frame.dart';
 import 'package:masquerade/widgets/mq/tool_action_bar.dart';
@@ -98,6 +99,12 @@ Future<void> main(List<String> args) async {
     await tester.pump();
     await Future<void>.delayed(const Duration(milliseconds: 250));
 
+    final Element menubarProbe = find.text('Window').evaluate().single;
+    final Element dockProbe = find.byType(DesktopDock).evaluate().single;
+    Widget menubarWidget = menubarProbe.widget;
+    Widget dockWidget = dockProbe.widget;
+    int menubarBuilds = 0;
+    int dockBuilds = 0;
     final List<FrameTiming> timings = <FrameTiming>[];
     void record(List<FrameTiming> values) => timings.addAll(values);
     _bodyBuilderCalls = 0;
@@ -105,6 +112,14 @@ Future<void> main(List<String> args) async {
     for (int i = 0; i < _measuredFrames; i++) {
       await gesture.moveBy(Offset(i.isEven ? 3 : -3, 0));
       await tester.pump();
+      if (!identical(menubarWidget, menubarProbe.widget)) {
+        menubarBuilds++;
+        menubarWidget = menubarProbe.widget;
+      }
+      if (!identical(dockWidget, dockProbe.widget)) {
+        dockBuilds++;
+        dockWidget = dockProbe.widget;
+      }
     }
     await Future<void>.delayed(const Duration(seconds: 1));
     binding.removeTimingsCallback(record);
@@ -139,6 +154,9 @@ Future<void> main(List<String> args) async {
       'frameCount': timings.length,
       'bodyBuilderCalls': measuredBodyBuilderCalls,
       'expectedBodyBuilderCalls': 0,
+      'menubarBuilds': menubarBuilds,
+      'dockBuilds': dockBuilds,
+      'expectedChromeBuilds': 0,
       'start': <String, double>{'x': start.dx, 'y': start.dy},
       'end': <String, double>{'x': end.dx, 'y': end.dy},
       'samples': complete ? _batchMedians(buildUs) : <int>[],
@@ -164,6 +182,8 @@ Future<void> main(List<String> args) async {
   }
   if (result['complete'] != true ||
       result['bodyBuilderCalls'] != result['expectedBodyBuilderCalls'] ||
+      result['menubarBuilds'] != result['expectedChromeBuilds'] ||
+      result['dockBuilds'] != result['expectedChromeBuilds'] ||
       result['start'].toString() != result['end'].toString()) {
     stderr.writeln(const JsonEncoder.withIndent('  ').convert(result));
     exitCode = 1;
