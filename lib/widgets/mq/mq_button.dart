@@ -35,7 +35,7 @@ class MqButton extends StatelessWidget {
   final String? semanticsLabel;
 
   double get _height => switch (size) {
-    MqButtonSize.sm => 32,
+    MqButtonSize.sm => 44,
     MqButtonSize.md => 44,
     MqButtonSize.lg => 50,
   };
