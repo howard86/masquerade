@@ -198,7 +198,9 @@ void main() {
     // YAML output visible.
     expect(find.text('YAML'), findsWidgets);
 
-    await tester.tap(find.bySemanticsLabel('Swap source and target'));
+    final Finder swap = find.bySemanticsLabel('Swap source and target');
+    expect(tester.getSize(swap).shortestSide, greaterThanOrEqualTo(44));
+    await tester.tap(swap);
     await tester.pumpAndSettle(kDebouncePump);
 
     // Input now holds YAML; Target now shows Pretty JSON.
