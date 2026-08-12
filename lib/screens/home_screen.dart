@@ -944,9 +944,11 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                Text(
-                  title,
-                  style: MqTextStyles.headline.copyWith(color: c.textPri),
+                ExcludeSemantics(
+                  child: Text(
+                    title,
+                    style: MqTextStyles.headline.copyWith(color: c.textPri),
+                  ),
                 ),
                 const SizedBox(height: MqSpacing.sm),
                 if (artifact)
