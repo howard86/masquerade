@@ -68,13 +68,19 @@ VERIFY GATE (all pass before any commit; what CI gates on):
 
 CONCURRENCY — claim+lock helper `.claude/toolbox-improve-claim.sh` (local, untracked, mkdir-atomic,
 TTL-reclaimable). Generate OWNER once and reuse the literal everywhere:
-`OWNER="tb-$(hostname -s)-$(date +%s)-$$"`. `claim` = `bash .claude/toolbox-improve-claim.sh`:
+`export CLAIM_SESSION_ID="${CODEX_THREAD_ID:-${CLAUDE_SESSION_ID:-${KIRO_SESSION_ID:-}}}"`;
+`OWNER="tb-${CLAIM_SESSION_ID:-legacy}-$(hostname -s)-$(date +%s)-$$"`.
+`claim` = `bash .claude/toolbox-improve-claim.sh`:
   - `claim list` — show HELD/STALE claims.
   - `claim acquire <ID> "$OWNER"` — exit 0 = you own it; exit 1 = HELD (skip).
   - `claim release <ID> "$OWNER"` — drop (on blocked/reverted or after RECORD).
   - `claim lock|unlock "$OWNER"` — wrap EVERY backlog read-modify-write; keep it to just the edit,
     never across a delegate.
 The CLAIM is the gate; the Index `in-progress` text is a human mirror only.
+Never `rm -rf` a claim directory or release another session's claim because its
+worktree looks quiet. A current worker can be editing without commits. The helper's
+session check and TTL are authoritative; before TTL, only the recorded session may
+release. After TTL, reclaim through `claim acquire`, never by deleting state.
 
 PROCEDURE — all seven steps, then end:
 
@@ -89,7 +95,10 @@ PROCEDURE — all seven steps, then end:
    PR"`); treat both as in-flight, don't wait.
 
 1. SELECT one Index item: highest-ranked that is `open`, not blocked/done/wontfix, not depending on an
-   open item, not covered by an open PR or live claim, diff ~<300 LOC. CLAIM BEFORE DELEGATING:
+   open item, not covered by an open PR or live claim, diff ~<300 LOC. A row still showing
+   `in-progress (...)` is ALSO eligible when step 0's `claim list` shows that claim STALE or missing —
+   a dead loop's leftover mirror; `claim acquire` is the arbiter, and on success re-flip the mirror
+   to your OWNER. CLAIM BEFORE DELEGATING:
    `claim acquire <ID> "$OWNER"` (exit 1 → next eligible until one sticks), then mirror under the lock
    (flip the Index row to `in-progress ($OWNER)`). EXHAUSTION (<2 eligible) → SURVEY run: re-survey
    `lib/`, append 3-5 ranked entries under the lock, ship one only if genuinely high-value +
