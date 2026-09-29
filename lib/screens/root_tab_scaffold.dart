@@ -1,14 +1,18 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
+import '../models/work_session.dart';
 import '../state/view_mode_controller.dart';
 import '../state/library_controller.dart';
 import '../state/share_inbox_controller.dart';
+import '../state/work_session_controller.dart';
 import '../theme/mq_theme.dart';
+import '../utility_catalog.dart';
 import '../utils/shell_layout.dart';
 import '../utils/external_input_importer.dart';
 import '../widgets/mq/mq_icons.dart';
 import 'desktop/desktop_shell.dart';
+import 'detail/tool_detail_route.dart';
 import 'history_screen.dart';
 import 'home_screen.dart';
 import 'library_screen.dart';
@@ -161,7 +165,7 @@ class _RootTabScaffoldState extends State<RootTabScaffold> {
               _ => HistoryScreen(
                 title: title,
                 navigationBar: navigationBar,
-                onResume: () => _tabController.index = 0,
+                onResume: _openResumedSession,
               ),
             };
           },
@@ -177,27 +181,52 @@ class _RootTabScaffoldState extends State<RootTabScaffold> {
     );
   }
 
+  void _openResumedSession() {
+    if (!mounted) return;
+    final WorkSession? session = WorkSessionScope.of(context).session;
+    if (session == null || session.steps.isEmpty) return;
+    final int index = session.steps.length - 1;
+    final WorkflowStep step = session.steps[index];
+    final UtilityDescriptor? tool = UtilityCatalog.byIdOrNull(step.toolId);
+    final NavigatorState? navigator = _navigatorKeys.first.currentState;
+    if (tool == null || navigator == null) return;
+    _focusWorkbench();
+    navigator.push<void>(
+      CupertinoPageRoute<void>(
+        builder: (_) => ToolDetailRoute(
+          descriptor: tool,
+          seed: step.input.rawValue,
+          initialArtifact: step.input,
+          sessionStepIndex: index,
+        ),
+      ),
+    );
+  }
+
   CupertinoNavigationBar _topLevelNavigationBar(
     BuildContext context,
     String title,
   ) {
+    void openSettings() => Navigator.of(context).push<void>(
+      CupertinoPageRoute<void>(
+        builder: (_) => SettingsScreen(
+          desktopShellOverride:
+              widget.desktopShellOverride ?? widget.isWebOverride,
+        ),
+      ),
+    );
+
     return CupertinoNavigationBar(
       middle: Text(title),
       trailing: Semantics(
         label: 'Open Settings',
         button: true,
+        onTap: openSettings,
         excludeSemantics: true,
         child: CupertinoButton(
           padding: EdgeInsets.zero,
           minimumSize: const Size.square(44),
-          onPressed: () => Navigator.of(context).push<void>(
-            CupertinoPageRoute<void>(
-              builder: (_) => SettingsScreen(
-                desktopShellOverride:
-                    widget.desktopShellOverride ?? widget.isWebOverride,
-              ),
-            ),
-          ),
+          onPressed: openSettings,
           child: const Icon(MqIcons.setting),
         ),
       ),

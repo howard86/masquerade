@@ -45,6 +45,28 @@ void main() {
     expect(unselectedLabel.style?.fontWeight, FontWeight.w500);
   });
 
+  testWidgets('each segment keeps a 44-point touch target', (
+    WidgetTester tester,
+  ) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+    await tester.pumpWidget(
+      _host(
+        MqSegmented<int>(
+          options: const <int, String>{1: 'One', 2: 'Two'},
+          selected: 1,
+          onChanged: (_) {},
+        ),
+      ),
+    );
+
+    for (final String label in <String>['One', 'Two']) {
+      final Rect rect = tester.getSemantics(find.text(label)).rect;
+      expect(rect.width, greaterThanOrEqualTo(44));
+      expect(rect.height, greaterThanOrEqualTo(44));
+    }
+    handle.dispose();
+  });
+
   testWidgets('full sizes to the available width, non-full hugs its content', (
     WidgetTester tester,
   ) async {

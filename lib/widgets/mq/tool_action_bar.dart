@@ -29,8 +29,8 @@ class ToolActionBarController extends ChangeNotifier {
   }
 }
 
-/// Bottom action bar anchored above the keyboard. Renders Paste leading,
-/// Clear trailing, with an optional center slot for tool-specific actions.
+/// Bottom action bar anchored above the keyboard. Renders bound Paste/Clear
+/// actions with an optional center slot for tool-specific actions.
 class ToolActionBar extends StatelessWidget {
   const ToolActionBar({super.key, required this.controller});
 
@@ -59,12 +59,13 @@ class ToolActionBar extends StatelessWidget {
               full: true,
             ),
           if (controller.center != null) controller.center!,
-          MqButton(
-            label: 'Clear',
-            variant: MqButtonVariant.glass,
-            onPressed: controller.onClear ?? () {},
-            full: true,
-          ),
+          if (controller.onClear != null)
+            MqButton(
+              label: 'Clear',
+              variant: MqButtonVariant.glass,
+              onPressed: controller.onClear!,
+              full: true,
+            ),
         ];
         final bool stackActions = media.textScaler.scale(1) >= 2;
 

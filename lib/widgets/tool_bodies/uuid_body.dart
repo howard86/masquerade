@@ -72,7 +72,7 @@ class _UuidBodyState extends State<UuidBody> {
     super.didChangeDependencies();
     if (_recorder == null) {
       _recorder = HistoryRecorder(
-        controller: HistoryScope.of(context),
+        controller: HistoryScope.read(context),
         utilityId: 'uuid',
         sensitive:
             MobileSessionRouteScope.maybeOf(context)?.protectedSession ?? false,

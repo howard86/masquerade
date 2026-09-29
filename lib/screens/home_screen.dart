@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
@@ -77,6 +79,24 @@ class _HomeScreenState extends State<HomeScreen> {
   final Set<String> _acceptingSharedItems = <String>{};
   bool _handlingAppIntents = false;
 
+  // Detection cache. The controller notifies on caret, selection and focus
+  // changes too, and each notification rebuilds; the sweep only re-runs when
+  // the text or its provenance actually changes. Preference ranking is
+  // applied per build on the cached matches, so preference edits need no
+  // new sweep.
+  String? _detectedText;
+  ArtifactProvenance? _detectedProvenance;
+  List<DetectionMatch<Object?>> _detectedMatches =
+      const <DetectionMatch<Object?>>[];
+  Timer? _detectDebounce;
+  String? _seenText;
+
+  /// Typed single-keystroke edits to text at least this long wait
+  /// [_detectDelay] for typing to pause; shorter text sweeps in well under a
+  /// frame, and pastes, imports and scans always sweep immediately.
+  static const int _debounceMinLength = 4096;
+  static const Duration _detectDelay = Duration(milliseconds: 150);
+
   @override
   void initState() {
     super.initState();
@@ -95,6 +115,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _detectDebounce?.cancel();
     _hero.removeListener(_onHeroChange);
     _heroFocus.removeListener(_rebuild);
     _hero.dispose();
@@ -155,6 +176,21 @@ class _HomeScreenState extends State<HomeScreen> {
                   () => _importError = 'There is no safe session to resume.',
                 );
               }
+              continue;
+            }
+            final int index = sessions.session!.steps.length - 1;
+            final WorkflowStep step = sessions.session!.steps[index];
+            final UtilityDescriptor? tool = UtilityCatalog.byIdOrNull(
+              step.toolId,
+            );
+            if (tool != null && mounted) {
+              await ToolDetailRoute.push(
+                context,
+                tool,
+                seed: step.input.rawValue,
+                initialArtifact: step.input,
+                sessionStepIndex: index,
+              );
             }
           case AppIntentAction.runWorkflow:
             final SavedWorkflow? workflow = sessions.savedWorkflows
@@ -234,8 +270,74 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _open(UtilityDescriptor tool, {Artifact<Object?>? artifact}) {
-    final String input = artifact?.rawValue ?? _hero.text;
+  /// Matches for the current text, from cache when neither the text nor its
+  /// provenance changed since the last sweep.
+  List<DetectionMatch<Object?>> _currentMatches() {
+    final String text = _hero.text;
+    final String? previous = _seenText;
+    _seenText = text;
+    final String? cached = _detectedText;
+    final bool sameText =
+        cached != null && (identical(text, cached) || text == cached);
+    if (sameText && _detectedProvenance == _provenance) {
+      _detectDebounce?.cancel();
+      return _detectedMatches;
+    }
+    if (sameText || !_isTypedKeystroke(previous, text)) {
+      _detectNow();
+    } else {
+      // Keep showing the previous result until typing pauses.
+      _detectDebounce?.cancel();
+      _detectDebounce = Timer(_detectDelay, () {
+        if (mounted) setState(_detectNow);
+      });
+    }
+    return _detectedMatches;
+  }
+
+  bool _isTypedKeystroke(String? previous, String text) =>
+      previous != null &&
+      _provenance == ArtifactProvenance.typed &&
+      text.length >= _debounceMinLength &&
+      (text.length - previous.length).abs() <= 1;
+
+  void _detectNow() {
+    _detectDebounce?.cancel();
+    _detectDebounce = null;
+    final String text = _hero.text;
+    _detectedMatches = UtilityCatalog.detectArtifacts(
+      text,
+      provenance: _provenance,
+    );
+    _detectedText = text;
+    _detectedProvenance = _provenance;
+  }
+
+  /// Opens a detected suggestion. When a debounced sweep is still pending the
+  /// rendered match may describe older text, so sweep now and open the
+  /// current match of the same kind and tool (or just refresh if it's gone).
+  void _openDetected(UtilityDescriptor tool, DetectionMatch<Object?> match) {
+    if (_detectDebounce?.isActive ?? false) {
+      setState(_detectNow);
+      final DetectionMatch<Object?>? fresh = _detectedMatches
+          .where(
+            (DetectionMatch<Object?> candidate) =>
+                candidate.artifact.kind == match.artifact.kind &&
+                candidate.primaryToolId == match.primaryToolId,
+          )
+          .firstOrNull;
+      if (fresh == null) return;
+      match = fresh;
+    }
+    _open(tool, artifact: match.artifact);
+  }
+
+  void _open(
+    UtilityDescriptor tool, {
+    Artifact<Object?>? artifact,
+    String? seed,
+  }) {
+    final String input = artifact?.rawValue ?? seed ?? _hero.text;
     final OpenInToolCallback? open = widget.onOpenTool;
     if (open != null) {
       open(tool, input);
@@ -254,25 +356,63 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _chooseTool() async {
+    final String seed = _hero.text;
+    String query = '';
     final UtilityDescriptor? choice =
         await showCupertinoModalPopup<UtilityDescriptor>(
           context: context,
-          builder: (BuildContext context) => CupertinoActionSheet(
-            title: const Text('Send to tool'),
-            actions: <Widget>[
-              for (final UtilityDescriptor tool in UtilityCatalog.all)
-                CupertinoActionSheetAction(
-                  onPressed: () => Navigator.of(context).pop(tool),
-                  child: Text(tool.name),
+          builder: (BuildContext context) => StatefulBuilder(
+            builder: (BuildContext context, StateSetter setSheetState) {
+              final List<UtilityDescriptor> tools = UtilityCatalog.searchStable(
+                query,
+              );
+              return AnimatedPadding(
+                duration: MqMotion.fast,
+                curve: MqMotion.dismiss,
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.viewInsetsOf(context).bottom,
                 ),
-            ],
-            cancelButton: CupertinoActionSheetAction(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
+                child: SafeArea(
+                  top: false,
+                  child: CupertinoActionSheet(
+                    title: const Text('Send to tool'),
+                    message: Column(
+                      children: <Widget>[
+                        CupertinoSearchTextField(
+                          placeholder: 'Search tools',
+                          autofocus: true,
+                          onChanged: (String value) =>
+                              setSheetState(() => query = value),
+                        ),
+                        if (tools.isEmpty) ...<Widget>[
+                          const SizedBox(height: MqSpacing.md),
+                          Text(
+                            'No tools found',
+                            style: MqTextStyles.body.copyWith(
+                              color: context.mq.colors.textSec,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    actions: <Widget>[
+                      for (final UtilityDescriptor tool in tools)
+                        CupertinoActionSheetAction(
+                          onPressed: () => Navigator.of(context).pop(tool),
+                          child: Text(tool.name),
+                        ),
+                    ],
+                    cancelButton: CupertinoActionSheetAction(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
         );
-    if (mounted && choice != null) _open(choice);
+    if (mounted && choice != null) _open(choice, seed: seed);
   }
 
   @override
@@ -282,7 +422,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final DetectionPreferenceController preferences =
         DetectionPreferenceScope.of(context);
     final List<DetectionMatch<Object?>> detected = preferences.rank(
-      UtilityCatalog.detectArtifacts(_hero.text, provenance: _provenance),
+      _currentMatches(),
     );
     final bool hasShape = detected.isNotEmpty;
     final List<UtilityDescriptor> nameMatches = hasShape
@@ -319,11 +459,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             if (_importError case final String error) ...<Widget>[
               const SizedBox(height: MqSpacing.sm),
-              Semantics(
-                liveRegion: true,
-                label: error,
-                child: MqStatus(label: error, kind: MqStatusKind.warning),
-              ),
+              MqStatus(label: error, kind: MqStatusKind.warning),
             ],
             _shareInbox(context),
             _result(context, state, detected, nameMatches),
@@ -345,11 +481,7 @@ class _HomeScreenState extends State<HomeScreen> {
       children: <Widget>[
         const SectionRule(label: 'Shared inbox'),
         if (inbox.error case final String error)
-          Semantics(
-            liveRegion: true,
-            label: error,
-            child: MqStatus(label: error, kind: MqStatusKind.warning),
-          ),
+          MqStatus(label: error, kind: MqStatusKind.warning),
         for (final ShareInboxItem item in inbox.items) ...<Widget>[
           MqSurface(
             child: Column(
@@ -470,6 +602,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Semantics(
             label:
                 'Original path preserved with ${original.steps.length} steps',
+            excludeSemantics: true,
             child: Text(
               'Original path · ${original.steps.length} steps',
               style: MqTextStyles.caption1.copyWith(
@@ -495,6 +628,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Semantics(
             liveRegion: true,
             label: error,
+            excludeSemantics: true,
             child: MqSurface(
               background: context.mq.colors.warningBg,
               borderColor: context.mq.colors.warning,
@@ -512,7 +646,7 @@ class _HomeScreenState extends State<HomeScreen> {
             in sessions.savedWorkflows) ...<Widget>[
           _SavedWorkflowCard(
             workflow: workflow,
-            canRun: _hero.text.trim().isNotEmpty,
+            canRun: workflow.available && _hero.text.trim().isNotEmpty,
             onRun: () => _runWorkflow(workflow),
             onRename: () => _renameWorkflow(workflow),
             onDelete: () => _deleteWorkflow(workflow),
@@ -552,21 +686,30 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<String?> _nameDialog(String title, TextEditingController controller) =>
       showCupertinoDialog<String>(
         context: context,
-        builder: (BuildContext dialogContext) => CupertinoAlertDialog(
-          title: Text(title),
-          content: CupertinoTextField(controller: controller, maxLength: 80),
-          actions: <Widget>[
-            CupertinoDialogAction(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Cancel'),
+        builder: (BuildContext dialogContext) =>
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: controller,
+              builder: (_, TextEditingValue value, _) => CupertinoAlertDialog(
+                title: Text(title),
+                content: CupertinoTextField(
+                  controller: controller,
+                  maxLength: 80,
+                ),
+                actions: <Widget>[
+                  CupertinoDialogAction(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: const Text('Cancel'),
+                  ),
+                  CupertinoDialogAction(
+                    isDefaultAction: true,
+                    onPressed: value.text.trim().isEmpty
+                        ? null
+                        : () => Navigator.of(dialogContext).pop(value.text),
+                    child: const Text('Save'),
+                  ),
+                ],
+              ),
             ),
-            CupertinoDialogAction(
-              isDefaultAction: true,
-              onPressed: () => Navigator.of(dialogContext).pop(controller.text),
-              child: const Text('Save'),
-            ),
-          ],
-        ),
       );
 
   Future<void> _deleteWorkflow(SavedWorkflow workflow) async {
@@ -807,21 +950,25 @@ class _HomeScreenState extends State<HomeScreen> {
           Semantics(
             container: true,
             liveRegion: true,
-            label: 'Unknown text. Open as text or send to a tool.',
+            label: 'Unknown text. No tool matched this value.',
             child: MqSurface(
               background: c.warningBg,
               borderColor: c.warning,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
-                  Text(
-                    'Unknown text',
-                    style: MqTextStyles.headline.copyWith(color: c.textPri),
+                  ExcludeSemantics(
+                    child: Text(
+                      'Unknown text',
+                      style: MqTextStyles.headline.copyWith(color: c.textPri),
+                    ),
                   ),
                   const SizedBox(height: MqSpacing.xs),
-                  Text(
-                    'No tool matched this value.',
-                    style: MqTextStyles.body.copyWith(color: c.textSec),
+                  ExcludeSemantics(
+                    child: Text(
+                      'No tool matched this value.',
+                      style: MqTextStyles.body.copyWith(color: c.textSec),
+                    ),
                   ),
                   const SizedBox(height: MqSpacing.md),
                   MqButton(
@@ -846,6 +993,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Semantics(
               container: true,
               label: 'Opened text: ${_hero.text}',
+              excludeSemantics: true,
               child: MqSurface(
                 child: Text(
                   _hero.text,
@@ -880,9 +1028,11 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                Text(
-                  title,
-                  style: MqTextStyles.headline.copyWith(color: c.textPri),
+                ExcludeSemantics(
+                  child: Text(
+                    title,
+                    style: MqTextStyles.headline.copyWith(color: c.textPri),
+                  ),
                 ),
                 const SizedBox(height: MqSpacing.sm),
                 if (artifact)
@@ -891,10 +1041,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       tool: suggestion.tool,
                       detail:
                           '${suggestion.primary ? 'Primary' : 'Alternative'} · ${(suggestion.match.confidence * 100).round()}% · ${suggestion.match.reason}',
-                      onTap: () => _open(
-                        suggestion.tool,
-                        artifact: suggestion.match.artifact,
-                      ),
+                      onTap: () =>
+                          _openDetected(suggestion.tool, suggestion.match),
                       onMakePrimary:
                           suggestion.primary || !preferences.canPrefer(detected)
                           ? null
@@ -1033,10 +1181,12 @@ class _SessionStepRow extends StatelessWidget {
       label:
           'Step ${index + 1}, $name, $status. Input $input.${output == null ? '' : ' Output $output.'} Actions available.',
       excludeSemantics: true,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        excludeFromSemantics: true,
-        onTap: onActions,
+      child: CupertinoButton(
+        padding: EdgeInsets.zero,
+        minimumSize: const Size(0, 44),
+        alignment: AlignmentDirectional.centerStart,
+        borderRadius: BorderRadius.circular(MqRadius.sm),
+        onPressed: onActions,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
@@ -1104,6 +1254,7 @@ class _SuggestionRow extends StatelessWidget {
               ? 'Open ${tool.name}'
               : 'Open ${tool.name}. $detail',
           button: true,
+          onTap: onTap,
           excludeSemantics: true,
           child: CupertinoButton(
             padding: const EdgeInsets.symmetric(vertical: MqSpacing.sm),

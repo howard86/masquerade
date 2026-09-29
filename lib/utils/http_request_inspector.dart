@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'sensitive_data_policy.dart';
+import 'utf8_length.dart';
 
 const int _maxBytes = 65536;
 const int _maxUrlLength = 8192;
@@ -9,6 +10,20 @@ const int _maxFields = 100;
 const int _maxTokens = 256;
 const int _maxDepth = 12;
 const String _redacted = '[REDACTED]';
+
+final RegExp _curlStart = RegExp(r'^curl(?:\s|$)', caseSensitive: false);
+final RegExp _fetchStart = RegExp(r'^fetch\s*\(');
+final RegExp _axiosStart = RegExp(r'^axios(?:\.|\s*\()');
+final RegExp _lineBreak = RegExp(r'[\r\n]');
+final RegExp _requestLine = RegExp(
+  r'^(?:\[[^\]]{0,200}\]\s*)?(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS|CONNECT|TRACE)\s+(\S+?)(?:\s+HTTP/\d(?:\.\d)?)?$',
+  caseSensitive: false,
+);
+final RegExp _methodToken = RegExp(r'^[A-Z]{1,16}$');
+final RegExp _breakOrNul = RegExp(r'[\r\n\u0000]');
+final RegExp _headerName = RegExp(r"^[!#$%&'*+.^_`|~0-9A-Za-z-]+$");
+final RegExp _headerValueControl = RegExp(r'[\x00-\x08\x0A-\x1F\x7F]');
+final RegExp _nonAlnum = RegExp(r'[^a-z0-9]');
 
 enum HttpSnippetKind { curl, rawHttp, fetch, axios, requestLog }
 
@@ -104,7 +119,7 @@ class HttpRequestDescriptor {
 
 abstract final class HttpRequestInspector {
   static HttpRequestDescriptor parse(String input) {
-    if (input.length > _maxBytes || utf8.encode(input).length > _maxBytes) {
+    if (utf8LengthExceeds(input, _maxBytes)) {
       throw const HttpInspectorException('Input exceeds the 64 KiB limit.');
     }
     if (input.contains('\u0000')) {
@@ -114,13 +129,13 @@ abstract final class HttpRequestInspector {
       throw const HttpInspectorException('Paste a request to inspect.');
     }
     final String source = input.trimLeft();
-    if (RegExp(r'^curl(?:\s|$)', caseSensitive: false).hasMatch(source)) {
+    if (_curlStart.hasMatch(source)) {
       return _parseCurl(source);
     }
-    if (RegExp(r'^fetch\s*\(').hasMatch(source)) {
+    if (_fetchStart.hasMatch(source)) {
       return _parseFetch(source);
     }
-    if (RegExp(r'^axios(?:\.|\s*\()').hasMatch(source)) {
+    if (_axiosStart.hasMatch(source)) {
       return _parseAxios(source);
     }
     return _parseRaw(source);
@@ -258,7 +273,7 @@ HttpRequestDescriptor _parseRaw(String input) {
     throw const HttpInspectorException('NUL bytes are not allowed.');
   }
   if (input.contains('\r\n') &&
-      input.replaceAll('\r\n', '').contains(RegExp(r'[\r\n]'))) {
+      input.replaceAll('\r\n', '').contains(_lineBreak)) {
     throw const HttpInspectorException(
       'Mixed HTTP line endings are not allowed.',
     );
@@ -268,11 +283,7 @@ HttpRequestDescriptor _parseRaw(String input) {
   final String head = split < 0 ? normalized : normalized.substring(0, split);
   final String? body = split < 0 ? null : normalized.substring(split + 2);
   final List<String> lines = head.split('\n');
-  final RegExp requestLine = RegExp(
-    r'^(?:\[[^\]]{0,200}\]\s*)?(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS|CONNECT|TRACE)\s+(\S+?)(?:\s+HTTP/\d(?:\.\d)?)?$',
-    caseSensitive: false,
-  );
-  final RegExpMatch? first = requestLine.firstMatch(lines.first.trim());
+  final RegExpMatch? first = _requestLine.firstMatch(lines.first.trim());
   if (first == null) {
     throw const HttpInspectorException(
       'Expected cURL, Fetch, Axios, or an HTTP request line.',
@@ -430,7 +441,7 @@ HttpRequestDescriptor _build({
   required List<HttpField> headers,
   required String? body,
 }) {
-  if (!RegExp(r'^[A-Z]{1,16}$').hasMatch(method)) {
+  if (!_methodToken.hasMatch(method)) {
     throw const HttpInspectorException('HTTP method must be a static token.');
   }
   if (target == null) {
@@ -439,7 +450,7 @@ HttpRequestDescriptor _build({
   if (target.length > _maxUrlLength) {
     throw const HttpInspectorException('URL exceeds the 8 KiB limit.');
   }
-  if (target.contains(RegExp(r'[\r\n\u0000]'))) {
+  if (target.contains(_breakOrNul)) {
     throw const HttpInspectorException('URL contains a control character.');
   }
   final Uri parsed;
@@ -469,7 +480,7 @@ HttpRequestDescriptor _build({
       .map(_validateHeader)
       .toList();
   _validateFraming(validatedHeaders, body);
-  if (body != null && utf8.encode(body).length > _maxBytes) {
+  if (body != null && utf8LengthExceeds(body, _maxBytes)) {
     throw const HttpInspectorException(
       'Request body exceeds the 64 KiB limit.',
     );
@@ -524,7 +535,7 @@ HttpField _parseHeader(String line) {
   if (line.length > _maxTokenLength) {
     throw const HttpInspectorException('Header line exceeds the 8 KiB limit.');
   }
-  if (line.contains(RegExp(r'[\r\n\u0000]'))) {
+  if (line.contains(_breakOrNul)) {
     throw const HttpInspectorException('Header contains a control character.');
   }
   final int colon = line.indexOf(':');
@@ -553,12 +564,12 @@ HttpField _validateHeader(HttpField field) {
       'Header name contains invalid characters.',
     );
   }
-  if (!RegExp(r"^[!#$%&'*+.^_`|~0-9A-Za-z-]+$").hasMatch(name)) {
+  if (!_headerName.hasMatch(name)) {
     throw const HttpInspectorException(
       'Header name contains invalid characters.',
     );
   }
-  if (value.contains(RegExp(r'[\x00-\x08\x0A-\x1F\x7F]'))) {
+  if (value.contains(_headerValueControl)) {
     throw const HttpInspectorException(
       'Header value contains a control character.',
     );
@@ -596,7 +607,7 @@ void _validateFraming(List<HttpField> headers, String? body) {
         'Content-Length must be a non-negative integer.',
       );
     }
-    if (expected != utf8.encode(body ?? '').length) {
+    if (expected != utf8Length(body ?? '')) {
       throw const HttpInspectorException(
         'Content-Length does not match the request body.',
       );
@@ -738,10 +749,7 @@ String _optionName(String token) {
 }
 
 bool _isProtectedName(String name) {
-  final String normalized = name.toLowerCase().replaceAll(
-    RegExp(r'[^a-z0-9]'),
-    '',
-  );
+  final String normalized = name.toLowerCase().replaceAll(_nonAlnum, '');
   return normalized == 'authorization' ||
       normalized == 'proxyauthorization' ||
       normalized == 'cookie' ||
@@ -958,11 +966,31 @@ class _JsParser {
   int depth = 0;
   int nodes = 0;
 
+  static final RegExp _identifier = RegExp(r'[A-Za-z_$][A-Za-z0-9_$]*');
+  static final RegExp _number = RegExp(
+    r'-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?',
+  );
+
   void _space() {
-    while (index < source.length && RegExp(r'\s').hasMatch(source[index])) {
+    while (index < source.length && _isJsSpace(source.codeUnitAt(index))) {
       index++;
     }
   }
+
+  /// The code units RegExp `\s` matches (ECMAScript WhiteSpace and
+  /// LineTerminator).
+  static bool _isJsSpace(int unit) =>
+      (unit >= 0x09 && unit <= 0x0d) ||
+      unit == 0x20 ||
+      unit == 0xa0 ||
+      unit == 0x1680 ||
+      (unit >= 0x2000 && unit <= 0x200a) ||
+      unit == 0x2028 ||
+      unit == 0x2029 ||
+      unit == 0x202f ||
+      unit == 0x205f ||
+      unit == 0x3000 ||
+      unit == 0xfeff;
 
   void word(String expected) {
     _space();
@@ -987,9 +1015,7 @@ class _JsParser {
 
   String identifier() {
     _space();
-    final RegExpMatch? match = RegExp(
-      r'^[A-Za-z_$][A-Za-z0-9_$]*',
-    ).firstMatch(source.substring(index));
+    final Match? match = _identifier.matchAsPrefix(source, index);
     if (match == null) {
       throw const HttpInspectorException('Expected a static property name.');
     }
@@ -1094,9 +1120,7 @@ class _JsParser {
         return literal.value;
       }
     }
-    final RegExpMatch? number = RegExp(
-      r'^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?',
-    ).firstMatch(source.substring(index));
+    final Match? number = _number.matchAsPrefix(source, index);
     if (number != null) {
       final String token = number.group(0)!;
       if (token.length > _maxTokenLength) {

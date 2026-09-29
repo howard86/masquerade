@@ -124,6 +124,41 @@ void main() {
     expect(hooks.paste, 1);
   });
 
+  testWidgets('inline capture actions have 44-point targets at narrow 2x', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 568));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final TextEditingController c = TextEditingController();
+    final FocusNode f = FocusNode();
+    addTearDown(() {
+      c.dispose();
+      f.dispose();
+    });
+    final _Hooks hooks = _Hooks();
+
+    await tester.pumpWidget(
+      _harness(
+        controller: c,
+        focusNode: f,
+        hooks: hooks,
+        textScaler: const TextScaler.linear(2),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    for (final String label in <String>['Paste', 'Import file', 'Scan QR']) {
+      final Finder action = find.bySemanticsLabel(label);
+      expect(tester.getSize(action), const Size.square(44));
+      await tester.tap(action);
+    }
+    expect(hooks.paste, 1);
+    expect(hooks.import, 1);
+    expect(hooks.scan, 1);
+    expect(tester.getSize(find.byType(CupertinoTextField)).width, 144);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('tap Clear button fires onClear', (WidgetTester tester) async {
     final TextEditingController c = TextEditingController(text: 'hello');
     final FocusNode f = FocusNode();

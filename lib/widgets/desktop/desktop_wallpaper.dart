@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/widgets.dart';
 
 import '../../state/wallpaper_controller.dart';
@@ -12,6 +11,11 @@ class DesktopWallpaper extends StatelessWidget {
   Widget build(BuildContext context) {
     final MqWallpaperType type = WallpaperScope.of(context).type;
 
+    // Static: its own layer keeps it from being re-recorded with the canvas.
+    return RepaintBoundary(child: _layers(type));
+  }
+
+  Widget _layers(MqWallpaperType type) {
     return Stack(
       children: <Widget>[
         // Base Color
@@ -128,14 +132,6 @@ class DesktopWallpaper extends StatelessWidget {
             ),
           ),
         ],
-        // Soft Glassmorphic Blur for generative shapes
-        if (type != MqWallpaperType.slateSolid)
-          Positioned.fill(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 80, sigmaY: 80),
-              child: const SizedBox.shrink(),
-            ),
-          ),
       ],
     );
   }

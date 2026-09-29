@@ -107,6 +107,57 @@ void main() {
     });
   });
 
+  group('CsvParser.parse error precedence and slicing', () {
+    String? error(String input, {String? delimiter}) =>
+        switch (CsvParser.parse(input, delimiter: delimiter)) {
+          CsvErr(:final String message) => message,
+          CsvOk() => null,
+        };
+
+    test('a later structural or limit error outranks a column mismatch', () {
+      expect(error('a,b\nc\nd,e'), 'Row 2 has 1 columns; expected 2.');
+      expect(
+        error('a,b\nc\nd,"e"x'),
+        'Unexpected character after closing quote at character 12.',
+      );
+      expect(
+        error('a,b\nc\nd,e"f'),
+        'Unexpected quote in an unquoted field at character 10.',
+      );
+      expect(error('a,b\nc\n"unclosed'), 'Unclosed quoted field.');
+      expect(
+        error('a,b\nc\n${List<String>.filled(10001, 'a,b').join('\n')}'),
+        'Input exceeds the 10,000 row limit.',
+      );
+    });
+
+    test('quoted cells decode escapes and count them toward the cap', () {
+      final CsvOk parsed =
+          CsvParser.parse('id,name\n1,"Ada ""Countess"" Lovelace"\r\n2,Bob\n')
+              as CsvOk;
+      expect(parsed.header, <String>['id', 'name']);
+      expect(parsed.rows, <List<String>>[
+        <String>['1', 'Ada "Countess" Lovelace'],
+        <String>['2', 'Bob'],
+      ]);
+      final String x = 'x' * 65535;
+      final CsvOk atCap = CsvParser.parse('a,"$x"""', delimiter: ',') as CsvOk;
+      expect(atCap.rows.single.last, '$x"');
+      expect(error('a,"${x}x"""\nb,c'), 'A cell exceeds 65,536 characters.');
+      expect(error('a,${x}xx"'), 'A cell exceeds 65,536 characters.');
+    });
+
+    test('picks the consistent delimiter even when another mismatches', () {
+      final CsvOk parsed = CsvParser.parse('a\tb\nc,d\te\nf\tg,h') as CsvOk;
+      expect(parsed.delimiter, '\t');
+      expect(parsed.rows, <List<String>>[
+        <String>['c,d', 'e'],
+        <String>['f', 'g,h'],
+      ]);
+      expect(() => parsed.rows.first.add('x'), throwsUnsupportedError);
+    });
+  });
+
   group('JSON conversion', () {
     test('uses objects with a header and arrays without one', () {
       final CsvOk withHeader =
@@ -165,6 +216,22 @@ void main() {
         () => CsvParser.fromJson('[[]]', delimiter: '|'),
         throwsFormatException,
       );
+    });
+
+    test('fromJsonRecords returns the written records and scalar flag', () {
+      final ({String csv, List<List<String>> records, bool typedScalars})
+      objects = CsvParser.fromJsonRecords('[{"a":"x,y","b":1}]');
+      expect(objects.csv, 'a,b\r\n"x,y",1');
+      expect(objects.records, <List<String>>[
+        <String>['a', 'b'],
+        <String>['x,y', '1'],
+      ]);
+      expect(objects.typedScalars, isTrue);
+      final ({String csv, List<List<String>> records, bool typedScalars})
+      arrays = CsvParser.fromJsonRecords('[["s"],["t"]]', delimiter: ';');
+      expect(arrays.csv, 's\r\nt');
+      expect(arrays.typedScalars, isFalse);
+      expect(CsvParser.fromJsonRecords('[]').records, isEmpty);
     });
 
     test('rejects duplicate headers before object conversion', () {

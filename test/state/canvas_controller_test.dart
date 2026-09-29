@@ -391,4 +391,72 @@ void main() {
       expect(c.length, 2);
     });
   });
+
+  group('geometry vs structure signals', () {
+    test('move / resize ticks fire geometry + the card watcher only', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(json);
+      final int b = c.openTool(timestamp);
+      int structural = 0;
+      int geometry = 0;
+      int watchA = 0;
+      int watchB = 0;
+      c.addListener(() => structural++);
+      c.geometry.addListener(() => geometry++);
+      c.watchCard(a).addListener(() => watchA++);
+      c.watchCard(b).addListener(() => watchB++);
+
+      c.moveTo(a, 10, 20);
+      c.moveBy(a, 5, 5);
+      c.resize(a, 500);
+      c.resizeEdge(
+        a,
+        dx: 10,
+        dy: 10,
+        left: false,
+        right: true,
+        top: false,
+        bottom: true,
+        measuredHeight: 300,
+      );
+
+      expect(structural, 0);
+      expect(geometry, 4);
+      expect(watchA, 4);
+      expect(watchB, 0);
+      expect(c.watchCard(a).value.x, 15);
+      expect(c.watchCard(a).value.width, 510);
+    });
+
+    test('structural changes notify listeners and update watchers', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(json);
+      c.openTool(timestamp);
+      int structural = 0;
+      c.addListener(() => structural++);
+
+      c.focus(a);
+      c.minimize(a);
+
+      expect(structural, 2);
+      expect(c.watchCard(a).value.minimized, isTrue);
+    });
+
+    test('closing a card drops its watcher; applyJson resyncs survivors', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(json);
+      final int b = c.openTool(timestamp);
+      final Object watcherA = c.watchCard(a);
+      final Object watcherB = c.watchCard(b);
+      final Map<String, dynamic> snapshot = c.toJson();
+
+      c.close(a);
+      expect(identical(c.watchCard(b), watcherB), isTrue);
+
+      c.moveTo(b, 300, 300);
+      c.applyJson(snapshot);
+      expect(c.watchCard(b).value.x, isNot(300));
+      expect(identical(c.watchCard(a), watcherA), isFalse);
+    });
+  });
 }

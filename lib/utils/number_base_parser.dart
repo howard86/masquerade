@@ -105,10 +105,20 @@ class NumberBaseParser {
   /// Returns the first character of [digits] that is not a valid digit in
   /// [radix], or an empty string when every character is valid.
   static String _firstInvalidDigit(String digits, int radix) {
-    for (final String ch in digits.split('')) {
-      final int? d = int.tryParse(ch, radix: 16);
-      if (d == null || d >= radix) return ch;
+    // Walks code units (what `split('')` yielded) without materializing a
+    // one-character string per digit; only the offending one is built.
+    for (int i = 0; i < digits.length; i++) {
+      final int? d = _hexValue(digits.codeUnitAt(i));
+      if (d == null || d >= radix) return digits[i];
     }
     return '';
+  }
+
+  /// `int.tryParse(ch, radix: 16)` for a single code unit.
+  static int? _hexValue(int c) {
+    if (c >= 0x30 && c <= 0x39) return c - 0x30;
+    if (c >= 0x61 && c <= 0x66) return c - 0x61 + 10;
+    if (c >= 0x41 && c <= 0x46) return c - 0x41 + 10;
+    return null;
   }
 }

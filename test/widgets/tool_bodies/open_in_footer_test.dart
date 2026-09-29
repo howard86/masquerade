@@ -447,5 +447,132 @@ void main() {
       await tester.pump(const Duration(seconds: 4));
       await tester.pumpAndSettle();
     });
+
+    group('detection cache', () {
+      Future<StateSetter> pumpFooter(
+        WidgetTester tester,
+        ValueGetter<String> output,
+        ValueGetter<String> exclude, {
+        DetectionPreferenceController? preferences,
+      }) async {
+        late StateSetter rebuild;
+        await tester.pumpWidget(
+          _harness(
+            StatefulBuilder(
+              builder: (BuildContext context, StateSetter setState) {
+                rebuild = setState;
+                return OpenInFooter(
+                  output: output(),
+                  excludeUtilityId: exclude(),
+                  onSwitchTool: (_, _) {},
+                );
+              },
+            ),
+            detectionPreferenceController: preferences,
+          ),
+        );
+        return rebuild;
+      }
+
+      List<String> chips(WidgetTester tester) => tester
+          .widgetList<MqChip>(find.byType(MqChip))
+          .map((MqChip chip) => chip.label)
+          .toList();
+
+      testWidgets('rebuilds with the same output do not re-run detection', (
+        WidgetTester tester,
+      ) async {
+        String output = '1700000000';
+        final StateSetter rebuild = await pumpFooter(
+          tester,
+          () => output,
+          () => 'generator',
+        );
+        final int after = UtilityCatalog.debugSweepCount;
+        for (int i = 0; i < 5; i++) {
+          // An equal but non-identical string must also hit the cache.
+          rebuild(() => output = String.fromCharCodes(output.codeUnits));
+          await tester.pump();
+        }
+        expect(UtilityCatalog.debugSweepCount, after);
+        expect(chips(tester), <String>['Timestamp', 'Number Base']);
+      });
+
+      testWidgets('a new output re-runs detection once', (
+        WidgetTester tester,
+      ) async {
+        String output = '1700000000';
+        final StateSetter rebuild = await pumpFooter(
+          tester,
+          () => output,
+          () => 'generator',
+        );
+        final int before = UtilityCatalog.debugSweepCount;
+        rebuild(() => output = '{"a":1}');
+        await tester.pump();
+        expect(UtilityCatalog.debugSweepCount, before + 1);
+        expect(chips(tester), <String>['JSON / YAML / TOML']);
+        rebuild(() {});
+        await tester.pump();
+        expect(UtilityCatalog.debugSweepCount, before + 1);
+      });
+
+      testWidgets('exclusion changes apply without a new sweep', (
+        WidgetTester tester,
+      ) async {
+        String exclude = 'generator';
+        final StateSetter rebuild = await pumpFooter(
+          tester,
+          () => '1700000000',
+          () => exclude,
+        );
+        final int before = UtilityCatalog.debugSweepCount;
+        rebuild(() => exclude = 'timestamp');
+        await tester.pump();
+        expect(chips(tester), <String>['Number Base']);
+        expect(UtilityCatalog.debugSweepCount, before);
+      });
+
+      testWidgets('a preference change re-ranks the cached matches', (
+        WidgetTester tester,
+      ) async {
+        final DetectionPreferenceController preferences =
+            DetectionPreferenceController();
+        await pumpFooter(
+          tester,
+          () => '1700000000',
+          () => 'generator',
+          preferences: preferences,
+        );
+        expect(chips(tester), <String>['Timestamp', 'Number Base']);
+        final int before = UtilityCatalog.debugSweepCount;
+        await preferences.prefer(
+          UtilityCatalog.detectArtifacts('1700000000'),
+          ArtifactKind.number,
+        );
+        await tester.pump();
+        expect(chips(tester), <String>['Number Base', 'Timestamp']);
+        // Only the prefer() call above swept; the footer reused its cache.
+        expect(UtilityCatalog.debugSweepCount, before + 1);
+      });
+
+      testWidgets('switching to credential output hides the footer', (
+        WidgetTester tester,
+      ) async {
+        String output = '1700000000';
+        final StateSetter rebuild = await pumpFooter(
+          tester,
+          () => output,
+          () => 'generator',
+        );
+        expect(find.text('OPEN IN'), findsOneWidget);
+        rebuild(
+          () => output =
+              '-----BEGIN PRIVATE KEY-----\nMIIB\n-----END PRIVATE KEY-----',
+        );
+        await tester.pump();
+        expect(find.text('OPEN IN'), findsNothing);
+      });
+    });
   });
 }

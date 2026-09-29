@@ -33,8 +33,10 @@ class MqSegmented<T extends Object> extends StatelessWidget {
       backgroundColor: c.surface2,
       children: <T, Widget>{
         for (final MapEntry<T, String> entry in options.entries)
-          entry.key: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+          entry.key: Container(
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Text(
               entry.value,
               style: MqTextStyles.subhead.copyWith(

@@ -1,4 +1,7 @@
+import 'dart:collection';
 import 'dart:convert';
+
+import 'utf8_length.dart';
 
 sealed class CsvParseResult {
   const CsvParseResult();
@@ -40,8 +43,7 @@ class CsvParser {
     String? delimiter,
     bool? hasHeader,
   }) {
-    if (input.length > maxInputChars ||
-        utf8.encode(input).length > maxInputChars) {
+    if (utf8LengthExceeds(input, maxInputChars)) {
       return const CsvErr('Input exceeds the 1 MiB limit.');
     }
     if (input.isEmpty || input == '\ufeff') {
@@ -62,7 +64,16 @@ class CsvParser {
     _ReadResult? commaFallback;
     CsvErr? firstError;
     for (final String candidate in delimiters) {
-      final _ReadResult read = _read(source, candidate);
+      if (candidate != ',' && !source.contains(candidate)) {
+        continue;
+      }
+      // Only the first failing delimiter's message is ever reported, so the
+      // rest may stop at their first column-count mismatch.
+      final _ReadResult read = _read(
+        source,
+        candidate,
+        exactError: firstError == null,
+      );
       if (read.error != null) {
         firstError ??= CsvErr(read.error!);
         continue;
@@ -111,17 +122,22 @@ class CsvParser {
               },
           ];
     final String output = const JsonEncoder.withIndent('  ').convert(value);
-    if (output.length > maxOutputChars ||
-        utf8.encode(output).length > maxOutputChars) {
+    if (utf8LengthExceeds(output, maxOutputChars)) {
       throw const FormatException('JSON output exceeds the 2 MiB limit.');
     }
     return output;
   }
 
-  static String fromJson(String json, {String delimiter = ','}) {
+  static String fromJson(String json, {String delimiter = ','}) =>
+      fromJsonRecords(json, delimiter: delimiter).csv;
+
+  /// [fromJson], plus the records it wrote (header first for object rows)
+  /// and whether any source value was a JSON number or boolean — so callers
+  /// need not decode the JSON again or re-parse the CSV.
+  static ({String csv, List<List<String>> records, bool typedScalars})
+  fromJsonRecords(String json, {String delimiter = ','}) {
     _validateDelimiter(delimiter);
-    if (json.length > maxInputChars ||
-        utf8.encode(json).length > maxInputChars) {
+    if (utf8LengthExceeds(json, maxInputChars)) {
       throw const FormatException('Input exceeds the 1 MiB limit.');
     }
     final Object? decoded;
@@ -136,7 +152,15 @@ class CsvParser {
     if (decoded.length > maxRows) {
       throw const FormatException('JSON exceeds the 10,000 row limit.');
     }
-    if (decoded.isEmpty) return '';
+    if (decoded.isEmpty) {
+      return (csv: '', records: const <List<String>>[], typedScalars: false);
+    }
+
+    bool typedScalars = false;
+    String cell(Object? value, int row, String column) {
+      if (value is num || value is bool) typedScalars = true;
+      return _scalar(value, row, column);
+    }
 
     final List<List<String>> records;
     if (decoded.first is Map<String, Object?>) {
@@ -158,8 +182,7 @@ class CsvParser {
           );
         }
         records.add(<String>[
-          for (final String key in header)
-            _scalar(rawRow[key], rowIndex + 1, key),
+          for (final String key in header) cell(rawRow[key], rowIndex + 1, key),
         ]);
       }
     } else if (decoded.first is List<Object?>) {
@@ -171,7 +194,7 @@ class CsvParser {
         }
         records.add(<String>[
           for (int column = 0; column < rawRow.length; column++)
-            _scalar(rawRow[column], rowIndex + 1, 'column ${column + 1}'),
+            cell(rawRow[column], rowIndex + 1, 'column ${column + 1}'),
         ]);
       }
     } else {
@@ -193,29 +216,59 @@ class CsvParser {
       }
     }
     final String output = out.toString();
-    if (utf8.encode(output).length > maxOutputChars) {
+    if (utf8LengthExceeds(output, maxOutputChars)) {
       throw const FormatException('CSV output exceeds the 2 MiB limit.');
     }
-    return output;
+    return (csv: output, records: records, typedScalars: typedScalars);
   }
 
-  static _ReadResult _read(String input, String delimiter) {
+  static const int _quoteUnit = 0x22;
+  static const int _cr = 0x0d;
+  static const int _lf = 0x0a;
+
+  /// Reads [input] as records split on [delimiter].
+  ///
+  /// Scans code units and slices each field out of [input] rather than
+  /// building it a character at a time. After the first column-count
+  /// mismatch the records can no longer succeed, so it stops materializing
+  /// them: with [exactError] it keeps scanning only to report the same
+  /// error a full read would (a later structural or limit error wins, as
+  /// before); without it, it returns the mismatch at once.
+  static _ReadResult _read(
+    String input,
+    String delimiter, {
+    bool exactError = true,
+  }) {
+    final int delim = delimiter.codeUnitAt(0);
+    final int length = input.length;
     final List<List<String>> records = <List<String>>[];
     List<String> row = <String>[];
-    final StringBuffer field = StringBuffer();
-    bool quoted = false;
-    bool closedQuote = false;
-    bool fieldStarted = false;
+    bool build = true;
+    int rowCells = 0;
+    int recordCount = 0;
     int totalCells = 0;
+    int columns = 0;
+    String? mismatch;
+
+    // The current field: input[fieldStart, fieldEnd), with "" pairs still
+    // doubled when [fieldEscaped]; [fieldLength] is its decoded length.
+    int fieldStart = 0;
+    int fieldEnd = 0;
+    int fieldLength = 0;
+    bool fieldEscaped = false;
+    bool closedQuote = false;
 
     String? addField() {
-      if (field.length > maxCellChars) {
+      if (fieldLength > maxCellChars) {
         return 'A cell exceeds 65,536 characters.';
       }
-      row.add(field.toString());
-      if (row.length > maxColumns) return 'A row exceeds the 100 column limit.';
-      field.clear();
-      fieldStarted = false;
+      if (build) {
+        final String value = input.substring(fieldStart, fieldEnd);
+        row.add(fieldEscaped ? value.replaceAll('""', '"') : value);
+      }
+      if (++rowCells > maxColumns) return 'A row exceeds the 100 column limit.';
+      fieldLength = 0;
+      fieldEscaped = false;
       closedQuote = false;
       return null;
     }
@@ -223,85 +276,111 @@ class CsvParser {
     String? addRow() {
       final String? error = addField();
       if (error != null) return error;
-      records.add(List<String>.unmodifiable(row));
-      totalCells += row.length;
+      recordCount++;
+      totalCells += rowCells;
+      if (recordCount == 1) {
+        columns = rowCells;
+      } else if (rowCells != columns && mismatch == null) {
+        mismatch = 'Row $recordCount has $rowCells columns; expected $columns.';
+        if (!exactError) return mismatch;
+        build = false;
+        records.clear();
+      }
+      if (build) records.add(UnmodifiableListView<String>(row));
       row = <String>[];
-      if (records.length > maxRows) {
+      rowCells = 0;
+      if (recordCount > maxRows) {
         return 'Input exceeds the 10,000 row limit.';
       }
       if (totalCells > maxCells) return 'Input exceeds the 100,000 cell limit.';
       return null;
     }
 
-    for (int i = 0; i < input.length; i++) {
-      final String char = input[i];
-      if (quoted) {
-        if (char == '"') {
-          if (i + 1 < input.length && input[i + 1] == '"') {
-            field.write('"');
-            i++;
-          } else {
-            quoted = false;
-            closedQuote = true;
-          }
-        } else {
-          field.write(char);
-          if (field.length > maxCellChars) {
+    int i = 0;
+    while (true) {
+      // At the start of a field.
+      if (i < length && input.codeUnitAt(i) == _quoteUnit) {
+        int j = i + 1;
+        fieldStart = j;
+        while (true) {
+          final int quote = input.indexOf('"', j);
+          final int segment = (quote < 0 ? length : quote) - j;
+          // A cell overflows on the first ordinary character past the cap.
+          if (segment > 0 && fieldLength + segment > maxCellChars) {
             return const _ReadResult.error('A cell exceeds 65,536 characters.');
           }
+          fieldLength += segment;
+          if (quote < 0) {
+            return const _ReadResult.error('Unclosed quoted field.');
+          }
+          if (quote + 1 < length && input.codeUnitAt(quote + 1) == _quoteUnit) {
+            fieldEscaped = true;
+            fieldLength++;
+            j = quote + 2;
+            continue;
+          }
+          fieldEnd = quote;
+          i = quote + 1;
+          break;
         }
-        continue;
-      }
-
-      if (closedQuote && char != delimiter && char != '\r' && char != '\n') {
-        return _ReadResult.error(
-          'Unexpected character after closing quote at character ${i + 1}.',
-        );
-      }
-      if (char == '"') {
-        if (fieldStarted || field.isNotEmpty) {
-          return _ReadResult.error(
-            'Unexpected quote in an unquoted field at character ${i + 1}.',
-          );
+        closedQuote = true;
+        if (i < length) {
+          final int next = input.codeUnitAt(i);
+          if (next != delim && next != _cr && next != _lf) {
+            return _ReadResult.error(
+              'Unexpected character after closing quote at character ${i + 1}.',
+            );
+          }
         }
-        quoted = true;
-        fieldStarted = true;
-      } else if (char == delimiter) {
-        final String? error = addField();
-        if (error != null) return _ReadResult.error(error);
-      } else if (char == '\r' || char == '\n') {
-        final String? error = addRow();
-        if (error != null) return _ReadResult.error(error);
-        if (char == '\r' && i + 1 < input.length && input[i + 1] == '\n') i++;
       } else {
-        fieldStarted = true;
-        field.write(char);
-        if (field.length > maxCellChars) {
+        int j = i;
+        while (j < length) {
+          final int unit = input.codeUnitAt(j);
+          if (unit == delim ||
+              unit == _cr ||
+              unit == _lf ||
+              unit == _quoteUnit) {
+            break;
+          }
+          j++;
+        }
+        if (j - i > maxCellChars) {
           return const _ReadResult.error('A cell exceeds 65,536 characters.');
         }
+        if (j < length && input.codeUnitAt(j) == _quoteUnit) {
+          return _ReadResult.error(
+            'Unexpected quote in an unquoted field at character ${j + 1}.',
+          );
+        }
+        fieldStart = i;
+        fieldEnd = j;
+        fieldLength = j - i;
+        i = j;
+      }
+      if (i >= length) break;
+      final int unit = input.codeUnitAt(i);
+      if (unit == delim) {
+        final String? error = addField();
+        if (error != null) return _ReadResult.error(error);
+        i++;
+      } else {
+        final String? error = addRow();
+        if (error != null) return _ReadResult.error(error);
+        i += unit == _cr && i + 1 < length && input.codeUnitAt(i + 1) == _lf
+            ? 2
+            : 1;
       }
     }
-    if (quoted) return const _ReadResult.error('Unclosed quoted field.');
 
     final bool endedWithLineBreak =
         input.endsWith('\n') || input.endsWith('\r');
-    if (!endedWithLineBreak ||
-        row.isNotEmpty ||
-        field.isNotEmpty ||
-        closedQuote) {
+    if (!endedWithLineBreak || rowCells > 0 || fieldLength > 0 || closedQuote) {
       final String? error = addRow();
       if (error != null) return _ReadResult.error(error);
     }
-    if (records.isEmpty) return const _ReadResult.error('Empty input.');
-    final int columns = records.first.length;
-    for (int i = 1; i < records.length; i++) {
-      if (records[i].length != columns) {
-        return _ReadResult.error(
-          'Row ${i + 1} has ${records[i].length} columns; expected $columns.',
-        );
-      }
-    }
-    return _ReadResult.ok(List<List<String>>.unmodifiable(records));
+    if (recordCount == 0) return const _ReadResult.error('Empty input.');
+    if (mismatch != null) return _ReadResult.error(mismatch!);
+    return _ReadResult.ok(UnmodifiableListView<List<String>>(records));
   }
 
   static CsvParseResult _finish(
@@ -323,11 +402,13 @@ class CsvParser {
       delimiter: delimiter,
       hasHeader: hasHeader,
       header: hasHeader ? records.first : null,
-      rows: List<List<String>>.unmodifiable(
-        hasHeader ? records.skip(1) : records,
-      ),
+      rows: hasHeader
+          ? UnmodifiableListView<List<String>>(records.sublist(1))
+          : records,
     );
   }
+
+  static final RegExp _headerName = RegExp(r'^[A-Za-z_][A-Za-z0-9_ .-]*$');
 
   static bool _looksLikeHeader(List<List<String>> records) {
     if (records.length < 2) return false;
@@ -336,15 +417,13 @@ class CsvParser {
         first.toSet().length != first.length) {
       return false;
     }
-    final RegExp name = RegExp(r'^[A-Za-z_][A-Za-z0-9_ .-]*$');
+    final RegExp name = _headerName;
     if (!first.every(name.hasMatch)) return false;
     for (int column = 0; column < first.length; column++) {
+      final int headerType = _cellType(first[column]);
       if (records
           .skip(1)
-          .any(
-            (List<String> row) =>
-                _cellType(row[column]) != _cellType(first[column]),
-          )) {
+          .any((List<String> row) => _cellType(row[column]) != headerType)) {
         return true;
       }
     }

@@ -88,6 +88,52 @@ void main() {
     expect(_rendered('WARN alpha last'), findsOneWidget);
   });
 
+  testWidgets('cached filter follows level, query, and input changes', (
+    WidgetTester tester,
+  ) async {
+    await pumpBodyAtWidth(
+      tester,
+      const LogStackInspectorBody(
+        initialInput:
+            'INFO alpha first\nERROR beta password=raw\nWARN alpha last',
+      ),
+      340,
+    );
+    MqButton copy() =>
+        tester.widget<MqButton>(find.widgetWithText(MqButton, 'Copy filtered'));
+
+    await tester.tap(find.widgetWithText(MqButton, 'ERROR'));
+    await tester.pump();
+    expect(find.textContaining('1 OF 3 EVENTS'), findsOneWidget);
+    await tester.tap(find.widgetWithText(MqButton, 'Copy filtered'));
+    await tester.pump();
+    expect(clipboardText, 'ERROR beta password=${SensitiveDataPolicy.mask}');
+
+    await tester.tap(find.widgetWithText(MqButton, 'ERROR'));
+    await tester.pump();
+    expect(find.textContaining('3 OF 3 EVENTS'), findsOneWidget);
+
+    await tester.enterText(find.byType(EditableText).last, 'ALPHA');
+    await tester.pump();
+    expect(find.textContaining('2 OF 3 EVENTS'), findsOneWidget);
+    await tester.tap(find.widgetWithText(MqButton, 'Copy filtered'));
+    await tester.pump();
+    expect(clipboardText, 'INFO alpha first\nWARN alpha last');
+
+    await tester.enterText(find.byType(EditableText).last, 'missing');
+    await tester.pump();
+    expect(find.textContaining('0 OF 3 EVENTS'), findsOneWidget);
+    expect(copy().onPressed, isNull);
+
+    await tester.enterText(
+      find.byType(EditableText).first,
+      'INFO missing here\nINFO other',
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.textContaining('1 OF 2 EVENTS'), findsOneWidget);
+    expect(copy().onPressed, isNotNull);
+  });
+
   testWidgets(
     'bounds event rendering while full filtered export stays enabled',
     (WidgetTester tester) async {

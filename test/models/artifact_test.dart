@@ -4,6 +4,7 @@ import 'package:masquerade/models/content_type.dart';
 import 'package:masquerade/utils/json_parser.dart';
 import 'package:masquerade/utils/jwt_parser.dart';
 import 'package:masquerade/utils/sensitive_data_policy.dart';
+import 'package:masquerade/utils/text_truncate.dart';
 import 'package:masquerade/utils/timestamp_parser.dart';
 
 void main() {
@@ -94,6 +95,53 @@ void main() {
       for (final Artifact<Object?> artifact in sensitive) {
         expect(artifact.sensitivity, ArtifactSensitivity.sensitive);
         expect(artifact.safePreview, isNot(artifact.rawValue));
+      }
+    });
+
+    test('cached sensitivity and preview match a fresh policy scan', () {
+      final List<Artifact<Object?>> artifacts = <Artifact<Object?>>[
+        Artifact<Object?>(
+          kind: ArtifactKind.base64,
+          rawValue: 'QVBJX0tFWT1hYmM=',
+          provenance: ArtifactProvenance.typed,
+        ),
+        Artifact<Object?>(
+          kind: ArtifactKind.base64,
+          rawValue: 'aGVsbG8=',
+          provenance: ArtifactProvenance.typed,
+        ),
+        Artifact<Object?>(
+          kind: ArtifactKind.unknown,
+          rawValue: 'plain words that run long enough to truncate',
+          provenance: ArtifactProvenance.typed,
+          previewLength: 10,
+        ),
+        Artifact<Object?>(
+          kind: ArtifactKind.unknown,
+          rawValue: 'ordinary',
+          provenance: ArtifactProvenance.typed,
+          sensitivity: ArtifactSensitivity.sensitive,
+        ),
+      ];
+      for (final Artifact<Object?> a in artifacts) {
+        final bool fresh = SensitiveDataPolicy.protects(
+          utilityId: a.kind == ArtifactKind.base64 ? 'base64' : null,
+          values: <String>[a.rawValue],
+        );
+        final bool expected =
+            fresh || a.rawValue == 'ordinary'; // declared sensitive
+        expect(a.isSensitive, expected, reason: a.rawValue);
+        expect(a.isSensitive, expected, reason: 'stable on re-read');
+        expect(
+          a.safePreview,
+          expected
+              ? SensitiveDataPolicy.mask
+              : truncateWithEllipsis(
+                  a.rawValue,
+                  max: a.rawValue.startsWith('plain') ? 10 : 80,
+                ),
+        );
+        expect(identical(a.safePreview, a.safePreview), isTrue);
       }
     });
 

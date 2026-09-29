@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
@@ -11,6 +9,7 @@ import '../../utility_catalog.dart';
 import '../../utils/csv_parser.dart';
 import '../../utils/copy_util.dart';
 import '../../utils/sensitive_data_policy.dart';
+import '../../utils/utf8_length.dart';
 import '../mq/mq_button.dart';
 import '../mq/mq_empty_hint.dart';
 import '../mq/mq_input.dart';
@@ -56,6 +55,10 @@ class _CsvBodyState extends State<CsvBody> with ToolBodyScaffold<CsvBody> {
   String? _output;
   String? _error;
   bool _scalarTypesLost = false;
+  bool _formulaLike = false;
+  // Derived from [_output] once per parse rather than on every build.
+  String? _outputPreview;
+  bool? _outputSensitive;
 
   @override
   String get utilityId => 'csv';
@@ -75,12 +78,20 @@ class _CsvBodyState extends State<CsvBody> with ToolBodyScaffold<CsvBody> {
     String? output;
     String? error;
     bool scalarTypesLost = false;
+    bool formulaLike = false;
     try {
       if (_mode == CsvMode.jsonToCsv) {
-        output = CsvParser.fromJson(input);
-        scalarTypesLost = _containsTypedJsonScalars(input);
-        final CsvParseResult reparsed = CsvParser.parse(output, delimiter: ',');
-        if (reparsed is CsvOk) parsed = reparsed;
+        final ({String csv, List<List<String>> records, bool typedScalars})
+        converted = CsvParser.fromJsonRecords(input);
+        output = converted.csv;
+        scalarTypesLost = converted.typedScalars;
+        // The warning used to scan a re-parse of [output], which rejects
+        // output over the parser's input cap; keep that bound.
+        formulaLike =
+            !utf8LengthExceeds(output, CsvParser.maxInputChars) &&
+            converted.records.any(
+              (List<String> row) => row.any(_formulaLikeValue),
+            );
       } else {
         final CsvParseResult result = CsvParser.parse(input);
         if (result is CsvErr) {
@@ -96,8 +107,11 @@ class _CsvBodyState extends State<CsvBody> with ToolBodyScaffold<CsvBody> {
     setState(() {
       _parsed = parsed;
       _output = output;
+      _outputPreview = output == null ? null : _preview(output);
+      _outputSensitive = null;
       _error = error;
       _scalarTypesLost = scalarTypesLost;
+      _formulaLike = formulaLike;
     });
     if (error == null &&
         output != null &&
@@ -110,8 +124,11 @@ class _CsvBodyState extends State<CsvBody> with ToolBodyScaffold<CsvBody> {
   void reset() => setState(() {
     _parsed = null;
     _output = null;
+    _outputPreview = null;
+    _outputSensitive = null;
     _error = null;
     _scalarTypesLost = false;
+    _formulaLike = false;
   });
 
   void _setMode(CsvMode mode) {
@@ -127,7 +144,9 @@ class _CsvBodyState extends State<CsvBody> with ToolBodyScaffold<CsvBody> {
     final bool protectedLineage =
         widget.initialArtifact?.isSensitive == true ||
         route?.protectedSession == true;
-    return !SensitiveDataPolicy.containsSensitiveArtifact(output) &&
+    final bool sensitive = _outputSensitive ??=
+        SensitiveDataPolicy.containsSensitiveArtifact(output);
+    return !sensitive &&
         (!protectedLineage ||
             (route?.addNext == true && route?.protectedSession == true));
   }
@@ -175,10 +194,10 @@ class _CsvBodyState extends State<CsvBody> with ToolBodyScaffold<CsvBody> {
           const MqSectionHeader(label: 'Output'),
           MqMonoCell(
             label: _mode == CsvMode.jsonToCsv ? 'CSV' : 'JSON',
-            value: _preview(output),
+            value: _outputPreview ?? _preview(output),
             copyValue: output,
           ),
-          if (_mode == CsvMode.jsonToCsv && _hasFormulaLikeCell(parsed))
+          if (_mode == CsvMode.jsonToCsv && _formulaLike)
             const Padding(
               padding: EdgeInsets.only(top: MqSpacing.sm),
               child: MqStatus(
@@ -218,28 +237,10 @@ class _CsvBodyState extends State<CsvBody> with ToolBodyScaffold<CsvBody> {
 
   static String _preview(String output) => _safePreview(output, 20000);
 
-  static bool _hasFormulaLikeCell(CsvOk? parsed) {
-    if (parsed == null) return false;
-    return <String>[
-      ...?parsed.header,
-      for (final List<String> row in parsed.rows) ...row,
-    ].any(_formulaLike);
-  }
-
-  static bool _formulaLike(String value) {
+  static bool _formulaLikeValue(String value) {
     final String trimmed = value.trimLeft();
     return trimmed.isNotEmpty &&
         const <String>{'=', '+', '-', '@'}.contains(trimmed[0]);
-  }
-
-  static bool _containsTypedJsonScalars(String input) {
-    final Object? decoded = jsonDecode(input);
-    return (decoded as List<Object?>).any((Object? row) {
-      final Iterable<Object?> values = row is Map<String, Object?>
-          ? row.values
-          : row as List<Object?>;
-      return values.any((Object? value) => value is num || value is bool);
-    });
   }
 }
 
@@ -368,6 +369,8 @@ class _CsvTable extends StatelessWidget {
 }
 
 String _safePreview(String value, int maxCodePoints) {
+  // Code points never outnumber code units.
+  if (value.length <= maxCodePoints) return value;
   final List<int> points = value.runes
       .take(maxCodePoints + 1)
       .toList(growable: false);

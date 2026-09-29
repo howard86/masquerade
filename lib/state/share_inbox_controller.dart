@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import '../models/artifact.dart';
 import '../models/saved_workflow.dart';
 import '../models/work_session.dart';
+import '../utils/utf8_length.dart';
 
 enum ShareInboxKind { text, url, file }
 
@@ -311,7 +312,7 @@ class ShareInboxController extends ChangeNotifier {
     } else {
       if (value['payload'] is! String) return null;
       raw = value['payload'] as String;
-      if (utf8.encode(raw).length != byteCount) return null;
+      if (utf8Length(raw) != byteCount) return null;
     }
     if (raw.isEmpty || isProtectedWorkflowString(raw)) return null;
 
@@ -374,7 +375,7 @@ class ShareInboxController extends ChangeNotifier {
           ).hasMatch(workflowId) ||
           input == null ||
           input.isEmpty ||
-          utf8.encode(input).length > maxPayloadBytes ||
+          utf8LengthExceeds(input, maxPayloadBytes) ||
           isProtectedWorkflowString(input)) {
         return null;
       }

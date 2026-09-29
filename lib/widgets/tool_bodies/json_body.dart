@@ -218,7 +218,12 @@ class _JSONBodyState extends State<JSONBody>
       if (!_tomlAllowed && _target == TargetFormat.toml) {
         _target = TargetFormat.prettyJson;
       }
-      _output = parsed == null ? null : _renderOutput(parsed.value, _target);
+      // The minified target is exactly the footer's minified text.
+      _output = parsed == null
+          ? null
+          : _target == TargetFormat.minifiedJson
+          ? minified
+          : _renderOutput(parsed.value, _target);
     });
     _saveDraft();
     if (parsed != null) recordOutput(input, minified!);
@@ -653,9 +658,11 @@ class _FromToRow extends StatelessWidget {
           button: true,
           enabled: swapEnabled,
           label: 'Swap source and target',
+          onTap: swapEnabled ? onSwap : null,
+          excludeSemantics: true,
           child: CupertinoButton(
             padding: const EdgeInsets.all(MqSpacing.sm),
-            minimumSize: const Size(40, 40),
+            minimumSize: const Size(44, 44),
             borderRadius: BorderRadius.circular(MqRadius.sm),
             onPressed: swapEnabled ? onSwap : null,
             child: Icon(

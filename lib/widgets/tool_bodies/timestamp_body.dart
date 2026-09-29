@@ -162,8 +162,8 @@ class _TimestampBodyState extends State<TimestampBody>
     final int s = (ms / 1000).round();
     return CopyAllButton(
       payload: <String>[
-        DateFormat('yyyy-MM-dd HH:mm:ss').format(t.toUtc()),
-        DateFormat('yyyy-MM-dd HH:mm:ss').format(t.toLocal()),
+        _dateTime.format(t.toUtc()),
+        _dateTime.format(t.toLocal()),
         '$s',
         '$ms',
         t.toUtc().toIso8601String(),
@@ -304,9 +304,12 @@ class _TimestampBodyState extends State<TimestampBody>
   /// Builds the derived rows. When [zone] is non-null (canvas wide), the primary
   /// date row reflects that timezone; when null (phones) both UTC and Local rows
   /// show exactly as before.
+  static final DateFormat _dateTime = DateFormat('yyyy-MM-dd HH:mm:ss');
+  static final DateFormat _date = DateFormat('yyyy-MM-dd');
+
   static List<Widget> _outputRows(DateTime t, _Zone? zone) {
-    final String utc = DateFormat('yyyy-MM-dd HH:mm:ss').format(t.toUtc());
-    final String local = DateFormat('yyyy-MM-dd HH:mm:ss').format(t.toLocal());
+    final String utc = _dateTime.format(t.toUtc());
+    final String local = _dateTime.format(t.toLocal());
     final int ms = t.millisecondsSinceEpoch;
     final int s = (ms / 1000).round();
     // Canvas wide collapses the two date rows into the active zone; phones keep
@@ -381,7 +384,7 @@ class _TimestampBodyState extends State<TimestampBody>
     if (abs < 3600) return suffix(abs ~/ 60, 'minute');
     if (abs < 86400) return suffix(abs ~/ 3600, 'hour');
     if (abs < 30 * 86400) return suffix(abs ~/ 86400, 'day');
-    return DateFormat('yyyy-MM-dd').format(t);
+    return _date.format(t);
   }
 }
 

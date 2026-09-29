@@ -245,11 +245,30 @@ class _BytesBodyState extends State<BytesBody>
     );
   }
 
+  // Sensitivity scan memo: the scan is four regexes over the full input and
+  // decoded text (~26 ms per MB), so rebuilds that change neither reuse the
+  // last answer.
+  String? _scannedInput;
+  String? _scannedText;
+  bool _scannedSensitive = false;
+
+  bool _sensitive() {
+    final String input = controller.text;
+    final String? text = _decodedText;
+    if (_scannedInput == null ||
+        input != _scannedInput ||
+        text != _scannedText) {
+      _scannedInput = input;
+      _scannedText = text;
+      _scannedSensitive =
+          SensitiveDataPolicy.containsSensitiveArtifact(input) ||
+          (text != null && SensitiveDataPolicy.containsSensitiveArtifact(text));
+    }
+    return _scannedSensitive;
+  }
+
   List<Widget> _buildOutput(bool wide) {
-    final bool sensitive =
-        SensitiveDataPolicy.containsSensitiveArtifact(controller.text) ||
-        (_decodedText != null &&
-            SensitiveDataPolicy.containsSensitiveArtifact(_decodedText!));
+    final bool sensitive = _sensitive();
     if (_mode == BytesMode.encode) {
       if (_outSpace == null) {
         return const <Widget>[

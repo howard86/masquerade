@@ -61,7 +61,7 @@ void main() {
     );
   });
 
-  testWidgets('QR scanner guidance clears the persistent tab bar', (
+  testWidgets('QR scanner loading clears the persistent tab bar', (
     WidgetTester tester,
   ) async {
     await _pumpApp(tester);
@@ -71,10 +71,11 @@ void main() {
         builder: (_) => const QrScannerRoute(),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
 
     expect(
-      tester.getBottomRight(find.text('Point camera at a QR code')).dy,
+      tester.getBottomRight(find.text('Starting camera…')).dy,
       lessThanOrEqualTo(_tabBarTop(tester) - 24),
     );
   });

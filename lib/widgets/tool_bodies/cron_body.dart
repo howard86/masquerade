@@ -218,11 +218,12 @@ class _CronBodyState extends State<CronBody> with ToolBodyScaffold<CronBody> {
       'month=${s.month.render()}  '
       'weekday=${s.dayOfWeek.render()}';
 
+  static final DateFormat _runFormat = DateFormat('yyyy-MM-dd HH:mm (EEE)');
+
   static String _renderNextRuns(CronSchedule s, DateTime from) {
     final List<DateTime> runs = s.nextRuns(from, count: 5).toList();
     if (runs.isEmpty) return 'No upcoming runs.';
-    final DateFormat fmt = DateFormat('yyyy-MM-dd HH:mm (EEE)');
-    return runs.map((DateTime t) => fmt.format(t.toLocal())).join('\n');
+    return runs.map((DateTime t) => _runFormat.format(t.toLocal())).join('\n');
   }
 }
 

@@ -28,8 +28,7 @@ class MqSearchBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.mq.colors;
     return Container(
-      height: 40,
-      padding: const EdgeInsets.symmetric(vertical: MqSpacing.sm),
+      height: 44.5,
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: c.border, width: 0.5)),
       ),
@@ -38,42 +37,43 @@ class MqSearchBar extends StatelessWidget {
           Icon(MqIcons.search, size: 16, color: c.textTer),
           const SizedBox(width: MqSpacing.sm),
           Expanded(
-            child: CupertinoTextField(
-              controller: controller,
-              autofocus: autofocus,
-              placeholder: placeholder,
-              placeholderStyle: MqTextStyles.body.copyWith(color: c.textTer),
-              style: MqTextStyles.body.copyWith(color: c.textPri),
-              cursorColor: c.accent,
-              decoration: const BoxDecoration(),
-              padding: EdgeInsets.zero,
-              onChanged: onChanged,
-              onSubmitted: onSubmitted,
+            child: SizedBox(
+              height: 44,
+              child: CupertinoTextField(
+                controller: controller,
+                autofocus: autofocus,
+                placeholder: placeholder,
+                placeholderStyle: MqTextStyles.body.copyWith(color: c.textTer),
+                style: MqTextStyles.body.copyWith(color: c.textPri),
+                cursorColor: c.accent,
+                decoration: const BoxDecoration(),
+                padding: EdgeInsets.zero,
+                onChanged: onChanged,
+                onSubmitted: onSubmitted,
+              ),
             ),
           ),
           ValueListenableBuilder<TextEditingValue>(
             valueListenable: controller,
             builder: (BuildContext context, TextEditingValue value, _) {
               if (value.text.isNotEmpty) {
+                void clearSearch() {
+                  controller.clear();
+                  onChanged?.call('');
+                }
+
                 return Semantics(
                   button: true,
                   label: 'Clear search',
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () {
-                      controller.clear();
-                      onChanged?.call('');
-                    },
-                    // Grow the tappable region toward the 44×44 iOS HIG
-                    // minimum without enlarging the glyph or the bar itself.
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        minWidth: 44,
-                        minHeight: 44,
-                      ),
-                      child: Center(
-                        child: Icon(MqIcons.clear, size: 16, color: c.textTer),
-                      ),
+                  onTap: clearSearch,
+                  excludeSemantics: true,
+                  child: CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size.square(44),
+                    borderRadius: BorderRadius.circular(MqRadius.sm),
+                    onPressed: clearSearch,
+                    child: Center(
+                      child: Icon(MqIcons.clear, size: 16, color: c.textTer),
                     ),
                   ),
                 );

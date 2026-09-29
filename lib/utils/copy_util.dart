@@ -47,27 +47,24 @@ class _AnimatedCopyIconState extends State<AnimatedCopyIcon> {
     return Semantics(
       button: true,
       label: widget.semanticsLabel,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: _handle,
-        // Grow the tap target to the 44×44 iOS HIG minimum without resizing the
-        // glyph: the icon stays 16px, centred inside a 44×44 hit region.
-        child: ConstrainedBox(
-          key: _hitTargetKey,
-          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-          child: Center(
-            child: AnimatedCrossFade(
-              duration: reduceMotion
-                  ? Duration.zero
-                  : const Duration(milliseconds: 250),
-              crossFadeState: _copied
-                  ? CrossFadeState.showSecond
-                  : CrossFadeState.showFirst,
-              firstChild: Icon(MqIcons.copy, size: 16, color: c.textSec),
-              firstCurve: Curves.easeInOut,
-              secondChild: Icon(MqIcons.check, size: 16, color: c.success),
-              secondCurve: Curves.easeInOut,
-            ),
+      child: CupertinoButton(
+        key: _hitTargetKey,
+        padding: EdgeInsets.zero,
+        minimumSize: const Size.square(44),
+        borderRadius: BorderRadius.circular(MqRadius.sm),
+        onPressed: _handle,
+        child: Center(
+          child: AnimatedCrossFade(
+            duration: reduceMotion
+                ? Duration.zero
+                : const Duration(milliseconds: 250),
+            crossFadeState: _copied
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            firstChild: Icon(MqIcons.copy, size: 16, color: c.textSec),
+            firstCurve: Curves.easeInOut,
+            secondChild: Icon(MqIcons.check, size: 16, color: c.success),
+            secondCurve: Curves.easeInOut,
           ),
         ),
       ),
@@ -193,15 +190,24 @@ class _CopyToastState extends State<_CopyToast>
               ),
             ),
             const SizedBox(width: MqSpacing.sm),
-            GestureDetector(
+            Semantics(
+              button: true,
+              label: 'Dismiss copy notification',
               onTap: _dismiss,
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: c.surface2,
-                  borderRadius: BorderRadius.circular(MqRadius.xs + 2),
+              excludeSemantics: true,
+              child: CupertinoButton(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size.square(44),
+                borderRadius: BorderRadius.circular(MqRadius.sm),
+                onPressed: _dismiss,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: c.surface2,
+                    borderRadius: BorderRadius.circular(MqRadius.xs + 2),
+                  ),
+                  child: Icon(MqIcons.xmark, color: c.textSec, size: 14),
                 ),
-                child: Icon(MqIcons.xmark, color: c.textSec, size: 14),
               ),
             ),
           ],

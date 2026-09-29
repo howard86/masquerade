@@ -10,6 +10,7 @@ import '../theme/mq_typography.dart';
 import '../utility_catalog.dart';
 import '../utils/copy_util.dart';
 import '../utils/sensitive_data_policy.dart';
+import '../utils/text_truncate.dart';
 import 'detail/tool_detail_route.dart';
 import '../widgets/mq/mq_button.dart';
 import '../widgets/mq/mq_icons.dart';
@@ -71,14 +72,15 @@ class _HistoryBodyState extends State<HistoryBody> {
   Widget build(BuildContext context) {
     final c = context.mq.colors;
     final HistoryController history = HistoryScope.of(context);
+    final bool activity = widget.title == 'Activity';
     final List<HistoryEntry> filtered = history.search(
       _query,
       toolName: (HistoryEntry entry) => _toolName(entry.utilityId),
       dateLabel: (HistoryEntry entry) => <String>[
         _dayLabel(entry.timestamp),
-        DateFormat('yyyy-MM-dd').format(entry.timestamp),
-        DateFormat('EEEE MMMM d').format(entry.timestamp),
-        DateFormat('HH:mm').format(entry.timestamp),
+        _ymdFormat.format(entry.timestamp),
+        _longDayFormat.format(entry.timestamp),
+        _timeFormat.format(entry.timestamp),
       ].join(' '),
     );
     final List<HistoryEntry> pinned = filtered
@@ -87,10 +89,20 @@ class _HistoryBodyState extends State<HistoryBody> {
     final Map<String, List<HistoryEntry>> grouped = _groupByDay(
       filtered.where((HistoryEntry entry) => !entry.pinned).toList(),
     );
-    final List<WorkSession> recent = widget.title == 'Activity'
-        ? WorkSessionScope.maybeOf(context)?.recentSessions ??
-              const <WorkSession>[]
+    final WorkSessionController? sessions = activity
+        ? WorkSessionScope.maybeOf(context)
+        : null;
+    final List<WorkSession> recent = activity
+        ? sessions?.recentSessions ?? const <WorkSession>[]
         : const <WorkSession>[];
+    final bool historyOff = history.retention == Duration.zero;
+    final int retentionDays = history.retention.inDays;
+    final String emptyTitle = historyOff || recent.isNotEmpty
+        ? 'No utility history'
+        : 'Nothing yet';
+    final String emptyMessage = historyOff
+        ? 'History retention is set to Off. You can change it in Settings.'
+        : 'The last ${retentionDays == 1 ? 'day' : '$retentionDays days'} of utility usage will appear here. On-device only.';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -116,6 +128,9 @@ class _HistoryBodyState extends State<HistoryBody> {
                 if (history.entries.isNotEmpty || recent.isNotEmpty)
                   MqButton(
                     label: 'Clear',
+                    semanticsLabel: activity
+                        ? 'Clear activity'
+                        : 'Clear history',
                     icon: MqIcons.trash,
                     variant: MqButtonVariant.glass,
                     size: MqButtonSize.sm,
@@ -123,7 +138,8 @@ class _HistoryBodyState extends State<HistoryBody> {
                     onPressed: () => _confirmClear(
                       context,
                       history,
-                      WorkSessionScope.maybeOf(context),
+                      sessions,
+                      activity: activity,
                     ),
                   ),
               ],
@@ -157,98 +173,126 @@ class _HistoryBodyState extends State<HistoryBody> {
           ),
           const SizedBox(height: MqSpacing.sm),
         ],
-        Expanded(
-          child: history.entries.isEmpty
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: MqSpacing.xl,
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: <Widget>[
-                        Icon(MqIcons.history, size: 36, color: c.textTer),
-                        const SizedBox(height: MqSpacing.md),
-                        Text(
-                          'Nothing yet',
-                          style: MqTextStyles.title3.copyWith(color: c.textPri),
-                        ),
-                        const SizedBox(height: MqSpacing.xs),
-                        Text(
-                          'Your last 7 days of utility usage will appear here. On-device only.',
-                          style: MqTextStyles.subhead.copyWith(
-                            color: c.textSec,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              : ListView(
-                  padding: const EdgeInsets.fromLTRB(
-                    MqSpacing.lg,
-                    0,
-                    MqSpacing.lg,
-                    MqSpacing.lg,
-                  ),
-                  children: <Widget>[
-                    SizedBox(
-                      height: 44,
-                      child: CupertinoSearchTextField(
-                        placeholder: 'Search tool, value, or date',
-                        onChanged: (String value) =>
-                            setState(() => _query = value),
-                      ),
-                    ),
-                    const SizedBox(height: MqSpacing.md),
-                    if (filtered.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: MqSpacing.xl,
-                        ),
-                        child: Text(
-                          'No matching activity',
-                          style: MqTextStyles.subhead.copyWith(
-                            color: c.textSec,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    if (pinned.isNotEmpty) ...<Widget>[
-                      MqSectionHeader(
-                        label: 'PINNED',
-                        trailing: MqStatus(
-                          label: '${pinned.length}',
-                          kind: MqStatusKind.neutral,
-                          showIcon: false,
-                        ),
-                      ),
-                      for (final HistoryEntry entry in pinned) ...<Widget>[
-                        _HistoryRow(entry: entry, history: history),
-                        const SizedBox(height: MqSpacing.sm),
-                      ],
-                      const SizedBox(height: MqSpacing.md),
-                    ],
-                    for (final MapEntry<String, List<HistoryEntry>> g
-                        in grouped.entries) ...<Widget>[
-                      MqSectionHeader(
-                        label: g.key,
-                        trailing: MqStatus(
-                          label: '${g.value.length}',
-                          kind: MqStatusKind.neutral,
-                          showIcon: false,
-                        ),
-                      ),
-                      for (final HistoryEntry e in g.value) ...<Widget>[
-                        _HistoryRow(entry: e, history: history),
-                        const SizedBox(height: MqSpacing.sm),
-                      ],
-                      const SizedBox(height: MqSpacing.md),
-                    ],
-                  ],
+        if (history.entries.isEmpty && recent.isNotEmpty) ...<Widget>[
+          const SizedBox(height: MqSpacing.sm),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              MqSpacing.xl,
+              0,
+              MqSpacing.xl,
+              MqSpacing.md,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  emptyTitle,
+                  style: MqTextStyles.title3.copyWith(color: c.textPri),
                 ),
-        ),
+                const SizedBox(height: MqSpacing.xs),
+                Text(
+                  emptyMessage,
+                  style: MqTextStyles.subhead.copyWith(color: c.textSec),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ] else
+          Expanded(
+            child: history.entries.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: MqSpacing.xl,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: <Widget>[
+                          Icon(MqIcons.history, size: 36, color: c.textTer),
+                          const SizedBox(height: MqSpacing.md),
+                          Text(
+                            emptyTitle,
+                            style: MqTextStyles.title3.copyWith(
+                              color: c.textPri,
+                            ),
+                          ),
+                          const SizedBox(height: MqSpacing.xs),
+                          Text(
+                            emptyMessage,
+                            style: MqTextStyles.subhead.copyWith(
+                              color: c.textSec,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : ListView(
+                    padding: const EdgeInsets.fromLTRB(
+                      MqSpacing.lg,
+                      0,
+                      MqSpacing.lg,
+                      MqSpacing.lg,
+                    ),
+                    children: <Widget>[
+                      SizedBox(
+                        height: 44,
+                        child: CupertinoSearchTextField(
+                          placeholder: 'Search tool, value, or date',
+                          onChanged: (String value) =>
+                              setState(() => _query = value),
+                        ),
+                      ),
+                      const SizedBox(height: MqSpacing.md),
+                      if (filtered.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: MqSpacing.xl,
+                          ),
+                          child: Text(
+                            'No matching activity',
+                            style: MqTextStyles.subhead.copyWith(
+                              color: c.textSec,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      if (pinned.isNotEmpty) ...<Widget>[
+                        MqSectionHeader(
+                          label: 'PINNED',
+                          trailing: MqStatus(
+                            label: '${pinned.length}',
+                            kind: MqStatusKind.neutral,
+                            showIcon: false,
+                          ),
+                        ),
+                        for (final HistoryEntry entry in pinned) ...<Widget>[
+                          _HistoryRow(entry: entry, history: history),
+                          const SizedBox(height: MqSpacing.sm),
+                        ],
+                        const SizedBox(height: MqSpacing.md),
+                      ],
+                      for (final MapEntry<String, List<HistoryEntry>> g
+                          in grouped.entries) ...<Widget>[
+                        MqSectionHeader(
+                          label: g.key,
+                          trailing: MqStatus(
+                            label: '${g.value.length}',
+                            kind: MqStatusKind.neutral,
+                            showIcon: false,
+                          ),
+                        ),
+                        for (final HistoryEntry e in g.value) ...<Widget>[
+                          _HistoryRow(entry: e, history: history),
+                          const SizedBox(height: MqSpacing.sm),
+                        ],
+                        const SizedBox(height: MqSpacing.md),
+                      ],
+                    ],
+                  ),
+          ),
       ],
     );
   }
@@ -262,6 +306,13 @@ Map<String, List<HistoryEntry>> _groupByDay(List<HistoryEntry> entries) {
   return map;
 }
 
+// Hoisted: constructing a DateFormat parses its pattern, and search builds
+// labels for every entry on every keystroke.
+final DateFormat _ymdFormat = DateFormat('yyyy-MM-dd');
+final DateFormat _longDayFormat = DateFormat('EEEE MMMM d');
+final DateFormat _timeFormat = DateFormat('HH:mm');
+final DateFormat _shortDayFormat = DateFormat('EEE MMM d');
+
 String _dayLabel(DateTime timestamp) {
   final DateTime now = DateTime.now();
   final DateTime today = DateTime(now.year, now.month, now.day);
@@ -273,7 +324,7 @@ String _dayLabel(DateTime timestamp) {
   );
   if (date == today) return 'Today';
   if (date == yesterday) return 'Yesterday';
-  return DateFormat('EEE MMM d').format(timestamp);
+  return _shortDayFormat.format(timestamp);
 }
 
 String _toolName(String utilityId) {
@@ -287,14 +338,17 @@ String _toolName(String utilityId) {
 void _confirmClear(
   BuildContext context,
   HistoryController history,
-  WorkSessionController? sessions,
-) {
+  WorkSessionController? sessions, {
+  required bool activity,
+}) {
   showCupertinoDialog<void>(
     context: context,
     builder: (BuildContext ctx) => CupertinoAlertDialog(
-      title: const Text('Clear all history?'),
-      content: const Text(
-        'This permanently deletes all on-device entries. Cannot be undone.',
+      title: Text(activity ? 'Clear all activity?' : 'Clear all history?'),
+      content: Text(
+        activity
+            ? 'Permanently deletes on-device history entries and resumable sessions. Your current session and saved workflows are kept.'
+            : 'Permanently deletes on-device history entries. Resumable sessions, your current session, and saved workflows are kept.',
       ),
       actions: <Widget>[
         CupertinoDialogAction(
@@ -305,7 +359,7 @@ void _confirmClear(
             if (!ctx.mounted) return;
             Navigator.of(ctx).pop();
           },
-          child: const Text('Clear'),
+          child: Text(activity ? 'Clear activity' : 'Clear history'),
         ),
         CupertinoDialogAction(
           isDefaultAction: true,
@@ -329,9 +383,14 @@ class _RecentSessionRow extends StatelessWidget {
     final String tools = session.steps
         .map((WorkflowStep step) => _toolName(step.toolId))
         .join(' → ');
+    void resume() {
+      if (WorkSessionScope.of(context).resume(session)) onResume?.call();
+    }
+
     return Semantics(
       button: true,
       label: 'Resume ${session.name}',
+      onTap: resume,
       excludeSemantics: true,
       child: CupertinoButton(
         padding: const EdgeInsets.symmetric(
@@ -341,9 +400,7 @@ class _RecentSessionRow extends StatelessWidget {
         minimumSize: const Size.fromHeight(56),
         color: c.surface,
         borderRadius: BorderRadius.circular(MqRadius.md),
-        onPressed: () {
-          if (WorkSessionScope.of(context).resume(session)) onResume?.call();
-        },
+        onPressed: resume,
         child: Row(
           children: <Widget>[
             Expanded(
@@ -390,20 +447,29 @@ class _HistoryRow extends StatelessWidget {
     } catch (_) {
       u = null;
     }
-    final String displayInput = SensitiveDataPolicy.safePreview(
-      entry.input,
-      max: _truncateAt,
-      utilityId: entry.utilityId,
-      sensitive: entry.sensitive,
-    );
-    final String displayOutput = SensitiveDataPolicy.safePreview(
-      entry.output,
-      max: _truncateAt,
-      utilityId: entry.utilityId,
-      sensitive: entry.sensitive,
-    );
-    final String toolName = u?.name ?? entry.utilityId;
+    // `protected` is cached on the entry and covers input and output, so an
+    // unprotected entry needs no per-value rescan to preview safely.
     final bool protected = entry.protected;
+    final String displayInput = protected
+        ? SensitiveDataPolicy.safePreview(
+            entry.input,
+            max: _truncateAt,
+            utilityId: entry.utilityId,
+            sensitive: entry.sensitive,
+          )
+        : truncateWithEllipsis(entry.input, max: _truncateAt);
+    final String displayOutput = protected
+        ? SensitiveDataPolicy.safePreview(
+            entry.output,
+            max: _truncateAt,
+            utilityId: entry.utilityId,
+            sensitive: entry.sensitive,
+          )
+        : truncateWithEllipsis(entry.output, max: _truncateAt);
+    final String toolName = u?.name ?? entry.utilityId;
+    final VoidCallback? reopen = u == null || protected
+        ? null
+        : () => ToolDetailRoute.push(context, u!, seed: entry.input);
     return Container(
       decoration: BoxDecoration(
         color: c.surface,
@@ -414,16 +480,15 @@ class _HistoryRow extends StatelessWidget {
         children: <Widget>[
           Semantics(
             button: true,
-            enabled: u != null && !protected,
+            enabled: reopen != null,
             label: 'Reopen $toolName with saved input',
+            onTap: reopen,
             excludeSemantics: true,
             child: CupertinoButton(
               padding: const EdgeInsets.all(MqSpacing.md),
               minimumSize: const Size.fromHeight(44),
               borderRadius: BorderRadius.circular(MqRadius.md),
-              onPressed: u == null || protected
-                  ? null
-                  : () => ToolDetailRoute.push(context, u!, seed: entry.input),
+              onPressed: reopen,
               child: Row(
                 children: <Widget>[
                   Container(
@@ -468,7 +533,7 @@ class _HistoryRow extends StatelessWidget {
                   ),
                   const SizedBox(width: MqSpacing.sm),
                   Text(
-                    DateFormat('HH:mm').format(entry.timestamp),
+                    _timeFormat.format(entry.timestamp),
                     style: MqTextStyles.caption1.copyWith(
                       color: c.textTer,
                       fontFamily: MqTextStyles.monoFamily,
@@ -547,6 +612,7 @@ class _HistoryAction extends StatelessWidget {
       button: true,
       enabled: onPressed != null,
       label: label,
+      onTap: onPressed,
       excludeSemantics: true,
       child: CupertinoButton(
         padding: EdgeInsets.zero,

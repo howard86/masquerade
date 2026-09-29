@@ -53,12 +53,18 @@ class _EnvironmentConfigInspectorBodyState
   ConfigConversion? _conversion;
   ConfigComparison? _comparison;
   String _normalized = '';
-  String _sortedNormalized = '';
+  // Built on first use: only the visible (sorted or original) order is needed.
+  String? _sortedNormalized;
   String? _error;
   String? _comparisonError;
   ConfigFormat? _format;
   bool _sort = false;
   int _duplicateLimit = 20;
+  // Last comparison-side parse, keyed on its input and format, so editing
+  // configuration A does not re-parse an unchanged configuration B.
+  ({String input, ConfigFormat? format})? _comparisonKey;
+  ConfigInspection? _comparisonCache;
+  String? _comparisonCacheError;
 
   static const int _maxRouteCharacters = 64 * 1024;
 
@@ -79,7 +85,7 @@ class _EnvironmentConfigInspectorBodyState
         _inspection = inspection;
         _conversion = inspection.convert();
         _normalized = inspection.normalized();
-        _sortedNormalized = inspection.normalized(sort: true);
+        _sortedNormalized = null;
         _error = null;
         _duplicateLimit = 20;
       });
@@ -90,7 +96,7 @@ class _EnvironmentConfigInspectorBodyState
         _conversion = null;
         _comparison = null;
         _normalized = '';
-        _sortedNormalized = '';
+        _sortedNormalized = null;
         _error = error.message;
       });
     }
@@ -103,7 +109,7 @@ class _EnvironmentConfigInspectorBodyState
     _conversion = null;
     _comparison = null;
     _normalized = '';
-    _sortedNormalized = '';
+    _sortedNormalized = null;
     _error = null;
     _comparisonError = null;
     _duplicateLimit = 20;
@@ -140,29 +146,47 @@ class _EnvironmentConfigInspectorBodyState
       });
       return;
     }
-    try {
-      final ConfigInspection inspection = EnvironmentConfigInspector.parse(
-        input,
-        format: _format ?? _inspection?.format,
-      );
+    final ({String input, ConfigFormat? format}) key = (
+      input: input,
+      format: _format ?? _inspection?.format,
+    );
+    if (key != _comparisonKey) {
+      try {
+        _comparisonCache = EnvironmentConfigInspector.parse(
+          key.input,
+          format: key.format,
+        );
+        _comparisonCacheError = null;
+      } on ConfigInspectorException catch (error) {
+        _comparisonCache = null;
+        _comparisonCacheError = error.message;
+      }
+      _comparisonKey = key;
+    }
+    final ConfigInspection? inspection = _comparisonCache;
+    if (inspection != null) {
       setState(() {
         _comparisonInspection = inspection;
         _comparison = _inspection?.compare(inspection);
         _comparisonError = null;
       });
-    } on ConfigInspectorException catch (error) {
+    } else {
       setState(() {
         _comparisonInspection = null;
         _comparison = null;
-        _comparisonError = error.message;
+        _comparisonError = _comparisonCacheError;
       });
     }
   }
 
+  String get _visibleNormalized => _sort
+      ? _sortedNormalized ??= _inspection?.normalized(sort: true) ?? ''
+      : _normalized;
+
   @override
   Widget build(BuildContext context) {
     final ConfigInspection? inspection = _inspection;
-    final String normalized = _sort ? _sortedNormalized : _normalized;
+    final String normalized = _visibleNormalized;
     final ConfigConversion? conversion = _conversion;
     final ConfigComparison? comparison = _comparison;
     final MobileSessionRouteScope? route = MobileSessionRouteScope.maybeOf(
