@@ -89,6 +89,14 @@ class HistoryController extends ChangeNotifier {
        _maxEntries = maxEntries,
        _prefs = prefs;
 
+  /// Largest input/output (UTF-16 code units) a new entry may carry. Rows
+  /// reopen a tool seeded with the full stored input and copy the full
+  /// output, so a truncated entry would reopen wrong; an oversized one is not
+  /// recorded instead. Keeps every persist (which re-encodes all entries) and
+  /// the in-memory list bounded.
+  static const int maxInputLength = 16 * 1024;
+  static const int maxOutputLength = 64 * 1024;
+
   static const String _prefsKey = 'mb.history.entries';
   static const String _retentionKey = 'mb.history.retention.days';
   static int _nextId = 0;
@@ -164,6 +172,10 @@ class HistoryController extends ChangeNotifier {
   }
 
   Future<void> add(HistoryEntry entry) async {
+    if (entry.input.length > maxInputLength ||
+        entry.output.length > maxOutputLength) {
+      return;
+    }
     if (_retention == Duration.zero || !_allows(entry)) return;
     // Dedupe: skip when the most recent entry shares utilityId + input.
     // Tools are deterministic (same input → same output), so consecutive

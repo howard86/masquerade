@@ -162,10 +162,45 @@ void main() {
     });
 
     test('entries is a read-only view', () async {
-      final HistoryController c = HistoryController(retention: Duration.zero);
+      final HistoryController c = HistoryController(
+        retention: const Duration(days: 36500),
+      );
       await c.add(entry('json', '{}'));
       expect(() => c.entries.add(entry('json', '[]')), throwsUnsupportedError);
       expect(() => c.entries.clear(), throwsUnsupportedError);
+    });
+  });
+
+  group('HistoryController size cap', () {
+    test('skips new entries with oversized input or output', () async {
+      final HistoryController c = HistoryController(
+        retention: const Duration(days: 36500),
+      );
+      final String atInput = 'a' * HistoryController.maxInputLength;
+      final String atOutput = 'b' * HistoryController.maxOutputLength;
+      await c.add(entry('json', atInput, output: atOutput));
+      await c.add(entry('json', '${atInput}x'));
+      await c.add(entry('json', 'small', output: '${atOutput}y'));
+      expect(c.entries, hasLength(1));
+      expect(c.entries.single.input, atInput);
+      expect(c.entries.single.output, atOutput);
+    });
+
+    test('keeps oversized entries already persisted', () async {
+      final String big = 'c' * (HistoryController.maxInputLength + 1);
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'mb.history.entries': jsonEncode(<Map<String, dynamic>>[
+          <String, dynamic>{
+            'utilityId': 'json',
+            'input': big,
+            'output': 'out',
+            'ts': DateTime.now().millisecondsSinceEpoch,
+            'id': 'legacy',
+          },
+        ]),
+      });
+      final HistoryController c = await HistoryController.load();
+      expect(c.entries.single.input, big);
     });
   });
 }
