@@ -24,6 +24,7 @@ import 'package:masquerade/utils/json_parser.dart';
 import 'package:masquerade/utils/log_stack_inspector.dart';
 import 'package:masquerade/utils/markdown_parser.dart';
 import 'package:masquerade/utils/unicode_string_inspector.dart';
+import 'package:masquerade/utils/utf8_length.dart';
 import 'package:masquerade/utils/x509_inspector.dart';
 import 'package:masquerade/widgets/mq/md_renderer.dart';
 import 'package:masquerade/widgets/tool_bodies/csv_body.dart';
@@ -498,6 +499,18 @@ void main() {
     test('utf8.encode length 1 MB', () {
       bench('utf8.encodeLen.ascii', () => utf8.encode(asciiMb).length, n: 20);
       bench('utf8.encodeLen.bmp', () => utf8.encode(bmpMb).length, n: 20);
+      bench('utf8.utf8Length.ascii', () => utf8Length(asciiMb), n: 20);
+      bench('utf8.utf8Length.bmp', () => utf8Length(bmpMb), n: 20);
+      bench(
+        'utf8.exceeds.ascii1MiB',
+        () => utf8LengthExceeds(asciiMb, 1 << 20),
+        n: 20,
+      );
+      bench(
+        'utf8.exceeds.bmp1MiB',
+        () => utf8LengthExceeds(bmpMb, 1 << 20),
+        n: 20,
+      );
     });
   });
 

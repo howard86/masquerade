@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'encoding_parser.dart';
 import 'sensitive_data_policy.dart';
+import 'utf8_length.dart';
 
 enum LogLevel { trace, debug, info, warn, error, fatal, unknown }
 
@@ -153,7 +154,7 @@ abstract final class LogStackInspector {
     if (input.contains('\u0000')) {
       throw const LogInspectorException('Log contains unsupported NUL bytes.');
     }
-    if (utf8.encode(input).length > maxInputBytes) {
+    if (utf8LengthExceeds(input, maxInputBytes)) {
       throw const LogInspectorException('Log exceeds the 512 KiB limit.');
     }
 

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'diff_parser.dart';
 import 'json_parser.dart';
 import 'sensitive_data_policy.dart';
+import 'utf8_length.dart';
 import 'yaml_parser.dart';
 
 enum ConfigFormat { environment, properties, headers, keyValue }
@@ -191,8 +192,7 @@ class EnvironmentConfigInspector {
     if (_hasUnpairedSurrogate(input)) {
       throw const ConfigInspectorException('Input contains invalid UTF-16.');
     }
-    if (input.length > maxInputCharacters ||
-        utf8.encode(input).length > maxInputCharacters) {
+    if (utf8LengthExceeds(input, maxInputCharacters)) {
       throw const ConfigInspectorException('Input exceeds the 512 KiB limit.');
     }
     if (input.contains('\u0000')) {

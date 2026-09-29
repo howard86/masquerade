@@ -9,6 +9,7 @@ import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
 import '../../utils/sensitive_data_policy.dart';
+import '../../utils/utf8_length.dart';
 import '../mq/mq_button.dart';
 import '../mq/mq_chip.dart';
 import '../mq/mq_empty_hint.dart';
@@ -148,7 +149,7 @@ class _Base64BodyState extends State<Base64Body>
         if (previous != null && _sameBytes(previous, decoded)) {
           decoded = previous;
         }
-        inBytes = utf8.encode(input.trim()).length;
+        inBytes = utf8Length(input.trim());
         result = utf8.decode(decoded, allowMalformed: true);
       }
       setState(() {

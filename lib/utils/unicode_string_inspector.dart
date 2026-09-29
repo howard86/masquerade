@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/widgets.dart' show StringCharacters;
 import 'package:unorm_dart/unorm_dart.dart' as unorm;
 
+import 'utf8_length.dart';
+
 enum UnicodeNormalization { nfc, nfd, nfkc, nfkd }
 
 extension UnicodeNormalizationLabel on UnicodeNormalization {
@@ -154,8 +156,8 @@ abstract final class UnicodeStringInspector {
     if (_hasUnpairedSurrogate(input)) {
       throw const UnicodeInspectorException('Text contains malformed UTF-16.');
     }
-    final List<int> allBytes = utf8.encode(input);
-    if (allBytes.length > maxInputBytes) {
+    final int utf8ByteCount = utf8Length(input);
+    if (utf8ByteCount > maxInputBytes) {
       throw const UnicodeInspectorException('Text exceeds the 512 KiB limit.');
     }
 
@@ -237,7 +239,7 @@ abstract final class UnicodeStringInspector {
       graphemes: List<UnicodeGrapheme>.unmodifiable(graphemes),
       graphemeCount: graphemeCount,
       codePointCount: input.runes.length,
-      utf8ByteCount: allBytes.length,
+      utf8ByteCount: utf8ByteCount,
       normalized: Map<UnicodeNormalization, String>.unmodifiable(
         <UnicodeNormalization, String>{
           UnicodeNormalization.nfc: unorm.nfc(input),

@@ -1,6 +1,6 @@
-import 'dart:convert';
-
 import 'package:markdown/markdown.dart' as md;
+
+import 'utf8_length.dart';
 
 sealed class MarkdownParseResult {
   const MarkdownParseResult();
@@ -134,7 +134,7 @@ class MarkdownParser {
     if (input.length > maxInputBytes) {
       return const MarkdownErr('Markdown input is limited to 256 KiB.');
     }
-    if (utf8.encode(input).length > maxInputBytes) {
+    if (utf8LengthExceeds(input, maxInputBytes)) {
       return const MarkdownErr('Markdown input is limited to 256 KiB.');
     }
     try {

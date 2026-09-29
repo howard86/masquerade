@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'sensitive_data_policy.dart';
+import 'utf8_length.dart';
 
 const int _maxBytes = 65536;
 const int _maxUrlLength = 8192;
@@ -104,7 +105,7 @@ class HttpRequestDescriptor {
 
 abstract final class HttpRequestInspector {
   static HttpRequestDescriptor parse(String input) {
-    if (input.length > _maxBytes || utf8.encode(input).length > _maxBytes) {
+    if (utf8LengthExceeds(input, _maxBytes)) {
       throw const HttpInspectorException('Input exceeds the 64 KiB limit.');
     }
     if (input.contains('\u0000')) {
@@ -469,7 +470,7 @@ HttpRequestDescriptor _build({
       .map(_validateHeader)
       .toList();
   _validateFraming(validatedHeaders, body);
-  if (body != null && utf8.encode(body).length > _maxBytes) {
+  if (body != null && utf8LengthExceeds(body, _maxBytes)) {
     throw const HttpInspectorException(
       'Request body exceeds the 64 KiB limit.',
     );
@@ -596,7 +597,7 @@ void _validateFraming(List<HttpField> headers, String? body) {
         'Content-Length must be a non-negative integer.',
       );
     }
-    if (expected != utf8.encode(body ?? '').length) {
+    if (expected != utf8Length(body ?? '')) {
       throw const HttpInspectorException(
         'Content-Length does not match the request body.',
       );

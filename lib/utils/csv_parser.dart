@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'utf8_length.dart';
+
 sealed class CsvParseResult {
   const CsvParseResult();
 }
@@ -40,8 +42,7 @@ class CsvParser {
     String? delimiter,
     bool? hasHeader,
   }) {
-    if (input.length > maxInputChars ||
-        utf8.encode(input).length > maxInputChars) {
+    if (utf8LengthExceeds(input, maxInputChars)) {
       return const CsvErr('Input exceeds the 1 MiB limit.');
     }
     if (input.isEmpty || input == '\ufeff') {
@@ -114,8 +115,7 @@ class CsvParser {
               },
           ];
     final String output = const JsonEncoder.withIndent('  ').convert(value);
-    if (output.length > maxOutputChars ||
-        utf8.encode(output).length > maxOutputChars) {
+    if (utf8LengthExceeds(output, maxOutputChars)) {
       throw const FormatException('JSON output exceeds the 2 MiB limit.');
     }
     return output;
@@ -123,8 +123,7 @@ class CsvParser {
 
   static String fromJson(String json, {String delimiter = ','}) {
     _validateDelimiter(delimiter);
-    if (json.length > maxInputChars ||
-        utf8.encode(json).length > maxInputChars) {
+    if (utf8LengthExceeds(json, maxInputChars)) {
       throw const FormatException('Input exceeds the 1 MiB limit.');
     }
     final Object? decoded;
@@ -196,7 +195,7 @@ class CsvParser {
       }
     }
     final String output = out.toString();
-    if (utf8.encode(output).length > maxOutputChars) {
+    if (utf8LengthExceeds(output, maxOutputChars)) {
       throw const FormatException('CSV output exceeds the 2 MiB limit.');
     }
     return output;
