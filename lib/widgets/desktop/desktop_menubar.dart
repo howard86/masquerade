@@ -40,8 +40,6 @@ class DesktopMenubar extends StatefulWidget {
 }
 
 class _DesktopMenubarState extends State<DesktopMenubar> {
-  Timer? _clockTimer;
-  String _time = '';
   late List<_WindowMenuEntry> _windows;
 
   CanvasController get _c => widget.controller;
@@ -50,11 +48,6 @@ class _DesktopMenubarState extends State<DesktopMenubar> {
   void initState() {
     super.initState();
     _windows = _windowEntries();
-    _updateTime();
-    _clockTimer = Timer.periodic(
-      const Duration(seconds: 30),
-      (_) => _updateTime(),
-    );
     _c.addListener(_onCanvasChange);
   }
 
@@ -69,7 +62,6 @@ class _DesktopMenubarState extends State<DesktopMenubar> {
 
   @override
   void dispose() {
-    _clockTimer?.cancel();
     _c.removeListener(_onCanvasChange);
     super.dispose();
   }
@@ -84,17 +76,6 @@ class _DesktopMenubarState extends State<DesktopMenubar> {
     for (final CanvasCard card in _c.cards)
       (id: card.id, title: card.content.title),
   ];
-
-  void _updateTime() {
-    final DateTime now = DateTime.now();
-    final String h = now.hour.toString().padLeft(2, '0');
-    final String m = now.minute.toString().padLeft(2, '0');
-    if (mounted) {
-      setState(() => _time = '$h:$m');
-    } else {
-      _time = '$h:$m';
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -156,7 +137,7 @@ class _DesktopMenubarState extends State<DesktopMenubar> {
             ],
           ),
           const Spacer(),
-          Text(_time, style: MqTextStyles.caption2.copyWith(color: c.textSec)),
+          const MenubarClock(),
         ],
       ),
     );
@@ -358,4 +339,78 @@ class _MenuItem {
   const _MenuItem(this.label, this.action);
   final String label;
   final VoidCallback action;
+}
+
+/// The menubar's HH:mm clock, isolated so its ticks rebuild only this text.
+/// It wakes at each minute boundary (not on a fixed poll), skips the rebuild
+/// when the string is unchanged, and stops while the app is hidden / paused.
+class MenubarClock extends StatefulWidget {
+  const MenubarClock({super.key, this.now = DateTime.now});
+
+  /// Time source; injectable for tests.
+  final DateTime Function() now;
+
+  @override
+  State<MenubarClock> createState() => _MenubarClockState();
+}
+
+class _MenubarClockState extends State<MenubarClock>
+    with WidgetsBindingObserver {
+  Timer? _timer;
+  late String _time = _format(widget.now());
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _schedule();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.resumed:
+      case AppLifecycleState.inactive:
+        if (_timer == null) _tick();
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        _timer?.cancel();
+        _timer = null;
+    }
+  }
+
+  static String _format(DateTime t) =>
+      '${t.hour.toString().padLeft(2, '0')}:'
+      '${t.minute.toString().padLeft(2, '0')}';
+
+  /// Arms a one-shot timer for the next minute boundary.
+  void _schedule() {
+    final DateTime now = widget.now();
+    final Duration untilNextMinute =
+        const Duration(minutes: 1) -
+        Duration(seconds: now.second, milliseconds: now.millisecond);
+    _timer?.cancel();
+    _timer = Timer(untilNextMinute, _tick);
+  }
+
+  void _tick() {
+    if (!mounted) return;
+    final String next = _format(widget.now());
+    if (next != _time) setState(() => _time = next);
+    _schedule();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mq.colors;
+    return Text(_time, style: MqTextStyles.caption2.copyWith(color: c.textSec));
+  }
 }

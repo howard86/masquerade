@@ -64,6 +64,7 @@ String _bucket(Widget w) {
   if (_bodyTypes.contains(name)) return 'body';
   if (name == '_LauncherTile') return 'launcherTile';
   if (name == 'DesktopMenubar') return 'menubar';
+  if (name == 'MenubarClock') return 'clock';
   if (name == 'DesktopDock') return 'dock';
   if (name == 'ToolCardFrame') return 'frame';
   if (name == 'DesktopIconGrid') return 'iconGrid';
@@ -233,6 +234,7 @@ void main() {
     // ignore: avoid_print
     print(
       '[clock] per hour: menubar ${_counts.of('menubar')}, '
+      'clock ${_counts.of('clock')}, '
       'allElements ${_counts.totalBuilds}',
     );
   });
