@@ -88,7 +88,11 @@ class UnicodeInspection {
   final bool truncated;
 
   String normalizedAs(UnicodeNormalization form) => normalized[form]!;
-  bool changes(UnicodeNormalization form) => normalizedAs(form) != input;
+  bool changes(UnicodeNormalization form) {
+    final String normalized = normalizedAs(form);
+    return !identical(normalized, input) && normalized != input;
+  }
+
   bool get canRouteBytes =>
       utf8ByteCount <= UnicodeStringInspector.maxRouteBytes;
 
@@ -163,11 +167,30 @@ abstract final class UnicodeStringInspector {
 
     final List<UnicodeGrapheme> graphemes = <UnicodeGrapheme>[];
     int graphemeCount = 0;
+    int codePointCount = 0;
     final Set<String> invisibleNames = <String>{};
     bool hasBidi = false;
 
     for (final String cluster in input.characters) {
       graphemeCount++;
+      if (graphemes.length >= maxDisplayedGraphemes) {
+        // Past the display cap only the counts and warnings still matter.
+        int runeCount = 0;
+        for (final int rune in cluster.runes) {
+          if (++runeCount > maxCodePointsPerGrapheme) {
+            throw const UnicodeInspectorException(
+              'A grapheme cluster exceeds the 1,024-code-point limit.',
+            );
+          }
+          // Printable ASCII has no marker and is not a bidi control.
+          if (rune > 0x20 && rune < 0x7f) continue;
+          final String? marker = _markerFor(rune);
+          if (marker != null && marker != 'SPACE') invisibleNames.add(marker);
+          hasBidi |= _isBidi(rune);
+        }
+        codePointCount += runeCount;
+        continue;
+      }
       final List<int> runes = <int>[];
       int runeCount = 0;
       final List<String> markers = <String>[];
@@ -197,6 +220,7 @@ abstract final class UnicodeStringInspector {
         }
         hasBidi |= _isBidi(rune);
       }
+      codePointCount += runeCount;
       if (graphemes.length < maxDisplayedGraphemes) {
         final List<int> clusterBytes = utf8.encode(cluster);
         final bool detailsTruncated =
@@ -238,15 +262,22 @@ abstract final class UnicodeStringInspector {
       input: input,
       graphemes: List<UnicodeGrapheme>.unmodifiable(graphemes),
       graphemeCount: graphemeCount,
-      codePointCount: input.runes.length,
+      codePointCount: codePointCount,
       utf8ByteCount: utf8ByteCount,
       normalized: Map<UnicodeNormalization, String>.unmodifiable(
-        <UnicodeNormalization, String>{
-          UnicodeNormalization.nfc: unorm.nfc(input),
-          UnicodeNormalization.nfd: unorm.nfd(input),
-          UnicodeNormalization.nfkc: unorm.nfkc(input),
-          UnicodeNormalization.nfkd: unorm.nfkd(input),
-        },
+        // Every normalization form maps ASCII to itself.
+        utf8ByteCount == input.length
+            ? <UnicodeNormalization, String>{
+                for (final UnicodeNormalization form
+                    in UnicodeNormalization.values)
+                  form: input,
+              }
+            : <UnicodeNormalization, String>{
+                UnicodeNormalization.nfc: unorm.nfc(input),
+                UnicodeNormalization.nfd: unorm.nfd(input),
+                UnicodeNormalization.nfkc: unorm.nfkc(input),
+                UnicodeNormalization.nfkd: unorm.nfkd(input),
+              },
       ),
       lineEndings: endings,
       warnings: List<String>.unmodifiable(warnings),
