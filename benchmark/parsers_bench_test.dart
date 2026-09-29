@@ -31,6 +31,7 @@ import 'package:masquerade/widgets/tool_bodies/csv_body.dart';
 import 'package:masquerade/widgets/tool_bodies/diff_body.dart';
 import 'package:masquerade/widgets/tool_bodies/environment_config_inspector_body.dart';
 import 'package:masquerade/widgets/tool_bodies/log_stack_inspector_body.dart';
+import 'package:masquerade/widgets/tool_bodies/timestamp_body.dart';
 import 'package:masquerade/widgets/mq/mq_chip.dart';
 
 const String _leafPem = '''
@@ -563,6 +564,22 @@ void main() {
           f.format(t);
         }
       });
+    });
+  });
+
+  group('11b bodies', () {
+    testWidgets('timestamp body rebuild', (WidgetTester t) async {
+      await t.binding.setSurfaceSize(const Size(1024, 1400));
+      await t.pumpWidget(
+        _host(const TimestampBody(initialInput: '1700000000')),
+      );
+      await t.pump(const Duration(milliseconds: 300));
+      final StatefulElement el = t.element(find.byType(TimestampBody));
+      await benchAsync('timestamp.body.rebuild', () async {
+        el.markNeedsBuild();
+        await t.pump();
+      }, n: 40);
+      await t.binding.setSurfaceSize(null);
     });
   });
 
