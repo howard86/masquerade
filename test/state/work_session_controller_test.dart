@@ -49,6 +49,21 @@ void main() {
     expect(controller.session!.steps.last.input.rawValue, '1700000000');
   });
 
+  test('addNext runs a single detection sweep', () {
+    final WorkSessionController controller = WorkSessionController();
+    controller.start(
+      UtilityCatalog.byId('bps'),
+      artifact(ArtifactKind.bps, '25 bps'),
+    );
+    final int before = UtilityCatalog.debugSweepCount;
+    expect(
+      controller.addNext(0, UtilityCatalog.byId('timestamp'), '1700000000'),
+      1,
+    );
+    expect(UtilityCatalog.debugSweepCount, before + 1);
+    expect(controller.session!.steps.last.input.kind, ArtifactKind.timestamp);
+  });
+
   test('resolves ambiguous output for the chosen compatible target', () {
     final WorkSessionController timestamp = WorkSessionController();
     timestamp.start(

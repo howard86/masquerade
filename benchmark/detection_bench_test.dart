@@ -15,6 +15,7 @@ import 'package:masquerade/app.dart';
 import 'package:masquerade/models/artifact.dart';
 import 'package:masquerade/state/detection_preference_controller.dart';
 import 'package:masquerade/state/history_controller.dart';
+import 'package:masquerade/state/work_session_controller.dart';
 import 'package:masquerade/theme/mq_colors.dart';
 import 'package:masquerade/theme/mq_theme.dart';
 import 'package:masquerade/utility_catalog.dart';
@@ -200,6 +201,60 @@ void main() {
     }
     final Object? deepValue = deep;
     print('deep tree  ${_ms(_minMicros(() => JSONParser.tree(deepValue)))}');
+  });
+
+  test('WorkSessionController: addNext and updateSettings, 100 KB', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final String json = jsonFixture(100 * 1024);
+    final UtilityDescriptor target = UtilityCatalog.compatibleNextSteps(
+      'json',
+      json,
+    ).first;
+    int best = 1 << 62;
+    for (int i = 0; i < 12; i++) {
+      final WorkSessionController c = WorkSessionController(prefs: prefs);
+      c.start(
+        UtilityCatalog.byId('json'),
+        Artifact<Object?>(
+          kind: ArtifactKind.json,
+          rawValue: '{"a":1}',
+          provenance: ArtifactProvenance.typed,
+        ),
+      );
+      final Stopwatch sw = Stopwatch()..start();
+      c.addNext(0, target, json);
+      sw.stop();
+      if (i >= 2 && sw.elapsedMicroseconds < best) {
+        best = sw.elapsedMicroseconds;
+      }
+      await c.flush();
+    }
+    print('addNext(100 KB JSON -> ${target.id}): ${_ms(best.toDouble())}');
+
+    final WorkSessionController c = WorkSessionController(prefs: prefs);
+    c.start(
+      UtilityCatalog.byId('json'),
+      Artifact<Object?>(
+        kind: ArtifactKind.json,
+        rawValue: json,
+        provenance: ArtifactProvenance.typed,
+      ),
+    );
+    best = 1 << 62;
+    for (int i = 0; i < 22; i++) {
+      final Stopwatch sw = Stopwatch()..start();
+      c.updateSettings(0, c.session!, <String, Object?>{
+        'target': i.isEven ? 'tree' : 'pretty',
+        'indent': i,
+      });
+      sw.stop();
+      if (i >= 2 && sw.elapsedMicroseconds < best) {
+        best = sw.elapsedMicroseconds;
+      }
+    }
+    await c.flush();
+    print('updateSettings(100 KB input step): ${_ms(best.toDouble())}');
   });
 
   testWidgets('OpenInFooter: 20 parent rebuilds, same 100 KB JSON output', (

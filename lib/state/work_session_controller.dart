@@ -297,8 +297,18 @@ class WorkSessionController extends ChangeNotifier {
       );
       return null;
     }
+    // One sweep serves both the compatibility check and the snapshot match.
+    final List<DetectionMatch<Object?>> matches =
+        UtilityCatalog.detectArtifacts(
+          output,
+          provenance: ArtifactProvenance.generated,
+        );
     final List<UtilityDescriptor> compatible =
-        UtilityCatalog.compatibleNextSteps(sourceStep.toolId, output);
+        UtilityCatalog.compatibleNextSteps(
+          sourceStep.toolId,
+          output,
+          matches: matches,
+        );
     if (!compatible.any((UtilityDescriptor tool) => tool.id == target.id)) {
       if (expected != null) {
         _setError('Output is not compatible with ${target.name}.');
@@ -306,14 +316,10 @@ class WorkSessionController extends ChangeNotifier {
       return null;
     }
 
-    final DetectionMatch<Object?> match =
-        UtilityCatalog.detectArtifacts(
-          output,
-          provenance: ArtifactProvenance.generated,
-        ).firstWhere(
-          (DetectionMatch<Object?> match) =>
-              match.compatibleToolIds.contains(target.id),
-        );
+    final DetectionMatch<Object?> match = matches.firstWhere(
+      (DetectionMatch<Object?> match) =>
+          match.compatibleToolIds.contains(target.id),
+    );
     final UtilityDescriptor source = UtilityCatalog.byId(sourceStep.toolId);
     final Artifact<Object?> snapshot = _protect(
       source,
