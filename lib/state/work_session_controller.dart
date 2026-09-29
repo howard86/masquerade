@@ -532,9 +532,10 @@ class WorkSessionController extends ChangeNotifier {
       canPersistTool: (String id) =>
           UtilityCatalog.byIdOrNull(id)?.historyPolicy == HistoryPolicy.enabled,
     );
-    if (jsonEncode(encoded).contains('"redacted":true')) return;
+    final String json = jsonEncode(encoded);
+    if (json.contains('"redacted":true')) return;
     final WorkSession? safe = WorkSession.tryFromJson(
-      jsonDecode(jsonEncode(encoded)),
+      jsonDecode(json),
       isKnownTool: (String id) => UtilityCatalog.byIdOrNull(id) != null,
     );
     if (safe == null || !_resumable(safe)) return;
@@ -558,23 +559,32 @@ class WorkSessionController extends ChangeNotifier {
                 !isProtectedWorkflowString(step.output!.rawValue)),
       );
 
+  /// Encoded JSON per recent-session object. A [WorkSession] is immutable
+  /// (final fields, unmodifiable steps, frozen settings) and its encoding
+  /// depends only on the static catalog, so each recent session is encoded
+  /// once instead of on every write — the current session is replaced by a
+  /// new object on each edit, while the other recents never change.
+  static final Expando<String> _encodedRecent = Expando<String>(
+    'WorkSessionController.encodedRecent',
+  );
+
+  static String _encodeRecent(WorkSession session) =>
+      _encodedRecent[session] ??= jsonEncode(
+        session.toJson(
+          canPersistTool: (String id) =>
+              UtilityCatalog.byIdOrNull(id)?.historyPolicy ==
+              HistoryPolicy.enabled,
+        ),
+      );
+
   Future<void> _persist() {
     if (_prefs == null) return Future<void>.value();
-    final String snapshot = jsonEncode(<String, Object?>{
-      'schemaVersion': _schemaVersion,
-      'savedWorkflows': _savedWorkflows
-          .map((SavedWorkflow workflow) => workflow.toJson())
-          .toList(),
-      'recentSessions': _recentSessions
-          .map(
-            (WorkSession session) => session.toJson(
-              canPersistTool: (String id) =>
-                  UtilityCatalog.byIdOrNull(id)?.historyPolicy ==
-                  HistoryPolicy.enabled,
-            ),
-          )
-          .toList(),
-    });
+    // Byte-identical to jsonEncode of the {schemaVersion, savedWorkflows,
+    // recentSessions} map, with the recent sessions spliced in pre-encoded.
+    final String snapshot =
+        '{"schemaVersion":${jsonEncode(_schemaVersion)},'
+        '"savedWorkflows":${jsonEncode(_savedWorkflows.map((SavedWorkflow workflow) => workflow.toJson()).toList())},'
+        '"recentSessions":[${_recentSessions.map(_encodeRecent).join(',')}]}';
     final Future<void> next = _writes.then((_) async {
       await _prefs.setString(storageKey, snapshot);
     });

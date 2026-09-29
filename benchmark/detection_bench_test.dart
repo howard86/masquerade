@@ -232,21 +232,25 @@ void main() {
     }
     print('addNext(100 KB JSON -> ${target.id}): ${_ms(best.toDouble())}');
 
+    // A settings edit (per keystroke in some bodies) with 10 resumable
+    // recent sessions of 4 KB CSV each.
+    final String csv = csvFixture(4096);
     final WorkSessionController c = WorkSessionController(prefs: prefs);
-    c.start(
-      UtilityCatalog.byId('json'),
-      Artifact<Object?>(
-        kind: ArtifactKind.json,
-        rawValue: json,
-        provenance: ArtifactProvenance.typed,
-      ),
-    );
+    for (int k = 0; k < 11; k++) {
+      c.start(
+        UtilityCatalog.byId('csv'),
+        Artifact<Object?>(
+          kind: ArtifactKind.unknown,
+          rawValue: '$csv\n$k,x,1,2,r',
+          provenance: ArtifactProvenance.typed,
+        ),
+      );
+    }
     best = 1 << 62;
     for (int i = 0; i < 22; i++) {
       final Stopwatch sw = Stopwatch()..start();
       c.updateSettings(0, c.session!, <String, Object?>{
-        'target': i.isEven ? 'tree' : 'pretty',
-        'indent': i,
+        'target': i.isEven ? 'json' : 'table',
       });
       sw.stop();
       if (i >= 2 && sw.elapsedMicroseconds < best) {
@@ -254,7 +258,10 @@ void main() {
       }
     }
     await c.flush();
-    print('updateSettings(100 KB input step): ${_ms(best.toDouble())}');
+    print(
+      'updateSettings(10 recents x 4 KB): ${_ms(best.toDouble())} '
+      '(recents ${c.recentSessions.length})',
+    );
   });
 
   testWidgets('OpenInFooter: 20 parent rebuilds, same 100 KB JSON output', (
