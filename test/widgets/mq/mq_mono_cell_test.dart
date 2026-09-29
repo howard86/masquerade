@@ -149,4 +149,39 @@ void main() {
     await show('plain-fixture', copyValue: 'password=hunter2-fixture');
     expect(find.bySemanticsLabel('Copy ••••'), findsOneWidget);
   });
+
+  testWidgets('caps the rendered value but copies the whole string', (
+    WidgetTester tester,
+  ) async {
+    String? clipboard;
+    final TestDefaultBinaryMessenger messenger =
+        tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (
+      MethodCall call,
+    ) async {
+      if (call.method == 'Clipboard.setData') {
+        clipboard = (call.arguments as Map<dynamic, dynamic>)['text'] as String;
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+
+    const int cap = MqMonoCell.maxDisplayChars;
+    final String atCap = 'a' * cap;
+    await tester.pumpWidget(_wrap(MqMonoCell(label: 'Out', value: atCap)));
+    expect(find.text(atCap), findsOneWidget);
+
+    final String long = '${'b' * cap}tail';
+    await tester.pumpWidget(_wrap(MqMonoCell(label: 'Out', value: long)));
+    expect(find.text(long), findsNothing);
+    expect(find.text('${'b' * cap}… [preview truncated]'), findsOneWidget);
+
+    await tester.tap(find.bySemanticsLabel('Copy Out'));
+    await tester.pump();
+    expect(clipboard, long);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+  });
 }

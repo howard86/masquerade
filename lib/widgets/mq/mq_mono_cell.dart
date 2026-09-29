@@ -7,6 +7,7 @@ import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utils/copy_util.dart';
 import '../../utils/sensitive_data_policy.dart';
+import '../../utils/text_truncate.dart';
 import '../desktop/pipe.dart';
 import 'mq_icons.dart';
 
@@ -45,6 +46,12 @@ class MqMonoCell extends StatefulWidget {
   /// type. Null (or no [PipeScope]) leaves the cell exactly as on mobile/Home.
   final ContentType? pipeType;
 
+  /// Longest [value] rendered in full. A longer value renders its first
+  /// [maxDisplayChars] characters plus a truncation marker, so a multi-MB
+  /// output isn't laid out as one giant paragraph; copy and pipe still carry
+  /// the whole string.
+  static const int maxDisplayChars = 100000;
+
   @override
   State<MqMonoCell> createState() => _MqMonoCellState();
 }
@@ -71,6 +78,23 @@ class _MqMonoCellState extends State<MqMonoCell> {
               SensitiveDataPolicy.containsSensitiveArtifact(copyValue));
     }
     return _containsArtifact;
+  }
+
+  String? _previewSource;
+  String _preview = '';
+
+  /// [MqMonoCell.value] capped at [MqMonoCell.maxDisplayChars], marked the
+  /// same way as the CSV output preview.
+  String _displayValue() {
+    final String value = widget.value;
+    if (value.length <= MqMonoCell.maxDisplayChars) return value;
+    if (value != _previewSource) {
+      _previewSource = value;
+      _preview =
+          '${truncateWithEllipsis(value, max: MqMonoCell.maxDisplayChars)}'
+          ' [preview truncated]';
+    }
+    return _preview;
   }
 
   @override
@@ -121,7 +145,7 @@ class _MqMonoCellState extends State<MqMonoCell> {
             ),
             const SizedBox(height: 4),
             Text(
-              value,
+              _displayValue(),
               style: valueStyle,
               semanticsLabel: widget.semanticsLabel,
             ),
