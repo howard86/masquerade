@@ -453,6 +453,21 @@ void main() {
         await t.tap(find.widgetWithText(MqChip, 'Word highlight'));
         await t.pump();
       }, n: 6);
+      // The tap handler alone (diff/span work), before the rebuild pump.
+      final Finder chip = find.widgetWithText(MqChip, 'Word highlight');
+      double best = double.infinity;
+      for (int i = 0; i < 8; i++) {
+        final VoidCallback onTap = t.widget<MqChip>(chip).onTap!;
+        final Stopwatch sw = Stopwatch()..start();
+        onTap();
+        sw.stop();
+        if (i >= 2 && sw.elapsedMicroseconds < best) {
+          best = sw.elapsedMicroseconds.toDouble();
+        }
+        await t.pump();
+      }
+      // ignore: avoid_print
+      print('BENCH diff.body.toggleHandler: min ${best.toStringAsFixed(1)} µs');
       await t.binding.setSurfaceSize(null);
     });
   });
