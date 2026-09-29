@@ -11,6 +11,20 @@ const int _maxTokens = 256;
 const int _maxDepth = 12;
 const String _redacted = '[REDACTED]';
 
+final RegExp _curlStart = RegExp(r'^curl(?:\s|$)', caseSensitive: false);
+final RegExp _fetchStart = RegExp(r'^fetch\s*\(');
+final RegExp _axiosStart = RegExp(r'^axios(?:\.|\s*\()');
+final RegExp _lineBreak = RegExp(r'[\r\n]');
+final RegExp _requestLine = RegExp(
+  r'^(?:\[[^\]]{0,200}\]\s*)?(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS|CONNECT|TRACE)\s+(\S+?)(?:\s+HTTP/\d(?:\.\d)?)?$',
+  caseSensitive: false,
+);
+final RegExp _methodToken = RegExp(r'^[A-Z]{1,16}$');
+final RegExp _breakOrNul = RegExp(r'[\r\n\u0000]');
+final RegExp _headerName = RegExp(r"^[!#$%&'*+.^_`|~0-9A-Za-z-]+$");
+final RegExp _headerValueControl = RegExp(r'[\x00-\x08\x0A-\x1F\x7F]');
+final RegExp _nonAlnum = RegExp(r'[^a-z0-9]');
+
 enum HttpSnippetKind { curl, rawHttp, fetch, axios, requestLog }
 
 enum HttpConversionTarget { curl, fetch, axios, python, go, rust }
@@ -115,13 +129,13 @@ abstract final class HttpRequestInspector {
       throw const HttpInspectorException('Paste a request to inspect.');
     }
     final String source = input.trimLeft();
-    if (RegExp(r'^curl(?:\s|$)', caseSensitive: false).hasMatch(source)) {
+    if (_curlStart.hasMatch(source)) {
       return _parseCurl(source);
     }
-    if (RegExp(r'^fetch\s*\(').hasMatch(source)) {
+    if (_fetchStart.hasMatch(source)) {
       return _parseFetch(source);
     }
-    if (RegExp(r'^axios(?:\.|\s*\()').hasMatch(source)) {
+    if (_axiosStart.hasMatch(source)) {
       return _parseAxios(source);
     }
     return _parseRaw(source);
@@ -259,7 +273,7 @@ HttpRequestDescriptor _parseRaw(String input) {
     throw const HttpInspectorException('NUL bytes are not allowed.');
   }
   if (input.contains('\r\n') &&
-      input.replaceAll('\r\n', '').contains(RegExp(r'[\r\n]'))) {
+      input.replaceAll('\r\n', '').contains(_lineBreak)) {
     throw const HttpInspectorException(
       'Mixed HTTP line endings are not allowed.',
     );
@@ -269,11 +283,7 @@ HttpRequestDescriptor _parseRaw(String input) {
   final String head = split < 0 ? normalized : normalized.substring(0, split);
   final String? body = split < 0 ? null : normalized.substring(split + 2);
   final List<String> lines = head.split('\n');
-  final RegExp requestLine = RegExp(
-    r'^(?:\[[^\]]{0,200}\]\s*)?(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS|CONNECT|TRACE)\s+(\S+?)(?:\s+HTTP/\d(?:\.\d)?)?$',
-    caseSensitive: false,
-  );
-  final RegExpMatch? first = requestLine.firstMatch(lines.first.trim());
+  final RegExpMatch? first = _requestLine.firstMatch(lines.first.trim());
   if (first == null) {
     throw const HttpInspectorException(
       'Expected cURL, Fetch, Axios, or an HTTP request line.',
@@ -431,7 +441,7 @@ HttpRequestDescriptor _build({
   required List<HttpField> headers,
   required String? body,
 }) {
-  if (!RegExp(r'^[A-Z]{1,16}$').hasMatch(method)) {
+  if (!_methodToken.hasMatch(method)) {
     throw const HttpInspectorException('HTTP method must be a static token.');
   }
   if (target == null) {
@@ -440,7 +450,7 @@ HttpRequestDescriptor _build({
   if (target.length > _maxUrlLength) {
     throw const HttpInspectorException('URL exceeds the 8 KiB limit.');
   }
-  if (target.contains(RegExp(r'[\r\n\u0000]'))) {
+  if (target.contains(_breakOrNul)) {
     throw const HttpInspectorException('URL contains a control character.');
   }
   final Uri parsed;
@@ -525,7 +535,7 @@ HttpField _parseHeader(String line) {
   if (line.length > _maxTokenLength) {
     throw const HttpInspectorException('Header line exceeds the 8 KiB limit.');
   }
-  if (line.contains(RegExp(r'[\r\n\u0000]'))) {
+  if (line.contains(_breakOrNul)) {
     throw const HttpInspectorException('Header contains a control character.');
   }
   final int colon = line.indexOf(':');
@@ -554,12 +564,12 @@ HttpField _validateHeader(HttpField field) {
       'Header name contains invalid characters.',
     );
   }
-  if (!RegExp(r"^[!#$%&'*+.^_`|~0-9A-Za-z-]+$").hasMatch(name)) {
+  if (!_headerName.hasMatch(name)) {
     throw const HttpInspectorException(
       'Header name contains invalid characters.',
     );
   }
-  if (value.contains(RegExp(r'[\x00-\x08\x0A-\x1F\x7F]'))) {
+  if (value.contains(_headerValueControl)) {
     throw const HttpInspectorException(
       'Header value contains a control character.',
     );
@@ -739,10 +749,7 @@ String _optionName(String token) {
 }
 
 bool _isProtectedName(String name) {
-  final String normalized = name.toLowerCase().replaceAll(
-    RegExp(r'[^a-z0-9]'),
-    '',
-  );
+  final String normalized = name.toLowerCase().replaceAll(_nonAlnum, '');
   return normalized == 'authorization' ||
       normalized == 'proxyauthorization' ||
       normalized == 'cookie' ||
