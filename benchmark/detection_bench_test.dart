@@ -18,6 +18,7 @@ import 'package:masquerade/state/history_controller.dart';
 import 'package:masquerade/theme/mq_colors.dart';
 import 'package:masquerade/theme/mq_theme.dart';
 import 'package:masquerade/utility_catalog.dart';
+import 'package:masquerade/utils/json_parser.dart';
 import 'package:masquerade/widgets/tool_bodies/open_in_footer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -153,6 +154,41 @@ void main() {
       print('${f.key}:');
       rows.forEach(print);
     }
+  });
+
+  test('JSON parser: invalid input and tree view', () {
+    print('== JSON parser (min of 12) ==');
+    for (final int size in _sizes) {
+      // Truncated mid-document: every keystroke while typing looks like this.
+      final String json = jsonFixture(size);
+      final String invalid = json.substring(0, json.length ~/ 2);
+      final double parseUs = _minMicros(() => JSONParser.parse(invalid));
+      final double noFixUs = _minMicros(
+        () => JSONParser.parse(invalid, suggestFix: false),
+      );
+      final double detectUs = _minMicros(
+        () => UtilityCatalog.detectArtifacts(invalid),
+        runs: 10,
+      );
+      final Object? value = (JSONParser.parse(json) as JSONOk).value.value;
+      final double treeUs = _minMicros(() => JSONParser.tree(value));
+      print(
+        '${_label(size).padLeft(6)}  parse(invalid) ${_ms(parseUs)}  '
+        'parse(invalid, suggestFix: false) ${_ms(noFixUs)}  '
+        'detect(invalid) ${_ms(detectUs)}  tree ${_ms(treeUs)}',
+      );
+    }
+    // Deep nesting: 400 levels x 20 leaves, where per-level joins copy the
+    // whole subtree once per ancestor.
+    Object? deep = <String, Object?>{'leaf': 0};
+    for (int d = 0; d < 400; d++) {
+      deep = <String, Object?>{
+        for (int k = 0; k < 20; k++) 'k$k': 'value $d.$k',
+        'child': deep,
+      };
+    }
+    final Object? deepValue = deep;
+    print('deep tree  ${_ms(_minMicros(() => JSONParser.tree(deepValue)))}');
   });
 
   testWidgets('OpenInFooter: 20 parent rebuilds, same 100 KB JSON output', (

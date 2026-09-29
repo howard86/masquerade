@@ -1750,7 +1750,7 @@ List<DetectionMatch<Object?>> _detectStructured(
   // `{...}` is JSON only. `[name]\n...` is a TOML table header — must be
   // matched before JSON-array since both start with `[`.
   if (t.startsWith('{') || (t.startsWith('[') && !TomlParser.looksLike(t))) {
-    final JSONParseResult result = JSONParser.parse(t);
+    final JSONParseResult result = JSONParser.parse(t, suggestFix: false);
     if (result is! JSONOk) return const <DetectionMatch<Object?>>[];
     return <DetectionMatch<Object?>>[
       _evidence(
