@@ -78,9 +78,9 @@ class _HistoryBodyState extends State<HistoryBody> {
       toolName: (HistoryEntry entry) => _toolName(entry.utilityId),
       dateLabel: (HistoryEntry entry) => <String>[
         _dayLabel(entry.timestamp),
-        DateFormat('yyyy-MM-dd').format(entry.timestamp),
-        DateFormat('EEEE MMMM d').format(entry.timestamp),
-        DateFormat('HH:mm').format(entry.timestamp),
+        _ymdFormat.format(entry.timestamp),
+        _longDayFormat.format(entry.timestamp),
+        _timeFormat.format(entry.timestamp),
       ].join(' '),
     );
     final List<HistoryEntry> pinned = filtered
@@ -306,6 +306,13 @@ Map<String, List<HistoryEntry>> _groupByDay(List<HistoryEntry> entries) {
   return map;
 }
 
+// Hoisted: constructing a DateFormat parses its pattern, and search builds
+// labels for every entry on every keystroke.
+final DateFormat _ymdFormat = DateFormat('yyyy-MM-dd');
+final DateFormat _longDayFormat = DateFormat('EEEE MMMM d');
+final DateFormat _timeFormat = DateFormat('HH:mm');
+final DateFormat _shortDayFormat = DateFormat('EEE MMM d');
+
 String _dayLabel(DateTime timestamp) {
   final DateTime now = DateTime.now();
   final DateTime today = DateTime(now.year, now.month, now.day);
@@ -317,7 +324,7 @@ String _dayLabel(DateTime timestamp) {
   );
   if (date == today) return 'Today';
   if (date == yesterday) return 'Yesterday';
-  return DateFormat('EEE MMM d').format(timestamp);
+  return _shortDayFormat.format(timestamp);
 }
 
 String _toolName(String utilityId) {
@@ -526,7 +533,7 @@ class _HistoryRow extends StatelessWidget {
                   ),
                   const SizedBox(width: MqSpacing.sm),
                   Text(
-                    DateFormat('HH:mm').format(entry.timestamp),
+                    _timeFormat.format(entry.timestamp),
                     style: MqTextStyles.caption1.copyWith(
                       color: c.textTer,
                       fontFamily: MqTextStyles.monoFamily,

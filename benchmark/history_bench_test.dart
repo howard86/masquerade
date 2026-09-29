@@ -8,6 +8,7 @@ import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart';
 import 'package:masquerade/models/artifact.dart';
 import 'package:masquerade/screens/history_screen.dart';
 import 'package:masquerade/state/history_controller.dart';
@@ -178,6 +179,46 @@ void main() {
     );
   });
 
+  test('history search, 200 x 10-20 KB entries, no-match query', () async {
+    final HistoryController c = HistoryController(
+      retention: const Duration(days: 36500),
+    );
+    for (final HistoryEntry e in _entries(200).reversed) {
+      await c.add(e);
+    }
+    String tool(HistoryEntry e) => UtilityCatalog.byId(e.utilityId).name;
+    final DateFormat ymd = DateFormat('yyyy-MM-dd');
+    final DateFormat longDay = DateFormat('EEEE MMMM d');
+    final DateFormat hm = DateFormat('HH:mm');
+    int k = 0;
+    final double inline = _minUs(() {
+      c.search(
+        'zzq${k++}',
+        toolName: tool,
+        dateLabel: (HistoryEntry e) => <String>[
+          DateFormat('yyyy-MM-dd').format(e.timestamp),
+          DateFormat('EEEE MMMM d').format(e.timestamp),
+          DateFormat('HH:mm').format(e.timestamp),
+        ].join(' '),
+      );
+    });
+    _report('search, DateFormat built per entry', inline);
+    final double hoisted = _minUs(() {
+      c.search(
+        'zzq${k++}',
+        toolName: tool,
+        dateLabel: (HistoryEntry e) => <String>[
+          ymd.format(e.timestamp),
+          longDay.format(e.timestamp),
+          hm.format(e.timestamp),
+        ].join(' '),
+      );
+    });
+    _report('search, hoisted DateFormat', hoisted);
+    final double bare = _minUs(() => c.search('zzq${k++}'));
+    _report('search, no label callbacks', bare);
+  });
+
   test('HistoryEntry.protected x3 per entry (row build pattern)', () {
     final List<HistoryEntry> entries = _entries(200);
     final double us = _minUs(() {
@@ -336,6 +377,22 @@ void main() {
     _report(
       'HistoryBody no-match keystroke pump (min)',
       bestNoMatch.toDouble(),
+    );
+    await tester.enterText(find.byType(CupertinoSearchTextField), '');
+    await tester.pump();
+    int bestNotify = 1 << 62;
+    for (int round = 0; round < 15; round++) {
+      history.togglePinned(history.entries[100]);
+      final Stopwatch sw = Stopwatch()..start();
+      await tester.pump();
+      sw.stop();
+      if (round > 2 && sw.elapsedMicroseconds < bestNotify) {
+        bestNotify = sw.elapsedMicroseconds;
+      }
+    }
+    _report(
+      'HistoryBody rebuild on notify, empty query (min)',
+      bestNotify.toDouble(),
     );
     await tester.pumpWidget(const SizedBox.shrink());
     await history.flushForBench();

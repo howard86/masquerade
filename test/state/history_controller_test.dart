@@ -94,4 +94,78 @@ void main() {
       }
     });
   });
+
+  group('HistoryController.search', () {
+    test('matches a naive lowercase scan over every field', () async {
+      final HistoryController c = HistoryController(
+        retention: const Duration(days: 36500),
+      );
+      final DateTime ts = DateTime(2026, 7, 18, 10, 30);
+      final List<HistoryEntry> seed = <HistoryEntry>[
+        HistoryEntry(
+          utilityId: 'json',
+          input: '{"Hello":"World"}',
+          output: 'PRETTY',
+          timestamp: ts,
+        ),
+        HistoryEntry(
+          utilityId: 'base64',
+          input: 'b3JkaW5hcnk=',
+          output: 'Ordinary',
+          timestamp: ts.add(const Duration(minutes: 1)),
+        ),
+        HistoryEntry(
+          utilityId: 'case',
+          input: 'snake_case',
+          output: 'SnakeCase',
+          timestamp: ts.add(const Duration(minutes: 2)),
+        ),
+      ];
+      for (final HistoryEntry e in seed) {
+        await c.add(e);
+      }
+      String tool(HistoryEntry e) => 'Tool ${e.utilityId.toUpperCase()}';
+      String date(HistoryEntry e) => 'Saturday July ${e.timestamp.minute}';
+      List<HistoryEntry> naive(String query) {
+        final String q = query.trim().toLowerCase();
+        if (q.isEmpty) return c.entries.toList();
+        return c.entries.where((HistoryEntry e) {
+          return <String>[
+            e.utilityId,
+            tool(e),
+            e.timestamp.toIso8601String(),
+            date(e),
+            if (!e.protected) ...<String>[e.input, e.output],
+          ].any((String v) => v.toLowerCase().contains(q));
+        }).toList();
+      }
+
+      for (final String q in <String>[
+        '',
+        '  ',
+        'hello',
+        'WORLD',
+        'pretty',
+        'ordinary',
+        'tool case',
+        'july 1',
+        '2026-07-18',
+        'snakecase',
+        'nothing-matches',
+      ]) {
+        expect(
+          c.search(q, toolName: tool, dateLabel: date),
+          naive(q),
+          reason: q,
+        );
+      }
+    });
+
+    test('entries is a read-only view', () async {
+      final HistoryController c = HistoryController(retention: Duration.zero);
+      await c.add(entry('json', '{}'));
+      expect(() => c.entries.add(entry('json', '[]')), throwsUnsupportedError);
+      expect(() => c.entries.clear(), throwsUnsupportedError);
+    });
+  });
 }
