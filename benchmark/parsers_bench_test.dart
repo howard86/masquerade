@@ -1,6 +1,7 @@
 // Parser & parser-body microbenchmarks. Not under test/, so CI skips it.
 // Run: flutter test benchmark/parsers_bench_test.dart
-// Web: flutter test --platform chrome benchmark/parsers_bench_test.dart
+// Web: `flutter test --platform chrome` only serves files under test/, so
+// copy this file there (uncommitted) to run it on Chrome.
 //
 // Every case prints `BENCH <name>: min <µs> µs` (min of N after warm-up).
 import 'dart:convert';
