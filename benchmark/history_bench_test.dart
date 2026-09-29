@@ -500,11 +500,12 @@ void main() {
   });
 }
 
-// Baseline shim: controllers had no flush API; persistence was synchronous.
+// HistoryController persists synchronously per write (no flush API);
+// ToolDraftController debounces and exposes flush().
 extension on HistoryController {
   Future<void> flushForBench() async {}
 }
 
 extension on ToolDraftController {
-  Future<void> flushForBench() async {}
+  Future<void> flushForBench() => flush();
 }
