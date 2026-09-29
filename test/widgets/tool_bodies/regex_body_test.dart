@@ -264,6 +264,31 @@ void main() {
       isNot(contains('regex')),
     );
   });
+
+  testWidgets('default runner matches on the body-owned worker isolate', (
+    WidgetTester tester,
+  ) async {
+    await pumpBodyAtWidth(tester, const RegexBody(), 340);
+    await tester.enterText(find.byType(EditableText).first, r'\d+');
+    await tester.enterText(find.byType(EditableText).last, 'a12b345');
+    await tester.pump(const Duration(milliseconds: 200));
+    // The isolate replies on the real event loop.
+    for (
+      int i = 0;
+      i < 50 && find.text('MATCH 2 · 4..7').evaluate().isEmpty;
+      i++
+    ) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+      await tester.pump();
+    }
+    expect(find.text('MATCH 2 · 4..7'), findsOneWidget);
+
+    // Unmounting disposes the worker (kills its isolate) without errors.
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(tester.takeException(), isNull);
+  });
 }
 
 Future<RegexResult> _runRegex({

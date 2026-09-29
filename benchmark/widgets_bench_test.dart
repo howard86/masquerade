@@ -385,6 +385,78 @@ void main() {
     }, timeout: const Timeout(Duration(minutes: 3)));
   }
 
+  test('regex session: sequential runs/sec (trivial pattern)', () async {
+    final RegexWorkerSession session = RegexWorkerSession();
+    addTearDown(session.dispose);
+    Future<void> once() => session.run(
+      pattern: r'\d+',
+      input: 'abc 123 def 456',
+      caseSensitive: true,
+      multiLine: false,
+      dotAll: false,
+      unicode: true,
+      timeLimit: const Duration(seconds: 5),
+    );
+    for (int i = 0; i < 5; i++) {
+      await once();
+    }
+    int best = 1 << 62;
+    for (int r = 0; r < _n; r++) {
+      final Stopwatch sw = Stopwatch()..start();
+      for (int i = 0; i < 20; i++) {
+        await once();
+      }
+      sw.stop();
+      if (sw.elapsedMicroseconds < best) best = sw.elapsedMicroseconds;
+    }
+    _report('regex runs/sec (session)', (20 * 1e6 / best).round());
+  });
+
+  for (final int stale in <int>[4, 8, 28]) {
+    test('regex session: latest-run latency after $stale superseded '
+        'catastrophic runs', () async {
+      final RegexWorkerSession session = RegexWorkerSession();
+      addTearDown(session.dispose);
+      final String evil = '${'a' * 30}!';
+      int best = 1 << 62;
+      int maxLive = 0;
+      for (int r = 0; r < 3; r++) {
+        final List<Future<RegexResult>> pending = <Future<RegexResult>>[];
+        for (int i = 0; i < stale; i++) {
+          pending.add(
+            session.run(
+              pattern: r'(a+)+$',
+              input: evil,
+              caseSensitive: true,
+              multiLine: false,
+              dotAll: false,
+              unicode: true,
+              timeLimit: const Duration(milliseconds: 500),
+            ),
+          );
+          // Let the run reach the isolate so the next one must kill it.
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          if (session.liveWorkers > maxLive) maxLive = session.liveWorkers;
+        }
+        final Stopwatch sw = Stopwatch()..start();
+        await session.run(
+          pattern: r'\d+',
+          input: 'abc 123',
+          caseSensitive: true,
+          multiLine: false,
+          dotAll: false,
+          unicode: true,
+          timeLimit: const Duration(seconds: 5),
+        );
+        sw.stop();
+        if (sw.elapsedMicroseconds < best) best = sw.elapsedMicroseconds;
+        await Future.wait(pending);
+      }
+      _report('regex latest-run latency us (session, $stale stale)', best);
+      _report('regex max live isolates (session, $stale stale)', maxLive);
+    }, timeout: const Timeout(Duration(minutes: 3)));
+  }
+
   // ── Item 5: regex settings saves per keystroke ────────────────────────────
   testWidgets('regex: settings saves while typing 20 chars', (tester) async {
     int saves = 0;

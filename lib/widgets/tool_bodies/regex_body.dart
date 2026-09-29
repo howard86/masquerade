@@ -8,6 +8,8 @@ import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utils/history_recorder.dart';
 import '../../utils/regex_parser.dart';
+import '../../utils/regex_worker_native.dart'
+    if (dart.library.html) '../../utils/regex_worker_web.dart';
 import '../mq/mq_button.dart';
 import '../mq/mq_chip.dart';
 import '../mq/mq_empty_hint.dart';
@@ -63,6 +65,10 @@ class _RegexBodyState extends State<RegexBody> {
   int _visibleMatches = _pageSize;
   int _runRequest = 0;
 
+  /// One long-lived matcher for this body: reused across runs, and a newer
+  /// run kills a still-busy older one instead of letting it spin.
+  final RegexWorkerSession _worker = RegexWorkerSession();
+
   @override
   void initState() {
     super.initState();
@@ -115,6 +121,7 @@ class _RegexBodyState extends State<RegexBody> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _worker.dispose();
     _recorder?.dispose();
     _pattern.dispose();
     _input.dispose();
@@ -141,7 +148,7 @@ class _RegexBodyState extends State<RegexBody> {
     final String input = _input.text;
     final RegexResult? result = pattern.isEmpty && input.isEmpty
         ? null
-        : await widget.runner(
+        : await _runner(
             pattern: pattern,
             input: input,
             caseSensitive: _caseSensitive,
@@ -165,6 +172,28 @@ class _RegexBodyState extends State<RegexBody> {
       );
     }
   }
+
+  /// The injected runner, except that the default [RegexTester.runAsync]
+  /// runs on this body's [_worker] instead of a one-shot isolate per run.
+  RegexRunner get _runner =>
+      widget.runner == RegexTester.runAsync ? _runOnWorker : widget.runner;
+
+  Future<RegexResult> _runOnWorker({
+    required String pattern,
+    required String input,
+    bool caseSensitive = true,
+    bool multiLine = false,
+    bool dotAll = false,
+    bool unicode = true,
+  }) => RegexTester.runAsync(
+    pattern: pattern,
+    input: input,
+    caseSensitive: caseSensitive,
+    multiLine: multiLine,
+    dotAll: dotAll,
+    unicode: unicode,
+    workerRunner: _worker.run,
+  );
 
   void _saveSettings() => MobileSessionRouteScope.maybeOf(context)
       ?.onSettingsChanged
