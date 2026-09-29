@@ -108,7 +108,7 @@ class _DiffBodyState extends State<DiffBody> with LinkableToolBody<DiffBody> {
     super.didChangeDependencies();
     if (_recorder == null) {
       _recorder = HistoryRecorder(
-        controller: HistoryScope.of(context),
+        controller: HistoryScope.read(context),
         utilityId: 'diff',
         sensitive:
             MobileSessionRouteScope.maybeOf(context)?.protectedSession ?? false,

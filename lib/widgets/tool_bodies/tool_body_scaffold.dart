@@ -89,7 +89,7 @@ mixin ToolBodyScaffold<T extends StatefulWidget> on State<T> {
     super.didChangeDependencies();
     if (_recorder == null) {
       _recorder = HistoryRecorder(
-        controller: HistoryScope.of(context),
+        controller: HistoryScope.read(context),
         utilityId: utilityId,
         sensitive:
             MobileSessionRouteScope.maybeOf(context)?.protectedSession ?? false,

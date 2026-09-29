@@ -79,7 +79,7 @@ class _RegexBodyState extends State<RegexBody> {
     super.didChangeDependencies();
     if (_recorder == null) {
       _recorder = HistoryRecorder(
-        controller: HistoryScope.of(context),
+        controller: HistoryScope.read(context),
         utilityId: 'regex',
         sensitive:
             MobileSessionRouteScope.maybeOf(context)?.protectedSession ?? false,

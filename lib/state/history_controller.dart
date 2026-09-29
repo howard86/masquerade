@@ -270,4 +270,14 @@ class HistoryScope extends InheritedNotifier<HistoryController> {
     assert(scope != null, 'HistoryScope not found.');
     return scope!.notifier!;
   }
+
+  /// The controller without subscribing to its notifications. For callers
+  /// that only hold the reference (recorders) and never render history, so a
+  /// history write does not rebuild them.
+  static HistoryController read(BuildContext context) {
+    final HistoryScope? scope = context
+        .getInheritedWidgetOfExactType<HistoryScope>();
+    assert(scope != null, 'HistoryScope not found.');
+    return scope!.notifier!;
+  }
 }
