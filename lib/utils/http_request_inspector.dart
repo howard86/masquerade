@@ -959,11 +959,31 @@ class _JsParser {
   int depth = 0;
   int nodes = 0;
 
+  static final RegExp _identifier = RegExp(r'[A-Za-z_$][A-Za-z0-9_$]*');
+  static final RegExp _number = RegExp(
+    r'-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?',
+  );
+
   void _space() {
-    while (index < source.length && RegExp(r'\s').hasMatch(source[index])) {
+    while (index < source.length && _isJsSpace(source.codeUnitAt(index))) {
       index++;
     }
   }
+
+  /// The code units RegExp `\s` matches (ECMAScript WhiteSpace and
+  /// LineTerminator).
+  static bool _isJsSpace(int unit) =>
+      (unit >= 0x09 && unit <= 0x0d) ||
+      unit == 0x20 ||
+      unit == 0xa0 ||
+      unit == 0x1680 ||
+      (unit >= 0x2000 && unit <= 0x200a) ||
+      unit == 0x2028 ||
+      unit == 0x2029 ||
+      unit == 0x202f ||
+      unit == 0x205f ||
+      unit == 0x3000 ||
+      unit == 0xfeff;
 
   void word(String expected) {
     _space();
@@ -988,9 +1008,7 @@ class _JsParser {
 
   String identifier() {
     _space();
-    final RegExpMatch? match = RegExp(
-      r'^[A-Za-z_$][A-Za-z0-9_$]*',
-    ).firstMatch(source.substring(index));
+    final Match? match = _identifier.matchAsPrefix(source, index);
     if (match == null) {
       throw const HttpInspectorException('Expected a static property name.');
     }
@@ -1095,9 +1113,7 @@ class _JsParser {
         return literal.value;
       }
     }
-    final RegExpMatch? number = RegExp(
-      r'^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?',
-    ).firstMatch(source.substring(index));
+    final Match? number = _number.matchAsPrefix(source, index);
     if (number != null) {
       final String token = number.group(0)!;
       if (token.length > _maxTokenLength) {
