@@ -491,6 +491,9 @@ int _trailingBackslashes(String line) {
   return count;
 }
 
+final RegExp _inlineComment = RegExp(r'\s+#');
+final RegExp _bareEnvValue = RegExp(r'^[A-Za-z0-9_./:@%+,-]+$');
+
 String _decodeEnvValue(String source, int line) {
   final String value = source.trim();
   if (value.isEmpty) return '';
@@ -532,7 +535,7 @@ String _decodeEnvValue(String source, int line) {
     }
     return out.toString();
   }
-  final Match? comment = RegExp(r'\s+#').firstMatch(value);
+  final Match? comment = _inlineComment.firstMatch(value);
   return (comment == null ? value : value.substring(0, comment.start))
       .trimRight();
 }
@@ -754,7 +757,7 @@ String _serialize(ConfigFormat format, ConfigEntry entry) {
 
 String _quoteEnv(String value) {
   if (value.isEmpty) return "''";
-  if (RegExp(r'^[A-Za-z0-9_./:@%+,-]+$').hasMatch(value)) return value;
+  if (_bareEnvValue.hasMatch(value)) return value;
   return '"${value.replaceAll(r'\', r'\\').replaceAll('"', r'\"').replaceAll('\n', r'\n').replaceAll('\r', r'\r').replaceAll('\t', r'\t').replaceAll(r'$', r'\$')}"';
 }
 
