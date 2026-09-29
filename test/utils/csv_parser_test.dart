@@ -218,6 +218,22 @@ void main() {
       );
     });
 
+    test('fromJsonRecords returns the written records and scalar flag', () {
+      final ({String csv, List<List<String>> records, bool typedScalars})
+      objects = CsvParser.fromJsonRecords('[{"a":"x,y","b":1}]');
+      expect(objects.csv, 'a,b\r\n"x,y",1');
+      expect(objects.records, <List<String>>[
+        <String>['a', 'b'],
+        <String>['x,y', '1'],
+      ]);
+      expect(objects.typedScalars, isTrue);
+      final ({String csv, List<List<String>> records, bool typedScalars})
+      arrays = CsvParser.fromJsonRecords('[["s"],["t"]]', delimiter: ';');
+      expect(arrays.csv, 's\r\nt');
+      expect(arrays.typedScalars, isFalse);
+      expect(CsvParser.fromJsonRecords('[]').records, isEmpty);
+    });
+
     test('rejects duplicate headers before object conversion', () {
       final CsvOk parsed = CsvOk(
         delimiter: ',',

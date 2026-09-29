@@ -384,6 +384,13 @@ void main() {
         CsvParser.parse(out, delimiter: ',');
       }, n: 10);
     });
+    test('json→csv body flow (records, no re-parse)', () {
+      bench('csv.fromJsonRecordsFlow', () {
+        final ({String csv, List<List<String>> records, bool typedScalars}) c =
+            CsvParser.fromJsonRecords(jsonRows);
+        c.records.any((List<String> r) => r.any((String v) => v.isNotEmpty));
+      }, n: 10);
+    });
     testWidgets('body json→csv', (WidgetTester t) async {
       await t.binding.setSurfaceSize(const Size(1024, 1400));
       await t.pumpWidget(_host(const CsvBody()));

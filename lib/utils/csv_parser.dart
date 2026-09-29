@@ -128,7 +128,14 @@ class CsvParser {
     return output;
   }
 
-  static String fromJson(String json, {String delimiter = ','}) {
+  static String fromJson(String json, {String delimiter = ','}) =>
+      fromJsonRecords(json, delimiter: delimiter).csv;
+
+  /// [fromJson], plus the records it wrote (header first for object rows)
+  /// and whether any source value was a JSON number or boolean — so callers
+  /// need not decode the JSON again or re-parse the CSV.
+  static ({String csv, List<List<String>> records, bool typedScalars})
+  fromJsonRecords(String json, {String delimiter = ','}) {
     _validateDelimiter(delimiter);
     if (utf8LengthExceeds(json, maxInputChars)) {
       throw const FormatException('Input exceeds the 1 MiB limit.');
@@ -145,7 +152,15 @@ class CsvParser {
     if (decoded.length > maxRows) {
       throw const FormatException('JSON exceeds the 10,000 row limit.');
     }
-    if (decoded.isEmpty) return '';
+    if (decoded.isEmpty) {
+      return (csv: '', records: const <List<String>>[], typedScalars: false);
+    }
+
+    bool typedScalars = false;
+    String cell(Object? value, int row, String column) {
+      if (value is num || value is bool) typedScalars = true;
+      return _scalar(value, row, column);
+    }
 
     final List<List<String>> records;
     if (decoded.first is Map<String, Object?>) {
@@ -167,8 +182,7 @@ class CsvParser {
           );
         }
         records.add(<String>[
-          for (final String key in header)
-            _scalar(rawRow[key], rowIndex + 1, key),
+          for (final String key in header) cell(rawRow[key], rowIndex + 1, key),
         ]);
       }
     } else if (decoded.first is List<Object?>) {
@@ -180,7 +194,7 @@ class CsvParser {
         }
         records.add(<String>[
           for (int column = 0; column < rawRow.length; column++)
-            _scalar(rawRow[column], rowIndex + 1, 'column ${column + 1}'),
+            cell(rawRow[column], rowIndex + 1, 'column ${column + 1}'),
         ]);
       }
     } else {
@@ -205,7 +219,7 @@ class CsvParser {
     if (utf8LengthExceeds(output, maxOutputChars)) {
       throw const FormatException('CSV output exceeds the 2 MiB limit.');
     }
-    return output;
+    return (csv: output, records: records, typedScalars: typedScalars);
   }
 
   static const int _quoteUnit = 0x22;
