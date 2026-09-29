@@ -493,6 +493,18 @@ void main() {
         set(() {});
         await t.pump();
       });
+      // The renderer's own build (preview planning + child widget list).
+      final StatelessElement el = t.element(find.byType(MqMarkdownRenderer));
+      final MqMarkdownRenderer w = el.widget as MqMarkdownRenderer;
+      bench('md.buildOnly', () => w.build(el), n: 20);
+      // First build of a new parse: plans from scratch every time.
+      bench(
+        'md.planFresh',
+        () => MqMarkdownRenderer(
+          blocks: List<MarkdownBlock>.of(doc.blocks),
+        ).build(el),
+        n: 20,
+      );
       await t.binding.setSurfaceSize(null);
     });
   });
