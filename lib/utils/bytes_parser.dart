@@ -61,13 +61,50 @@ class BytesParser {
   static String format(Uint8List bytes, BytesFormat fmt) {
     switch (fmt) {
       case BytesFormat.space:
-        return bytes.join(' ');
+        return _decimal(bytes, ' ');
       case BytesFormat.brackets:
-        return '[${bytes.join(', ')}]';
+        return '[${_decimal(bytes, ', ')}]';
       case BytesFormat.hex:
-        return bytes
-            .map((int b) => b.toRadixString(16).padLeft(2, '0'))
-            .join(' ');
+        return _hex(bytes);
     }
+  }
+
+  static const String _hexDigits = '0123456789abcdef';
+
+  /// Lower-case two-digit hex, space separated, written straight into an
+  /// ASCII code-unit buffer.
+  static String _hex(Uint8List bytes) {
+    if (bytes.isEmpty) return '';
+    final Uint8List out = Uint8List(bytes.length * 3 - 1);
+    int o = 0;
+    for (int i = 0; i < bytes.length; i++) {
+      if (i > 0) out[o++] = 0x20;
+      final int byte = bytes[i];
+      out[o++] = _hexDigits.codeUnitAt(byte >> 4);
+      out[o++] = _hexDigits.codeUnitAt(byte & 0x0f);
+    }
+    return String.fromCharCodes(out);
+  }
+
+  /// Decimal byte values joined by [separator] (ASCII), without a string
+  /// per byte.
+  static String _decimal(Uint8List bytes, String separator) {
+    if (bytes.isEmpty) return '';
+    final Uint8List out = Uint8List(
+      bytes.length * (3 + separator.length) - separator.length,
+    );
+    int o = 0;
+    for (int i = 0; i < bytes.length; i++) {
+      if (i > 0) {
+        for (int s = 0; s < separator.length; s++) {
+          out[o++] = separator.codeUnitAt(s);
+        }
+      }
+      final int byte = bytes[i];
+      if (byte >= 100) out[o++] = 0x30 + byte ~/ 100;
+      if (byte >= 10) out[o++] = 0x30 + byte ~/ 10 % 10;
+      out[o++] = 0x30 + byte % 10;
+    }
+    return String.fromCharCodes(out, 0, o);
   }
 }

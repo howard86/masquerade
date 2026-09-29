@@ -29,6 +29,29 @@ void main() {
     expect(find.text('{\n  "a": 1\n}'), findsOneWidget);
   });
 
+  testWidgets('JSON — Minified target re-renders on each parse', (
+    WidgetTester tester,
+  ) async {
+    await pumpBodyAtWidth(
+      tester,
+      const JSONBody(initialInput: '{ "a" : 1 }'),
+      380,
+    );
+    await tester.tap(find.text('Pretty JSON'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Minified JSON').last);
+    await tester.pumpAndSettle();
+    expect(find.text('{"a":1}'), findsOneWidget);
+
+    await tester.enterText(
+      find.byType(EditableText).first,
+      '{\n  "b": [1, 2],\n  "c": "x"\n}',
+    );
+    await tester.pumpAndSettle(kDebouncePump);
+    expect(find.text('{"b":[1,2],"c":"x"}'), findsOneWidget);
+    expect(find.text('{"a":1}'), findsNothing);
+  });
+
   testWidgets('JSON reuses a compatible detected parser result', (
     WidgetTester tester,
   ) async {

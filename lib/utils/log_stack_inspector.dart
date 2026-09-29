@@ -1,7 +1,10 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
+
 import 'encoding_parser.dart';
 import 'sensitive_data_policy.dart';
+import 'utf8_length.dart';
 
 enum LogLevel { trace, debug, info, warn, error, fatal, unknown }
 
@@ -142,6 +145,20 @@ abstract final class LogStackInspector {
   static final RegExp _base64 = RegExp(
     r'(?<![A-Za-z0-9_-])[A-Za-z0-9_+/-]{12,}={0,2}(?![A-Za-z0-9_=-])',
   );
+  static final RegExp _frameNumber = RegExp(r'^(?:#\d+|\d+:)\s');
+  static final RegExp _exceptionName = RegExp(r'(?:Exception|Error)(?::|$)');
+  static final RegExp _exceptionLine = RegExp(
+    r'^(?:[A-Za-z_.]+)?(?:Exception|Error)(?::|$)',
+  );
+  static final RegExp _levelWord = RegExp(
+    r'^[\[(]?(TRACE|DEBUG|INFO|WARN(?:ING)?|ERROR|FATAL)(?:[\])\s:|-]|$)',
+    caseSensitive: false,
+  );
+  static final RegExp _isoFields = RegExp(
+    r'^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})',
+  );
+  static final RegExp _zoneSuffix = RegExp(r'(?:Z|[+-]\d{2}:?\d{2})$');
+  static final RegExp _epochLine = RegExp(r'^(\d{10}|\d{13})(?:\s|$)');
   static final RegExp _percentEncoded = RegExp(
     r'(?<![A-Za-z0-9._~%-])(?:[A-Za-z0-9._~-]|%[0-9A-Fa-f]{2})*%[0-9A-Fa-f]{2}(?:[A-Za-z0-9._~-]|%[0-9A-Fa-f]{2})*(?![A-Za-z0-9._~%-])',
   );
@@ -153,7 +170,7 @@ abstract final class LogStackInspector {
     if (input.contains('\u0000')) {
       throw const LogInspectorException('Log contains unsupported NUL bytes.');
     }
-    if (utf8.encode(input).length > maxInputBytes) {
+    if (utf8LengthExceeds(input, maxInputBytes)) {
       throw const LogInspectorException('Log exceeds the 512 KiB limit.');
     }
 
@@ -250,10 +267,14 @@ abstract final class LogStackInspector {
       );
     }
     final String safe = _redactText(raw);
+    final ({LogLevel level, bool leadingTimestamp}) prefix = _detectPrefix(
+      safe,
+    );
     return _SafeLine(
       number,
       safe,
-      level: _detectLevel(safe),
+      level: prefix.level,
+      leadingTimestamp: prefix.leadingTimestamp,
       timestamp: _detectTimestamp(safe),
       redacted: safe != raw,
     );
@@ -327,61 +348,102 @@ abstract final class LogStackInspector {
     return _redactJson(entry.value, depth + 1, budget);
   }
 
-  static String _redactText(String value) {
-    final String safe = value
-        .replaceAllMapped(
-          _authorization,
-          (Match m) => '${m[1]}${SensitiveDataPolicy.mask}',
-        )
-        .replaceAllMapped(
-          _cookie,
-          (Match m) => '${m[1]}${SensitiveDataPolicy.mask}',
-        )
-        .replaceAll(_standaloneAuthorization, SensitiveDataPolicy.mask)
-        .replaceAll(_jwt, SensitiveDataPolicy.mask)
-        .replaceAll(_awsKey, SensitiveDataPolicy.mask)
-        .replaceAll(_providerToken, SensitiveDataPolicy.mask)
-        .replaceAllMapped(
-          _urlUserInfo,
-          (Match m) => '${m[1]}${SensitiveDataPolicy.mask}@',
-        )
-        .replaceAllMapped(
-          _querySecret,
-          (Match m) => '${m[1]}${SensitiveDataPolicy.mask}',
-        )
-        .replaceAllMapped(
-          _assignment,
-          (Match m) => '${m[1]}${SensitiveDataPolicy.mask}',
-        );
-    return safe
-        .replaceAllMapped(_base64, (Match match) {
-          final String candidate = match.group(0)!;
-          return SensitiveDataPolicy.protects(
-                utilityId: 'base64',
-                values: <String>[candidate],
-              )
-              ? SensitiveDataPolicy.mask
-              : candidate;
-        })
-        .replaceAllMapped(_percentEncoded, (Match match) {
-          final String candidate = match.group(0)!;
-          return SensitiveDataPolicy.protects(
-                utilityId: 'url',
-                values: <String>[candidate],
-              )
-              ? SensitiveDataPolicy.mask
-              : candidate;
-        });
+  /// [_redactText] with the literal pre-checks on or off, so tests can prove
+  /// the pre-checks never skip a pass that would have matched.
+  @visibleForTesting
+  static String redactTextForTest(String value, {required bool precheck}) =>
+      _redactText(value, precheck: precheck);
+
+  static String _redactText(String value, {bool precheck = true}) {
+    // Each pass below can only match text containing a literal it requires
+    // (case-insensitively where the pass is). Replacements only splice in
+    // mask characters and text already in [value], so a literal absent from
+    // [value] is absent at every later pass too, and that pass is a no-op.
+    final String lower = precheck ? value.toLowerCase() : '';
+    bool has(String literal) => !precheck || lower.contains(literal);
+    bool hasExact(String literal) => !precheck || value.contains(literal);
+    final bool secretName =
+        has('key') ||
+        has('token') ||
+        has('auth') ||
+        has('secret') ||
+        has('credential') ||
+        has('pass');
+    String safe = value;
+    if (has('authorization')) {
+      safe = safe.replaceAllMapped(
+        _authorization,
+        (Match m) => '${m[1]}${SensitiveDataPolicy.mask}',
+      );
+    }
+    if (has('cookie')) {
+      safe = safe.replaceAllMapped(
+        _cookie,
+        (Match m) => '${m[1]}${SensitiveDataPolicy.mask}',
+      );
+    }
+    if (has('bearer') || has('basic')) {
+      safe = safe.replaceAll(
+        _standaloneAuthorization,
+        SensitiveDataPolicy.mask,
+      );
+    }
+    if (hasExact('eyJ')) {
+      safe = safe.replaceAll(_jwt, SensitiveDataPolicy.mask);
+    }
+    if (hasExact('AKIA') || hasExact('ASIA')) {
+      safe = safe.replaceAll(_awsKey, SensitiveDataPolicy.mask);
+    }
+    if (has('gh') || has('github_pat_') || has('xox')) {
+      safe = safe.replaceAll(_providerToken, SensitiveDataPolicy.mask);
+    }
+    if (hasExact('://')) {
+      safe = safe.replaceAllMapped(
+        _urlUserInfo,
+        (Match m) => '${m[1]}${SensitiveDataPolicy.mask}@',
+      );
+    }
+    if (secretName && (hasExact('?') || hasExact('&'))) {
+      safe = safe.replaceAllMapped(
+        _querySecret,
+        (Match m) => '${m[1]}${SensitiveDataPolicy.mask}',
+      );
+    }
+    if (secretName || has('cookie')) {
+      safe = safe.replaceAllMapped(
+        _assignment,
+        (Match m) => '${m[1]}${SensitiveDataPolicy.mask}',
+      );
+    }
+    safe = safe.replaceAllMapped(_base64, (Match match) {
+      final String candidate = match.group(0)!;
+      return SensitiveDataPolicy.protects(
+            utilityId: 'base64',
+            values: <String>[candidate],
+          )
+          ? SensitiveDataPolicy.mask
+          : candidate;
+    });
+    if (!hasExact('%')) return safe;
+    return safe.replaceAllMapped(_percentEncoded, (Match match) {
+      final String candidate = match.group(0)!;
+      return SensitiveDataPolicy.protects(
+            utilityId: 'url',
+            values: <String>[candidate],
+          )
+          ? SensitiveDataPolicy.mask
+          : candidate;
+    });
   }
 
   static bool _continues(_SafeLine line, _EventBuilder current) {
     if (line.json) return false;
     final String trimmed = line.text.trimLeft();
-    if (_hasLeadingTimestamp(line.text)) return false;
+    if (line.leadingTimestamp) return false;
     if (trimmed.isEmpty || line.text.length != trimmed.length) return true;
     if (trimmed.startsWith('at ') ||
         trimmed.startsWith('File "') ||
-        RegExp(r'^(?:#\d+|\d+:)\s').hasMatch(trimmed) ||
+        _frameNumber.hasMatch(trimmed) ||
         (current.isStack &&
             (trimmed.startsWith('Suppressed:') ||
                 trimmed.startsWith('Caused by:') ||
@@ -389,7 +451,7 @@ abstract final class LogStackInspector {
                 trimmed.startsWith('--- End of inner exception')))) {
       return true;
     }
-    if (_detectLevel(line.text) != LogLevel.unknown) return false;
+    if (line.level != LogLevel.unknown) return false;
     final bool errorContext =
         current.level == LogLevel.error ||
         current.level == LogLevel.fatal ||
@@ -397,36 +459,37 @@ abstract final class LogStackInspector {
     return errorContext &&
         (trimmed.startsWith('Traceback (') ||
             trimmed.startsWith('stack backtrace:') ||
-            RegExp(r'(?:Exception|Error)(?::|$)').hasMatch(trimmed));
+            _exceptionName.hasMatch(trimmed));
   }
 
-  static bool _hasLeadingTimestamp(String value) =>
-      _isoTimestamp.matchAsPrefix(value)?.start == 0 ||
-      _bracketTimestamp.hasMatch(value) ||
-      _epochTimestamp.matchAsPrefix(value)?.start == 0;
+  static LogLevel _detectLevel(String value) => _detectPrefix(value).level;
 
-  static LogLevel _detectLevel(String value) {
+  /// The line's level, and whether it starts (with no leading whitespace)
+  /// with a timestamp, from one set of prefix matches.
+  static ({LogLevel level, bool leadingTimestamp}) _detectPrefix(String value) {
     String candidate = value.trimLeft();
     final Match? timestamp =
         _isoTimestamp.matchAsPrefix(candidate) ??
         _bracketTimestamp.matchAsPrefix(candidate) ??
         _epochTimestamp.matchAsPrefix(candidate);
+    final bool leadingTimestamp =
+        timestamp != null && candidate.length == value.length;
     if (timestamp != null) {
       candidate = candidate.substring(timestamp.end).trimLeft();
     }
-    final String? level = RegExp(
-      r'^[\[(]?(TRACE|DEBUG|INFO|WARN(?:ING)?|ERROR|FATAL)(?:[\])\s:|-]|$)',
-      caseSensitive: false,
-    ).firstMatch(candidate)?[1]?.toUpperCase();
-    return switch (level) {
-      'TRACE' => LogLevel.trace,
-      'DEBUG' => LogLevel.debug,
-      'INFO' => LogLevel.info,
-      'WARN' || 'WARNING' => LogLevel.warn,
-      'ERROR' => LogLevel.error,
-      'FATAL' => LogLevel.fatal,
-      _ => LogLevel.unknown,
-    };
+    final String? level = _levelWord.firstMatch(candidate)?[1]?.toUpperCase();
+    return (
+      level: switch (level) {
+        'TRACE' => LogLevel.trace,
+        'DEBUG' => LogLevel.debug,
+        'INFO' => LogLevel.info,
+        'WARN' || 'WARNING' => LogLevel.warn,
+        'ERROR' => LogLevel.error,
+        'FATAL' => LogLevel.fatal,
+        _ => LogLevel.unknown,
+      },
+      leadingTimestamp: leadingTimestamp,
+    );
   }
 
   static LogLevel _jsonLevel(Object? value) {
@@ -466,9 +529,7 @@ abstract final class LogStackInspector {
         _bracketTimestamp.firstMatch(value)?[1];
     if (iso != null) {
       String normalized = iso.replaceFirst(' ', 'T');
-      final RegExpMatch? match = RegExp(
-        r'^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})',
-      ).firstMatch(normalized);
+      final RegExpMatch? match = _isoFields.firstMatch(normalized);
       if (match == null) return null;
       final List<int> fields = <int>[
         for (int i = 1; i <= 6; i++) int.parse(match[i]!),
@@ -489,15 +550,13 @@ abstract final class LogStackInspector {
           calendar.second != fields[5]) {
         return null;
       }
-      if (!RegExp(r'(?:Z|[+-]\d{2}:?\d{2})$').hasMatch(normalized)) {
+      if (!_zoneSuffix.hasMatch(normalized)) {
         normalized += 'Z';
       }
       final DateTime? parsed = DateTime.tryParse(normalized);
       if (parsed != null) return parsed.toUtc();
     }
-    final String? epoch = RegExp(
-      r'^(\d{10}|\d{13})(?:\s|$)',
-    ).firstMatch(value.trim())?[1];
+    final String? epoch = _epochLine.firstMatch(value.trim())?[1];
     if (epoch != null) {
       final int number = int.parse(epoch);
       return DateTime.fromMillisecondsSinceEpoch(
@@ -575,6 +634,7 @@ class _SafeLine {
     this.text, {
     this.json = false,
     this.level = LogLevel.unknown,
+    this.leadingTimestamp = false,
     this.timestamp,
     this.endNumber,
     this.redacted = false,
@@ -584,6 +644,7 @@ class _SafeLine {
   final String text;
   final bool json;
   final LogLevel level;
+  final bool leadingTimestamp;
   final DateTime? timestamp;
   final int? endNumber;
   final bool redacted;
@@ -614,7 +675,7 @@ class _EventBuilder {
         text.startsWith('at ') ||
         text.startsWith('Unhandled exception:') ||
         text.startsWith('thread \'') ||
-        RegExp(r'^(?:[A-Za-z_.]+)?(?:Exception|Error)(?::|$)').hasMatch(text);
+        LogStackInspector._exceptionLine.hasMatch(text);
   }
 
   void add(_SafeLine line) {

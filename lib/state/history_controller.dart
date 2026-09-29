@@ -13,7 +13,7 @@ HistoryPolicy historyPolicyFor(String utilityId) =>
 /// One captured utility action.
 @immutable
 class HistoryEntry {
-  const HistoryEntry({
+  HistoryEntry({
     required this.utilityId,
     required this.input,
     required this.output,
@@ -33,7 +33,10 @@ class HistoryEntry {
   final String? sessionId;
   final String? id;
 
-  bool get protected => SensitiveDataPolicy.protects(
+  /// Computed once: every field it depends on is final, and the scan (four
+  /// regexes plus a decode for base64/bytes/url) is read by `_allows`,
+  /// `toJson`, search, and every history row/grid-card build.
+  late final bool protected = SensitiveDataPolicy.protects(
     utilityId: utilityId,
     sensitive: sensitive,
     values: <String>[input, output],
@@ -85,6 +88,14 @@ class HistoryController extends ChangeNotifier {
   }) : _retention = retention,
        _maxEntries = maxEntries,
        _prefs = prefs;
+
+  /// Largest input/output (UTF-16 code units) a new entry may carry. Rows
+  /// reopen a tool seeded with the full stored input and copy the full
+  /// output, so a truncated entry would reopen wrong; an oversized one is not
+  /// recorded instead. Keeps every persist (which re-encodes all entries) and
+  /// the in-memory list bounded.
+  static const int maxInputLength = 16 * 1024;
+  static const int maxOutputLength = 64 * 1024;
 
   static const String _prefsKey = 'mb.history.entries';
   static const String _retentionKey = 'mb.history.retention.days';
@@ -161,6 +172,10 @@ class HistoryController extends ChangeNotifier {
   }
 
   Future<void> add(HistoryEntry entry) async {
+    if (entry.input.length > maxInputLength ||
+        entry.output.length > maxOutputLength) {
+      return;
+    }
     if (_retention == Duration.zero || !_allows(entry)) return;
     // Dedupe: skip when the most recent entry shares utilityId + input.
     // Tools are deterministic (same input → same output), so consecutive
@@ -267,6 +282,16 @@ class HistoryScope extends InheritedNotifier<HistoryController> {
   static HistoryController of(BuildContext context) {
     final HistoryScope? scope = context
         .dependOnInheritedWidgetOfExactType<HistoryScope>();
+    assert(scope != null, 'HistoryScope not found.');
+    return scope!.notifier!;
+  }
+
+  /// The controller without subscribing to its notifications. For callers
+  /// that only hold the reference (recorders) and never render history, so a
+  /// history write does not rebuild them.
+  static HistoryController read(BuildContext context) {
+    final HistoryScope? scope = context
+        .getInheritedWidgetOfExactType<HistoryScope>();
     assert(scope != null, 'HistoryScope not found.');
     return scope!.notifier!;
   }

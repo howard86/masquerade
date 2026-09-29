@@ -7,6 +7,7 @@ import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
 import '../../utils/sensitive_data_policy.dart';
+import '../../utils/text_truncate.dart';
 import 'mq_icons.dart';
 
 /// Editorial home-grid tile. Hairline border resting; accent border + pulsing
@@ -42,14 +43,18 @@ class ToolGridCard extends StatelessWidget {
     final MqDensity d = context.density;
     final HistoryEntry? entry = lastEntry;
     final bool hasPreview = entry != null;
-    final String? preview = hasPreview
+    // `entry.protected` is cached and covers the input, so an unprotected
+    // entry skips the per-build sensitivity rescan.
+    final String? preview = !hasPreview
+        ? null
+        : entry.protected
         ? SensitiveDataPolicy.safePreview(
             entry.input,
             max: _previewMax,
             utilityId: entry.utilityId,
             sensitive: entry.sensitive,
           )
-        : null;
+        : truncateWithEllipsis(entry.input, max: _previewMax);
     final Color borderColor = matched ? c.accent : c.border;
     final double borderWidth = matched ? 1.0 : 0.5;
 

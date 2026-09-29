@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/utils/log_stack_inspector.dart';
@@ -383,5 +384,84 @@ void main() {
       result.export(<LogEvent>[result.events[2], foreign, result.events[0]]),
       'INFO event-0\nINFO event-2',
     );
+  });
+
+  test('redaction literal pre-checks never skip a matching pass', () {
+    const List<String> pieces = <String>[
+      'Authorization: ',
+      'AUTHORIZATION=',
+      'Bearer ',
+      'basic ',
+      'Cookie: a=b',
+      'set-cookie: x',
+      'eyJhbGciOi.eyJzdWIi.sig',
+      'eyj',
+      'AKIAABCDEFGHIJKLMNOP',
+      'ASIA1234567890ABCDEF',
+      'ghp_abcdefghijklmnopqrstuvwxyz',
+      'GITHUB_PAT_abcdefghijklmnopqrstuv',
+      'XOXB-1234567890ab',
+      'https://user:pw@host.com/p',
+      '?token=abc',
+      '&API_KEY=123',
+      'password=hunter2',
+      '"secret": "v"',
+      'SessionToken=zz',
+      'dGhpcyBpcyBhIHNlY3JldA==',
+      'cGFzc3dvcmQ9aHVudGVyMg==',
+      '%70assword%3Dx',
+      'token%3Dabc',
+      '100%',
+      'K',
+      'ſ',
+      'İ',
+      ' ',
+      '=',
+      ':',
+      '&',
+      '?',
+      '@',
+      '/',
+      '-',
+      '_',
+      'INFO',
+      'plain',
+      '12345678901234567',
+    ];
+    final Random random = Random(11);
+    for (int i = 0; i < 5000; i++) {
+      final String line = <String>[
+        for (int j = 0; j <= random.nextInt(8); j++)
+          pieces[random.nextInt(pieces.length)],
+      ].join(random.nextBool() ? '' : ' ');
+      expect(
+        LogStackInspector.redactTextForTest(line, precheck: true),
+        LogStackInspector.redactTextForTest(line, precheck: false),
+        reason: line,
+      );
+    }
+  });
+
+  test('JSON detection and level/timestamp reuse keep grouping intact', () {
+    final LogInspection result = LogStackInspector.parse(
+      ' \t{"level":"error","password":"raw"}\n'
+      '"just a string"\n'
+      '2026-07-18T09:10:11Z WARN first\n'
+      '  2026-07-18T09:10:12Z continuation with leading space\n'
+      'plain follow-up\n'
+      'ERROR second\n'
+      'java.lang.RuntimeException: boom',
+    );
+    expect(result.events.map((LogEvent e) => e.level), <LogLevel>[
+      LogLevel.error,
+      LogLevel.unknown,
+      LogLevel.warn,
+      LogLevel.unknown,
+      LogLevel.error,
+    ]);
+    expect(result.events.first.text, isNot(contains('raw')));
+    // An indented timestamp continues the event; an unindented one would not.
+    expect(result.events[2].endLine, 4);
+    expect(result.events[4].endLine, 7);
   });
 }

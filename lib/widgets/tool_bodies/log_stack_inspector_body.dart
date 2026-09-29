@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -88,13 +89,54 @@ class _LogStackInspectorBodyState extends State<LogStackInspectorBody>
     super.dispose();
   }
 
+  // Last filter result, keyed on everything it depends on, so rebuilds that
+  // change neither the inspection, the levels, nor the query reuse it.
+  ({LogInspection inspection, Set<LogLevel> levels, String query})? _filterKey;
+  List<LogEvent> _filterResult = const <LogEvent>[];
+  String? _needleQuery;
+  RegExp? _needle;
+
   List<LogEvent> _filtered(LogInspection inspection) {
-    try {
-      return inspection.filter(levels: _levels, query: _search.text);
-    } on LogInspectorException {
-      return const <LogEvent>[];
+    final String query = _search.text;
+    final ({LogInspection inspection, Set<LogLevel> levels, String query})?
+    key = _filterKey;
+    if (key != null &&
+        identical(key.inspection, inspection) &&
+        key.query == query &&
+        setEquals(key.levels, _levels)) {
+      return _filterResult;
     }
+    try {
+      _filterResult = inspection.filter(levels: _levels, query: query);
+    } on LogInspectorException {
+      _filterResult = const <LogEvent>[];
+    }
+    _filterKey = (
+      inspection: inspection,
+      levels: Set<LogLevel>.of(_levels),
+      query: query,
+    );
+    return _filterResult;
   }
+
+  /// The highlight/preview needle for the current query, built once per query;
+  /// null when the query is empty or too long to search.
+  RegExp? _searchNeedle() {
+    final String query = _search.text;
+    if (query != _needleQuery) {
+      _needleQuery = query;
+      _needle =
+          query.isEmpty || query.length > LogStackInspector.maxSearchCharacters
+          ? null
+          : RegExp(RegExp.escape(query), caseSensitive: false, unicode: true);
+    }
+    return _needle;
+  }
+
+  /// Whether exporting [events] yields no text: redaction never empties a
+  /// non-empty event, and two or more events always join to non-empty text.
+  static bool _exportsEmpty(List<LogEvent> events) =>
+      events.isEmpty || (events.length == 1 && events.single.text.isEmpty);
 
   void _toggle(LogLevel level) => setState(() {
     _visibleLimit = 50;
@@ -126,7 +168,9 @@ class _LogStackInspectorBodyState extends State<LogStackInspectorBody>
     final bool mayRoute =
         !protectedLineage ||
         (route?.addNext == true && route?.protectedSession == true);
-    final String subset = inspection?.export(events) ?? '';
+    // The redacted export is built only when Copy/Share is pressed.
+    final bool subsetEmpty = inspection == null || _exportsEmpty(events);
+    final RegExp? needle = _searchNeedle();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -202,18 +246,23 @@ class _LogStackInspectorBodyState extends State<LogStackInspectorBody>
                 icon: CupertinoIcons.doc_on_doc,
                 variant: MqButtonVariant.glass,
                 size: MqButtonSize.sm,
-                onPressed: subset.isEmpty
+                onPressed: subsetEmpty
                     ? null
-                    : () => Clipboard.setData(ClipboardData(text: subset)),
+                    : () => Clipboard.setData(
+                        ClipboardData(text: inspection.export(events)),
+                      ),
               ),
               MqButton(
                 label: 'Share filtered',
                 icon: CupertinoIcons.share,
                 variant: MqButtonVariant.glass,
                 size: MqButtonSize.sm,
-                onPressed: subset.isEmpty
+                onPressed: subsetEmpty
                     ? null
-                    : () => _share(subset, 'Redacted log events'),
+                    : () => _share(
+                        inspection.export(events),
+                        'Redacted log events',
+                      ),
               ),
             ],
           ),
@@ -228,7 +277,7 @@ class _LogStackInspectorBodyState extends State<LogStackInspectorBody>
             _EventCard(
               key: ValueKey<int>(event.startLine),
               event: event,
-              query: _search.text,
+              needle: needle,
               previewLimit: _eventPreviewLimits[event.startLine] ?? 8192,
               mayRoute: mayRoute,
               onSwitchTool: widget.onSwitchTool,
@@ -260,7 +309,7 @@ class _EventCard extends StatelessWidget {
   const _EventCard({
     super.key,
     required this.event,
-    required this.query,
+    required this.needle,
     required this.previewLimit,
     required this.mayRoute,
     required this.onSwitchTool,
@@ -269,7 +318,7 @@ class _EventCard extends StatelessWidget {
   });
 
   final LogEvent event;
-  final String query;
+  final RegExp? needle;
   final int previewLimit;
   final bool mayRoute;
   final OpenInToolCallback? onSwitchTool;
@@ -284,7 +333,7 @@ class _EventCard extends StatelessWidget {
         : 'Lines ${event.startLine}–${event.endLine}';
     final UtilityDescriptor target = UtilityCatalog.byId('artifact_inspector');
     final bool previewTruncated = event.text.length > previewLimit;
-    final String preview = _eventPreview(event.text, query, previewLimit);
+    final String preview = _eventPreview(event.text, needle, previewLimit);
     return MqSurface(
       padding: const EdgeInsets.all(MqSpacing.md),
       child: Column(
@@ -303,7 +352,7 @@ class _EventCard extends StatelessWidget {
             const SizedBox(height: MqSpacing.sm),
           ],
           Text.rich(
-            _highlight(preview, query, colors.textPri, colors.accent),
+            _highlight(preview, needle, colors.textPri, colors.accent),
             style: MqTextStyles.monoSm.copyWith(color: colors.textPri),
           ),
           if (previewTruncated) ...<Widget>[
@@ -361,16 +410,11 @@ class _EventCard extends StatelessWidget {
   }
 }
 
-String _eventPreview(String text, String query, int limit) {
+String _eventPreview(String text, RegExp? needle, int limit) {
   if (text.length <= limit) return text;
   int start = 0;
-  if (query.isNotEmpty &&
-      query.length <= LogStackInspector.maxSearchCharacters) {
-    final Match? match = RegExp(
-      RegExp.escape(query),
-      caseSensitive: false,
-      unicode: true,
-    ).firstMatch(text);
+  if (needle != null) {
+    final Match? match = needle.firstMatch(text);
     if (match != null && match.start >= limit) {
       start = (match.start - limit ~/ 2).clamp(0, text.length - limit);
     }
@@ -383,8 +427,8 @@ String _eventPreview(String text, String query, int limit) {
 
 bool _isLowSurrogate(int code) => code >= 0xdc00 && code <= 0xdfff;
 
-TextSpan _highlight(String text, String query, Color normal, Color accent) {
-  if (query.isEmpty || query.length > LogStackInspector.maxSearchCharacters) {
+TextSpan _highlight(String text, RegExp? needle, Color normal, Color accent) {
+  if (needle == null) {
     return TextSpan(
       text: text,
       style: TextStyle(color: normal),
@@ -392,11 +436,6 @@ TextSpan _highlight(String text, String query, Color normal, Color accent) {
   }
   final List<TextSpan> spans = <TextSpan>[];
   int start = 0;
-  final RegExp needle = RegExp(
-    RegExp.escape(query),
-    caseSensitive: false,
-    unicode: true,
-  );
   for (final Match match in needle.allMatches(text)) {
     if (match.start > start) {
       spans.add(TextSpan(text: text.substring(start, match.start)));

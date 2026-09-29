@@ -9,6 +9,7 @@ import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
 import '../../utils/sensitive_data_policy.dart';
+import '../../utils/utf8_length.dart';
 import '../mq/mq_button.dart';
 import '../mq/mq_chip.dart';
 import '../mq/mq_empty_hint.dart';
@@ -141,7 +142,14 @@ class _Base64BodyState extends State<Base64Body>
         // Keep the raw bytes for the canvas preview/byte-delta — the utf8 text
         // below is lossy for binary payloads, so the preview must use these.
         decoded = Uint8List.fromList(codec.decode(src));
-        inBytes = utf8.encode(input.trim()).length;
+        // Keep the previous instance when the bytes are unchanged (a chip
+        // toggle or re-parse of the same input): MemoryImage keys the image
+        // cache on identity, so a fresh copy would decode the preview again.
+        final Uint8List? previous = _decodedBytes;
+        if (previous != null && _sameBytes(previous, decoded)) {
+          decoded = previous;
+        }
+        inBytes = utf8Length(input.trim());
         result = utf8.decode(decoded, allowMalformed: true);
       }
       setState(() {
@@ -191,15 +199,35 @@ class _Base64BodyState extends State<Base64Body>
     setInput(out, asPaste: true);
   }
 
+  // Sensitivity scan memo: the scan is four regexes over the full input and
+  // output (~26 ms per MB), so rebuilds that don't change either (drag frames,
+  // chip toggles, parent rebuilds) reuse the last answer.
+  String? _scannedInput;
+  String? _scannedOutput;
+  bool _scannedSensitive = false;
+
+  bool _sensitive() {
+    final String input = controller.text;
+    final String? output = _output;
+    if (_scannedInput == null ||
+        input != _scannedInput ||
+        output != _scannedOutput) {
+      _scannedInput = input;
+      _scannedOutput = output;
+      _scannedSensitive =
+          SensitiveDataPolicy.containsSensitiveArtifact(input) ||
+          (output != null &&
+              SensitiveDataPolicy.containsSensitiveArtifact(output));
+    }
+    return _scannedSensitive;
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final bool wide = constraints.maxWidth >= kToolCanvasWide;
-        final bool sensitive =
-            SensitiveDataPolicy.containsSensitiveArtifact(controller.text) ||
-            (_output != null &&
-                SensitiveDataPolicy.containsSensitiveArtifact(_output!));
+        final bool sensitive = _sensitive();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
@@ -309,6 +337,14 @@ class _Base64BodyState extends State<Base64Body>
         );
       },
     );
+  }
+
+  static bool _sameBytes(Uint8List a, Uint8List b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   /// Sniffs a leading magic number; returns a short kind label or null if the

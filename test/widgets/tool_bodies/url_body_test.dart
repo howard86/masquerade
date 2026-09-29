@@ -317,4 +317,35 @@ void main() {
     expect(output.sensitive, isTrue);
     expect(find.bySemanticsLabel('Copy Decoded'), findsOneWidget);
   });
+
+  testWidgets('URL — a query edit that adds a credential key protects output', (
+    WidgetTester tester,
+  ) async {
+    await pumpHomeAndOpen(tester, 'URL');
+    await tester.tap(find.text('Decode'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byType(EditableText).last,
+      'https://x.com/s?1=cats',
+    );
+    await tester.pumpAndSettle(kDebouncePump);
+
+    MqMonoCell cell(String label) => tester
+        .widgetList<MqMonoCell>(find.byType(MqMonoCell))
+        .firstWhere((MqMonoCell cell) => cell.label == label);
+    expect(cell('Rebuilt query').sensitive, isFalse);
+
+    // A digit-led key keeps the query from reading as a `KEY=value` entry.
+    // Only the rebuilt query changes (input and output are untouched), so the
+    // sensitivity memo must still re-scan it.
+    final Finder keyField = find.byWidgetPredicate(
+      (Widget w) => w is EditableText && w.controller.text == '1',
+    );
+    await tester.enterText(keyField, 'password');
+    await tester.pump();
+
+    expect(cell('Rebuilt query').sensitive, isTrue);
+    expect(cell('Decoded').sensitive, isTrue);
+  });
 }

@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 
+import 'utf8_length.dart';
+
 const String privateKeyWarning =
     'Private key detected. Remove it before inspecting certificates.';
 
@@ -87,8 +89,7 @@ abstract final class X509Inspector {
     if (containsPrivateKey(input)) {
       throw const X509InspectorException(privateKeyWarning, privateKey: true);
     }
-    if (input.length > maxInputBytes ||
-        utf8.encode(input).length > maxInputBytes) {
+    if (utf8LengthExceeds(input, maxInputBytes)) {
       throw const X509InspectorException('Certificate input is too large.');
     }
     final String trimmed = input.trim();

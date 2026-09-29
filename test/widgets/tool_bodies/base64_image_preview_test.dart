@@ -115,4 +115,22 @@ void main() {
 
     expect(find.text('Could not render image.'), findsOneWidget);
   });
+
+  testWidgets('Base64 — preview provider survives a re-parse', (
+    WidgetTester tester,
+  ) async {
+    await decode(tester, 640);
+
+    final ImageProvider<Object> first = tester
+        .widget<Image>(find.byType(Image))
+        .image;
+
+    // Re-parsing unchanged input (chip toggled on then off) keeps the same
+    // bytes instance, so the image cache key — and the decode — is reused.
+    await tester.tap(find.text('Strip padding'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Strip padding'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<Image>(find.byType(Image)).image, equals(first));
+  });
 }

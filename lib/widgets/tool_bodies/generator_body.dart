@@ -152,7 +152,7 @@ class _GeneratorBodyState extends State<GeneratorBody> {
     }
     if (_recorder == null) {
       _recorder = HistoryRecorder(
-        controller: HistoryScope.of(context),
+        controller: HistoryScope.read(context),
         utilityId: 'generator',
         sensitive:
             MobileSessionRouteScope.maybeOf(context)?.protectedSession ?? false,

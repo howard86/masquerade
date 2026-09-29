@@ -7,6 +7,7 @@ import '../../models/artifact.dart';
 import '../../state/canvas_controller.dart';
 import '../../state/detection_preference_controller.dart';
 import '../../state/window_content.dart';
+import '../../theme/mq_colors.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../utility_catalog.dart';
@@ -26,13 +27,22 @@ class DesktopShell extends StatefulWidget {
   State<DesktopShell> createState() => _DesktopShellState();
 }
 
-class _DesktopShellState extends State<DesktopShell> {
+class _DesktopShellState extends State<DesktopShell>
+    with WidgetsBindingObserver {
   final CanvasController _canvas = CanvasController();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _attachCanvasPrefs();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // The canvas debounces link-emit / focus snapshots; write them before the
+    // app can be suspended or killed.
+    if (state != AppLifecycleState.resumed) _canvas.flushPersist();
   }
 
   Future<void> _attachCanvasPrefs() async {
@@ -43,6 +53,7 @@ class _DesktopShellState extends State<DesktopShell> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _canvas.dispose();
     super.dispose();
   }
@@ -78,6 +89,13 @@ class _DesktopShellState extends State<DesktopShell> {
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
+    // Any rebuild under the host's LayoutBuilder (e.g. a card's geometry
+    // builder) relays it out and repaints up to the nearest boundary; this one
+    // keeps the menubar, dock and shell chrome out of that repaint.
+    return RepaintBoundary(child: _scaffold(c));
+  }
+
+  Widget _scaffold(MqColors c) {
     return CupertinoPageScaffold(
       backgroundColor: c.bg,
       child: Column(
@@ -92,7 +110,13 @@ class _DesktopShellState extends State<DesktopShell> {
             child: Stack(
               children: <Widget>[
                 const Positioned.fill(child: DesktopWallpaper()),
-                Positioned.fill(child: DesktopCanvas(controller: _canvas)),
+                // Contains canvas repaints (drags, pan) so the wallpaper,
+                // dock and menubar aren't re-recorded with it.
+                Positioned.fill(
+                  child: RepaintBoundary(
+                    child: DesktopCanvas(controller: _canvas),
+                  ),
+                ),
                 Positioned(
                   left: 0,
                   right: 0,

@@ -45,6 +45,35 @@ void main() {
     );
   });
 
+  testWidgets('Diff — Word highlight toggles spans on the same diff', (
+    WidgetTester tester,
+  ) async {
+    Finder row(String text, {required bool rich}) => find.byWidgetPredicate(
+      (Widget widget) =>
+          widget is Text &&
+          (rich
+              ? widget.data == null && widget.textSpan?.toPlainText() == text
+              : widget.data == text),
+    );
+    await openDiff(tester);
+    await tester.enterText(find.byType(EditableText).first, 'the quick fox');
+    await tester.enterText(find.byType(EditableText).last, 'the slow fox');
+    await tester.pumpAndSettle(kDebouncePump);
+    expect(row('the quick fox', rich: true), findsOneWidget);
+    expect(row('the slow fox', rich: true), findsOneWidget);
+
+    await tester.tap(find.text('Word highlight'));
+    await tester.pump();
+    expect(row('the quick fox', rich: false), findsOneWidget);
+    expect(row('the slow fox', rich: false), findsOneWidget);
+    expect(find.text('+1'), findsOneWidget);
+
+    await tester.tap(find.text('Word highlight'));
+    await tester.pump();
+    expect(row('the quick fox', rich: true), findsOneWidget);
+    expect(row('the slow fox', rich: true), findsOneWidget);
+  });
+
   testWidgets('Diff — Ignore whitespace collapses spacing-only changes', (
     WidgetTester tester,
   ) async {

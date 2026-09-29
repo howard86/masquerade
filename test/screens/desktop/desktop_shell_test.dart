@@ -1,8 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
 import 'package:masquerade/screens/desktop/desktop_shell.dart';
+import 'package:masquerade/state/canvas_controller.dart';
 import 'package:masquerade/state/view_mode_controller.dart';
 import 'package:masquerade/utility_catalog.dart';
 import 'package:masquerade/widgets/desktop/desktop_icon_grid.dart';
@@ -117,6 +120,38 @@ void main() {
       await tester.tap(find.text('Open Layout…'));
       await tester.pumpAndSettle();
       expect(find.text('Save current canvas…'), findsOneWidget);
+    });
+
+    testWidgets('app pause flushes a debounced canvas snapshot', (
+      WidgetTester tester,
+    ) async {
+      await _pump(tester, size: _desktop);
+      final CanvasController canvas = tester
+          .widget<DesktopMenubar>(find.byType(DesktopMenubar))
+          .controller;
+      final int a = canvas.openTool(UtilityCatalog.byId('json'));
+      canvas.openTool(UtilityCatalog.byId('uuid'));
+      await tester.pump();
+      canvas.focus(a);
+      expect(canvas.hasPendingPersist, isTrue);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+
+      expect(canvas.hasPendingPersist, isFalse);
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final Map<String, dynamic> saved =
+          jsonDecode(prefs.getString(CanvasController.currentKey)!)
+              as Map<String, dynamic>;
+      expect(saved['focused'], a);
+      for (final AppLifecycleState state in <AppLifecycleState>[
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(state);
+      }
     });
   });
 

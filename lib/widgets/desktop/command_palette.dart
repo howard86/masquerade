@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
@@ -68,18 +70,57 @@ class _CommandPaletteState extends State<_CommandPalette> {
   bool _queryProtected = false;
   int _highlight = 0;
 
+  // The controller also notifies on caret and selection moves; only a real
+  // text change re-runs the sensitivity scan, detection and name search.
+  String _lastQuery = '';
+  Timer? _debounce;
+
+  /// Single-keystroke edits to queries at least this long (a pasted value
+  /// being tweaked) wait [_debounceDelay] for typing to pause; anything
+  /// shorter, or any bulk edit such as a paste, recomputes immediately.
+  static const int _debounceMinLength = 4096;
+  static const Duration _debounceDelay = Duration(milliseconds: 150);
+
   @override
   void initState() {
     super.initState();
-    _query.addListener(_recompute);
+    _query.addListener(_onQueryChanged);
   }
 
   @override
   void dispose() {
-    _query.removeListener(_recompute);
+    _debounce?.cancel();
+    _query.removeListener(_onQueryChanged);
     _query.dispose();
     _focus.dispose();
     super.dispose();
+  }
+
+  void _onQueryChanged() {
+    final String text = _query.text;
+    final String previous = _lastQuery;
+    if (identical(text, previous) || text == previous) return;
+    _lastQuery = text;
+    _debounce?.cancel();
+    _debounce = null;
+    if (text.length >= _debounceMinLength &&
+        (text.length - previous.length).abs() <= 1) {
+      _debounce = Timer(_debounceDelay, () {
+        if (mounted) _recompute();
+      });
+      return;
+    }
+    _recompute();
+  }
+
+  /// Applies a pending debounced recompute now, so a pick never acts on
+  /// results computed for older text.
+  void _settle() {
+    if (_debounce?.isActive ?? false) {
+      _debounce!.cancel();
+      _recompute();
+    }
+    _debounce = null;
   }
 
   void _recompute() {
@@ -105,12 +146,23 @@ class _CommandPaletteState extends State<_CommandPalette> {
   void _pick(UtilityDescriptor u, {String? seed}) =>
       Navigator.of(context).pop((tool: u, seed: seed));
 
+  void _pickDetected() {
+    final bool stale = _debounce?.isActive ?? false;
+    _settle();
+    final DetectionMatch<Object?>? detected = _detected;
+    // After settling, the rows may have changed under the pointer; let the
+    // user see the fresh result instead of opening something else.
+    if (detected == null || stale) return;
+    _pick(
+      UtilityCatalog.byId(detected.primaryToolId),
+      seed: detected.artifact.rawValue,
+    );
+  }
+
   void _pickHighlighted() {
+    _settle();
     if (_detected != null && _highlight == 0) {
-      _pick(
-        UtilityCatalog.byId(_detected!.primaryToolId),
-        seed: _detected!.artifact.rawValue,
-      );
+      _pickDetected();
     } else {
       final int idx = _highlight - (_detected != null ? 1 : 0);
       if (idx >= 0 && idx < _results.length) _pick(_results[idx]);
@@ -135,6 +187,7 @@ class _CommandPaletteState extends State<_CommandPalette> {
       return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.enter || k == LogicalKeyboardKey.numpadEnter) {
+      _settle();
       if (_totalRows > 0) _pickHighlighted();
       return KeyEventResult.handled;
     }
@@ -188,10 +241,7 @@ class _CommandPaletteState extends State<_CommandPalette> {
                             _detected!.primaryToolId,
                           ),
                           highlighted: _highlight == 0,
-                          onTap: () => _pick(
-                            UtilityCatalog.byId(_detected!.primaryToolId),
-                            seed: _detected!.artifact.rawValue,
-                          ),
+                          onTap: _pickDetected,
                         );
                       }
                       final int idx = i - (_detected != null ? 1 : 0);

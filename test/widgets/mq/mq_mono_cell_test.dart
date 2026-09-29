@@ -124,4 +124,64 @@ void main() {
     await tester.pump(const Duration(seconds: 4));
     await tester.pumpAndSettle();
   });
+
+  testWidgets('sensitivity follows value changes across rebuilds', (
+    WidgetTester tester,
+  ) async {
+    // Caption-less cells name their copy button by a safe preview, which
+    // masks protected values — so the label shows the memoized verdict.
+    Future<void> show(String value, {String? copyValue}) async {
+      await tester.pumpWidget(
+        _wrap(MqMonoCell(label: '', value: value, copyValue: copyValue)),
+      );
+    }
+
+    await show('plain-fixture');
+    expect(find.bySemanticsLabel('Copy plain-fixture'), findsOneWidget);
+
+    await show('password=hunter2-fixture');
+    expect(find.bySemanticsLabel('Copy ••••'), findsOneWidget);
+
+    await show('plain-fixture');
+    expect(find.bySemanticsLabel('Copy plain-fixture'), findsOneWidget);
+
+    // A sensitive copyValue alone protects the cell.
+    await show('plain-fixture', copyValue: 'password=hunter2-fixture');
+    expect(find.bySemanticsLabel('Copy ••••'), findsOneWidget);
+  });
+
+  testWidgets('caps the rendered value but copies the whole string', (
+    WidgetTester tester,
+  ) async {
+    String? clipboard;
+    final TestDefaultBinaryMessenger messenger =
+        tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (
+      MethodCall call,
+    ) async {
+      if (call.method == 'Clipboard.setData') {
+        clipboard = (call.arguments as Map<dynamic, dynamic>)['text'] as String;
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+
+    const int cap = MqMonoCell.maxDisplayChars;
+    final String atCap = 'a' * cap;
+    await tester.pumpWidget(_wrap(MqMonoCell(label: 'Out', value: atCap)));
+    expect(find.text(atCap), findsOneWidget);
+
+    final String long = '${'b' * cap}tail';
+    await tester.pumpWidget(_wrap(MqMonoCell(label: 'Out', value: long)));
+    expect(find.text(long), findsNothing);
+    expect(find.text('${'b' * cap}… [preview truncated]'), findsOneWidget);
+
+    await tester.tap(find.bySemanticsLabel('Copy Out'));
+    await tester.pump();
+    expect(clipboard, long);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+  });
 }

@@ -1,6 +1,6 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
 import 'package:masquerade/models/artifact.dart';
@@ -8,7 +8,10 @@ import 'package:masquerade/screens/desktop/desktop_shell.dart';
 import 'package:masquerade/state/detection_preference_controller.dart';
 import 'package:masquerade/state/view_mode_controller.dart';
 import 'package:masquerade/utility_catalog.dart';
+import 'package:masquerade/theme/mq_colors.dart';
+import 'package:masquerade/theme/mq_theme.dart';
 import 'package:masquerade/widgets/desktop/desktop_icon_grid.dart';
+import 'package:masquerade/widgets/desktop/desktop_menubar.dart';
 import 'package:masquerade/widgets/desktop/tool_card_frame.dart';
 import 'package:masquerade/widgets/iphone_frame.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -196,6 +199,86 @@ void main() {
       await tester.tapAt(const Offset(10, 500));
       await tester.pumpAndSettle();
       expect(find.text('Close All'), findsNothing);
+    });
+  });
+
+  group('MenubarClock', () {
+    late DateTime now;
+
+    Future<Map<String, int>> pumpClock(WidgetTester tester) async {
+      await tester.pumpWidget(
+        CupertinoApp(
+          home: MqTheme(
+            tokens: MqTokens(
+              colors: MqColors.light(),
+              brightness: Brightness.light,
+            ),
+            child: Center(child: MenubarClock(now: () => now)),
+          ),
+        ),
+      );
+      final Map<String, int> builds = <String, int>{};
+      debugOnRebuildDirtyWidget = (Element e, bool _) {
+        final String name = e.widget.runtimeType.toString();
+        builds[name] = (builds[name] ?? 0) + 1;
+      };
+      addTearDown(() => debugOnRebuildDirtyWidget = null);
+      return builds;
+    }
+
+    Future<void> advance(WidgetTester tester, Duration d) async {
+      now = now.add(d);
+      await tester.pump(d);
+    }
+
+    testWidgets('ticks once per minute boundary, only when the text changes', (
+      WidgetTester tester,
+    ) async {
+      now = DateTime(2026, 9, 29, 9, 58, 30);
+      final Map<String, int> builds = await pumpClock(tester);
+      expect(find.text('09:58'), findsOneWidget);
+
+      await advance(tester, const Duration(seconds: 29));
+      expect(builds['MenubarClock'], isNull); // no poll inside the minute
+
+      await advance(tester, const Duration(seconds: 1));
+      expect(find.text('09:59'), findsOneWidget);
+      expect(builds['MenubarClock'], 1);
+
+      // A simulated hour: exactly one rebuild per minute.
+      for (int i = 0; i < 60; i++) {
+        await advance(tester, const Duration(seconds: 30));
+        await advance(tester, const Duration(seconds: 30));
+      }
+      expect(builds['MenubarClock'], 61);
+      expect(find.text('10:59'), findsOneWidget);
+    });
+
+    testWidgets('stops while hidden and catches up on resume', (
+      WidgetTester tester,
+    ) async {
+      now = DateTime(2026, 9, 29, 12, 0, 0);
+      final Map<String, int> builds = await pumpClock(tester);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      for (int i = 0; i < 10; i++) {
+        await advance(tester, const Duration(minutes: 1));
+      }
+      expect(builds['MenubarClock'], isNull);
+      expect(find.text('12:00'), findsOneWidget);
+
+      for (final AppLifecycleState state in <AppLifecycleState>[
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(state);
+      }
+      await tester.pump();
+      expect(find.text('12:10'), findsOneWidget);
+      expect(builds['MenubarClock'], 1);
     });
   });
 }

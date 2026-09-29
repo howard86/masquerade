@@ -1,8 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/models/artifact.dart';
+import 'package:masquerade/models/saved_workflow.dart';
 import 'package:masquerade/models/work_session.dart';
 import 'package:masquerade/state/work_session_controller.dart';
 import 'package:masquerade/utility_catalog.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 Artifact<Object?> artifact(
   ArtifactKind kind,
@@ -47,6 +51,77 @@ void main() {
     );
     expect(controller.session, same(beforeStaleEdit));
     expect(controller.session!.steps.last.input.rawValue, '1700000000');
+  });
+
+  test(
+    'persisted snapshot matches a full re-encode after each write',
+    () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final WorkSessionController controller = WorkSessionController(
+        prefs: prefs,
+      );
+      bool canPersist(String id) =>
+          UtilityCatalog.byIdOrNull(id)?.historyPolicy == HistoryPolicy.enabled;
+      Future<void> expectSnapshot() async {
+        await controller.flush();
+        expect(
+          prefs.getString(WorkSessionController.storageKey),
+          jsonEncode(<String, Object?>{
+            'schemaVersion': 1,
+            'savedWorkflows': controller.savedWorkflows
+                .map((SavedWorkflow workflow) => workflow.toJson())
+                .toList(),
+            'recentSessions': controller.recentSessions
+                .map(
+                  (WorkSession session) =>
+                      session.toJson(canPersistTool: canPersist),
+                )
+                .toList(),
+          }),
+        );
+      }
+
+      for (int k = 0; k < 3; k++) {
+        controller.start(
+          UtilityCatalog.byId('bps'),
+          artifact(ArtifactKind.bps, '${25 + k} bps'),
+        );
+        await expectSnapshot();
+      }
+      controller.addNext(0, UtilityCatalog.byId('timestamp'), '1700000000');
+      await expectSnapshot();
+      expect(
+        controller.updateSettings(1, controller.session!, <String, Object?>{
+          'format': 'iso',
+        }),
+        isTrue,
+      );
+      await expectSnapshot();
+      await controller.saveCurrent('Rates');
+      await expectSnapshot();
+      await controller.renameWorkflow(
+        controller.savedWorkflows.single.id,
+        'Rates 2',
+      );
+      await expectSnapshot();
+      expect(controller.recentSessions, hasLength(3));
+    },
+  );
+
+  test('addNext runs a single detection sweep', () {
+    final WorkSessionController controller = WorkSessionController();
+    controller.start(
+      UtilityCatalog.byId('bps'),
+      artifact(ArtifactKind.bps, '25 bps'),
+    );
+    final int before = UtilityCatalog.debugSweepCount;
+    expect(
+      controller.addNext(0, UtilityCatalog.byId('timestamp'), '1700000000'),
+      1,
+    );
+    expect(UtilityCatalog.debugSweepCount, before + 1);
+    expect(controller.session!.steps.last.input.kind, ArtifactKind.timestamp);
   });
 
   test('resolves ambiguous output for the chosen compatible target', () {

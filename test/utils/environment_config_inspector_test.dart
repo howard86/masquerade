@@ -446,5 +446,57 @@ secretary_name=Ada
       expect(result.duplicates.last.key, 'KEY_4999');
       expect(watch.elapsed, lessThan(const Duration(seconds: 2)));
     });
+
+    test('joins quoted and continued lines with carried escape state', () {
+      List<String> values(String input) =>
+          EnvironmentConfigInspector.parse(
+                input,
+                format: ConfigFormat.environment,
+              ).entries
+              .map((ConfigEntry e) => '${e.key}@${e.line}=${e.value}')
+              .toList();
+
+      // An escaped quote at a line end does not close; `\\"` does.
+      expect(values('A="a\\"\nb\\\\"\nB=1'), <String>['A@1=a"\nb\\', 'B@3=1']);
+      // A backslash before the joining newline stays literal.
+      expect(values('A="one\n\\\ntwo"'), <String>['A@1=one\n\\\ntwo']);
+      // Single quotes have no escapes.
+      expect(values("A='x\n\\'\nB=2"), <String>['A@1=x\n\\', 'B@3=2']);
+      // A continuation line made only of backslashes extends the run.
+      expect(values('A=x\\\n  \\\\\\\ny'), <String>['A@1=x\\\\y']);
+      expect(values('A=x\\\\\\\ny'), <String>['A@1=x\\\\y']);
+      expect(values('A=x\\'), <String>['A@1=x\\']);
+      expect(
+        () => values('A="open\nB=1'),
+        throwsA(
+          isA<ConfigInspectorException>().having(
+            (ConfigInspectorException e) => e.message,
+            'message',
+            'Invalid quoted value on line 1.',
+          ),
+        ),
+      );
+    });
+
+    test('unterminated quotes and continuations stay linear', () {
+      final String quoted =
+          'A="start\n${List<String>.generate(9990, (int i) => 'line $i').join('\n')}';
+      final Stopwatch watch = Stopwatch()..start();
+      expect(
+        () => EnvironmentConfigInspector.parse(
+          quoted,
+          format: ConfigFormat.environment,
+        ),
+        throwsA(isA<ConfigInspectorException>()),
+      );
+      final String continued =
+          'A=start\\\n${List<String>.generate(9990, (int i) => 'p$i\\').join('\n')}';
+      final ConfigInspection result = EnvironmentConfigInspector.parse(
+        continued,
+        format: ConfigFormat.environment,
+      );
+      expect(result.entries.single.value, startsWith('startp0p1'));
+      expect(watch.elapsed, lessThan(const Duration(seconds: 1)));
+    });
   });
 }

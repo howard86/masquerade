@@ -108,7 +108,7 @@ class _DiffBodyState extends State<DiffBody> with LinkableToolBody<DiffBody> {
     super.didChangeDependencies();
     if (_recorder == null) {
       _recorder = HistoryRecorder(
-        controller: HistoryScope.of(context),
+        controller: HistoryScope.read(context),
         utilityId: 'diff',
         sensitive:
             MobileSessionRouteScope.maybeOf(context)?.protectedSession ?? false,
@@ -257,6 +257,21 @@ class _DiffBodyState extends State<DiffBody> with LinkableToolBody<DiffBody> {
     }
   }
 
+  // Word highlight only changes the per-line spans, so a toggle reuses the
+  // current line diff instead of re-running it.
+  void _respan() {
+    final DiffResult? result = _result;
+    if (result == null) {
+      _convert();
+      return;
+    }
+    setState(() {
+      _spans.clear();
+      _expanded.clear();
+      if (_wordHighlight && !result.tooLarge) _computeSpans(result.lines);
+    });
+  }
+
   void _clear() {
     _a.clear();
     _b.clear();
@@ -375,7 +390,7 @@ class _DiffBodyState extends State<DiffBody> with LinkableToolBody<DiffBody> {
               onTap: () {
                 _wordHighlight = !_wordHighlight;
                 _saveDraft();
-                _convert();
+                _respan();
               },
             ),
             MqChip(
