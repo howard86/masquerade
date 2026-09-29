@@ -19,6 +19,7 @@ import 'package:masquerade/theme/mq_colors.dart';
 import 'package:masquerade/theme/mq_theme.dart';
 import 'package:masquerade/utility_catalog.dart';
 import 'package:masquerade/utils/json_parser.dart';
+import 'package:masquerade/utils/number_base_parser.dart';
 import 'package:masquerade/widgets/tool_bodies/open_in_footer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -153,6 +154,16 @@ void main() {
       }
       print('${f.key}:');
       rows.forEach(print);
+    }
+  });
+
+  test('NumberBaseParser on non-numeric text', () {
+    for (final int size in _sizes) {
+      final String input = logFixture(size);
+      print(
+        'number base parse(log) ${_label(size).padLeft(6)}  '
+        '${_ms(_minMicros(() => NumberBaseParser.parse(input)))}',
+      );
     }
   });
 
