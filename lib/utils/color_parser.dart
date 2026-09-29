@@ -72,6 +72,17 @@ class MqColorValue {
 class MqColorParser {
   const MqColorParser._();
 
+  static final RegExp _hexDigits = RegExp(r'^[0-9a-fA-F]+$');
+  static final RegExp _rgb = RegExp(
+    r'^rgba?\(\s*([^)]+)\)$',
+    caseSensitive: false,
+  );
+  static final RegExp _hsl = RegExp(
+    r'^hsla?\(\s*([^)]+)\)$',
+    caseSensitive: false,
+  );
+  static final RegExp _argSeparator = RegExp(r'[\s,]+');
+
   static MqColorValue? parse(String input) {
     final String trimmed = input.trim();
     if (trimmed.isEmpty) return null;
@@ -87,7 +98,7 @@ class MqColorParser {
   static MqColorValue? _parseHex(String input) {
     String s = input;
     if (s.startsWith('#')) s = s.substring(1);
-    if (!RegExp(r'^[0-9a-fA-F]+$').hasMatch(s)) return null;
+    if (!_hexDigits.hasMatch(s)) return null;
     if (s.length == 3) {
       s = s.split('').map((String ch) => '$ch$ch').join();
     } else if (s.length == 4) {
@@ -112,10 +123,9 @@ class MqColorParser {
   }
 
   static MqColorValue? _parseRgb(String input) {
-    final RegExp re = RegExp(r'^rgba?\(\s*([^)]+)\)$', caseSensitive: false);
-    final RegExpMatch? m = re.firstMatch(input);
+    final RegExpMatch? m = _rgb.firstMatch(input);
     if (m == null) return null;
-    final List<String> parts = m.group(1)!.split(RegExp(r'[\s,]+'))
+    final List<String> parts = m.group(1)!.split(_argSeparator)
       ..removeWhere((String p) => p.isEmpty);
     if (parts.length < 3) return null;
     final int? r = int.tryParse(parts[0]);
@@ -136,10 +146,9 @@ class MqColorParser {
   }
 
   static MqColorValue? _parseHsl(String input) {
-    final RegExp re = RegExp(r'^hsla?\(\s*([^)]+)\)$', caseSensitive: false);
-    final RegExpMatch? m = re.firstMatch(input);
+    final RegExpMatch? m = _hsl.firstMatch(input);
     if (m == null) return null;
-    final List<String> parts = m.group(1)!.split(RegExp(r'[\s,]+'))
+    final List<String> parts = m.group(1)!.split(_argSeparator)
       ..removeWhere((String p) => p.isEmpty);
     if (parts.length < 3) return null;
     double? h = double.tryParse(parts[0].replaceAll('deg', ''));
