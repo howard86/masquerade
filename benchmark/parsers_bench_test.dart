@@ -516,6 +516,7 @@ void main() {
         JSONParser.minify(v);
         JSONParser.minify(v);
       });
+      bench('json.minifyOnce', () => JSONParser.minify(v));
     });
   });
 

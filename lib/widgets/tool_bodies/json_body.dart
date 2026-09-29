@@ -218,7 +218,12 @@ class _JSONBodyState extends State<JSONBody>
       if (!_tomlAllowed && _target == TargetFormat.toml) {
         _target = TargetFormat.prettyJson;
       }
-      _output = parsed == null ? null : _renderOutput(parsed.value, _target);
+      // The minified target is exactly the footer's minified text.
+      _output = parsed == null
+          ? null
+          : _target == TargetFormat.minifiedJson
+          ? minified
+          : _renderOutput(parsed.value, _target);
     });
     _saveDraft();
     if (parsed != null) recordOutput(input, minified!);
