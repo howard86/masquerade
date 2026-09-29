@@ -113,6 +113,33 @@ void main() {
       expect(r.lines, isEmpty);
     });
 
+    test(
+      'edit distance exactly at the delta cap still diffs; one more bails',
+      () {
+        String side(int changedEvery) => <String>[
+          for (int i = 0; i < 2500; i++)
+            i % changedEvery == 0 ? 'changed $i' : 'row $i',
+        ].join('\n');
+        // Every line replaced: D = 2 * 1250 = 2500 (the cap).
+        final DiffResult atCap = DiffTool.lineDiff(
+          side(2).replaceAll('row', 'odd'),
+          side(2),
+        );
+        expect(atCap.tooLarge, isFalse);
+        expect(atCap.additions, 1250);
+        expect(atCap.deletions, 1250);
+        expect(
+          atCap.lines.where((DiffLine l) => l.op == DiffOp.equal),
+          hasLength(1250),
+        );
+        final DiffResult overCap = DiffTool.lineDiff(
+          '${side(2).replaceAll('row', 'odd')}\nextra-a',
+          '${side(2)}\nextra-b',
+        );
+        expect(overCap.tooLarge, isTrue);
+      },
+    );
+
     test('1,000-line pair completes well under 100 ms', () {
       final List<String> a = <String>[for (int i = 0; i < 1000; i++) 'row $i'];
       final List<String> b = List<String>.of(a)

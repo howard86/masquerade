@@ -9,6 +9,8 @@
 /// returns [DiffResult.tooLarge].
 library;
 
+import 'dart:typed_data';
+
 /// One edit operation on a line or word token.
 enum DiffOp { equal, insert, delete }
 
@@ -365,10 +367,13 @@ class DiffTool {
     if (m == 0) return List<DiffOp>.filled(n, DiffOp.delete);
 
     final int max = n + m;
-    final int off = max;
-    final List<int> v = List<int>.filled(2 * max + 1, 0);
+    // Depths past _maxDelta bail out, so v only ever spans k in
+    // [-(_maxDelta + 1), _maxDelta + 1].
+    final int reach = max < _maxDelta + 1 ? max : _maxDelta + 1;
+    final int off = reach;
+    final Int32List v = Int32List(2 * reach + 1);
     // Compact per-depth snapshots of the active band [-d, d].
-    final List<List<int>> trace = <List<int>>[];
+    final List<Int32List> trace = <Int32List>[];
     int dEnd = -1;
 
     for (int d = 0; d <= max; d++) {
@@ -402,7 +407,7 @@ class DiffTool {
     int x = n;
     int y = m;
     for (int d = dEnd; d > 0; d--) {
-      final List<int> band = trace[d]; // band[k + d] == v[off + k]
+      final Int32List band = trace[d]; // band[k + d] == v[off + k]
       final int k = x - y;
       final bool down =
           k == -d || (k != d && band[(k - 1) + d] < band[(k + 1) + d]);
