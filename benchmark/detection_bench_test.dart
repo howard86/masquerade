@@ -20,6 +20,7 @@ import 'package:masquerade/state/work_session_controller.dart';
 import 'package:masquerade/theme/mq_colors.dart';
 import 'package:masquerade/theme/mq_theme.dart';
 import 'package:masquerade/utility_catalog.dart';
+import 'package:masquerade/utils/artifact_inspector.dart';
 import 'package:masquerade/utils/json_parser.dart';
 import 'package:masquerade/utils/number_base_parser.dart';
 import 'package:masquerade/widgets/tool_bodies/open_in_footer.dart';
@@ -167,6 +168,43 @@ void main() {
         '${_ms(_minMicros(() => NumberBaseParser.parse(input)))}',
       );
     }
+  });
+
+  test('ArtifactInspector.inspect on nested JSON', () {
+    // ~45 KB, 3 levels of objects: each level is re-encoded and re-detected.
+    Object? level(int depth) => depth == 0
+        ? <String, Object?>{
+            for (int i = 0; i < 40; i++) 'leaf$i': 'value $i ' * 8,
+          }
+        : <String, Object?>{
+            for (int i = 0; i < 4; i++) 'child$i': level(depth - 1),
+            'note': 'level $depth',
+          };
+    final String input = jsonEncode(level(2));
+    final double inspectUs = _minMicros(
+      () => ArtifactInspector.inspect(input),
+      runs: 10,
+    );
+    // The share re-parsing costs: jsonDecode of every re-encoded subtree the
+    // inspector visits (upper bound: all subtrees at every level).
+    final List<String> subtrees = <String>[];
+    void collect(Object? v) {
+      if (v is Map) {
+        subtrees.add(jsonEncode(v));
+        v.values.forEach(collect);
+      }
+    }
+
+    collect(jsonDecode(input));
+    final double decodeUs = _minMicros(() {
+      for (final String t in subtrees.take(48)) {
+        jsonDecode(t);
+      }
+    });
+    print(
+      'inspect(${input.length ~/ 1024} KB nested JSON): ${_ms(inspectUs)}; '
+      'jsonDecode of <=48 visited subtrees: ${_ms(decodeUs)}',
+    );
   });
 
   test('JSON parser: invalid input and tree view', () {
