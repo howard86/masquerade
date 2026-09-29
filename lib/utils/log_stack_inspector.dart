@@ -145,6 +145,20 @@ abstract final class LogStackInspector {
   static final RegExp _base64 = RegExp(
     r'(?<![A-Za-z0-9_-])[A-Za-z0-9_+/-]{12,}={0,2}(?![A-Za-z0-9_=-])',
   );
+  static final RegExp _frameNumber = RegExp(r'^(?:#\d+|\d+:)\s');
+  static final RegExp _exceptionName = RegExp(r'(?:Exception|Error)(?::|$)');
+  static final RegExp _exceptionLine = RegExp(
+    r'^(?:[A-Za-z_.]+)?(?:Exception|Error)(?::|$)',
+  );
+  static final RegExp _levelWord = RegExp(
+    r'^[\[(]?(TRACE|DEBUG|INFO|WARN(?:ING)?|ERROR|FATAL)(?:[\])\s:|-]|$)',
+    caseSensitive: false,
+  );
+  static final RegExp _isoFields = RegExp(
+    r'^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})',
+  );
+  static final RegExp _zoneSuffix = RegExp(r'(?:Z|[+-]\d{2}:?\d{2})$');
+  static final RegExp _epochLine = RegExp(r'^(\d{10}|\d{13})(?:\s|$)');
   static final RegExp _percentEncoded = RegExp(
     r'(?<![A-Za-z0-9._~%-])(?:[A-Za-z0-9._~-]|%[0-9A-Fa-f]{2})*%[0-9A-Fa-f]{2}(?:[A-Za-z0-9._~-]|%[0-9A-Fa-f]{2})*(?![A-Za-z0-9._~%-])',
   );
@@ -429,7 +443,7 @@ abstract final class LogStackInspector {
     if (trimmed.isEmpty || line.text.length != trimmed.length) return true;
     if (trimmed.startsWith('at ') ||
         trimmed.startsWith('File "') ||
-        RegExp(r'^(?:#\d+|\d+:)\s').hasMatch(trimmed) ||
+        _frameNumber.hasMatch(trimmed) ||
         (current.isStack &&
             (trimmed.startsWith('Suppressed:') ||
                 trimmed.startsWith('Caused by:') ||
@@ -445,7 +459,7 @@ abstract final class LogStackInspector {
     return errorContext &&
         (trimmed.startsWith('Traceback (') ||
             trimmed.startsWith('stack backtrace:') ||
-            RegExp(r'(?:Exception|Error)(?::|$)').hasMatch(trimmed));
+            _exceptionName.hasMatch(trimmed));
   }
 
   static LogLevel _detectLevel(String value) => _detectPrefix(value).level;
@@ -463,10 +477,7 @@ abstract final class LogStackInspector {
     if (timestamp != null) {
       candidate = candidate.substring(timestamp.end).trimLeft();
     }
-    final String? level = RegExp(
-      r'^[\[(]?(TRACE|DEBUG|INFO|WARN(?:ING)?|ERROR|FATAL)(?:[\])\s:|-]|$)',
-      caseSensitive: false,
-    ).firstMatch(candidate)?[1]?.toUpperCase();
+    final String? level = _levelWord.firstMatch(candidate)?[1]?.toUpperCase();
     return (
       level: switch (level) {
         'TRACE' => LogLevel.trace,
@@ -518,9 +529,7 @@ abstract final class LogStackInspector {
         _bracketTimestamp.firstMatch(value)?[1];
     if (iso != null) {
       String normalized = iso.replaceFirst(' ', 'T');
-      final RegExpMatch? match = RegExp(
-        r'^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})',
-      ).firstMatch(normalized);
+      final RegExpMatch? match = _isoFields.firstMatch(normalized);
       if (match == null) return null;
       final List<int> fields = <int>[
         for (int i = 1; i <= 6; i++) int.parse(match[i]!),
@@ -541,15 +550,13 @@ abstract final class LogStackInspector {
           calendar.second != fields[5]) {
         return null;
       }
-      if (!RegExp(r'(?:Z|[+-]\d{2}:?\d{2})$').hasMatch(normalized)) {
+      if (!_zoneSuffix.hasMatch(normalized)) {
         normalized += 'Z';
       }
       final DateTime? parsed = DateTime.tryParse(normalized);
       if (parsed != null) return parsed.toUtc();
     }
-    final String? epoch = RegExp(
-      r'^(\d{10}|\d{13})(?:\s|$)',
-    ).firstMatch(value.trim())?[1];
+    final String? epoch = _epochLine.firstMatch(value.trim())?[1];
     if (epoch != null) {
       final int number = int.parse(epoch);
       return DateTime.fromMillisecondsSinceEpoch(
@@ -668,7 +675,7 @@ class _EventBuilder {
         text.startsWith('at ') ||
         text.startsWith('Unhandled exception:') ||
         text.startsWith('thread \'') ||
-        RegExp(r'^(?:[A-Za-z_.]+)?(?:Exception|Error)(?::|$)').hasMatch(text);
+        LogStackInspector._exceptionLine.hasMatch(text);
   }
 
   void add(_SafeLine line) {
