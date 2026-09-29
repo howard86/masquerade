@@ -15,6 +15,7 @@ import 'package:masquerade/app.dart';
 import 'package:masquerade/models/artifact.dart';
 import 'package:masquerade/state/detection_preference_controller.dart';
 import 'package:masquerade/state/history_controller.dart';
+import 'package:masquerade/state/view_mode_controller.dart';
 import 'package:masquerade/state/work_session_controller.dart';
 import 'package:masquerade/theme/mq_colors.dart';
 import 'package:masquerade/theme/mq_theme.dart';
@@ -332,6 +333,43 @@ void main() {
     print(
       'home caret move: min ${_ms(best.toDouble())}, total 20 = ${_ms(total.toDouble())}',
     );
+    await tester.pump(const Duration(seconds: 1));
+  });
+  testWidgets('Command palette: 20 caret moves over a 100 KB query', (
+    WidgetTester tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    await tester.binding.setSurfaceSize(const Size(1200, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MyApp(
+        desktopShellOverride: true,
+        viewModeController: ViewModeController(initial: MqViewMode.desktop),
+        skipSplash: true,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('File'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('New tool…  ⌘K'));
+    await tester.pumpAndSettle();
+    final Finder field = find.byKey(
+      const ValueKey<String>('command-palette-field'),
+    );
+    await tester.enterText(field, logFixture(100 * 1024));
+    await tester.pump();
+    final TextEditingController controller = tester
+        .widget<CupertinoTextField>(field)
+        .controller!;
+    int best = 1 << 62;
+    for (int i = 0; i < 20; i++) {
+      final Stopwatch sw = Stopwatch()..start();
+      controller.selection = TextSelection.collapsed(offset: 10 + i);
+      await tester.pump();
+      sw.stop();
+      if (sw.elapsedMicroseconds < best) best = sw.elapsedMicroseconds;
+    }
+    print('palette caret move: min ${_ms(best.toDouble())}');
     await tester.pump(const Duration(seconds: 1));
   });
 }

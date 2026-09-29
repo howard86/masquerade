@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -297,6 +298,104 @@ raw-private-key-fixture
       );
       expect(find.byType(ListView), findsNothing);
       expect(find.byType(ToolCardFrame), findsNothing);
+    });
+
+    group('recompute', () {
+      Future<Finder> openPalette(WidgetTester tester) async {
+        await tester.binding.setSurfaceSize(const Size(1200, 900));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(
+          MyApp(
+            desktopShellOverride: true,
+            viewModeController: ViewModeController(initial: MqViewMode.desktop),
+            skipSplash: true,
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('File'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('New tool…  ⌘K'));
+        await tester.pumpAndSettle();
+        return find.byKey(const ValueKey<String>('command-palette-field'));
+      }
+
+      // A multi-KB query overflows the palette card (a known layout limit
+      // unrelated to recompute timing); keep that one error out of the way.
+      Future<void> ignoringOverflow(Future<void> Function() body) async {
+        final FlutterExceptionHandler? previous = FlutterError.onError;
+        FlutterError.onError = (FlutterErrorDetails details) {
+          if (!details.toString().contains('overflowed')) {
+            previous?.call(details);
+          }
+        };
+        try {
+          await body();
+        } finally {
+          FlutterError.onError = previous;
+        }
+      }
+
+      testWidgets('caret moves do not re-run detection', (
+        WidgetTester tester,
+      ) async {
+        final Finder field = await openPalette(tester);
+        await tester.enterText(field, '550e8400-e29b-41d4-a716-446655440000');
+        await tester.pump();
+        final TextEditingController controller = tester
+            .widget<CupertinoTextField>(field)
+            .controller!;
+        final int before = UtilityCatalog.debugSweepCount;
+        for (int i = 0; i < 5; i++) {
+          controller.selection = TextSelection.collapsed(offset: i);
+          await tester.pump();
+        }
+        expect(UtilityCatalog.debugSweepCount, before);
+        expect(find.text('Open UUID with this value'), findsOneWidget);
+      });
+
+      testWidgets('keystrokes into a long query wait for typing to pause', (
+        WidgetTester tester,
+      ) async {
+        await ignoringOverflow(() async {
+          final Finder field = await openPalette(tester);
+          final String long = 'word ' * 1000;
+          await tester.enterText(field, long);
+          await tester.pump();
+          final int before = UtilityCatalog.debugSweepCount;
+          await tester.enterText(field, '${long}x');
+          await tester.pump();
+          await tester.enterText(field, '${long}xy');
+          await tester.pump(const Duration(milliseconds: 100));
+          expect(UtilityCatalog.debugSweepCount, before);
+          await tester.pump(const Duration(milliseconds: 60));
+          expect(UtilityCatalog.debugSweepCount, before + 1);
+
+          // A bulk edit recomputes immediately.
+          await tester.enterText(field, '550e8400-e29b-41d4-a716-446655440000');
+          await tester.pump();
+          expect(UtilityCatalog.debugSweepCount, before + 2);
+          expect(find.text('Open UUID with this value'), findsOneWidget);
+        });
+      });
+
+      testWidgets('Enter during a pending recompute acts on the current text', (
+        WidgetTester tester,
+      ) async {
+        await ignoringOverflow(() async {
+          final Finder field = await openPalette(tester);
+          final String long = 'word ' * 1000;
+          await tester.enterText(field, long);
+          await tester.pump();
+          final int before = UtilityCatalog.debugSweepCount;
+          await tester.enterText(field, '${long}x');
+          await tester.pump();
+          expect(UtilityCatalog.debugSweepCount, before);
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pump();
+          expect(UtilityCatalog.debugSweepCount, before + 1);
+          await tester.pumpAndSettle();
+        });
+      });
     });
   });
 }
