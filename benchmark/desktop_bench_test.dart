@@ -8,6 +8,8 @@
 //  * wall-clock `tester.pump()` per tick (min / median),
 //  * menubar rebuilds per simulated hour,
 //  * controller-level persistence / accessor timings (Stopwatch, min-of-N).
+import 'dart:convert';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -247,6 +249,7 @@ void main() {
       final LinkChannel ch = c.channelForCard(ids[0])!;
       final String big = _kb(10);
       int n = 0;
+      int sink = 0;
       final double emitUs = _minOf(10, () {
         for (int i = 0; i < 100; i++) {
           ch.emit('$big${n++}');
@@ -257,12 +260,21 @@ void main() {
           c.focus(ids[i % 2]);
         }
       }, reps: 100);
+      final double snapshotUs = _minOf(10, () {
+        for (int i = 0; i < 20; i++) {
+          sink += jsonEncode(c.toJson()).length;
+        }
+      }, reps: 20);
       c.dispose();
+      // ignore: invalid_use_of_visible_for_testing_member
+      final int writes = c.debugPersistWrites;
       // ignore: avoid_print
       print(
-        '[persist] emit ${emitUs.toStringAsFixed(1)} us/emit, '
+        '[persist] snapshot ${snapshotUs.toStringAsFixed(1)} us/toJson+encode, '
+        'writes $writes, '
+        'emit ${emitUs.toStringAsFixed(1)} us/emit, '
         'focus ${focusUs.toStringAsFixed(1)} us/focus '
-        '(5 cards x 10 KB seeds, 10 KB canonical)',
+        '(5 cards x 10 KB seeds, 10 KB canonical) [sink ${sink % 2}]',
       );
     });
 

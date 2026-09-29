@@ -27,13 +27,22 @@ class DesktopShell extends StatefulWidget {
   State<DesktopShell> createState() => _DesktopShellState();
 }
 
-class _DesktopShellState extends State<DesktopShell> {
+class _DesktopShellState extends State<DesktopShell>
+    with WidgetsBindingObserver {
   final CanvasController _canvas = CanvasController();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _attachCanvasPrefs();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // The canvas debounces link-emit / focus snapshots; write them before the
+    // app can be suspended or killed.
+    if (state != AppLifecycleState.resumed) _canvas.flushPersist();
   }
 
   Future<void> _attachCanvasPrefs() async {
@@ -44,6 +53,7 @@ class _DesktopShellState extends State<DesktopShell> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _canvas.dispose();
     super.dispose();
   }

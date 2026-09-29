@@ -277,7 +277,8 @@ class CanvasController extends ChangeNotifier {
     if (_focusedId == id) return;
     _focusedId = id;
     notifyListeners();
-    _persist();
+    // Focus clicks are frequent and only change focus / z: coalesce them.
+    _schedulePersist();
   }
 
   /// Focuses the card in 1-based [slot] (⌥1–9). No-op if the slot is empty.
@@ -524,6 +525,7 @@ class CanvasController extends ChangeNotifier {
 
   @override
   void dispose() {
+    flushPersist();
     _geometry.dispose();
     super.dispose();
   }
@@ -724,14 +726,53 @@ class CanvasController extends ChangeNotifier {
     }
   }
 
+  /// Trailing debounce for high-frequency snapshots (link emits, focus).
+  static const Duration persistDebounce = Duration(milliseconds: 500);
+
+  /// Bumped by [clearPersistedSensitiveSession] so a snapshot scheduled
+  /// before the clear can't re-write the cleared session on its flush.
+  static int _clearEpoch = 0;
+
+  Timer? _persistTimer;
+  int _pendingEpoch = 0;
+
+  /// Number of snapshot writes to prefs (for tests).
+  @visibleForTesting
+  int debugPersistWrites = 0;
+
+  /// Whether a debounced snapshot is waiting to be written.
+  bool get hasPendingPersist => _persistTimer != null;
+
+  void _schedulePersist() {
+    if (_prefs == null) return;
+    _pendingEpoch = _clearEpoch;
+    _persistTimer?.cancel();
+    _persistTimer = Timer(persistDebounce, flushPersist);
+  }
+
+  /// Writes a pending debounced snapshot now. The desktop shell calls this
+  /// when the app is paused / hidden; [dispose] calls it too.
+  void flushPersist() {
+    if (_persistTimer == null) return;
+    _persistTimer!.cancel();
+    _persistTimer = null;
+    if (_pendingEpoch != _clearEpoch) return; // superseded by a clear
+    _persist();
+  }
+
   void _persist() {
+    // An immediate write covers anything a pending debounce would write.
+    _persistTimer?.cancel();
+    _persistTimer = null;
     final SharedPreferences? prefs = _prefs;
     if (prefs == null) return;
+    debugPersistWrites++;
     unawaited(prefs.setString(currentKey, jsonEncode(toJson())));
   }
 
   /// Clears the auto-restored session and scrubs legacy saved layouts.
   static Future<void> clearPersistedSensitiveSession() async {
+    _clearEpoch++;
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.remove(currentKey);
     await _sanitizePersistedLayouts(prefs);
@@ -881,7 +922,8 @@ class CanvasController extends ChangeNotifier {
     if (!_groups.contains(g)) return;
     if (g.canonical.value == value) return; // idempotent → cycles terminate
     g.canonical.value = value;
-    _persist();
+    // Linked bodies emit on every debounced parse: coalesce the snapshot.
+    _schedulePersist();
   }
 }
 

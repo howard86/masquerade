@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/state/canvas_controller.dart';
 import 'package:masquerade/state/link_group.dart';
@@ -392,5 +393,110 @@ void main() {
       expect(c.length, 1);
       expect(c.cards.single.toolDescriptor!.id, 'json');
     });
+  });
+
+  group('debounced snapshots (link emits, focus)', () {
+    setUp(() => SharedPreferences.setMockInitialValues(<String, Object>{}));
+
+    Map<String, dynamic> saved(SharedPreferences prefs) =>
+        jsonDecode(prefs.getString(CanvasController.currentKey)!)
+            as Map<String, dynamic>;
+
+    test('a burst of emits writes one trailing snapshot', () async {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      fakeAsync((FakeAsync async) {
+        final CanvasController c = CanvasController(prefs: prefs);
+        final int a = c.openTool(json);
+        final int b = c.openTool(base64Tool);
+        c.linkCards(a, b, type: ContentType.text);
+        final int writesBefore = c.debugPersistWrites;
+        final LinkChannel channel = c.channelForCard(a)!;
+
+        for (int i = 0; i < 100; i++) {
+          channel.emit('value $i');
+          async.elapse(const Duration(milliseconds: 10));
+        }
+        expect(c.debugPersistWrites, writesBefore);
+        expect(c.hasPendingPersist, isTrue);
+
+        async.elapse(CanvasController.persistDebounce);
+        expect(c.debugPersistWrites, writesBefore + 1);
+        expect(c.hasPendingPersist, isFalse);
+        final List<dynamic> groups = saved(prefs)['groups'] as List<dynamic>;
+        expect(
+          (groups.single as Map<String, dynamic>)['canonical'],
+          'value 99',
+        );
+      });
+    });
+
+    test('focus clicks coalesce and flushPersist writes them now', () async {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      fakeAsync((FakeAsync async) {
+        final CanvasController c = CanvasController(prefs: prefs);
+        final int a = c.openTool(json);
+        final int b = c.openTool(timestamp);
+        final int writesBefore = c.debugPersistWrites;
+
+        for (int i = 0; i < 20; i++) {
+          c.focus(i.isEven ? a : b);
+        }
+        c.focus(a);
+        expect(c.debugPersistWrites, writesBefore);
+
+        c.flushPersist();
+        expect(c.debugPersistWrites, writesBefore + 1);
+        expect(saved(prefs)['focused'], a);
+        async.elapse(CanvasController.persistDebounce);
+        expect(c.debugPersistWrites, writesBefore + 1);
+      });
+    });
+
+    test('dispose flushes a pending snapshot', () async {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      fakeAsync((FakeAsync async) {
+        final CanvasController c = CanvasController(prefs: prefs);
+        final int a = c.openTool(json);
+        c.openTool(timestamp);
+        c.focus(a);
+        c.dispose();
+        expect(saved(prefs)['focused'], a);
+        expect(async.pendingTimers, isEmpty);
+      });
+    });
+
+    test(
+      'a structural change writes immediately and cancels the debounce',
+      () async {
+        final SharedPreferences prefs = await SharedPreferences.getInstance();
+        fakeAsync((FakeAsync async) {
+          final CanvasController c = CanvasController(prefs: prefs);
+          final int a = c.openTool(json);
+          c.openTool(timestamp);
+          c.focus(a);
+          expect(c.hasPendingPersist, isTrue);
+          c.openTool(timestamp);
+          expect(c.hasPendingPersist, isFalse);
+          expect((saved(prefs)['cards'] as List<dynamic>).length, 3);
+        });
+      },
+    );
+
+    test(
+      'a sensitive-session clear drops a snapshot pending before it',
+      () async {
+        final SharedPreferences prefs = await SharedPreferences.getInstance();
+        final CanvasController c = CanvasController(prefs: prefs);
+        final int a = c.openTool(json);
+        c.openTool(timestamp);
+        c.focus(a);
+        expect(c.hasPendingPersist, isTrue);
+
+        await CanvasController.clearPersistedSensitiveSession();
+        c.dispose();
+
+        expect(prefs.getString(CanvasController.currentKey), isNull);
+      },
+    );
   });
 }
