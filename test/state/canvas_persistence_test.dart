@@ -499,4 +499,38 @@ void main() {
       },
     );
   });
+
+  group('sanitized seed cache', () {
+    test('repeated snapshots match and keep omitting protected seeds', () {
+      final CanvasController c = CanvasController();
+      c.openTool(json, seed: '{"a":1}');
+      c.openTool(base64Tool, seed: encodedCredential);
+      c.openTool(generator, seed: 'opaque-generated-fixture');
+
+      final String first = jsonEncode(c.toJson());
+      final String second = jsonEncode(c.toJson());
+
+      expect(second, first);
+      expect(second, contains('{\\"a\\":1}'));
+      expect(second, isNot(contains(encodedCredential)));
+      expect(second, isNot(contains('opaque-generated-fixture')));
+    });
+
+    test('a reused card id re-evaluates its seed for the new tool', () {
+      const String seed = 'plain-seed-value';
+      final CanvasController c = CanvasController();
+      c.openTool(json, seed: seed);
+      expect(jsonEncode(c.toJson()), contains(seed));
+
+      // Same id, same seed text, but now a sensitive tool.
+      final Map<String, dynamic> snapshot = c.toJson();
+      final Map<String, dynamic> card =
+          (snapshot['cards'] as List<dynamic>).single as Map<String, dynamic>;
+      card['tool'] = 'generator';
+      c.applyJson(snapshot);
+
+      expect(c.cards.single.toolDescriptor!.id, 'generator');
+      expect(jsonEncode(c.toJson()), isNot(contains(seed)));
+    });
+  });
 }

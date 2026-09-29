@@ -245,6 +245,7 @@ class CanvasController extends ChangeNotifier {
     _cards.removeWhere((CanvasCard c) => c.id == id);
     if (_cards.length == before) return;
     _watchers.remove(id);
+    _persistedSeeds.remove(id);
     _detachFromGroup(id);
     if (_focusedId == id) {
       _focusedId = _cards.isEmpty ? null : _cards.last.id;
@@ -258,6 +259,7 @@ class CanvasController extends ChangeNotifier {
     if (_cards.isEmpty) return;
     _cards.clear();
     _watchers.clear();
+    _persistedSeeds.clear();
     // Notifiers are dropped, not disposed: the cards' bodies remove their
     // listeners during the ensuing rebuild, after which the notifiers are GC'd.
     _groups.clear();
@@ -551,12 +553,38 @@ class CanvasController extends ChangeNotifier {
     'groups': _groups.map(_groupToJson).toList(),
   };
 
-  static Map<String, dynamic> _cardToJson(CanvasCard c) {
+  /// Sanitized seed per card id. A card's seed never changes, and
+  /// [SensitiveDataPolicy.persistedValue] is a pure function of
+  /// (value, utilityId), so the scan runs once per card, not per snapshot.
+  final Map<int, ({String seed, String? utilityId, String? persisted})>
+  _persistedSeeds =
+      <int, ({String seed, String? utilityId, String? persisted})>{};
+
+  String? _persistedSeed(CanvasCard c) {
+    final String? seed = c.seed;
+    if (seed == null) return null;
     final String? utilityId = c.toolDescriptor?.id;
-    final String? seed = SensitiveDataPolicy.persistedValue(
-      c.seed,
+    final ({String seed, String? utilityId, String? persisted})? cached =
+        _persistedSeeds[c.id];
+    if (cached != null &&
+        identical(cached.seed, seed) &&
+        cached.utilityId == utilityId) {
+      return cached.persisted;
+    }
+    final String? persisted = SensitiveDataPolicy.persistedValue(
+      seed,
       utilityId: utilityId,
     );
+    _persistedSeeds[c.id] = (
+      seed: seed,
+      utilityId: utilityId,
+      persisted: persisted,
+    );
+    return persisted;
+  }
+
+  Map<String, dynamic> _cardToJson(CanvasCard c) {
+    final String? seed = _persistedSeed(c);
     return <String, dynamic>{
       'id': c.id,
       ...switch (c.content) {
@@ -610,6 +638,7 @@ class CanvasController extends ChangeNotifier {
   void applyJson(Map<String, dynamic> json) {
     _cards.clear();
     _groups.clear();
+    _persistedSeeds.clear();
     int maxId = 0;
     int maxZ = 0;
     for (final dynamic raw
