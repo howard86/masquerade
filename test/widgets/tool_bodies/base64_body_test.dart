@@ -129,4 +129,29 @@ void main() {
     expect(output.sensitive, isTrue);
     expect(find.bySemanticsLabel('Copy Plain text'), findsOneWidget);
   });
+
+  testWidgets('Base64 — protection re-evaluates when the input changes', (
+    WidgetTester tester,
+  ) async {
+    await pumpHomeAndOpen(tester, 'Base64');
+
+    MqMonoCell output() => tester
+        .widgetList<MqMonoCell>(find.byType(MqMonoCell))
+        .firstWhere((MqMonoCell cell) => cell.label == 'Base64');
+
+    await tester.enterText(find.byType(EditableText).last, 'hello');
+    await tester.pumpAndSettle(kDebouncePump);
+    expect(output().sensitive, isFalse);
+
+    await tester.enterText(
+      find.byType(EditableText).last,
+      '{"password":"raw-credential-fixture"}',
+    );
+    await tester.pumpAndSettle(kDebouncePump);
+    expect(output().sensitive, isTrue);
+
+    await tester.enterText(find.byType(EditableText).last, 'hello again');
+    await tester.pumpAndSettle(kDebouncePump);
+    expect(output().sensitive, isFalse);
+  });
 }

@@ -202,14 +202,38 @@ class _UrlBodyState extends State<UrlBody>
     setInput(payload, asPaste: true);
   }
 
+  // Sensitivity scan memo: the scan is four regexes over the full input,
+  // output and query (~26 ms per MB), so rebuilds that change none of them
+  // reuse the last answer.
+  String? _scannedInput;
+  String? _scannedOutput;
+  String? _scannedQuery;
+  bool _scannedSensitive = false;
+
+  bool _sensitive() {
+    final String input = controller.text;
+    final String? output = _output;
+    final String? query = _query;
+    if (_scannedInput == null ||
+        input != _scannedInput ||
+        output != _scannedOutput ||
+        query != _scannedQuery) {
+      _scannedInput = input;
+      _scannedOutput = output;
+      _scannedQuery = query;
+      _scannedSensitive =
+          SensitiveDataPolicy.containsSensitiveArtifact(input) ||
+          (output != null &&
+              SensitiveDataPolicy.containsSensitiveArtifact(output)) ||
+          (query != null &&
+              SensitiveDataPolicy.containsSensitiveArtifact(query));
+    }
+    return _scannedSensitive;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final bool sensitive =
-        SensitiveDataPolicy.containsSensitiveArtifact(controller.text) ||
-        (_output != null &&
-            SensitiveDataPolicy.containsSensitiveArtifact(_output!)) ||
-        (_query != null &&
-            SensitiveDataPolicy.containsSensitiveArtifact(_query!));
+    final bool sensitive = _sensitive();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[

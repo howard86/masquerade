@@ -124,4 +124,29 @@ void main() {
     await tester.pump(const Duration(seconds: 4));
     await tester.pumpAndSettle();
   });
+
+  testWidgets('sensitivity follows value changes across rebuilds', (
+    WidgetTester tester,
+  ) async {
+    // Caption-less cells name their copy button by a safe preview, which
+    // masks protected values — so the label shows the memoized verdict.
+    Future<void> show(String value, {String? copyValue}) async {
+      await tester.pumpWidget(
+        _wrap(MqMonoCell(label: '', value: value, copyValue: copyValue)),
+      );
+    }
+
+    await show('plain-fixture');
+    expect(find.bySemanticsLabel('Copy plain-fixture'), findsOneWidget);
+
+    await show('password=hunter2-fixture');
+    expect(find.bySemanticsLabel('Copy ••••'), findsOneWidget);
+
+    await show('plain-fixture');
+    expect(find.bySemanticsLabel('Copy plain-fixture'), findsOneWidget);
+
+    // A sensitive copyValue alone protects the cell.
+    await show('plain-fixture', copyValue: 'password=hunter2-fixture');
+    expect(find.bySemanticsLabel('Copy ••••'), findsOneWidget);
+  });
 }
