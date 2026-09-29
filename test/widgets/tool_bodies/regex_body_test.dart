@@ -245,6 +245,81 @@ void main() {
     expect(updated, containsPair('dotAll', false));
   });
 
+  group('session settings persist on the run debounce', () {
+    late List<Map<String, Object?>> saves;
+
+    Future<void> pumpScoped(WidgetTester tester) async {
+      saves = <Map<String, Object?>>[];
+      await _pump(
+        tester,
+        MobileSessionRouteScope(
+          addNext: true,
+          protectedSession: false,
+          onSettingsChanged: saves.add,
+          child: const RegexBody(runner: _runRegex),
+        ),
+      );
+      saves.clear();
+    }
+
+    Future<void> typeBurst(WidgetTester tester) async {
+      final Finder pattern = find.byKey(
+        const ValueKey<String>('regex-pattern'),
+      );
+      for (final String text in <String>['a', 'ab', 'abc']) {
+        await tester.enterText(pattern, text);
+        await tester.pump(const Duration(milliseconds: 30));
+      }
+    }
+
+    testWidgets('a typing burst saves once, with the final pattern', (
+      WidgetTester tester,
+    ) async {
+      await pumpScoped(tester);
+      await typeBurst(tester);
+      expect(saves, isEmpty);
+
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(saves, hasLength(1));
+      expect(saves.single, containsPair('pattern', 'abc'));
+    });
+
+    testWidgets('a pending edit is flushed when the body is disposed', (
+      WidgetTester tester,
+    ) async {
+      await pumpScoped(tester);
+      await typeBurst(tester);
+      expect(saves, isEmpty);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      expect(saves, hasLength(1));
+      expect(saves.single, containsPair('pattern', 'abc'));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a pending edit is flushed when the app goes inactive', (
+      WidgetTester tester,
+    ) async {
+      await pumpScoped(tester);
+      await typeBurst(tester);
+      expect(saves, isEmpty);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      addTearDown(
+        () => tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        ),
+      );
+      expect(saves, hasLength(1));
+      expect(saves.single, containsPair('pattern', 'abc'));
+
+      // Nothing left to flush when the debounce fires.
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(saves, hasLength(1));
+    });
+  });
+
   test('catalog metadata is exact and regex is never auto-detected', () {
     final UtilityDescriptor regex = UtilityCatalog.byId('regex');
     expect(regex.name, 'Regex');

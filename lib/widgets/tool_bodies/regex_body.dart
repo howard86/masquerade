@@ -120,6 +120,16 @@ class _RegexBodyState extends State<RegexBody> {
 
   @override
   void dispose() {
+    // Deliver an edit still waiting on the debounce. The tree is locked
+    // during dispose (the sink notifies listeners), so hand it off to a
+    // microtask with the sink captured while the context was live.
+    final ValueChanged<Map<String, Object?>>? sink = _settingsSink;
+    if (_settingsDirty && sink != null) {
+      final Map<String, Object?> settings = _settings;
+      scheduleMicrotask(() => sink(settings));
+    }
+    _settingsDirty = false;
+    _lifecycle?.dispose();
     _debounce?.cancel();
     _worker.dispose();
     _recorder?.dispose();
@@ -130,9 +140,32 @@ class _RegexBodyState extends State<RegexBody> {
 
   void _changed(String _) {
     _runRequest++;
-    _saveSettings();
+    _markSettingsDirty();
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 150), _run);
+    _debounce = Timer(const Duration(milliseconds: 150), () {
+      _flushSettings();
+      _run();
+    });
+  }
+
+  /// Pattern edits persist on the run debounce rather than per keystroke;
+  /// a pending edit is flushed by the timer, on app pause, or on dispose.
+  bool _settingsDirty = false;
+  ValueChanged<Map<String, Object?>>? _settingsSink;
+  AppLifecycleListener? _lifecycle;
+
+  void _markSettingsDirty() {
+    _settingsDirty = true;
+    _settingsSink = MobileSessionRouteScope.maybeOf(context)?.onSettingsChanged;
+    _lifecycle ??= AppLifecycleListener(
+      onStateChange: (AppLifecycleState state) {
+        if (state != AppLifecycleState.resumed) _flushSettings();
+      },
+    );
+  }
+
+  void _flushSettings() {
+    if (_settingsDirty && mounted) _saveSettings();
   }
 
   void _toggle(void Function() change) {
@@ -195,15 +228,20 @@ class _RegexBodyState extends State<RegexBody> {
     workerRunner: _worker.run,
   );
 
-  void _saveSettings() => MobileSessionRouteScope.maybeOf(context)
-      ?.onSettingsChanged
-      ?.call(<String, Object?>{
-        'pattern': _pattern.text,
-        'caseSensitive': _caseSensitive,
-        'multiLine': _multiLine,
-        'dotAll': _dotAll,
-        'unicode': _unicode,
-      });
+  Map<String, Object?> get _settings => <String, Object?>{
+    'pattern': _pattern.text,
+    'caseSensitive': _caseSensitive,
+    'multiLine': _multiLine,
+    'dotAll': _dotAll,
+    'unicode': _unicode,
+  };
+
+  void _saveSettings() {
+    _settingsDirty = false;
+    MobileSessionRouteScope.maybeOf(
+      context,
+    )?.onSettingsChanged?.call(_settings);
+  }
 
   void _clear() {
     _debounce?.cancel();
