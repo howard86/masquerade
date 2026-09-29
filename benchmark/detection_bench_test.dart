@@ -5,7 +5,7 @@
 // deterministic 1 KB / 100 KB / 1 MB fixtures, a per-detector breakdown on the
 // 100 KB fixtures, and widget benches that time rebuilds which do not change
 // the detected text (footer parent rebuilds, Home caret moves).
-// ignore_for_file: avoid_print
+// ignore_for_file: avoid_print, invalid_use_of_visible_for_testing_member
 
 import 'dart:convert';
 

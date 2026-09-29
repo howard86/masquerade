@@ -1494,16 +1494,28 @@ class UtilityCatalog {
     ),
   ];
 
-  static UtilityDescriptor byId(String id) =>
-      all.firstWhere((UtilityDescriptor u) => u.id == id);
+  // First-wins lookups over [all], built once instead of scanning the list
+  // per call (the detection sort comparator calls [_catalogIndex] O(M log M)
+  // times per sweep).
+  static final Map<String, int> _indexById = () {
+    final Map<String, int> index = <String, int>{};
+    for (int i = 0; i < all.length; i++) {
+      index.putIfAbsent(all[i].id, () => i);
+    }
+    return index;
+  }();
+
+  static UtilityDescriptor byId(String id) {
+    final int? index = _indexById[id];
+    if (index == null) throw StateError('No element');
+    return all[index];
+  }
 
   /// Like [byId] but returns null instead of throwing — for restoring a saved
   /// canvas whose tool id may no longer exist in the catalog.
   static UtilityDescriptor? byIdOrNull(String id) {
-    for (final UtilityDescriptor u in all) {
-      if (u.id == id) return u;
-    }
-    return null;
+    final int? index = _indexById[id];
+    return index == null ? null : all[index];
   }
 
   static List<UtilityDescriptor> inCategory(UtilityCategory category) =>
@@ -1549,16 +1561,60 @@ class UtilityCatalog {
         .toList(growable: false);
   }
 
+  /// Number of [detectArtifacts] sweeps run so far. Test seam for proving
+  /// that callers cache sweeps instead of re-running them per build.
+  @visibleForTesting
+  static int debugSweepCount = 0;
+
   /// Detects artifact interpretations independently from name search.
   static List<DetectionMatch<Object?>> detectArtifacts(
     String input, {
     ArtifactProvenance provenance = ArtifactProvenance.typed,
   }) {
-    if (input.trim().isEmpty) return const <DetectionMatch<Object?>>[];
-    final List<DetectionMatch<Object?>> matches = <DetectionMatch<Object?>>[
-      for (final UtilityDescriptor tool in all)
-        ...?tool.detectArtifact?.call(input, provenance),
-    ];
+    debugSweepCount++;
+    final _DetectionSweep? outer = _sweep;
+    final _DetectionSweep sweep = _DetectionSweep(input, provenance);
+    _sweep = sweep;
+    try {
+      if (sweep.trimmed.isEmpty) return const <DetectionMatch<Object?>>[];
+      return _rankMatches(<DetectionMatch<Object?>>[
+        for (final UtilityDescriptor tool in all)
+          if (tool.detectArtifact case final ArtifactDetector detect)
+            ..._memoDetect(detect, input, provenance),
+      ]);
+    } finally {
+      _sweep = outer;
+    }
+  }
+
+  /// [detectArtifacts] without the per-sweep memo, shared trim, or detector
+  /// pre-filters, so every detector (and every nested detector call) runs its
+  /// full parse from scratch. Only the equivalence tests use it, as the
+  /// oracle for the fast paths.
+  @visibleForTesting
+  static List<DetectionMatch<Object?>> debugDetectArtifactsUncached(
+    String input, {
+    ArtifactProvenance provenance = ArtifactProvenance.typed,
+  }) {
+    final _DetectionSweep? outer = _sweep;
+    final bool outerPrefilter = _prefilter;
+    _sweep = null;
+    _prefilter = false;
+    try {
+      if (input.trim().isEmpty) return const <DetectionMatch<Object?>>[];
+      return _rankMatches(<DetectionMatch<Object?>>[
+        for (final UtilityDescriptor tool in all)
+          ...?tool.detectArtifact?.call(input, provenance),
+      ]);
+    } finally {
+      _sweep = outer;
+      _prefilter = outerPrefilter;
+    }
+  }
+
+  static List<DetectionMatch<Object?>> _rankMatches(
+    List<DetectionMatch<Object?>> matches,
+  ) {
     matches.sort((DetectionMatch<Object?> a, DetectionMatch<Object?> b) {
       final int confidence = b.confidence.compareTo(a.confidence);
       if (confidence != 0) return confidence;
@@ -1621,8 +1677,7 @@ class UtilityCatalog {
         .toList(growable: false);
   }
 
-  static int _catalogIndex(String id) =>
-      all.indexWhere((UtilityDescriptor tool) => tool.id == id);
+  static int _catalogIndex(String id) => _indexById[id] ?? -1;
 
   static int _scoreTool(UtilityDescriptor u, String q) {
     final String name = u.name.toLowerCase();
@@ -1640,6 +1695,105 @@ class UtilityCatalog {
     }
     return 0;
   }
+}
+
+/// Scratch shared by the detectors of one [UtilityCatalog.detectArtifacts]
+/// call. Several detectors defer to others (Case asks JWT/UUID/Base64/Hash,
+/// Math asks List/URL, Markdown asks Cron/List) and Timestamp/Number Base
+/// parse each other's shape, so one sweep used to run the same work 2-3
+/// times. Everything here is keyed on the sweep's exact input object and
+/// provenance, so a call with any other input computes from scratch.
+class _DetectionSweep {
+  _DetectionSweep(this.input, this.provenance);
+
+  final String input;
+  final ArtifactProvenance provenance;
+  late final String trimmed = input.trim();
+  final Map<ArtifactDetector, List<DetectionMatch<Object?>>> results =
+      <ArtifactDetector, List<DetectionMatch<Object?>>>{};
+  NumberBaseParseResult? numberBase;
+  TimestampParseResult? timestamp;
+}
+
+/// The sweep in progress, if any. Detection is synchronous, so a plain
+/// variable (saved/restored around nested sweeps) is enough.
+_DetectionSweep? _sweep;
+
+_DetectionSweep? _sweepFor(String input, ArtifactProvenance provenance) {
+  final _DetectionSweep? sweep = _sweep;
+  return sweep != null &&
+          identical(sweep.input, input) &&
+          sweep.provenance == provenance
+      ? sweep
+      : null;
+}
+
+/// Whether detectors may use their sound pre-filters. Only the equivalence
+/// oracle ([UtilityCatalog.debugDetectArtifactsUncached]) turns them off.
+bool _prefilter = true;
+
+/// `input.trim()`, computed once per sweep.
+String _trimmed(String input) {
+  final _DetectionSweep? sweep = _sweep;
+  return sweep != null && identical(sweep.input, input)
+      ? sweep.trimmed
+      : input.trim();
+}
+
+/// Runs [detect], reusing its result when the current sweep already ran it.
+List<DetectionMatch<Object?>> _memoDetect(
+  ArtifactDetector detect,
+  String input,
+  ArtifactProvenance provenance,
+) {
+  final _DetectionSweep? sweep = _sweepFor(input, provenance);
+  if (sweep == null) return detect(input, provenance);
+  return sweep.results[detect] ??= detect(input, provenance);
+}
+
+/// [NumberBaseParser.parse] of the trimmed input, shared by the Number Base
+/// and Timestamp detectors within one sweep.
+NumberBaseParseResult _parseNumberBase(String t) {
+  final _DetectionSweep? sweep = _sweep;
+  if (sweep == null || !identical(sweep.trimmed, t)) {
+    return NumberBaseParser.parse(t);
+  }
+  return sweep.numberBase ??= NumberBaseParser.parse(t);
+}
+
+/// [TimestampParser.parseAnyFormat] of the trimmed input, shared by the
+/// Number Base and Timestamp detectors within one sweep.
+TimestampParseResult _parseTimestamp(String t) {
+  final _DetectionSweep? sweep = _sweep;
+  if (sweep == null || !identical(sweep.trimmed, t)) {
+    return TimestampParser.parseAnyFormat(t);
+  }
+  return sweep.timestamp ??= TimestampParser.parseAnyFormat(t);
+}
+
+bool _isAsciiWhitespace(int c) => c == 0x20 || (c >= 0x09 && c <= 0x0D);
+
+bool _isAsciiLetter(int c) =>
+    (c >= 0x41 && c <= 0x5A) || (c >= 0x61 && c <= 0x7A);
+
+bool _isAsciiDigit(int c) => c >= 0x30 && c <= 0x39;
+
+/// False only when [s] (from [start] to [end]) holds an ASCII code unit that
+/// [allowed] rejects. Non-ASCII code units are never rejected, because case
+/// folding or Unicode whitespace handling downstream could still accept them
+/// — callers use this as a *sound* pre-filter, never as the decision itself.
+bool _asciiWithin(
+  String s,
+  bool Function(int c) allowed, {
+  int start = 0,
+  int? end,
+}) {
+  final int stop = end ?? s.length;
+  for (int i = start; i < stop; i++) {
+    final int c = s.codeUnitAt(i);
+    if (c < 0x80 && !allowed(c)) return false;
+  }
+  return true;
 }
 
 List<DetectionMatch<Object?>> _detectRegex(String _, ArtifactProvenance _) =>
@@ -1682,7 +1836,7 @@ List<DetectionMatch<Object?>> _detectUuid(
   String input,
   ArtifactProvenance provenance,
 ) {
-  final String t = input.trim();
+  final String t = _trimmed(input);
   if (!_uuidDashed.hasMatch(t) &&
       !_uuidPlain.hasMatch(t) &&
       !_ulidShape.hasMatch(t)) {
@@ -1711,7 +1865,7 @@ List<DetectionMatch<Object?>> _detectIp(
   String input,
   ArtifactProvenance provenance,
 ) {
-  final String t = input.trim();
+  final String t = _trimmed(input);
   if (!_ipv4Cidr.hasMatch(t) && !(t.contains(':') && _ipv6Cidr.hasMatch(t))) {
     return const <DetectionMatch<Object?>>[];
   }
@@ -1736,7 +1890,7 @@ List<DetectionMatch<Object?>> _detectStructured(
   String input,
   ArtifactProvenance provenance,
 ) {
-  final String t = input.trim();
+  final String t = _trimmed(input);
   if (t.isEmpty) return const <DetectionMatch<Object?>>[];
   // Cheap pre-guard: structured input must carry at least one shape glyph.
   // Bypasses the regex sweep for plain scalars like "42", "deadbeef", words.
@@ -1799,7 +1953,7 @@ List<DetectionMatch<Object?>> _detectCsv(
   String input,
   ArtifactProvenance provenance,
 ) {
-  final String trimmed = input.trim();
+  final String trimmed = _trimmed(input);
   if (trimmed.isEmpty || trimmed.startsWith('{') || trimmed.startsWith('[')) {
     return const <DetectionMatch<Object?>>[];
   }
@@ -1858,7 +2012,7 @@ List<DetectionMatch<Object?>> _detectColor(
   String input,
   ArtifactProvenance provenance,
 ) {
-  final String t = input.trim();
+  final String t = _trimmed(input);
   if (t.isEmpty) return const <DetectionMatch<Object?>>[];
   // Reject base-prefixed numbers — those should fire Number Base only.
   final String lower = t.toLowerCase();
@@ -1886,7 +2040,7 @@ List<DetectionMatch<Object?>> _detectTimestamp(
   String input,
   ArtifactProvenance provenance,
 ) {
-  final String t = input.trim();
+  final String t = _trimmed(input);
   if (t.isEmpty) return const <DetectionMatch<Object?>>[];
   // Accept only the unambiguous direct forms here; defer base64/hex variants
   // to their own tools to avoid double-counting.
@@ -1895,7 +2049,10 @@ List<DetectionMatch<Object?>> _detectTimestamp(
     // Reject obviously-tiny numbers that are noise (e.g. "1", "42").
     if (n.abs() < 100000000) return const <DetectionMatch<Object?>>[];
   }
-  final TimestampParseResult result = TimestampParser.parseAnyFormat(t);
+  if (_prefilter && !_timestampShapePossible(t)) {
+    return const <DetectionMatch<Object?>>[];
+  }
+  final TimestampParseResult result = _parseTimestamp(t);
   if (!result.isSuccess) return const <DetectionMatch<Object?>>[];
   final bool decimalAmbiguity =
       n != null && t.replaceFirst('-', '').length == 10;
@@ -1913,7 +2070,7 @@ List<DetectionMatch<Object?>> _detectTimestamp(
     ),
   ];
   if (n != null) {
-    final NumberBaseParseResult number = NumberBaseParser.parse(t);
+    final NumberBaseParseResult number = _parseNumberBase(t);
     if (number is NumberBaseOk) {
       matches.add(
         _evidence(
@@ -1933,16 +2090,42 @@ List<DetectionMatch<Object?>> _detectTimestamp(
   return matches;
 }
 
+/// Sound pre-filter for [TimestampParser.parseAnyFormat]: it accepts only a
+/// closed set of keywords (ASCII letters and whitespace), a signed digit run,
+/// or an ISO 8601 string (`DateTime.parse` opens with a digit or sign and
+/// uses only digits, `+ - T t Z z : . ,` and spaces). Anything else fails, so
+/// skip the whole-input lowercase and whitespace collapse the keyword path
+/// would do on large text.
+bool _timestampShapePossible(String t) =>
+    _isoOrNumericPossible(t) ||
+    _asciiWithin(t, (int c) => _isAsciiLetter(c) || _isAsciiWhitespace(c));
+
+bool _isoOrNumericPossible(String t) {
+  final int first = t.codeUnitAt(0);
+  if (!_isAsciiDigit(first) && first != 0x2B && first != 0x2D) return false;
+  for (int i = 1; i < t.length; i++) {
+    final int c = t.codeUnitAt(i);
+    if (_isAsciiDigit(c)) continue;
+    switch (c) {
+      case 0x2B || 0x2D || 0x54 || 0x74 || 0x5A || 0x7A:
+      case 0x3A || 0x2E || 0x2C || 0x20:
+        continue;
+    }
+    return false;
+  }
+  return true;
+}
+
 List<DetectionMatch<Object?>> _detectNumberBase(
   String input,
   ArtifactProvenance provenance,
 ) {
-  final String t = input.trim();
-  final NumberBaseParseResult result = NumberBaseParser.parse(t);
+  final String t = _trimmed(input);
+  final NumberBaseParseResult result = _parseNumberBase(t);
   if (result is! NumberBaseOk) return const <DetectionMatch<Object?>>[];
   final int? integer = int.tryParse(t);
   if (integer != null && integer.abs() >= 100000000) {
-    final TimestampParseResult timestamp = TimestampParser.parseAnyFormat(t);
+    final TimestampParseResult timestamp = _parseTimestamp(t);
     if (timestamp.isSuccess) return const <DetectionMatch<Object?>>[];
   }
   return <DetectionMatch<Object?>>[
@@ -1962,27 +2145,73 @@ List<DetectionMatch<Object?>> _detectCron(
   String input,
   ArtifactProvenance provenance,
 ) {
-  final String t = input.trim();
+  final String t = _trimmed(input);
   if (t.isEmpty) return const <DetectionMatch<Object?>>[];
-  final CronParseResult syntax = CronParser.parseSyntax(t);
-  final CronParseResult result = syntax.isSuccess
+  final CronParseResult? syntax = !_prefilter || _cronSyntaxPossible(t)
+      ? CronParser.parseSyntax(t)
+      : null;
+  final bool syntaxOk = syntax != null && syntax.isSuccess;
+  final CronParseResult? result = syntaxOk
       ? syntax
-      : CronNlParser.parse(t);
-  if (!result.isSuccess) return const <DetectionMatch<Object?>>[];
+      : !_prefilter || _cronNaturalLanguagePossible(t)
+      ? CronNlParser.parse(t)
+      : null;
+  if (result == null || !result.isSuccess) {
+    return const <DetectionMatch<Object?>>[];
+  }
   return <DetectionMatch<Object?>>[
     _evidence(
       provenance: provenance,
       kind: ArtifactKind.cron,
       rawValue: input,
       parserResult: result,
-      confidence: syntax.isSuccess ? .97 : .86,
-      reason: syntax.isSuccess
+      confidence: syntaxOk ? .97 : .86,
+      reason: syntaxOk
           ? 'Parsed as a valid cron schedule.'
           : 'Parsed as a supported natural-language schedule.',
       primaryToolId: 'cron',
     ),
   ];
 }
+
+final RegExp _cronFieldSeparator = RegExp(r'\s+');
+
+/// Sound pre-filter for [CronParser.parseSyntax]: it succeeds only on an
+/// `@macro` or on exactly five fields split by `\s+`. Counts at most five
+/// separators lazily instead of splitting the whole input.
+bool _cronSyntaxPossible(String t) =>
+    t.startsWith('@') || _cronFieldSeparator.allMatches(t).take(5).length == 4;
+
+/// Sound pre-filter for [CronNlParser.parse]: every phrase its grammar
+/// accepts (macros, `every …`, `at …`, weekday lists, `9am`, `14:30`) is made
+/// of letters, digits, whitespace, `:` and `,`, and its longest word
+/// (`wednesday`) has 9 letters. Any other ASCII character, or a longer
+/// unbroken run of ASCII letters, survives its lowercase/whitespace
+/// normalization and fails the grammar. Non-ASCII code units are allowed and
+/// end a letter run, so case folding can't make this reject a match.
+bool _cronNaturalLanguagePossible(String t) {
+  int letters = 0;
+  for (int i = 0; i < t.length; i++) {
+    final int c = t.codeUnitAt(i);
+    if (_isAsciiLetter(c)) {
+      if (++letters > _cronNlMaxWord) return false;
+      continue;
+    }
+    letters = 0;
+    if (c >= 0x80 ||
+        _isAsciiDigit(c) ||
+        _isAsciiWhitespace(c) ||
+        c == 0x3A ||
+        c == 0x2C) {
+      continue;
+    }
+    return false;
+  }
+  return true;
+}
+
+/// Longer than any word [CronNlParser] accepts, with margin.
+const int _cronNlMaxWord = 16;
 
 final RegExp _jwtShape = RegExp(
   r'^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$',
@@ -1992,7 +2221,7 @@ List<DetectionMatch<Object?>> _detectJwt(
   String input,
   ArtifactProvenance provenance,
 ) {
-  final String t = input.trim();
+  final String t = _trimmed(input);
   if (!_jwtShape.hasMatch(t)) return const <DetectionMatch<Object?>>[];
   final JwtParseResult result = JwtParser.parse(t);
   if (result is! JwtOk) return const <DetectionMatch<Object?>>[];
@@ -2028,7 +2257,7 @@ List<DetectionMatch<Object?>> _detectBase64(
   String input,
   ArtifactProvenance provenance,
 ) {
-  final String t = input.trim();
+  final String t = _trimmed(input);
   if (t.isEmpty) return const <DetectionMatch<Object?>>[];
   if (!EncodingParser.isBase64(t)) return const <DetectionMatch<Object?>>[];
   // Reject pure hex (those already fire Number Base / Color); require either
@@ -2077,17 +2306,17 @@ List<DetectionMatch<Object?>> _detectCase(
   String input,
   ArtifactProvenance provenance,
 ) {
-  final String t = input.trim();
+  final String t = _trimmed(input);
   if (t.isEmpty || t.length > 200) {
     return const <DetectionMatch<Object?>>[];
   }
   if (!_identifierShape.hasMatch(t) || !_caseSignal.hasMatch(t)) {
     return const <DetectionMatch<Object?>>[];
   }
-  if (_detectJwt(input, provenance).isNotEmpty ||
-      _detectUuid(input, provenance).isNotEmpty ||
-      _detectBase64(input, provenance).isNotEmpty ||
-      _detectHash(input, provenance).isNotEmpty) {
+  if (_memoDetect(_detectJwt, input, provenance).isNotEmpty ||
+      _memoDetect(_detectUuid, input, provenance).isNotEmpty ||
+      _memoDetect(_detectBase64, input, provenance).isNotEmpty ||
+      _memoDetect(_detectHash, input, provenance).isNotEmpty) {
     return const <DetectionMatch<Object?>>[];
   }
   final CaseConversions? result = CaseParser.parse(t);
@@ -2120,7 +2349,7 @@ List<DetectionMatch<Object?>> _detectUrl(
   String input,
   ArtifactProvenance provenance,
 ) {
-  final String t = input.trim();
+  final String t = _trimmed(input);
   if (t.isEmpty) return const <DetectionMatch<Object?>>[];
   bool matches = _percentEscape.hasMatch(t) || _queryShapeUrl.hasMatch(t);
   // Bare `a=b&c=d`: every `&`-segment must be a clean key=value pair, and there
@@ -2149,7 +2378,7 @@ List<DetectionMatch<Object?>> _detectBps(
   String input,
   ArtifactProvenance provenance,
 ) {
-  final String t = input.trim().toLowerCase();
+  final String t = _trimmed(input).toLowerCase();
   if (t.isEmpty) return const <DetectionMatch<Object?>>[];
   final BpsResult? result = BpsParser.parse(t);
   if (result == null) return const <DetectionMatch<Object?>>[];
@@ -2180,7 +2409,7 @@ List<DetectionMatch<Object?>> _detectHash(
   String input,
   ArtifactProvenance provenance,
 ) {
-  final String t = input.trim();
+  final String t = _trimmed(input);
   final HashIdentifyResult result = HashTool.identify(t);
   if (result is! HashShape) return const <DetectionMatch<Object?>>[];
   return <DetectionMatch<Object?>>[
@@ -2229,26 +2458,53 @@ const Set<String> _mathFunctions = <String>{
 };
 const Set<String> _mathConsts = <String>{'pi', 'e', 'ans'};
 
+/// Mirrors MathParser's lexer alphabet: whitespace (space, tab, LF, CR),
+/// digits, ASCII letters, `_`, `.`, and `( ) , + - * / % ^`.
+bool _mathLexable(String t) {
+  for (int i = 0; i < t.length; i++) {
+    final int c = t.codeUnitAt(i);
+    if (_isAsciiLetter(c) || _isAsciiDigit(c)) continue;
+    switch (c) {
+      case 0x20 || 0x09 || 0x0A || 0x0D:
+      case 0x5F || 0x2E || 0x28 || 0x29 || 0x2C:
+      case 0x2B || 0x2D || 0x2A || 0x2F || 0x25 || 0x5E:
+        continue;
+    }
+    return false;
+  }
+  return true;
+}
+
 List<DetectionMatch<Object?>> _detectMath(
   String input,
   ArtifactProvenance provenance,
 ) {
-  final String t = input.trim();
+  final String t = _trimmed(input);
   if (t.isEmpty) return const <DetectionMatch<Object?>>[];
+  // MathParser's lexer throws on any other character, so this input can never
+  // evaluate; skip the List/URL checks and scans below.
+  if (_prefilter && !_mathLexable(t)) return const <DetectionMatch<Object?>>[];
   if (_isoDateShape.hasMatch(t)) return const <DetectionMatch<Object?>>[];
   // A bulleted/numbered list reads as subtraction across line breaks
   // (`…T\n- E…`); defer those to the List tool.
-  if (_detectList(input, provenance).isNotEmpty) {
+  if (_memoDetect(_detectList, input, provenance).isNotEmpty) {
     return const <DetectionMatch<Object?>>[];
   }
   // A URL or query string reads `%` / `/` as operators; the URL tool owns it.
-  if (_detectUrl(input, provenance).isNotEmpty) {
+  if (_memoDetect(_detectUrl, input, provenance).isNotEmpty) {
     return const <DetectionMatch<Object?>>[];
   }
   bool matches = _mathBinaryOp.hasMatch(t);
-  for (final RegExpMatch m in _mathIdent.allMatches(t.toLowerCase())) {
-    final String w = m.group(0)!;
-    if (_mathFunctions.contains(w) || _mathConsts.contains(w)) matches = true;
+  // [t] is ASCII (lexable), so lowercasing each identifier equals matching
+  // over a lowercased copy of the whole input.
+  if (!matches) {
+    for (final RegExpMatch m in _mathIdent.allMatches(t)) {
+      final String w = m.group(0)!.toLowerCase();
+      if (_mathFunctions.contains(w) || _mathConsts.contains(w)) {
+        matches = true;
+        break;
+      }
+    }
   }
   if (!matches) return const <DetectionMatch<Object?>>[];
   final MathParseResult result = MathParser.parse(t, ctx: const MathContext());
@@ -2266,11 +2522,23 @@ List<DetectionMatch<Object?>> _detectMath(
   ];
 }
 
+bool _isByteListChar(int c) =>
+    _isAsciiDigit(c) ||
+    (c >= 0x41 && c <= 0x46) ||
+    (c >= 0x61 && c <= 0x66) ||
+    c == 0x58 ||
+    c == 0x78 ||
+    c == 0x2B ||
+    c == 0x2D ||
+    c == 0x2C ||
+    _isAsciiWhitespace(c) ||
+    (c >= 0x1C && c <= 0x1F);
+
 List<DetectionMatch<Object?>> _detectBytes(
   String input,
   ArtifactProvenance provenance,
 ) {
-  final String t = input.trim();
+  final String t = _trimmed(input);
   if (t.isEmpty) return const <DetectionMatch<Object?>>[];
   // Cheap reject before allocating tokens/Uint8List: must start with a digit
   // or `[`, anything else can't be an integer list.
@@ -2278,6 +2546,19 @@ List<DetectionMatch<Object?>> _detectBytes(
   final bool startsOk =
       first == 0x5B /* [ */ || (first >= 0x30 && first <= 0x39) /* 0-9 */;
   if (!startsOk) return const <DetectionMatch<Object?>>[];
+  // Sound pre-filter: BytesParser splits on `[\s,]+` and needs every token
+  // to pass `int.tryParse` (sign, digits, `0x` hex), so any other ASCII
+  // character inside the optional outer brackets makes it fail.
+  final bool bracketed = t.startsWith('[') && t.endsWith(']');
+  if (_prefilter &&
+      !_asciiWithin(
+        t,
+        _isByteListChar,
+        start: bracketed ? 1 : 0,
+        end: bracketed ? t.length - 1 : t.length,
+      )) {
+    return const <DetectionMatch<Object?>>[];
+  }
   final BytesParseResult r = BytesParser.parse(t);
   if (r is! BytesParseOk) return const <DetectionMatch<Object?>>[];
   // Single tokens stay with Number Base / Timestamp.
@@ -2299,7 +2580,7 @@ List<DetectionMatch<Object?>> _detectX509(
   String input,
   ArtifactProvenance provenance,
 ) {
-  final String trimmed = input.trim();
+  final String trimmed = _trimmed(input);
   if (!trimmed.startsWith('-----BEGIN CERTIFICATE-----') &&
       !trimmed.toLowerCase().startsWith('base64:') &&
       !trimmed.toLowerCase().startsWith('hex:')) {
@@ -2328,7 +2609,7 @@ List<DetectionMatch<Object?>> _detectEnvironmentConfig(
   String input,
   ArtifactProvenance provenance,
 ) {
-  final String trimmed = input.trim();
+  final String trimmed = _trimmed(input);
   if (trimmed.isEmpty || (!trimmed.contains('=') && !trimmed.contains(':'))) {
     return const <DetectionMatch<Object?>>[];
   }
@@ -2358,7 +2639,7 @@ List<DetectionMatch<Object?>> _detectHashAndPem(
   String input,
   ArtifactProvenance provenance,
 ) {
-  final List<int>? pem = _decodePublicKeyPem(input.trim());
+  final List<int>? pem = _decodePublicKeyPem(_trimmed(input));
   if (pem != null) {
     return <DetectionMatch<Object?>>[
       _evidence(
@@ -2372,7 +2653,7 @@ List<DetectionMatch<Object?>> _detectHashAndPem(
       ),
     ];
   }
-  return _detectHash(input, provenance);
+  return _memoDetect(_detectHash, input, provenance);
 }
 
 List<int>? _decodePublicKeyPem(String input) {
@@ -2469,8 +2750,9 @@ List<DetectionMatch<Object?>> _detectMarkdown(
   ].fold(0, (int total, int count) => total + count);
   final int signals = listSignals + otherSignals;
   if (signals < 2) return const <DetectionMatch<Object?>>[];
-  if (_detectCron(input, provenance).isNotEmpty ||
-      (otherSignals == 0 && _detectList(input, provenance).isNotEmpty)) {
+  if (_memoDetect(_detectCron, input, provenance).isNotEmpty ||
+      (otherSignals == 0 &&
+          _memoDetect(_detectList, input, provenance).isNotEmpty)) {
     return const <DetectionMatch<Object?>>[];
   }
 
