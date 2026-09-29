@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
+
 import 'encoding_parser.dart';
 import 'sensitive_data_policy.dart';
 import 'utf8_length.dart';
@@ -251,10 +253,14 @@ abstract final class LogStackInspector {
       );
     }
     final String safe = _redactText(raw);
+    final ({LogLevel level, bool leadingTimestamp}) prefix = _detectPrefix(
+      safe,
+    );
     return _SafeLine(
       number,
       safe,
-      level: _detectLevel(safe),
+      level: prefix.level,
+      leadingTimestamp: prefix.leadingTimestamp,
       timestamp: _detectTimestamp(safe),
       redacted: safe != raw,
     );
@@ -328,57 +334,98 @@ abstract final class LogStackInspector {
     return _redactJson(entry.value, depth + 1, budget);
   }
 
-  static String _redactText(String value) {
-    final String safe = value
-        .replaceAllMapped(
-          _authorization,
-          (Match m) => '${m[1]}${SensitiveDataPolicy.mask}',
-        )
-        .replaceAllMapped(
-          _cookie,
-          (Match m) => '${m[1]}${SensitiveDataPolicy.mask}',
-        )
-        .replaceAll(_standaloneAuthorization, SensitiveDataPolicy.mask)
-        .replaceAll(_jwt, SensitiveDataPolicy.mask)
-        .replaceAll(_awsKey, SensitiveDataPolicy.mask)
-        .replaceAll(_providerToken, SensitiveDataPolicy.mask)
-        .replaceAllMapped(
-          _urlUserInfo,
-          (Match m) => '${m[1]}${SensitiveDataPolicy.mask}@',
-        )
-        .replaceAllMapped(
-          _querySecret,
-          (Match m) => '${m[1]}${SensitiveDataPolicy.mask}',
-        )
-        .replaceAllMapped(
-          _assignment,
-          (Match m) => '${m[1]}${SensitiveDataPolicy.mask}',
-        );
-    return safe
-        .replaceAllMapped(_base64, (Match match) {
-          final String candidate = match.group(0)!;
-          return SensitiveDataPolicy.protects(
-                utilityId: 'base64',
-                values: <String>[candidate],
-              )
-              ? SensitiveDataPolicy.mask
-              : candidate;
-        })
-        .replaceAllMapped(_percentEncoded, (Match match) {
-          final String candidate = match.group(0)!;
-          return SensitiveDataPolicy.protects(
-                utilityId: 'url',
-                values: <String>[candidate],
-              )
-              ? SensitiveDataPolicy.mask
-              : candidate;
-        });
+  /// [_redactText] with the literal pre-checks on or off, so tests can prove
+  /// the pre-checks never skip a pass that would have matched.
+  @visibleForTesting
+  static String redactTextForTest(String value, {required bool precheck}) =>
+      _redactText(value, precheck: precheck);
+
+  static String _redactText(String value, {bool precheck = true}) {
+    // Each pass below can only match text containing a literal it requires
+    // (case-insensitively where the pass is). Replacements only splice in
+    // mask characters and text already in [value], so a literal absent from
+    // [value] is absent at every later pass too, and that pass is a no-op.
+    final String lower = precheck ? value.toLowerCase() : '';
+    bool has(String literal) => !precheck || lower.contains(literal);
+    bool hasExact(String literal) => !precheck || value.contains(literal);
+    final bool secretName =
+        has('key') ||
+        has('token') ||
+        has('auth') ||
+        has('secret') ||
+        has('credential') ||
+        has('pass');
+    String safe = value;
+    if (has('authorization')) {
+      safe = safe.replaceAllMapped(
+        _authorization,
+        (Match m) => '${m[1]}${SensitiveDataPolicy.mask}',
+      );
+    }
+    if (has('cookie')) {
+      safe = safe.replaceAllMapped(
+        _cookie,
+        (Match m) => '${m[1]}${SensitiveDataPolicy.mask}',
+      );
+    }
+    if (has('bearer') || has('basic')) {
+      safe = safe.replaceAll(
+        _standaloneAuthorization,
+        SensitiveDataPolicy.mask,
+      );
+    }
+    if (hasExact('eyJ')) {
+      safe = safe.replaceAll(_jwt, SensitiveDataPolicy.mask);
+    }
+    if (hasExact('AKIA') || hasExact('ASIA')) {
+      safe = safe.replaceAll(_awsKey, SensitiveDataPolicy.mask);
+    }
+    if (has('gh') || has('github_pat_') || has('xox')) {
+      safe = safe.replaceAll(_providerToken, SensitiveDataPolicy.mask);
+    }
+    if (hasExact('://')) {
+      safe = safe.replaceAllMapped(
+        _urlUserInfo,
+        (Match m) => '${m[1]}${SensitiveDataPolicy.mask}@',
+      );
+    }
+    if (secretName && (hasExact('?') || hasExact('&'))) {
+      safe = safe.replaceAllMapped(
+        _querySecret,
+        (Match m) => '${m[1]}${SensitiveDataPolicy.mask}',
+      );
+    }
+    if (secretName || has('cookie')) {
+      safe = safe.replaceAllMapped(
+        _assignment,
+        (Match m) => '${m[1]}${SensitiveDataPolicy.mask}',
+      );
+    }
+    safe = safe.replaceAllMapped(_base64, (Match match) {
+      final String candidate = match.group(0)!;
+      return SensitiveDataPolicy.protects(
+            utilityId: 'base64',
+            values: <String>[candidate],
+          )
+          ? SensitiveDataPolicy.mask
+          : candidate;
+    });
+    if (!hasExact('%')) return safe;
+    return safe.replaceAllMapped(_percentEncoded, (Match match) {
+      final String candidate = match.group(0)!;
+      return SensitiveDataPolicy.protects(
+            utilityId: 'url',
+            values: <String>[candidate],
+          )
+          ? SensitiveDataPolicy.mask
+          : candidate;
+    });
   }
 
   static bool _continues(_SafeLine line, _EventBuilder current) {
     if (line.json) return false;
     final String trimmed = line.text.trimLeft();
-    if (_hasLeadingTimestamp(line.text)) return false;
+    if (line.leadingTimestamp) return false;
     if (trimmed.isEmpty || line.text.length != trimmed.length) return true;
     if (trimmed.startsWith('at ') ||
         trimmed.startsWith('File "') ||
@@ -390,7 +437,7 @@ abstract final class LogStackInspector {
                 trimmed.startsWith('--- End of inner exception')))) {
       return true;
     }
-    if (_detectLevel(line.text) != LogLevel.unknown) return false;
+    if (line.level != LogLevel.unknown) return false;
     final bool errorContext =
         current.level == LogLevel.error ||
         current.level == LogLevel.fatal ||
@@ -401,17 +448,18 @@ abstract final class LogStackInspector {
             RegExp(r'(?:Exception|Error)(?::|$)').hasMatch(trimmed));
   }
 
-  static bool _hasLeadingTimestamp(String value) =>
-      _isoTimestamp.matchAsPrefix(value)?.start == 0 ||
-      _bracketTimestamp.hasMatch(value) ||
-      _epochTimestamp.matchAsPrefix(value)?.start == 0;
+  static LogLevel _detectLevel(String value) => _detectPrefix(value).level;
 
-  static LogLevel _detectLevel(String value) {
+  /// The line's level, and whether it starts (with no leading whitespace)
+  /// with a timestamp, from one set of prefix matches.
+  static ({LogLevel level, bool leadingTimestamp}) _detectPrefix(String value) {
     String candidate = value.trimLeft();
     final Match? timestamp =
         _isoTimestamp.matchAsPrefix(candidate) ??
         _bracketTimestamp.matchAsPrefix(candidate) ??
         _epochTimestamp.matchAsPrefix(candidate);
+    final bool leadingTimestamp =
+        timestamp != null && candidate.length == value.length;
     if (timestamp != null) {
       candidate = candidate.substring(timestamp.end).trimLeft();
     }
@@ -419,15 +467,18 @@ abstract final class LogStackInspector {
       r'^[\[(]?(TRACE|DEBUG|INFO|WARN(?:ING)?|ERROR|FATAL)(?:[\])\s:|-]|$)',
       caseSensitive: false,
     ).firstMatch(candidate)?[1]?.toUpperCase();
-    return switch (level) {
-      'TRACE' => LogLevel.trace,
-      'DEBUG' => LogLevel.debug,
-      'INFO' => LogLevel.info,
-      'WARN' || 'WARNING' => LogLevel.warn,
-      'ERROR' => LogLevel.error,
-      'FATAL' => LogLevel.fatal,
-      _ => LogLevel.unknown,
-    };
+    return (
+      level: switch (level) {
+        'TRACE' => LogLevel.trace,
+        'DEBUG' => LogLevel.debug,
+        'INFO' => LogLevel.info,
+        'WARN' || 'WARNING' => LogLevel.warn,
+        'ERROR' => LogLevel.error,
+        'FATAL' => LogLevel.fatal,
+        _ => LogLevel.unknown,
+      },
+      leadingTimestamp: leadingTimestamp,
+    );
   }
 
   static LogLevel _jsonLevel(Object? value) {
@@ -576,6 +627,7 @@ class _SafeLine {
     this.text, {
     this.json = false,
     this.level = LogLevel.unknown,
+    this.leadingTimestamp = false,
     this.timestamp,
     this.endNumber,
     this.redacted = false,
@@ -585,6 +637,7 @@ class _SafeLine {
   final String text;
   final bool json;
   final LogLevel level;
+  final bool leadingTimestamp;
   final DateTime? timestamp;
   final int? endNumber;
   final bool redacted;
