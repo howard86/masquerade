@@ -210,6 +210,27 @@ void main() {
     await _runGesture(tester, 'pan', const Offset(900, 820));
   });
 
+  testWidgets('structural rebuild: focus click', (WidgetTester tester) async {
+    final CanvasController c = await _pumpDesktop(tester);
+    final List<int> pumpUs = <int>[];
+    _install();
+    _counts.reset();
+    for (int i = 0; i < 30; i++) {
+      c.focus(1 + i % _openIds.length);
+      final Stopwatch sw = Stopwatch()..start();
+      await tester.pump();
+      pumpUs.add(sw.elapsedMicroseconds);
+    }
+    _uninstall();
+    await tester.pump(const Duration(seconds: 1));
+    // ignore: avoid_print
+    print(
+      '[focus] per click: elements ${(_counts.totalBuilds / 30).toStringAsFixed(1)}, '
+      'bodies ${(_counts.of('body') / 30).toStringAsFixed(2)}; '
+      'pump ${_stats(pumpUs)}',
+    );
+  });
+
   testWidgets('layer tree: backdrop filters', (WidgetTester tester) async {
     await _pumpDesktop(tester);
     final Layer root = tester.binding.renderViews.first.debugLayer!;
