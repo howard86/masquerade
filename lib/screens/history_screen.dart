@@ -10,6 +10,7 @@ import '../theme/mq_typography.dart';
 import '../utility_catalog.dart';
 import '../utils/copy_util.dart';
 import '../utils/sensitive_data_policy.dart';
+import '../utils/text_truncate.dart';
 import 'detail/tool_detail_route.dart';
 import '../widgets/mq/mq_button.dart';
 import '../widgets/mq/mq_icons.dart';
@@ -439,20 +440,26 @@ class _HistoryRow extends StatelessWidget {
     } catch (_) {
       u = null;
     }
-    final String displayInput = SensitiveDataPolicy.safePreview(
-      entry.input,
-      max: _truncateAt,
-      utilityId: entry.utilityId,
-      sensitive: entry.sensitive,
-    );
-    final String displayOutput = SensitiveDataPolicy.safePreview(
-      entry.output,
-      max: _truncateAt,
-      utilityId: entry.utilityId,
-      sensitive: entry.sensitive,
-    );
-    final String toolName = u?.name ?? entry.utilityId;
+    // `protected` is cached on the entry and covers input and output, so an
+    // unprotected entry needs no per-value rescan to preview safely.
     final bool protected = entry.protected;
+    final String displayInput = protected
+        ? SensitiveDataPolicy.safePreview(
+            entry.input,
+            max: _truncateAt,
+            utilityId: entry.utilityId,
+            sensitive: entry.sensitive,
+          )
+        : truncateWithEllipsis(entry.input, max: _truncateAt);
+    final String displayOutput = protected
+        ? SensitiveDataPolicy.safePreview(
+            entry.output,
+            max: _truncateAt,
+            utilityId: entry.utilityId,
+            sensitive: entry.sensitive,
+          )
+        : truncateWithEllipsis(entry.output, max: _truncateAt);
+    final String toolName = u?.name ?? entry.utilityId;
     final VoidCallback? reopen = u == null || protected
         ? null
         : () => ToolDetailRoute.push(context, u!, seed: entry.input);

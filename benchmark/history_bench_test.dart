@@ -15,6 +15,7 @@ import 'package:masquerade/state/tool_draft_controller.dart';
 import 'package:masquerade/theme/mq_colors.dart';
 import 'package:masquerade/theme/mq_theme.dart';
 import 'package:masquerade/utils/sensitive_data_policy.dart';
+import 'package:masquerade/utils/text_truncate.dart';
 import 'package:masquerade/widgets/mq/tool_grid_card.dart';
 import 'package:masquerade/utility_catalog.dart';
 import 'package:masquerade/widgets/tool_bodies/base64_body.dart';
@@ -198,6 +199,14 @@ void main() {
       }
     });
     _report('200 rows x (2 safePreview + protected) [old row pattern]', us);
+    final double rowNew = _minUs(() {
+      for (final HistoryEntry e in entries) {
+        if (e.protected) continue;
+        truncateWithEllipsis(e.input, max: 32);
+        truncateWithEllipsis(e.output, max: 32);
+      }
+    });
+    _report('200 rows x (protected + 2 truncate) [cached row pattern]', rowNew);
     final double cached = _minUs(() {
       for (final HistoryEntry e in entries) {
         // ignore: unnecessary_statements

@@ -13,7 +13,7 @@ HistoryPolicy historyPolicyFor(String utilityId) =>
 /// One captured utility action.
 @immutable
 class HistoryEntry {
-  const HistoryEntry({
+  HistoryEntry({
     required this.utilityId,
     required this.input,
     required this.output,
@@ -33,7 +33,10 @@ class HistoryEntry {
   final String? sessionId;
   final String? id;
 
-  bool get protected => SensitiveDataPolicy.protects(
+  /// Computed once: every field it depends on is final, and the scan (four
+  /// regexes plus a decode for base64/bytes/url) is read by `_allows`,
+  /// `toJson`, search, and every history row/grid-card build.
+  late final bool protected = SensitiveDataPolicy.protects(
     utilityId: utilityId,
     sensitive: sensitive,
     values: <String>[input, output],

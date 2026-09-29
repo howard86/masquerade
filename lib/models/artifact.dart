@@ -83,7 +83,8 @@ class Artifact<T> {
     ArtifactKind.unknown => ContentType.text,
   };
 
-  bool get isSensitive =>
+  /// Computed once: [kind], [rawValue] and the declared sensitivity are final.
+  late final bool isSensitive =
       _declaredSensitivity == ArtifactSensitivity.sensitive ||
       SensitiveDataPolicy.protects(
         utilityId: switch (kind) {
@@ -101,7 +102,9 @@ class Artifact<T> {
       : ArtifactSensitivity.standard;
 
   /// A bounded display value that never echoes sensitive input.
-  String get safePreview {
+  late final String safePreview = _computeSafePreview();
+
+  String _computeSafePreview() {
     if (isSensitive && rawValue == SensitiveDataPolicy.mask) return '[hidden]';
     return SensitiveDataPolicy.safePreview(
       rawValue,
