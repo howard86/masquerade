@@ -80,6 +80,21 @@ void main() {
     expect(harmless.hadSensitiveInput, isFalse);
   });
 
+  test('JSON shape guard preserves structured and scalar semantics', () {
+    final LogInspection result = LogStackInspector.parse(
+      '  {"message":"safe"}\n42\ntrue\nnull\n"plain"',
+    );
+
+    expect(result.events, hasLength(5));
+    expect(result.events.first.text, '{"message":"safe"}');
+    expect(result.events.skip(1).map((LogEvent event) => event.text), <String>[
+      '42',
+      'true',
+      'null',
+      '"plain"',
+    ]);
+  });
+
   test('filters bounded safe text without changing order', () {
     final LogInspection result = LogStackInspector.parse(
       'INFO alpha\nERROR beta\nWARN alphabet',

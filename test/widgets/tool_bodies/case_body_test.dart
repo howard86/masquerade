@@ -1,5 +1,5 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/widgets/mq/mq_input.dart';
 import 'package:masquerade/widgets/mq/mq_mono_cell.dart';
@@ -68,10 +68,8 @@ void main() {
         of: cell,
         matching: find.byKey(const ValueKey<String>('mqMonoCellCopyTarget')),
       );
-      final GestureDetector detector = tester.widget<GestureDetector>(
-        find.ancestor(of: copyTarget, matching: find.byType(GestureDetector)),
-      );
-      detector.onTap!();
+      final CupertinoButton button = tester.widget<CupertinoButton>(copyTarget);
+      button.onPressed!();
       expect(copied, row.value, reason: row.key);
     }
     await tester.pump();

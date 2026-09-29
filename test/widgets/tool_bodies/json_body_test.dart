@@ -184,6 +184,7 @@ void main() {
   testWidgets('swap button moves output to input and exchanges selectors', (
     WidgetTester tester,
   ) async {
+    final SemanticsHandle semantics = tester.ensureSemantics();
     await pumpHomeAndOpen(tester, 'JSON / YAML / TOML');
 
     await tester.enterText(find.byType(EditableText).last, '{"a":1}');
@@ -198,13 +199,17 @@ void main() {
     // YAML output visible.
     expect(find.text('YAML'), findsWidgets);
 
-    await tester.tap(find.bySemanticsLabel('Swap source and target'));
+    final Finder swap = find.bySemanticsLabel('Swap source and target');
+    expect(swap, findsOneWidget);
+    expect(tester.getSize(swap).shortestSide, greaterThanOrEqualTo(44));
+    tester.semantics.tap(find.semantics.byLabel('Swap source and target'));
     await tester.pumpAndSettle(kDebouncePump);
 
     // Input now holds YAML; Target now shows Pretty JSON.
     expect(find.text('Pretty JSON'), findsOneWidget);
     expect(find.text('YAML'), findsWidgets); // source dropdown shows YAML
     expect(find.text('{\n  "a": 1\n}'), findsOneWidget);
+    semantics.dispose();
   });
 
   testWidgets('list-root input hides the TOML target option', (

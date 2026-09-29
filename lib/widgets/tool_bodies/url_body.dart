@@ -403,9 +403,11 @@ class _QueryEditorState extends State<_QueryEditor> {
                     label: _keys[i].text.isEmpty
                         ? 'Remove pair'
                         : 'Remove ${_keys[i].text}',
+                    onTap: () => _removePair(i),
+                    excludeSemantics: true,
                     child: CupertinoButton(
                       padding: const EdgeInsets.all(MqSpacing.sm),
-                      minimumSize: const Size(40, 40),
+                      minimumSize: const Size(44, 44),
                       borderRadius: BorderRadius.circular(MqRadius.sm),
                       onPressed: () => _removePair(i),
                       child: Icon(MqIcons.trash, size: 18, color: c.danger),

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -14,6 +15,8 @@ import '../../theme/mq_typography.dart';
 import 'command_palette.dart';
 import 'layouts_sheet.dart';
 import 'shortcuts_hud.dart';
+
+typedef _WindowMenuEntry = ({int id, String title});
 
 /// Mac-style menubar pinned to the top of the desktop shell. Full-width, fixed
 /// height ([MqLayout.menubarHeight]). Left: brand glyph + menu titles. Right:
@@ -39,17 +42,28 @@ class DesktopMenubar extends StatefulWidget {
 class _DesktopMenubarState extends State<DesktopMenubar> {
   Timer? _clockTimer;
   String _time = '';
+  late List<_WindowMenuEntry> _windows;
 
   CanvasController get _c => widget.controller;
 
   @override
   void initState() {
     super.initState();
+    _windows = _windowEntries();
     _updateTime();
     _clockTimer = Timer.periodic(
       const Duration(seconds: 30),
       (_) => _updateTime(),
     );
+    _c.addListener(_onCanvasChange);
+  }
+
+  @override
+  void didUpdateWidget(DesktopMenubar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller == widget.controller) return;
+    oldWidget.controller.removeListener(_onCanvasChange);
+    _windows = _windowEntries();
     _c.addListener(_onCanvasChange);
   }
 
@@ -61,8 +75,15 @@ class _DesktopMenubarState extends State<DesktopMenubar> {
   }
 
   void _onCanvasChange() {
-    if (mounted) setState(() {});
+    final List<_WindowMenuEntry> next = _windowEntries();
+    if (!mounted || listEquals(_windows, next)) return;
+    setState(() => _windows = next);
   }
+
+  List<_WindowMenuEntry> _windowEntries() => <_WindowMenuEntry>[
+    for (final CanvasCard card in _c.cards)
+      (id: card.id, title: card.content.title),
+  ];
 
   void _updateTime() {
     final DateTime now = DateTime.now();
@@ -123,9 +144,9 @@ class _DesktopMenubarState extends State<DesktopMenubar> {
           _MenuButton(
             label: 'Window',
             items: <_MenuItem>[
-              for (final CanvasCard card in _c.cards)
-                _MenuItem(card.content.title, () => _c.focus(card.id)),
-              if (_c.cards.isNotEmpty) _MenuItem('Close All', _closeAll),
+              for (final _WindowMenuEntry window in _windows)
+                _MenuItem(window.title, () => _c.focus(window.id)),
+              if (_windows.isNotEmpty) _MenuItem('Close All', _closeAll),
             ],
           ),
           _MenuButton(

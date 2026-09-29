@@ -131,6 +131,7 @@ void main() {
   testWidgets('URL — removing a query pair rebuilds the encoded query', (
     WidgetTester tester,
   ) async {
+    final SemanticsHandle semantics = tester.ensureSemantics();
     await pumpHomeAndOpen(tester, 'URL');
 
     await tester.tap(find.text('Decode'));
@@ -142,8 +143,10 @@ void main() {
     );
     await tester.pumpAndSettle(kDebouncePump);
 
-    expect(find.bySemanticsLabel('Remove n'), findsOneWidget);
-    await tester.tap(find.bySemanticsLabel('Remove n'));
+    final Finder remove = find.bySemanticsLabel('Remove n');
+    expect(remove, findsOneWidget);
+    expect(tester.getSize(remove).shortestSide, greaterThanOrEqualTo(44));
+    tester.semantics.tap(find.semantics.byLabel('Remove n'));
     await tester.pump();
 
     final String expected = UrlParser.buildQuery(<QueryPair>[
@@ -151,6 +154,7 @@ void main() {
     ]);
     expect(find.text(expected), findsOneWidget);
     expect(find.text('10'), findsNothing);
+    semantics.dispose();
   });
 
   testWidgets('URL — Swap carries an edited query pair through', (

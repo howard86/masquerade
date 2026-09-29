@@ -224,15 +224,17 @@ abstract final class LogStackInspector {
 
   static _SafeLine _safeLine(int number, String raw) {
     final String trimmed = raw.trimLeft();
-    if ((trimmed.startsWith('{') || trimmed.startsWith('[')) &&
-        !_jsonWithinBounds(trimmed)) {
+    final bool mayBeJson = trimmed.startsWith('{') || trimmed.startsWith('[');
+    if (mayBeJson && !_jsonWithinBounds(trimmed)) {
       return _SafeLine(number, '[TRUNCATED JSON]', json: true, redacted: true);
     }
     Object? decoded;
-    try {
-      decoded = jsonDecode(raw);
-    } on FormatException {
-      decoded = null;
+    if (mayBeJson) {
+      try {
+        decoded = jsonDecode(raw);
+      } on FormatException {
+        decoded = null;
+      }
     }
     if (decoded is Map || decoded is List) {
       final _JsonBudget budget = _JsonBudget();

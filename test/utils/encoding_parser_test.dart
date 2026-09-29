@@ -11,6 +11,13 @@ void main() {
       expect(EncodingParser.isBase64('AAA='), isTrue);
     });
 
+    test('rejects non-canonical padding bits', () {
+      expect(EncodingParser.isBase64('AA=='), isTrue);
+      expect(EncodingParser.isBase64('AB=='), isFalse);
+      expect(EncodingParser.isBase64('AAA='), isTrue);
+      expect(EncodingParser.isBase64('AAB='), isFalse);
+    });
+
     test('rejects length not a multiple of 4', () {
       expect(EncodingParser.isBase64('AAA'), isFalse);
     });
@@ -24,8 +31,8 @@ void main() {
     });
 
     test('treats empty string as valid (trims to len 0, decodes to empty)', () {
-      // Documents actual behavior: '' matches the regex, len % 4 == 0, and
-      // base64Decode('') succeeds, so isBase64('') is true.
+      // Documents actual behavior: the empty string satisfies the Base64
+      // grammar and length constraints.
       expect(EncodingParser.isBase64(''), isTrue);
     });
 

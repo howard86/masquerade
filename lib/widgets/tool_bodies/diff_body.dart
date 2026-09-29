@@ -508,15 +508,21 @@ class _CollapseDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.mq.colors;
     final String lines = count == 1 ? 'line' : 'lines';
+    void expand() {
+      HapticFeedback.selectionClick();
+      onTap();
+    }
+
     return Semantics(
       button: true,
       label: 'Expand $count unchanged $lines',
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () {
-          HapticFeedback.selectionClick();
-          onTap();
-        },
+      onTap: expand,
+      excludeSemantics: true,
+      child: CupertinoButton(
+        padding: EdgeInsets.zero,
+        minimumSize: const Size(0, 44),
+        borderRadius: BorderRadius.zero,
+        onPressed: expand,
         child: Container(
           color: c.surface2,
           padding: const EdgeInsets.symmetric(

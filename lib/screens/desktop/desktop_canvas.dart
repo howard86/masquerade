@@ -40,6 +40,13 @@ const Map<String, ({String partnerId, ContentType type})> _linkPartners =
       'diff': (partnerId: 'list', type: ContentType.text),
     };
 
+typedef _ToolBodyCacheEntry = ({
+  UtilityDescriptor descriptor,
+  String? seed,
+  ValueListenable<String>? inbound,
+  Widget body,
+});
+
 /// The desktop work surface: a pannable canvas hosting the fixed
 /// [DesktopIconGrid] (single-click an icon to open a tool) with draggable tool
 /// cards floating above it. Menubar items cover ⌘K / paste / close-all, so the
@@ -59,6 +66,8 @@ class DesktopCanvas extends StatefulWidget {
 
 class _DesktopCanvasState extends State<DesktopCanvas> {
   final FocusNode _focusNode = FocusNode(debugLabel: 'canvas');
+  final Map<int, _ToolBodyCacheEntry> _toolBodies =
+      <int, _ToolBodyCacheEntry>{};
 
   /// Anchors the canvas surface so a pipe drop's global offset can be mapped to
   /// canvas-local coordinates (drop − surfaceTopLeft − pan).
@@ -93,6 +102,19 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
   }
 
   @override
+  void didUpdateWidget(DesktopCanvas oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller == widget.controller) return;
+    oldWidget.controller.removeListener(_onChange);
+    _toolBodies.clear();
+    _prevMinimized.clear();
+    for (final CanvasCard card in _c.cards) {
+      _prevMinimized[card.id] = card.minimized;
+    }
+    _c.addListener(_onChange);
+  }
+
+  @override
   void dispose() {
     _c.removeListener(_onChange);
     _focusNode.dispose();
@@ -103,6 +125,12 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     if (!mounted) return;
     final List<CanvasCard> currentCards = _c.cards;
     setState(() {
+      if (_toolBodies.length > currentCards.length) {
+        final Set<int> openIds = currentCards
+            .map((CanvasCard card) => card.id)
+            .toSet();
+        _toolBodies.removeWhere((int id, _) => !openIds.contains(id));
+      }
       for (final card in currentCards) {
         final bool wasMinimized = _prevMinimized[card.id] ?? false;
         if (card.minimized && !wasMinimized) {
@@ -239,8 +267,13 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
                             context,
                             details.globalPosition,
                           ),
-                      child: CustomPaint(
-                        painter: _DotGridPainter(color: c.border, offset: _pan),
+                      child: RepaintBoundary(
+                        child: CustomPaint(
+                          painter: _DotGridPainter(
+                            color: c.border,
+                            offset: _pan,
+                          ),
+                        ),
                       ),
                     ),
               ),
@@ -420,9 +453,6 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
 
   Widget _toolCardFrame(CanvasCard card, ToolWindow tw, {required int slot}) {
     final UtilityDescriptor descriptor = tw.descriptor;
-    final SeedSource src = card.seed != null
-        ? SeedSource.paste
-        : SeedSource.none;
     final ({String partnerId, ContentType type})? partner =
         _linkPartners[descriptor.id];
     final bool linked = _c.groupForCard(card.id) != null;
@@ -484,18 +514,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
           : null,
       onSecondaryTapDown: (TapDownDetails details) =>
           _showWindowContextMenu(context, details.globalPosition, card),
-      child: PipeScope(
-        cardId: card.id,
-        child: descriptor.builder(
-          context,
-          initialInput: card.seed,
-          seedSource: src,
-          onSwitchTool: (UtilityDescriptor u, String input) =>
-              _c.openTool(u, seed: input),
-          actionBar: null,
-          link: _c.channelForCard(card.id),
-        ),
-      ),
+      child: _toolBody(card, descriptor),
     );
     return DragTarget<PipePayload>(
       onWillAcceptWithDetails: (DragTargetDetails<PipePayload> d) =>
@@ -515,6 +534,36 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
             List<dynamic> rejected,
           ) => frame,
     );
+  }
+
+  Widget _toolBody(CanvasCard card, UtilityDescriptor descriptor) {
+    final LinkChannel? channel = _c.channelForCard(card.id);
+    final _ToolBodyCacheEntry? cached = _toolBodies[card.id];
+    if (cached != null &&
+        identical(cached.descriptor, descriptor) &&
+        cached.seed == card.seed &&
+        identical(cached.inbound, channel?.inbound)) {
+      return cached.body;
+    }
+    final Widget body = PipeScope(
+      cardId: card.id,
+      child: descriptor.builder(
+        context,
+        initialInput: card.seed,
+        seedSource: card.seed != null ? SeedSource.paste : SeedSource.none,
+        onSwitchTool: (UtilityDescriptor u, String input) =>
+            _c.openTool(u, seed: input),
+        actionBar: null,
+        link: channel,
+      ),
+    );
+    _toolBodies[card.id] = (
+      descriptor: descriptor,
+      seed: card.seed,
+      inbound: channel?.inbound,
+      body: body,
+    );
+    return body;
   }
 
   /// Edge-snap threshold in logical pixels.

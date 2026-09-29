@@ -58,7 +58,9 @@ class ToolGridCard extends StatelessWidget {
       children: <Widget>[
         Semantics(
           button: true,
-          label: 'Open ${descriptor.name}',
+          label: hasPreview
+              ? 'Open ${descriptor.name} with recent input'
+              : 'Open ${descriptor.name}',
           excludeSemantics: true,
           onTap: onTap,
           onLongPress: onLongPress,

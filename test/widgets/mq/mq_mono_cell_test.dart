@@ -22,6 +22,60 @@ Widget _wrap(Widget child) => CupertinoApp(
 );
 
 void main() {
+  testWidgets('accent hints use accent ink', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      _wrap(
+        const MqMonoCell(
+          label: 'Result',
+          value: 'value',
+          hint: 'hint',
+          accent: true,
+        ),
+      ),
+    );
+
+    expect(
+      tester.widget<Text>(find.text('hint')).style?.color,
+      MqColors.light().accentInk,
+    );
+  });
+
+  testWidgets('copy button supports keyboard activation', (
+    WidgetTester tester,
+  ) async {
+    String? clipboard;
+    final TestDefaultBinaryMessenger messenger =
+        tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (
+      MethodCall call,
+    ) async {
+      if (call.method == 'Clipboard.setData') {
+        clipboard = (call.arguments as Map<dynamic, dynamic>)['text'] as String;
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+    await tester.pumpWidget(
+      _wrap(
+        const Column(
+          children: <Widget>[
+            MqMonoCell(label: 'Hint', value: 'skip', copyable: false),
+            MqMonoCell(label: 'Result', value: 'exact value'),
+          ],
+        ),
+      ),
+    );
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(clipboard, 'exact value');
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('wraps a long no-whitespace value without overflow', (
     WidgetTester tester,
   ) async {

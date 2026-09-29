@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -93,15 +94,28 @@ void main() {
 
     // The collapse control announces itself as a button with a descriptive,
     // state-aware label so a screen reader can find and operate it.
-    expect(
-      find.byWidgetPredicate(
-        (Widget w) =>
-            w is Semantics &&
-            w.properties.button == true &&
-            (w.properties.label ?? '').startsWith('Expand ') &&
-            (w.properties.label ?? '').endsWith(' unchanged lines'),
-      ),
-      findsOneWidget,
+    final Finder divider = find.byWidgetPredicate(
+      (Widget w) =>
+          w is Semantics &&
+          w.properties.button == true &&
+          (w.properties.label ?? '').startsWith('Expand ') &&
+          (w.properties.label ?? '').endsWith(' unchanged lines'),
     );
+    expect(divider, findsOneWidget);
+    expect(tester.getSize(divider).height, greaterThanOrEqualTo(44));
+    final Rect dividerRect = tester.getRect(divider);
+    for (int i = 0; i < 20; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      final BuildContext? context = FocusManager.instance.primaryFocus?.context;
+      final RenderObject? renderObject = context?.findRenderObject();
+      if (renderObject is RenderBox &&
+          dividerRect.contains(renderObject.localToGlobal(Offset.zero))) {
+        break;
+      }
+    }
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(divider, findsNothing);
+    expect(find.text('line 10'), findsWidgets);
   });
 }

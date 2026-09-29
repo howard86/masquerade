@@ -16,6 +16,18 @@ Widget _host(Widget child) => CupertinoApp(
 );
 
 void main() {
+  testWidgets('small buttons keep a 44-point touch target', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      _host(MqButton(label: 'Action', size: MqButtonSize.sm, onPressed: () {})),
+    );
+
+    final Size size = tester.getSize(find.byType(MqButton));
+    expect(size.width, greaterThanOrEqualTo(44));
+    expect(size.height, greaterThanOrEqualTo(44));
+  });
+
   testWidgets('exposes one labelled semantics node with the enabled state', (
     WidgetTester tester,
   ) async {

@@ -161,7 +161,7 @@ class HistoryController extends ChangeNotifier {
   }
 
   Future<void> add(HistoryEntry entry) async {
-    if (!_allows(entry)) return;
+    if (_retention == Duration.zero || !_allows(entry)) return;
     // Dedupe: skip when the most recent entry shares utilityId + input.
     // Tools are deterministic (same input → same output), so consecutive
     // adds carry no new information. Mode flips that re-derive output from

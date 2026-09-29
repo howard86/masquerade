@@ -96,7 +96,7 @@ class MqMonoCell extends StatelessWidget {
               Text(
                 hint!,
                 style: MqTextStyles.caption1.copyWith(
-                  color: c.textTer,
+                  color: accent ? c.accentInk : c.textTer,
                   fontFamily: MqTextStyles.monoFamily,
                   fontFamilyFallback: MqTextStyles.monoFallback,
                 ),
@@ -208,28 +208,22 @@ class _CopyButtonState extends State<_CopyButton> {
     return Semantics(
       button: true,
       label: semanticsLabel,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: _handle,
-        // Grow the tappable region to the 44×44 iOS HIG minimum without
-        // enlarging the glyph: a min-size box centers the unchanged icon so a
-        // tap anywhere in the 44×44 area copies, while the visual stays put.
-        child: ConstrainedBox(
-          key: const ValueKey<String>('mqMonoCellCopyTarget'),
-          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-          child: Center(
-            widthFactor: 1,
-            heightFactor: 1,
-            child: Padding(
-              padding: const EdgeInsets.all(4),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                child: Icon(
-                  _copied ? MqIcons.check : MqIcons.copy,
-                  key: ValueKey<bool>(_copied),
-                  size: 14,
-                  color: _copied ? tokens.colors.success : widget.color,
-                ),
+      child: CupertinoButton(
+        key: const ValueKey<String>('mqMonoCellCopyTarget'),
+        padding: EdgeInsets.zero,
+        minimumSize: const Size.square(44),
+        borderRadius: BorderRadius.circular(MqRadius.sm),
+        onPressed: _handle,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: Icon(
+                _copied ? MqIcons.check : MqIcons.copy,
+                key: ValueKey<bool>(_copied),
+                size: 14,
+                color: _copied ? tokens.colors.success : widget.color,
               ),
             ),
           ),
