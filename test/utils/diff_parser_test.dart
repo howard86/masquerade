@@ -189,6 +189,26 @@ void main() {
         (op: DiffOp.equal, text: 'same text'),
       ]);
     });
+
+    test('pairs over the token cap highlight as a whole-line replace', () {
+      // 'w0 w1 …' tokenizes to word/space alternations: 2 tokens per word.
+      String line(int words, String changedPrefix) => <String>[
+        for (int i = 0; i < words; i++)
+          i % 10 == 0 ? '$changedPrefix$i' : 'w$i',
+      ].join(' ');
+      final String longA = line(501, 'w');
+      final String longB = line(501, 'x');
+      expect(DiffTool.wordDiff(longA, longB), <({DiffOp op, String text})>[
+        (op: DiffOp.delete, text: longA),
+        (op: DiffOp.insert, text: longB),
+      ]);
+      final List<({DiffOp op, String text})> fine = DiffTool.wordDiff(
+        line(499, 'w'),
+        line(499, 'x'),
+      );
+      expect(fine.first, (op: DiffOp.delete, text: 'w0'));
+      expect(fine.where((s) => s.op == DiffOp.equal), isNotEmpty);
+    });
   });
 
   group('DiffTool.hunkify', () {

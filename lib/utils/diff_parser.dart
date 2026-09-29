@@ -201,19 +201,21 @@ class DiffTool {
     final List<String> at = _tokenize(a);
     final List<String> bt = _tokenize(b);
 
-    final Map<String, int> intern = <String, int>{};
-    int idOf(String t) => intern.putIfAbsent(t, () => intern.length);
-    final List<int> ak = <int>[for (final String t in at) idOf(t)];
-    final List<int> bk = <int>[for (final String t in bt) idOf(t)];
-
-    // Token counts are bounded by line length, so the delta cap never trips
-    // here; fall back to a coarse replace if it somehow does.
-    final List<DiffOp> ops =
-        _myers(ak, bk) ??
-        <DiffOp>[
-          for (int i = 0; i < at.length; i++) DiffOp.delete,
-          for (int i = 0; i < bt.length; i++) DiffOp.insert,
-        ];
+    // Very long lines, or a pair past the delta cap, fall back to a coarse
+    // whole-line replace.
+    List<DiffOp>? ops;
+    if (at.length + bt.length <= maxWordDiffTokens) {
+      final Map<String, int> intern = <String, int>{};
+      int idOf(String t) => intern.putIfAbsent(t, () => intern.length);
+      ops = _myers(
+        <int>[for (final String t in at) idOf(t)],
+        <int>[for (final String t in bt) idOf(t)],
+      );
+    }
+    ops ??= <DiffOp>[
+      for (int i = 0; i < at.length; i++) DiffOp.delete,
+      for (int i = 0; i < bt.length; i++) DiffOp.insert,
+    ];
 
     final List<WordSpan> spans = <WordSpan>[];
     final StringBuffer buf = StringBuffer();
@@ -353,6 +355,10 @@ class DiffTool {
 
   static String _normalizeWs(String line) =>
       line.trim().replaceAll(_wsRun, ' ');
+
+  /// Above this many tokens per line pair the word diff (O(N·D) in tokens)
+  /// is skipped and the pair is highlighted as a whole-line replace.
+  static const int maxWordDiffTokens = 2000;
 
   static List<String> _tokenize(String s) =>
       _token.allMatches(s).map((Match m) => m.group(0)!).toList();
