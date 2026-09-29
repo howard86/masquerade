@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
@@ -77,6 +79,24 @@ class _HomeScreenState extends State<HomeScreen> {
   final Set<String> _acceptingSharedItems = <String>{};
   bool _handlingAppIntents = false;
 
+  // Detection cache. The controller notifies on caret, selection and focus
+  // changes too, and each notification rebuilds; the sweep only re-runs when
+  // the text or its provenance actually changes. Preference ranking is
+  // applied per build on the cached matches, so preference edits need no
+  // new sweep.
+  String? _detectedText;
+  ArtifactProvenance? _detectedProvenance;
+  List<DetectionMatch<Object?>> _detectedMatches =
+      const <DetectionMatch<Object?>>[];
+  Timer? _detectDebounce;
+  String? _seenText;
+
+  /// Typed single-keystroke edits to text at least this long wait
+  /// [_detectDelay] for typing to pause; shorter text sweeps in well under a
+  /// frame, and pastes, imports and scans always sweep immediately.
+  static const int _debounceMinLength = 4096;
+  static const Duration _detectDelay = Duration(milliseconds: 150);
+
   @override
   void initState() {
     super.initState();
@@ -95,6 +115,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _detectDebounce?.cancel();
     _hero.removeListener(_onHeroChange);
     _heroFocus.removeListener(_rebuild);
     _hero.dispose();
@@ -249,6 +270,68 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// Matches for the current text, from cache when neither the text nor its
+  /// provenance changed since the last sweep.
+  List<DetectionMatch<Object?>> _currentMatches() {
+    final String text = _hero.text;
+    final String? previous = _seenText;
+    _seenText = text;
+    final String? cached = _detectedText;
+    final bool sameText =
+        cached != null && (identical(text, cached) || text == cached);
+    if (sameText && _detectedProvenance == _provenance) {
+      _detectDebounce?.cancel();
+      return _detectedMatches;
+    }
+    if (sameText || !_isTypedKeystroke(previous, text)) {
+      _detectNow();
+    } else {
+      // Keep showing the previous result until typing pauses.
+      _detectDebounce?.cancel();
+      _detectDebounce = Timer(_detectDelay, () {
+        if (mounted) setState(_detectNow);
+      });
+    }
+    return _detectedMatches;
+  }
+
+  bool _isTypedKeystroke(String? previous, String text) =>
+      previous != null &&
+      _provenance == ArtifactProvenance.typed &&
+      text.length >= _debounceMinLength &&
+      (text.length - previous.length).abs() <= 1;
+
+  void _detectNow() {
+    _detectDebounce?.cancel();
+    _detectDebounce = null;
+    final String text = _hero.text;
+    _detectedMatches = UtilityCatalog.detectArtifacts(
+      text,
+      provenance: _provenance,
+    );
+    _detectedText = text;
+    _detectedProvenance = _provenance;
+  }
+
+  /// Opens a detected suggestion. When a debounced sweep is still pending the
+  /// rendered match may describe older text, so sweep now and open the
+  /// current match of the same kind and tool (or just refresh if it's gone).
+  void _openDetected(UtilityDescriptor tool, DetectionMatch<Object?> match) {
+    if (_detectDebounce?.isActive ?? false) {
+      setState(_detectNow);
+      final DetectionMatch<Object?>? fresh = _detectedMatches
+          .where(
+            (DetectionMatch<Object?> candidate) =>
+                candidate.artifact.kind == match.artifact.kind &&
+                candidate.primaryToolId == match.primaryToolId,
+          )
+          .firstOrNull;
+      if (fresh == null) return;
+      match = fresh;
+    }
+    _open(tool, artifact: match.artifact);
+  }
+
   void _open(
     UtilityDescriptor tool, {
     Artifact<Object?>? artifact,
@@ -339,7 +422,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final DetectionPreferenceController preferences =
         DetectionPreferenceScope.of(context);
     final List<DetectionMatch<Object?>> detected = preferences.rank(
-      UtilityCatalog.detectArtifacts(_hero.text, provenance: _provenance),
+      _currentMatches(),
     );
     final bool hasShape = detected.isNotEmpty;
     final List<UtilityDescriptor> nameMatches = hasShape
@@ -958,10 +1041,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       tool: suggestion.tool,
                       detail:
                           '${suggestion.primary ? 'Primary' : 'Alternative'} · ${(suggestion.match.confidence * 100).round()}% · ${suggestion.match.reason}',
-                      onTap: () => _open(
-                        suggestion.tool,
-                        artifact: suggestion.match.artifact,
-                      ),
+                      onTap: () =>
+                          _openDetected(suggestion.tool, suggestion.match),
                       onMakePrimary:
                           suggestion.primary || !preferences.canPrefer(detected)
                           ? null

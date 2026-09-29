@@ -147,6 +147,60 @@ void main() {
     );
   });
 
+  group('detection cache', () {
+    TextEditingController heroController(WidgetTester tester) => tester
+        .widget<CupertinoTextField>(find.byType(CupertinoTextField).first)
+        .controller!;
+
+    testWidgets('caret and focus changes reuse the last sweep', (
+      WidgetTester tester,
+    ) async {
+      await _pumpWorkbench(tester);
+      await _enter(tester, '{"ok":true}');
+      final TextEditingController hero = heroController(tester);
+      final int before = UtilityCatalog.debugSweepCount;
+      for (int i = 0; i < 5; i++) {
+        hero.selection = TextSelection.collapsed(offset: i);
+        await tester.pump();
+      }
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pump();
+      expect(UtilityCatalog.debugSweepCount, before);
+      expect(find.text('Artifact detected'), findsOneWidget);
+
+      await _enter(tester, 'uuid');
+      expect(UtilityCatalog.debugSweepCount, before + 1);
+      expect(find.text('Tool search'), findsOneWidget);
+    });
+
+    testWidgets('keystrokes into long text wait for typing to pause', (
+      WidgetTester tester,
+    ) async {
+      await _pumpWorkbench(tester);
+      final String long = 'word ' * 1000;
+      final int initial = UtilityCatalog.debugSweepCount;
+      await _enter(tester, long);
+      final int before = UtilityCatalog.debugSweepCount;
+      expect(before, initial + 1);
+
+      await _enter(tester, '${long}x');
+      await _enter(tester, '${long}xy');
+      expect(UtilityCatalog.debugSweepCount, before);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(UtilityCatalog.debugSweepCount, before);
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(UtilityCatalog.debugSweepCount, before + 1);
+
+      // A bulk replacement (paste-sized edit) sweeps immediately.
+      await _enter(tester, '{"ok":true}');
+      expect(UtilityCatalog.debugSweepCount, before + 2);
+      expect(
+        _semanticsStarts('Open JSON / YAML / TOML. Primary'),
+        findsOneWidget,
+      );
+    });
+  });
+
   testWidgets('shared inbox resumes safe content and deletes the handoff', (
     WidgetTester tester,
   ) async {
