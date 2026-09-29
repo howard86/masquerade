@@ -1658,14 +1658,19 @@ class UtilityCatalog {
 
   /// Shape-compatible tools that can consume output from [sourceUtilityId].
   /// Unknown sources fail closed rather than bypassing typed routing.
+  ///
+  /// Pass [matches] (the result of [detectArtifacts] on [output] with
+  /// [ArtifactProvenance.generated]) when the caller already ran that sweep,
+  /// so it isn't repeated.
   static List<UtilityDescriptor> compatibleNextSteps(
     String sourceUtilityId,
     String output, {
     List<DetectionMatch<Object?>> Function(List<DetectionMatch<Object?>>)? rank,
+    List<DetectionMatch<Object?>>? matches,
   }) {
     final UtilityDescriptor? source = byIdOrNull(sourceUtilityId);
     if (source == null) return const <UtilityDescriptor>[];
-    final List<DetectionMatch<Object?>> matches = detectArtifacts(
+    matches ??= detectArtifacts(
       output,
       provenance: ArtifactProvenance.generated,
     );
