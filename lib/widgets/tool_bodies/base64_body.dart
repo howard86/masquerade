@@ -141,6 +141,13 @@ class _Base64BodyState extends State<Base64Body>
         // Keep the raw bytes for the canvas preview/byte-delta — the utf8 text
         // below is lossy for binary payloads, so the preview must use these.
         decoded = Uint8List.fromList(codec.decode(src));
+        // Keep the previous instance when the bytes are unchanged (a chip
+        // toggle or re-parse of the same input): MemoryImage keys the image
+        // cache on identity, so a fresh copy would decode the preview again.
+        final Uint8List? previous = _decodedBytes;
+        if (previous != null && _sameBytes(previous, decoded)) {
+          decoded = previous;
+        }
         inBytes = utf8.encode(input.trim()).length;
         result = utf8.decode(decoded, allowMalformed: true);
       }
@@ -309,6 +316,14 @@ class _Base64BodyState extends State<Base64Body>
         );
       },
     );
+  }
+
+  static bool _sameBytes(Uint8List a, Uint8List b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   /// Sniffs a leading magic number; returns a short kind label or null if the
