@@ -88,7 +88,15 @@ class CanvasCard {
 
 /// Owns the set of open [CanvasCard]s on the desktop canvas: their positions,
 /// widths, which one has focus, and the slot order for ⌥1–9. Pure state — no
-/// widgets — so it unit-tests directly. The canvas widget listens and rebuilds.
+/// widgets — so it unit-tests directly.
+///
+/// Two change signals, so a drag doesn't rebuild the whole desktop:
+///  * the controller itself ([addListener]) fires on *structural* changes —
+///    open / close / minimize / maximize / snap / focus / z / links / restore —
+///    which the canvas, menubar and dock listen to;
+///  * geometry-only ticks ([moveTo], [resize], [resizeEdge]) fire only
+///    [geometry] plus the moved card's [watchCard] listenable, which the
+///    card's own positioned wrapper listens to.
 class CanvasController extends ChangeNotifier {
   CanvasController({double cascadeStep = 32, SharedPreferences? prefs})
     : _cascadeStep = cascadeStep,
@@ -115,6 +123,43 @@ class CanvasController extends ChangeNotifier {
 
   final List<LinkGroup> _groups = <LinkGroup>[];
   int _nextGroupId = 1;
+
+  final _Signal _geometry = _Signal();
+  final Map<int, ValueNotifier<CanvasCard>> _watchers =
+      <int, ValueNotifier<CanvasCard>>{};
+
+  /// Fires on every geometry-only change (a move / resize tick) of any card.
+  /// Structural changes fire the controller itself instead.
+  Listenable get geometry => _geometry;
+
+  /// A listenable holding card [id]'s latest record; it fires whenever that
+  /// card changes (geometry ticks included). [id] must be open.
+  ValueListenable<CanvasCard> watchCard(int id) => _watchers.putIfAbsent(
+    id,
+    () => ValueNotifier<CanvasCard>(
+      _cards.firstWhere((CanvasCard c) => c.id == id),
+    ),
+  );
+
+  /// Replaces `_cards[i]` and pushes it to that card's [watchCard] listeners.
+  void _replace(int i, CanvasCard next) {
+    _cards[i] = next;
+    _watchers[next.id]?.value = next;
+  }
+
+  /// Drops watchers of closed cards and resyncs the rest after a bulk change.
+  void _syncWatchers() {
+    if (_watchers.isEmpty) return;
+    final Map<int, CanvasCard> byId = <int, CanvasCard>{
+      for (final CanvasCard c in _cards) c.id: c,
+    };
+    _watchers.removeWhere((int id, ValueNotifier<CanvasCard> n) {
+      final CanvasCard? card = byId[id];
+      if (card == null) return true;
+      n.value = card;
+      return false;
+    });
+  }
 
   /// Resize bounds for a card's width (logical px).
   static const double minCardWidth = 300;
@@ -199,6 +244,7 @@ class CanvasController extends ChangeNotifier {
     final int before = _cards.length;
     _cards.removeWhere((CanvasCard c) => c.id == id);
     if (_cards.length == before) return;
+    _watchers.remove(id);
     _detachFromGroup(id);
     if (_focusedId == id) {
       _focusedId = _cards.isEmpty ? null : _cards.last.id;
@@ -211,6 +257,7 @@ class CanvasController extends ChangeNotifier {
   void closeAll() {
     if (_cards.isEmpty) return;
     _cards.clear();
+    _watchers.clear();
     // Notifiers are dropped, not disposed: the cards' bodies remove their
     // listeners during the ensuing rebuild, after which the notifiers are GC'd.
     _groups.clear();
@@ -225,7 +272,7 @@ class CanvasController extends ChangeNotifier {
     if (!_cards.any((CanvasCard c) => c.id == id)) return;
     final int i = _cards.indexWhere((CanvasCard c) => c.id == id);
     if (_focusedId != id || _cards[i].z != _nextZ - 1) {
-      _cards[i] = _cards[i].copyWith(z: _nextZ++);
+      _replace(i, _cards[i].copyWith(z: _nextZ++));
     }
     if (_focusedId == id) return;
     _focusedId = id;
@@ -252,8 +299,8 @@ class CanvasController extends ChangeNotifier {
   void moveTo(int id, double x, double y) {
     final int i = _cards.indexWhere((CanvasCard c) => c.id == id);
     if (i < 0) return;
-    _cards[i] = _cards[i].copyWith(x: x, y: y < -20 ? -20 : y);
-    notifyListeners();
+    _replace(i, _cards[i].copyWith(x: x, y: y < -20 ? -20 : y));
+    _geometry.fire();
   }
 
   /// Moves card [id] relative to its latest position.
@@ -270,8 +317,8 @@ class CanvasController extends ChangeNotifier {
     if (i < 0) return;
     final double w = width.clamp(minCardWidth, maxCardWidth);
     if (w == _cards[i].width) return;
-    _cards[i] = _cards[i].copyWith(width: w);
-    notifyListeners();
+    _replace(i, _cards[i].copyWith(width: w));
+    _geometry.fire();
   }
 
   /// Directionally resizes card [id] by [dx] and [dy] relative to the active edges.
@@ -316,13 +363,11 @@ class CanvasController extends ChangeNotifier {
       nextH = (nextH + dy).clamp(minCardHeight, maxCardHeight);
     }
 
-    _cards[i] = card.copyWith(
-      x: nextX,
-      y: nextY,
-      width: nextW,
-      height: () => nextH,
+    _replace(
+      i,
+      card.copyWith(x: nextX, y: nextY, width: nextW, height: () => nextH),
     );
-    notifyListeners();
+    _geometry.fire();
   }
 
   /// Duplicates card [id] — same tool, width, and seed, offset by one cascade
@@ -352,7 +397,7 @@ class CanvasController extends ChangeNotifier {
   void minimize(int id) {
     final int i = _cards.indexWhere((CanvasCard c) => c.id == id);
     if (i < 0 || _cards[i].minimized) return;
-    _cards[i] = _cards[i].copyWith(minimized: true);
+    _replace(i, _cards[i].copyWith(minimized: true));
     if (_focusedId == id) {
       final List<CanvasCard> visible = cardsByZ
           .where((CanvasCard c) => !c.minimized)
@@ -367,7 +412,7 @@ class CanvasController extends ChangeNotifier {
   void restoreWindow(int id) {
     final int i = _cards.indexWhere((CanvasCard c) => c.id == id);
     if (i < 0 || !_cards[i].minimized) return;
-    _cards[i] = _cards[i].copyWith(minimized: false, z: _nextZ++);
+    _replace(i, _cards[i].copyWith(minimized: false, z: _nextZ++));
     _focusedId = id;
     notifyListeners();
     _persist();
@@ -387,14 +432,17 @@ class CanvasController extends ChangeNotifier {
     final RestoreBounds rb =
         card.restoreBounds ??
         (x: card.x, y: card.y, width: card.width, height: card.height);
-    _cards[i] = card.copyWith(
-      x: x,
-      y: y,
-      width: width,
-      maximized: true,
-      height: () => height,
-      restoreBounds: () => rb,
-      z: _nextZ++,
+    _replace(
+      i,
+      card.copyWith(
+        x: x,
+        y: y,
+        width: width,
+        maximized: true,
+        height: () => height,
+        restoreBounds: () => rb,
+        z: _nextZ++,
+      ),
     );
     _focusedId = id;
     notifyListeners();
@@ -408,13 +456,16 @@ class CanvasController extends ChangeNotifier {
     final CanvasCard card = _cards[i];
     final RestoreBounds? rb = card.restoreBounds;
     if (rb == null) return;
-    _cards[i] = card.copyWith(
-      x: rb.x,
-      y: rb.y,
-      width: rb.width,
-      maximized: false,
-      height: () => rb.height,
-      restoreBounds: () => null,
+    _replace(
+      i,
+      card.copyWith(
+        x: rb.x,
+        y: rb.y,
+        width: rb.width,
+        maximized: false,
+        height: () => rb.height,
+        restoreBounds: () => null,
+      ),
     );
     notifyListeners();
     _persist();
@@ -451,14 +502,17 @@ class CanvasController extends ChangeNotifier {
     final RestoreBounds rb =
         card.restoreBounds ??
         (x: card.x, y: card.y, width: card.width, height: card.height);
-    _cards[i] = card.copyWith(
-      x: x,
-      y: y,
-      width: width,
-      maximized: false,
-      height: () => height,
-      restoreBounds: () => rb,
-      z: _nextZ++,
+    _replace(
+      i,
+      card.copyWith(
+        x: x,
+        y: y,
+        width: width,
+        maximized: false,
+        height: () => height,
+        restoreBounds: () => rb,
+        z: _nextZ++,
+      ),
     );
     _focusedId = id;
     notifyListeners();
@@ -467,6 +521,12 @@ class CanvasController extends ChangeNotifier {
 
   /// Persists the current canvas — call after a drag (move/resize) settles.
   void commit() => _persist();
+
+  @override
+  void dispose() {
+    _geometry.dispose();
+    super.dispose();
+  }
 
   // ─── Persistence ──────────────────────────────────────────────────────────
 
@@ -638,6 +698,7 @@ class CanvasController extends ChangeNotifier {
     _nextGroupId = (json['nextGroupId'] as num?)?.toInt() ?? (maxGid + 1);
     if (_nextGroupId <= maxGid) _nextGroupId = maxGid + 1;
 
+    _syncWatchers();
     notifyListeners();
   }
 
@@ -822,4 +883,9 @@ class CanvasController extends ChangeNotifier {
     g.canonical.value = value;
     _persist();
   }
+}
+
+/// A bare notifier the controller fires for geometry-only ticks.
+class _Signal extends ChangeNotifier {
+  void fire() => notifyListeners();
 }

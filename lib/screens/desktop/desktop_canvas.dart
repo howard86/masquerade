@@ -7,6 +7,7 @@ import '../../state/canvas_controller.dart';
 import '../../state/detection_preference_controller.dart';
 import '../../state/link_group.dart';
 import '../../state/window_content.dart';
+import '../../theme/mq_colors.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_metrics.dart';
 import '../../utility_catalog.dart';
@@ -72,7 +73,10 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
   /// Anchors the canvas surface so a pipe drop's global offset can be mapped to
   /// canvas-local coordinates (drop − surfaceTopLeft − pan).
   final GlobalKey _surfaceKey = GlobalKey();
-  Offset _pan = Offset.zero;
+
+  /// Pan offset. A notifier (not state) so panning repaints the dot grid and
+  /// repositions cards without rebuilding the desktop.
+  final ValueNotifier<Offset> _pan = ValueNotifier<Offset>(Offset.zero);
 
   CanvasController get _c => widget.controller;
 
@@ -88,9 +92,31 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     LogicalKeyboardKey.digit9,
   ];
 
-  int? _draggingCardId;
+  /// The card whose title bar is being dragged (drives the snap preview).
+  final ValueNotifier<int?> _draggingCardId = ValueNotifier<int?>(null);
   final Set<int> _animatingMinimizedIds = <int>{};
   final Map<int, bool> _prevMinimized = <int, bool>{};
+
+  /// Built once: the launcher grid depends on no canvas state, so reusing the
+  /// instance keeps its ~30 tiles out of every canvas rebuild.
+  late final Widget _iconGrid = DesktopIconGrid(
+    onOpen: (UtilityDescriptor u) => _c.openTool(u),
+    onOpenSystem: (SystemApp app) => _c.openSystem(app),
+  );
+
+  /// Snap preview + link lines follow every geometry tick, pan and drag.
+  late Listenable _overlayListenable = _overlayFor(_c);
+
+  Listenable _overlayFor(CanvasController c) =>
+      Listenable.merge(<Listenable?>[c.geometry, _pan, _draggingCardId]);
+
+  /// Per-card frame cache keyed by card id. The cached instance is returned
+  /// while its key (every non-geometry input) is unchanged, so a move tick
+  /// doesn't rebuild the frame; its body comes from [_toolBodies].
+  final Map<int, ({Object key, Widget frame})> _frames =
+      <int, ({Object key, Widget frame})>{};
+  final Map<int, ({Object watcher, Listenable listenable})> _cardListenables =
+      <int, ({Object watcher, Listenable listenable})>{};
 
   @override
   void initState() {
@@ -107,6 +133,9 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     if (oldWidget.controller == widget.controller) return;
     oldWidget.controller.removeListener(_onChange);
     _toolBodies.clear();
+    _frames.clear();
+    _cardListenables.clear();
+    _overlayListenable = _overlayFor(_c);
     _prevMinimized.clear();
     for (final CanvasCard card in _c.cards) {
       _prevMinimized[card.id] = card.minimized;
@@ -118,6 +147,8 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
   void dispose() {
     _c.removeListener(_onChange);
     _focusNode.dispose();
+    _pan.dispose();
+    _draggingCardId.dispose();
     super.dispose();
   }
 
@@ -125,12 +156,6 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     if (!mounted) return;
     final List<CanvasCard> currentCards = _c.cards;
     setState(() {
-      if (_toolBodies.length > currentCards.length) {
-        final Set<int> openIds = currentCards
-            .map((CanvasCard card) => card.id)
-            .toSet();
-        _toolBodies.removeWhere((int id, _) => !openIds.contains(id));
-      }
       for (final card in currentCards) {
         final bool wasMinimized = _prevMinimized[card.id] ?? false;
         if (card.minimized && !wasMinimized) {
@@ -154,6 +179,12 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
         }
         _prevMinimized[card.id] = card.minimized;
       }
+      final Set<int> open = <int>{
+        for (final CanvasCard card in currentCards) card.id,
+      };
+      _frames.removeWhere((int id, _) => !open.contains(id));
+      _toolBodies.removeWhere((int id, _) => !open.contains(id));
+      _cardListenables.removeWhere((int id, _) => !open.contains(id));
     });
   }
 
@@ -210,19 +241,84 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     final c = context.mq.colors;
     final List<CanvasCard> zCards = _c.cardsByZ;
     final List<CanvasCard> openOrder = _c.cards;
-
-    CanvasCard? draggingCard;
-    if (_draggingCardId != null) {
-      for (final CanvasCard card in openOrder) {
-        if (card.id == _draggingCardId) {
-          draggingCard = card;
-          break;
-        }
-      }
-    }
-
-    Rect? previewRect;
     final Size? canvasSize = _canvasSize;
+
+    return ClipRect(
+      child: ColoredBox(
+        key: _surfaceKey,
+        color: const Color(0x00000000),
+        child: Stack(
+          children: <Widget>[
+            Positioned.fill(
+              child: DragTarget<PipePayload>(
+                onAcceptWithDetails: _onDropOnCanvas,
+                builder:
+                    (
+                      BuildContext context,
+                      List<PipePayload?> candidate,
+                      List<dynamic> rejected,
+                    ) => GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onPanUpdate: (DragUpdateDetails d) =>
+                          _pan.value += d.delta,
+                      onSecondaryTapDown: (TapDownDetails details) =>
+                          _showWallpaperContextMenu(
+                            context,
+                            details.globalPosition,
+                          ),
+                      child: RepaintBoundary(
+                        child: CustomPaint(
+                          painter: _DotGridPainter(
+                            color: c.border,
+                            offset: _pan,
+                          ),
+                        ),
+                      ),
+                    ),
+              ),
+            ),
+            Positioned.fill(child: _iconGrid),
+            if (_c.hasLinks)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: ListenableBuilder(
+                    listenable: _overlayListenable,
+                    builder: (BuildContext context, Widget? _) => CustomPaint(
+                      painter: _LinkLinePainter(
+                        segments: _linkSegments(_c.cards, _pan.value),
+                        color: c.warning,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ListenableBuilder(
+              listenable: _overlayListenable,
+              builder: (BuildContext context, Widget? _) => _snapPreview(c),
+            ),
+            for (final CanvasCard card in zCards)
+              if (!card.minimized || _animatingMinimizedIds.contains(card.id))
+                _buildCardWrapper(
+                  card: card,
+                  openOrder: openOrder,
+                  canvasSize: canvasSize ?? const Size(1200, 800),
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// The half/full-tile outline shown while a card is dragged near an edge.
+  Widget _snapPreview(MqColors c) {
+    final int? draggingId = _draggingCardId.value;
+    final CanvasCard? draggingCard = draggingId == null
+        ? null
+        : _cardById(draggingId);
+    Rect? previewRect;
+    // The surface may not be laid out yet on the first build; only a drag
+    // (which implies a laid-out surface) needs its size.
+    final Size? canvasSize = draggingCard == null ? null : _canvasSize;
     if (canvasSize != null && draggingCard != null) {
       if (draggingCard.x <= _snapThreshold) {
         previewRect = Rect.fromLTWH(
@@ -243,95 +339,42 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
         previewRect = Rect.fromLTWH(0, 0, canvasSize.width, canvasSize.height);
       }
     }
-
-    return ClipRect(
-      child: ColoredBox(
-        key: _surfaceKey,
-        color: const Color(0x00000000),
-        child: Stack(
-          children: <Widget>[
-            Positioned.fill(
-              child: DragTarget<PipePayload>(
-                onAcceptWithDetails: _onDropOnCanvas,
-                builder:
-                    (
-                      BuildContext context,
-                      List<PipePayload?> candidate,
-                      List<dynamic> rejected,
-                    ) => GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onPanUpdate: (DragUpdateDetails d) =>
-                          setState(() => _pan += d.delta),
-                      onSecondaryTapDown: (TapDownDetails details) =>
-                          _showWallpaperContextMenu(
-                            context,
-                            details.globalPosition,
-                          ),
-                      child: RepaintBoundary(
-                        child: CustomPaint(
-                          painter: _DotGridPainter(
-                            color: c.border,
-                            offset: _pan,
-                          ),
-                        ),
-                      ),
-                    ),
-              ),
+    if (previewRect == null) {
+      return const Positioned(left: 0, top: 0, child: SizedBox.shrink());
+    }
+    final Offset pan = _pan.value;
+    return Positioned(
+      left: previewRect.left + pan.dx,
+      top: previewRect.top + pan.dy,
+      width: previewRect.width,
+      height: previewRect.height,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        margin: const EdgeInsets.all(MqSpacing.sm),
+        decoration: BoxDecoration(
+          color: c.accent.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(MqRadius.md),
+          border: Border.all(
+            color: c.accent.withValues(alpha: 0.4),
+            width: 1.5,
+          ),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: c.accent.withValues(alpha: 0.08),
+              blurRadius: 12,
+              spreadRadius: 1,
             ),
-            Positioned.fill(
-              child: DesktopIconGrid(
-                onOpen: (UtilityDescriptor u) => _c.openTool(u),
-                onOpenSystem: (SystemApp app) => _c.openSystem(app),
-              ),
-            ),
-            if (_c.hasLinks)
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: CustomPaint(
-                    painter: _LinkLinePainter(
-                      segments: _linkSegments(openOrder),
-                      color: c.warning,
-                    ),
-                  ),
-                ),
-              ),
-            if (previewRect != null)
-              Positioned(
-                left: previewRect.left + _pan.dx,
-                top: previewRect.top + _pan.dy,
-                width: previewRect.width,
-                height: previewRect.height,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  margin: const EdgeInsets.all(MqSpacing.sm),
-                  decoration: BoxDecoration(
-                    color: c.accent.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(MqRadius.md),
-                    border: Border.all(
-                      color: c.accent.withValues(alpha: 0.4),
-                      width: 1.5,
-                    ),
-                    boxShadow: <BoxShadow>[
-                      BoxShadow(
-                        color: c.accent.withValues(alpha: 0.08),
-                        blurRadius: 12,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            for (final CanvasCard card in zCards)
-              if (!card.minimized || _animatingMinimizedIds.contains(card.id))
-                _buildCardWrapper(
-                  card: card,
-                  openOrder: openOrder,
-                  canvasSize: canvasSize ?? const Size(1200, 800),
-                ),
           ],
         ),
       ),
     );
+  }
+
+  CanvasCard? _cardById(int id) {
+    for (final CanvasCard card in _c.cards) {
+      if (card.id == id) return card;
+    }
+    return null;
   }
 
   void _onDropOnCanvas(DragTargetDetails<PipePayload> details) {
@@ -351,7 +394,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
       UtilityCatalog.byId(matches.first.primaryToolId),
       seed: matches.first.artifact.rawValue,
     );
-    _c.moveTo(id, local.dx - _pan.dx, local.dy - _pan.dy);
+    _c.moveTo(id, local.dx - _pan.value.dx, local.dy - _pan.value.dy);
     _c.commit();
   }
 
@@ -361,32 +404,120 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     required Size canvasSize,
   }) {
     final int slot = openOrder.indexWhere((c) => c.id == card.id) + 1;
-    final Widget frame = _cardFrame(card, slot: slot);
+    final int id = card.id;
 
-    if (_animatingMinimizedIds.contains(card.id)) {
-      return _AnimatedWindow(
-        card: card,
-        slot: slot,
-        pan: _pan,
-        canvasSize: canvasSize,
-        child: frame,
+    if (_animatingMinimizedIds.contains(id)) {
+      final Widget frame = _cardFrame(card, slot: slot);
+      return ValueListenableBuilder<Offset>(
+        valueListenable: _pan,
+        builder: (BuildContext context, Offset pan, Widget? _) =>
+            _AnimatedWindow(
+              card: card,
+              slot: slot,
+              pan: pan,
+              canvasSize: canvasSize,
+              child: frame,
+            ),
       );
     }
 
-    return Positioned(
-      key: ValueKey<int>(card.id),
-      left: card.x + _pan.dx,
-      top: card.y + _pan.dy,
-      child: SizedBox(width: card.width, height: card.height, child: frame),
+    // Only this card's geometry and the pan re-run this builder; the frame
+    // (and the tool body inside it) comes back from the cache unless a
+    // non-geometry input changed.
+    return ListenableBuilder(
+      key: ValueKey<int>(id),
+      listenable: _cardListenable(id),
+      builder: (BuildContext context, Widget? _) {
+        final CanvasCard live = _c.watchCard(id).value;
+        final Offset pan = _pan.value;
+        return Positioned(
+          left: live.x + pan.dx,
+          top: live.y + pan.dy,
+          child: SizedBox(
+            width: live.width,
+            height: live.height,
+            child: _cardFrame(live, slot: slot),
+          ),
+        );
+      },
     );
   }
 
+  Listenable _cardListenable(int id) {
+    final ValueListenable<CanvasCard> watcher = _c.watchCard(id);
+    final ({Object watcher, Listenable listenable})? cached =
+        _cardListenables[id];
+    if (cached != null && identical(cached.watcher, watcher)) {
+      return cached.listenable;
+    }
+    final Listenable merged = Listenable.merge(<Listenable?>[watcher, _pan]);
+    _cardListenables[id] = (watcher: watcher, listenable: merged);
+    return merged;
+  }
+
+  /// The cached frame for [card], rebuilt only when an input other than its
+  /// position / width changes.
   Widget _cardFrame(CanvasCard card, {required int slot}) {
+    final LinkGroup? group = _c.groupForCard(card.id);
+    final Object key = (
+      card.content,
+      slot,
+      _c.focusedId == card.id,
+      card.maximized,
+      card.height,
+      card.seed,
+      group,
+    );
+    final ({Object key, Widget frame})? cached = _frames[card.id];
+    if (cached != null && cached.key == key) return cached.frame;
     final WindowContent content = card.content;
-    return switch (content) {
-      ToolWindow tw => _toolCardFrame(card, tw, slot: slot),
+    final Widget frame = switch (content) {
+      ToolWindow tw => _toolCardFrame(card, tw, slot: slot, group: group),
       SystemWindow sw => _systemCardFrame(card, sw, slot: slot),
     };
+    _frames[card.id] = (key: key, frame: frame);
+    return frame;
+  }
+
+  Widget _toolBody(CanvasCard card, UtilityDescriptor descriptor) {
+    final LinkChannel? channel = _c.channelForCard(card.id);
+    final _ToolBodyCacheEntry? cached = _toolBodies[card.id];
+    if (cached != null &&
+        identical(cached.descriptor, descriptor) &&
+        cached.seed == card.seed &&
+        identical(cached.inbound, channel?.inbound)) {
+      return cached.body;
+    }
+    final Widget body = PipeScope(
+      cardId: card.id,
+      child: descriptor.builder(
+        context,
+        initialInput: card.seed,
+        seedSource: card.seed != null ? SeedSource.paste : SeedSource.none,
+        onSwitchTool: (UtilityDescriptor u, String input) =>
+            _c.openTool(u, seed: input),
+        actionBar: null,
+        link: channel,
+      ),
+    );
+    _toolBodies[card.id] = (
+      descriptor: descriptor,
+      seed: card.seed,
+      inbound: channel?.inbound,
+      body: body,
+    );
+    return body;
+  }
+
+  void _onTitleDrag(int id, Offset d) {
+    if (_draggingCardId.value != id) _draggingCardId.value = id;
+    _c.moveBy(id, d.dx, d.dy);
+  }
+
+  void _onTitleDragEnd(int id) {
+    _draggingCardId.value = null;
+    final CanvasCard? card = _cardById(id);
+    if (card != null) _onMoveEnd(card);
   }
 
   Widget _systemCardFrame(
@@ -409,20 +540,8 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
       onClose: () => _c.close(card.id),
       onMinimize: () => _c.minimize(card.id),
       onToggleMaximize: () => _toggleMax(card),
-      onMoveDelta: (Offset d) {
-        if (_draggingCardId != card.id) {
-          setState(() {
-            _draggingCardId = card.id;
-          });
-        }
-        _c.moveBy(card.id, d.dx, d.dy);
-      },
-      onMoveEnd: () {
-        setState(() {
-          _draggingCardId = null;
-        });
-        _onMoveEnd(_c.cards.firstWhere((CanvasCard c) => c.id == card.id));
-      },
+      onMoveDelta: (Offset d) => _onTitleDrag(card.id, d),
+      onMoveEnd: () => _onTitleDragEnd(card.id),
       onResizeEdge:
           (
             double dx,
@@ -446,16 +565,21 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
           },
       onResizeEnd: _c.commit,
       onSecondaryTapDown: (TapDownDetails details) =>
-          _showWindowContextMenu(context, details.globalPosition, card),
+          _showWindowContextMenuFor(details.globalPosition, card.id),
       child: body,
     );
   }
 
-  Widget _toolCardFrame(CanvasCard card, ToolWindow tw, {required int slot}) {
+  Widget _toolCardFrame(
+    CanvasCard card,
+    ToolWindow tw, {
+    required int slot,
+    required LinkGroup? group,
+  }) {
     final UtilityDescriptor descriptor = tw.descriptor;
     final ({String partnerId, ContentType type})? partner =
         _linkPartners[descriptor.id];
-    final bool linked = _c.groupForCard(card.id) != null;
+    final bool linked = group != null;
     final ToolCardFrame frame = ToolCardFrame(
       title: tw.title,
       slot: slot <= 9 ? slot : null,
@@ -467,20 +591,8 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
       onMinimize: () => _c.minimize(card.id),
       onToggleMaximize: () => _toggleMax(card),
       onDuplicate: () => _c.duplicate(card.id),
-      onMoveDelta: (Offset d) {
-        if (_draggingCardId != card.id) {
-          setState(() {
-            _draggingCardId = card.id;
-          });
-        }
-        _c.moveBy(card.id, d.dx, d.dy);
-      },
-      onMoveEnd: () {
-        setState(() {
-          _draggingCardId = null;
-        });
-        _onMoveEnd(_c.cards.firstWhere((CanvasCard c) => c.id == card.id));
-      },
+      onMoveDelta: (Offset d) => _onTitleDrag(card.id, d),
+      onMoveEnd: () => _onTitleDragEnd(card.id),
       onResizeEdge:
           (
             double dx,
@@ -513,7 +625,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
           ? () => _toggleLink(card, partner)
           : null,
       onSecondaryTapDown: (TapDownDetails details) =>
-          _showWindowContextMenu(context, details.globalPosition, card),
+          _showWindowContextMenuFor(details.globalPosition, card.id),
       child: _toolBody(card, descriptor),
     );
     return DragTarget<PipePayload>(
@@ -534,36 +646,6 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
             List<dynamic> rejected,
           ) => frame,
     );
-  }
-
-  Widget _toolBody(CanvasCard card, UtilityDescriptor descriptor) {
-    final LinkChannel? channel = _c.channelForCard(card.id);
-    final _ToolBodyCacheEntry? cached = _toolBodies[card.id];
-    if (cached != null &&
-        identical(cached.descriptor, descriptor) &&
-        cached.seed == card.seed &&
-        identical(cached.inbound, channel?.inbound)) {
-      return cached.body;
-    }
-    final Widget body = PipeScope(
-      cardId: card.id,
-      child: descriptor.builder(
-        context,
-        initialInput: card.seed,
-        seedSource: card.seed != null ? SeedSource.paste : SeedSource.none,
-        onSwitchTool: (UtilityDescriptor u, String input) =>
-            _c.openTool(u, seed: input),
-        actionBar: null,
-        link: channel,
-      ),
-    );
-    _toolBodies[card.id] = (
-      descriptor: descriptor,
-      seed: card.seed,
-      inbound: channel?.inbound,
-      body: body,
-    );
-    return body;
   }
 
   /// Edge-snap threshold in logical pixels.
@@ -644,7 +726,10 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
 
   /// One gold segment per linked pair, anchored at each card's title bar (in
   /// the same panned coordinates as the cards).
-  List<({Offset a, Offset b})> _linkSegments(List<CanvasCard> cards) {
+  List<({Offset a, Offset b})> _linkSegments(
+    List<CanvasCard> cards,
+    Offset pan,
+  ) {
     final Map<int, CanvasCard> byId = <int, CanvasCard>{
       for (final CanvasCard card in cards) card.id: card,
     };
@@ -655,14 +740,17 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
           .whereType<CanvasCard>()
           .toList();
       for (int i = 0; i + 1 < members.length; i++) {
-        segments.add((a: _anchor(members[i]), b: _anchor(members[i + 1])));
+        segments.add((
+          a: _anchor(members[i], pan),
+          b: _anchor(members[i + 1], pan),
+        ));
       }
     }
     return segments;
   }
 
-  Offset _anchor(CanvasCard card) =>
-      Offset(card.x + _pan.dx + card.width / 2, card.y + _pan.dy + 18);
+  Offset _anchor(CanvasCard card, Offset pan) =>
+      Offset(card.x + pan.dx + card.width / 2, card.y + pan.dy + 18);
 
   void _showWallpaperContextMenu(BuildContext context, Offset position) {
     showDesktopContextMenu(context, position, <ContextMenuItem>[
@@ -683,6 +771,13 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
         destructive: true,
       ),
     ]);
+  }
+
+  /// Opens the window menu for card [id] with its latest record (the frame
+  /// that received the click may be a cached instance).
+  void _showWindowContextMenuFor(Offset position, int id) {
+    final CanvasCard? card = _cardById(id);
+    if (card != null) _showWindowContextMenu(context, position, card);
   }
 
   void _showWindowContextMenu(
@@ -738,18 +833,20 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
 
 /// Subtle dot grid that scrolls with the canvas pan, echoing the design mock.
 class _DotGridPainter extends CustomPainter {
-  _DotGridPainter({required this.color, required this.offset});
+  _DotGridPainter({required this.color, required this.offset})
+    : super(repaint: offset);
 
   final Color color;
-  final Offset offset;
+  final ValueListenable<Offset> offset;
 
   static const double _step = 24;
 
   @override
   void paint(Canvas canvas, Size size) {
     final Paint paint = Paint()..color = color;
-    final double startX = offset.dx % _step;
-    final double startY = offset.dy % _step;
+    final Offset pan = offset.value;
+    final double startX = pan.dx % _step;
+    final double startY = pan.dy % _step;
     for (double x = startX; x < size.width; x += _step) {
       for (double y = startY; y < size.height; y += _step) {
         canvas.drawCircle(Offset(x, y), 0.75, paint);
