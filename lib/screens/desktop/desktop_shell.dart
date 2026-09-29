@@ -7,6 +7,7 @@ import '../../models/artifact.dart';
 import '../../state/canvas_controller.dart';
 import '../../state/detection_preference_controller.dart';
 import '../../state/window_content.dart';
+import '../../theme/mq_colors.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../utility_catalog.dart';
@@ -78,6 +79,13 @@ class _DesktopShellState extends State<DesktopShell> {
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
+    // Any rebuild under the host's LayoutBuilder (e.g. a card's geometry
+    // builder) relays it out and repaints up to the nearest boundary; this one
+    // keeps the menubar, dock and shell chrome out of that repaint.
+    return RepaintBoundary(child: _scaffold(c));
+  }
+
+  Widget _scaffold(MqColors c) {
     return CupertinoPageScaffold(
       backgroundColor: c.bg,
       child: Column(
@@ -92,7 +100,13 @@ class _DesktopShellState extends State<DesktopShell> {
             child: Stack(
               children: <Widget>[
                 const Positioned.fill(child: DesktopWallpaper()),
-                Positioned.fill(child: DesktopCanvas(controller: _canvas)),
+                // Contains canvas repaints (drags, pan) so the wallpaper,
+                // dock and menubar aren't re-recorded with it.
+                Positioned.fill(
+                  child: RepaintBoundary(
+                    child: DesktopCanvas(controller: _canvas),
+                  ),
+                ),
                 Positioned(
                   left: 0,
                   right: 0,

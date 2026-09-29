@@ -99,9 +99,11 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
 
   /// Built once: the launcher grid depends on no canvas state, so reusing the
   /// instance keeps its ~30 tiles out of every canvas rebuild.
-  late final Widget _iconGrid = DesktopIconGrid(
-    onOpen: (UtilityDescriptor u) => _c.openTool(u),
-    onOpenSystem: (SystemApp app) => _c.openSystem(app),
+  late final Widget _iconGrid = RepaintBoundary(
+    child: DesktopIconGrid(
+      onOpen: (UtilityDescriptor u) => _c.openTool(u),
+      onOpenSystem: (SystemApp app) => _c.openSystem(app),
+    ),
   );
 
   /// Snap preview + link lines follow every geometry tick, pan and drag.
@@ -471,10 +473,14 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     final ({Object key, Widget frame})? cached = _frames[card.id];
     if (cached != null && cached.key == key) return cached.frame;
     final WindowContent content = card.content;
-    final Widget frame = switch (content) {
-      ToolWindow tw => _toolCardFrame(card, tw, slot: slot, group: group),
-      SystemWindow sw => _systemCardFrame(card, sw, slot: slot),
-    };
+    // Each window is its own layer: moving it re-composites instead of
+    // re-recording its content, shadow and clip.
+    final Widget frame = RepaintBoundary(
+      child: switch (content) {
+        ToolWindow tw => _toolCardFrame(card, tw, slot: slot, group: group),
+        SystemWindow sw => _systemCardFrame(card, sw, slot: slot),
+      },
+    );
     _frames[card.id] = (key: key, frame: frame);
     return frame;
   }

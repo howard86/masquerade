@@ -1,4 +1,8 @@
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
 import 'package:masquerade/state/canvas_controller.dart';
@@ -147,5 +151,83 @@ void main() {
       tester.widget<ToolCardFrame>(find.byType(ToolCardFrame).at(2)).title,
       UtilityCatalog.byId('json').name,
     );
+  });
+
+  testWidgets('a window drag repaints neither the dot grid nor the wallpaper', (
+    WidgetTester tester,
+  ) async {
+    await _pumpWithWindows(tester);
+    final Offset top = tester.getTopLeft(find.byType(ToolCardFrame).last);
+    final TestGesture g = await tester.startGesture(
+      top + const Offset(180, 18),
+    );
+    await g.moveBy(const Offset(30, 0));
+    await tester.pump();
+
+    int painted = 0;
+    final Set<String> customPainters = <String>{};
+    debugOnProfilePaint = (RenderObject ro) {
+      painted++;
+      if (ro is RenderCustomPaint) {
+        customPainters.add(ro.painter.runtimeType.toString());
+      }
+    };
+    try {
+      for (int i = 0; i < 5; i++) {
+        await g.moveBy(const Offset(4, 3));
+        await tester.pump();
+      }
+    } finally {
+      debugOnProfilePaint = null;
+    }
+    await g.up();
+    await tester.pumpAndSettle();
+
+    expect(customPainters, isNot(contains('_DotGridPainter')));
+    // Windows, wallpaper, icon grid and shell chrome are separate layers, so a
+    // tick re-records only the canvas stack's thin wrappers (~1000 before).
+    expect(painted / 5, lessThan(60));
+  });
+
+  testWidgets('the dot grid follows the pan through its repaint listenable', (
+    WidgetTester tester,
+  ) async {
+    await _pumpWithWindows(tester);
+    final Finder grid = find.byWidgetPredicate(
+      (Widget w) =>
+          w is CustomPaint &&
+          w.painter.runtimeType.toString() == '_DotGridPainter',
+    );
+    Future<Uint8List> snap() async {
+      final RenderRepaintBoundary boundary = tester
+          .renderObject<RenderRepaintBoundary>(
+            find
+                .ancestor(of: grid, matching: find.byType(RepaintBoundary))
+                .first,
+          );
+      late Uint8List bytes;
+      await tester.runAsync(() async {
+        final ui.Image image = await boundary.toImage();
+        bytes = (await image.toByteData(
+          format: ui.ImageByteFormat.rawRgba,
+        ))!.buffer.asUint8List();
+        image.dispose();
+      });
+      return bytes;
+    }
+
+    final TestGesture g = await tester.startGesture(const Offset(900, 820));
+    await g.moveBy(const Offset(40, 0)); // past the pan slop
+    await tester.pump();
+    final Uint8List before = await snap();
+
+    await g.moveBy(const Offset(12, 0)); // half a grid step: dots move
+    await tester.pump();
+    expect(await snap(), isNot(equals(before)));
+
+    await g.moveBy(const Offset(-12, 0)); // back to the start
+    await tester.pump();
+    expect(await snap(), equals(before));
+    await g.up();
   });
 }
