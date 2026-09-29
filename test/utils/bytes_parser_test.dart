@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/utils/bytes_parser.dart';
@@ -106,6 +107,36 @@ void main() {
       final BytesParseResult parsed = BytesParser.parse(formatted);
       expect(parsed, isA<BytesParseOk>());
       expect(utf8.decode((parsed as BytesParseOk).bytes), text);
+    });
+  });
+
+  group('BytesParser.format', () {
+    test('formats every byte value exactly', () {
+      final Uint8List all = Uint8List.fromList(
+        List<int>.generate(256, (int i) => i),
+      );
+      expect(
+        BytesParser.format(all, BytesFormat.space),
+        List<int>.generate(256, (int i) => i).join(' '),
+      );
+      expect(
+        BytesParser.format(all, BytesFormat.brackets),
+        '[${List<int>.generate(256, (int i) => i).join(', ')}]',
+      );
+      expect(
+        BytesParser.format(all, BytesFormat.hex),
+        List<String>.generate(
+          256,
+          (int i) => i.toRadixString(16).padLeft(2, '0'),
+        ).join(' '),
+      );
+    });
+
+    test('formats empty input as empty lists', () {
+      final Uint8List empty = Uint8List(0);
+      expect(BytesParser.format(empty, BytesFormat.space), '');
+      expect(BytesParser.format(empty, BytesFormat.brackets), '[]');
+      expect(BytesParser.format(empty, BytesFormat.hex), '');
     });
   });
 }
