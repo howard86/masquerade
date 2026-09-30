@@ -1,6 +1,6 @@
 # Launch Metadata — App Store, Web, README, Brand Prompts
 
-Status: locked spec, drafted via /grill-me on 2026-05-11. Refreshed 2026-07-16 for the current app (tool set grew 9 → 18, version now tracks `pubspec.yaml` `1.25.x`); positioning anchors in §1 unchanged.
+Status: locked spec, drafted via /grill-me on 2026-05-11. Refreshed 2026-08-18 for the current app (tool set grew 18 → 28, version now tracks `pubspec.yaml` `1.28.x`); positioning anchors in §1 unchanged.
 Scope this round: App Store (iOS), web PWA + meta tags, GitHub social card / README hero, brand asset prompts. Play Store metadata deliberately deferred (see §7).
 
 ## 1. Positioning anchors (load-bearing for everything below)
@@ -17,18 +17,19 @@ These four lines drive every string and every prompt below. Change one → re-de
 ## 2. App Store metadata
 
 ```yaml
-name:                "Masquerade: A Quiet Toolbox"        # 27/30
-subtitle:            "A quiet toolbox for builders."       # 29/30
+name:                "Masquerade: A Quiet Toolbox"         # 27/30
+subtitle:            "A quiet toolbox for builders."        # 29/30
 primary_category:    Utilities
 secondary_category:  Developer Tools
 age_rating:          4+
-keywords:            "json,base64,cron,hex,timestamp,epoch,uuid,jwt,hash,diff,cidr,color,oklch,wcag,qr,bytes,url,encode"   # 97/100
+keywords:            "json,jwt,cron,uuid,regex,epoch,hex,cidr,diff,hash,yaml,csv,x509,base64,color,qr,bytes,url,env,unicode,toml"   # 99/100
 support_url:         https://github.com/howard86/masquerade/issues
 marketing_url:       https://github.com/howard86/masquerade
 privacy_policy_url:  https://github.com/howard86/masquerade/blob/main/docs/privacy.md
 privacy_label:       Data Not Collected
 business_model:      Paid (one-time purchase) — no IAP, no subscription, no ads
 eula:                Apple standard Licensed Application EULA (no custom EULA)
+copyright:           "© 2026 Howardism"
 ```
 
 App name on store ≠ home-screen name. `CFBundleDisplayName` stays `Masquerade` so the home-screen label does not truncate.
@@ -50,25 +51,59 @@ The source is published under a source-available license (`LICENSE`, proprietary
 
 **Schedule 2 is the long pole.** Everything else in §8 takes minutes; the Paid Apps Agreement needs bank-account and tax-form verification and takes days. Start it first — until it is active, no price can be set and the app cannot reach *Ready for Sale* no matter how green the build is.
 
-### Promotional text (~150/170, editable post-release without re-review)
+### Promotional text (164/170, editable post-release without re-review)
 
-> A pocket of conversions for the data you carry — timestamps, JSON, JWT, UUID, color, base64, cron, hashes, diffs, QR. Offline. No tracking. No noise.
+> A quiet pocket of 28 developer converters and inspectors — JSON, JWT, cron, regex, timestamps, diffs, colors, logs, and certs. Offline. No ads. Zero tracking.
 
 ### Description (lead 250 visible without "more")
 
 > Masquerade is a quiet toolbox for builders.
 >
-> Convert timestamps between epoch and ISO. Reformat JSON, YAML, and TOML. Decode base64 and JWTs. Read cron schedules in plain English. Move between hex, binary, decimal, and bytes. Translate colors across HEX, RGB, HSL, and OKLCH with WCAG contrast. Convert basis points to percent and back. Scan or generate QR.
+> Twenty-eight converters, formatters, and inspectors crafted for the data you carry every day. Fast, copy-friendly, and typeset with editorial restraint in IBM Plex.
 >
-> Then the deeper drawer: generate and inspect UUIDs and ULIDs. Hash with MD5 through SHA-512. Diff two texts. Subnet IPv4/IPv6 and CIDR blocks. Percent-encode URLs and edit query strings. Evaluate math expressions. Split and join lists. Generate passwords and tokens.
+> CORE TRANSFORMATIONS
+> • JSON, YAML & TOML — Pretty-print, minify, browse interactive trees, and convert between structured formats.
+> • Timestamps & Epoch — Convert between Unix seconds/milliseconds and ISO 8601 with relative time breakdowns.
+> • JWT Decoder — Inspect header, payload, and standard claims with expiration and validity checks.
+> • Number Base & Bytes — Move between Hex, Binary, Octal, Decimal, and UTF-8 byte arrays.
+> • Base64 & Text Case — Encode, decode (standard & URL-safe), and convert identifiers across camel, snake, kebab, and pascal cases.
+> • CSV / TSV — Bidirectional conversion with JSON and bounded table previews.
+> • Color & Contrast — Translate HEX, RGB, HSL, and OKLCH with WCAG 2.1 contrast ratio scoring.
+> • Basis Points & Math — Basis points (bps) ↔ % ↔ decimal, plus mathematical expression evaluation.
 >
-> Everything runs on-device. Nothing is collected, tracked, or sent anywhere. No accounts. No ads. No telemetry.
+> DEEP INSPECTORS & SECURITY
+> • Log & Stack Trace Inspector — Group, search, redact, and parse JSON Lines, raw server logs, and stack traces.
+> • Environment & Config — Normalize, compare, and redact .env files, properties, and configuration headers.
+> • X.509 Certificates — Inspect local PEM/DER certificates, chains, fingerprints, SANs, and public keys without remote requests.
+> • Unicode & Strings — Reveal grapheme clusters, code points, UTF-8 bytes, invisible bidi controls, and line endings.
+> • Artifact Inspector — Recursively trace nested encodings with bounded previews.
+> • HTTP Inspector — Inspect, format, and redact curl commands and raw HTTP request snippets.
 >
-> Built with Cupertino. Typeset in IBM Plex.
+> GENERATION & VALIDATION
+> • UUID & ULID — Generate v4/v7 UUIDs, validate versions/variants, and parse ULIDs.
+> • IP & CIDR — IPv4/IPv6 subnetting, host ranges, broadcast addresses, and network scope flags.
+> • Regular Expressions — Test Dart regex patterns with real-time match highlighting and capture group inspection.
+> • Text Diff — Side-by-side and unified diffs with line- and word-level granularity.
+> • Hashes & Checksums — MD5, SHA-1, SHA-256, and SHA-512 with verification mode.
+> • QR Codes — Scan with the camera or generate codes locally.
+> • Password & Token Generator — Generate cryptographically secure passwords, base64url tokens, and random strings.
+> • Markdown — Safe, inert local preview of markdown headings, tables, and lists.
+>
+> PRIVACY & CRAFTSMANSHIP
+> • 100% On-Device — Every calculation runs locally. Nothing is tracked, logged, or sent to any server.
+> • No Accounts & No Ads — Opens instantly to your tools without sign-in walls or telemetry.
+> • Native Cupertino — Built with native iOS design principles and fluid dark mode support.
 
 ### What's New (draft for first public release, version from `pubspec.yaml`)
 
-> First public release. Eighteen tools, one quiet desk.
+> First public release. Twenty-eight tools, one quiet desk.
+
+### App Review Notes (For Apple Reviewers)
+
+> • Offline Operation: Masquerade is a 100% offline developer utility. It requires no network access and communicates with no backend services.
+> • No Account Required: The app does not feature user registration, logins, or cloud accounts. All features are immediately accessible on launch.
+> • Camera Usage: The camera permission (NSCameraUsageDescription) is used solely for the on-device QR Code scanner tool. To test, open the "QR Code" tool and tap "Scan QR Code".
+> • Privacy: The app collects zero data ("Data Not Collected").
 
 ## 3. Web PWA — `web/manifest.json`
 
@@ -226,8 +261,8 @@ Repo state:
 - [x] Release archive verified 2026-07-16: `flutter build ipa --release` exports an App Store IPA signed `Apple Distribution` (team `9KRJ83FMAF`) with an App Store provisioning profile (`get-task-allow` false); Flutter app-settings validation green (1.25.2 build 3, Masquerade, `dev.howardism.Masquerade`).
 - [x] iPhone-only: `TARGETED_DEVICE_FAMILY = 1` in all three build configs (2026-07-16). iPad was the Flutter template default and was never designed for — see `docs/adr/0003`. Keeps the 13″ iPad screenshot set off the submission.
 - [ ] `web/og-banner.png` (1200×630 center crop of generated banner) committed.
-- [ ] **Privacy policy reachable inside the app.** Guideline 5.1.1(i) wants the link in the ASC metadata field *and* "within the app in an easily accessible manner" — unconditional, including for `Data Not Collected` apps. Settings has a Privacy section (posture blurb, retention, clear-history) but nothing that opens the policy. Needs either `url_launcher` + a row linking `privacy_policy_url`, or the policy text rendered as a page (no dep, works offline, but duplicates `docs/privacy.md` unless it reads it from an asset).
-- [ ] **Acknowledgements screen.** Nothing in the app surfaces third-party licenses. Bundling `OFL.txt` satisfies OFL's letter (the text ships in the IPA); a Settings → Acknowledgements page is what makes it discoverable, and is table stakes for a paid app. `LicenseRegistry.addLicense` for the fonts + a Cupertino page over `LicenseRegistry.licenses` — Flutter's `showLicensePage` is Material-only, so it cannot be used here (`uses-material-design: false`).
+- [x] **Privacy policy reachable inside the app.** Satisfies Guideline 5.1.1(i) via `SettingsScreen` → `PrivacyPolicyScreen` reading `docs/privacy.md` on-device without remote calls.
+- [x] **Acknowledgements screen.** Satisfies open-source and font licensing via `SettingsScreen` → `AcknowledgementsScreen` rendering licenses registered with Flutter's `LicenseRegistry` (including bundled `assets/fonts/OFL.txt`).
 
 Privacy manifests: no app-level `PrivacyInfo.xcprivacy` is needed — the Dart app code uses no required-reason APIs directly; the Flutter engine and plugin pods (`shared_preferences` etc.) ship their own manifests, and the app collects nothing (`Data Not Collected`).
 
@@ -235,15 +270,15 @@ Submission (App Store Connect):
 
 - [ ] **Paid Apps Agreement (Schedule 2) active** — ASC → Business. Requires a bank account and tax forms (W-9 / W-8BEN as applicable). **Start this first:** it is the only item here measured in days rather than minutes, and until it is active no price can be set and the app cannot go *Ready for Sale*.
 - [ ] Price point + territory availability set (ASC → Pricing and Availability). See §2.
-- [ ] Create the app record; enter §2 name/subtitle/keywords/categories/URLs there (not in `Info.plist`).
+- [ ] Create the app record; enter §2 name/subtitle/keywords/categories/URLs/copyright there (not in `Info.plist`).
 - [ ] Privacy label: Data Not Collected.
-- [ ] Screenshots — 6.9″ and 6.5″ iPhone sets minimum; static only. No iPad set required (iPhone-only target, §8 gotchas).
-- [ ] Copyright field (ASC → App Information) — required, blocks "Add for Review" with no obvious pointer to it.
+- [ ] Screenshots — 6.9″ (1320×2868 / 1290×2796) and 6.5″ (1284×2778 / 1242×2688) iPhone sets. No iPad set required (`TARGETED_DEVICE_FAMILY = 1`). Run `scripts/capture-store-screenshots.sh` to capture and crop.
+- [ ] Copyright field (ASC → App Information) — required (`© 2026 Howardism`), blocks "Add for Review" with no obvious pointer to it.
 - [ ] App Privacy section completed (Data Not Collected) — Admin-only, also blocks "Add for Review".
 - [x] Export compliance: `ITSAppUsesNonExemptEncryption = false` set in `Info.plist` (2026-07-17). The app only hashes (`crypto` — MD5/SHA), which is exempt. Pre-empting this in the plist is now load-bearing rather than cosmetic: with TestFlight uploads automated on every green `main`, a missing key parks each build in *Missing Compliance* until someone answers the questionnaire by hand, which defeats the point of the pipeline.
 - [ ] Upload the verified IPA (`build/ios/ipa/masquerade.ipa`) via Transporter, or `xcrun altool --upload-app --type ios -f build/ios/ipa/masquerade.ipa --apiKey … --apiIssuer …` — no ASC API key is stored on this machine.
 - [ ] TestFlight pass on a physical device (camera/QR path needs real hardware).
-- [ ] Submit for review with the §2 description + promotional text and the What's New line.
+- [ ] Submit for review with the §2 description + promotional text, What's New line, and reviewer notes.
 
 ### Gotchas (learned the hard way, 2026-07-16 submission)
 
