@@ -38,14 +38,14 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   crypto: ^3.0.5
-  cupertino_icons: ^1.0.9
-  intl: ^0.20.2
-  package_info_plus: ^10.1.0
+  cupertino_icons: ^2.0.0
+  intl: ^0.20.3
+  package_info_plus: ^10.2.2
   shared_preferences: ^2.3.0
-  mobile_scanner: ^7.2.0
+  mobile_scanner: ^7.4.2
   file_selector: ^1.1.0
   qr_flutter: ^4.1.0
-  share_plus: ^13.1.0
+  share_plus: ^13.3.1
   cross_file: ^0.3.4+2
   flutter_lucide: ^1.0.0
   # Renders assets/brand/*.svg in MqMonogram. SVG sources live with the
@@ -58,13 +58,13 @@ dependencies:
   # MqSplashScreen. The :create generator (run-time-only command) lives
   # in the same package; we still invoke it via `dart run` locally.
   flutter_native_splash: ^2.4.7
-  decimal: ^3.2.4
+  decimal: ^3.2.6
   rational: ^2.2.3
 
   # Structured-config parsers — used by the JSON / YAML / TOML tool. Both are
   # pure-Dart parsers (no UI), wrapped by lib/utils/yaml_parser.dart and
   # lib/utils/toml_parser.dart respectively.
-  yaml: ^3.1.2
+  yaml: ^3.1.4
   yaml_writer: ^2.0.0
   toml: ^0.18.0
 
