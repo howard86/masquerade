@@ -101,6 +101,7 @@ class HistoryController extends ChangeNotifier with WidgetsBindingObserver {
     this.persistDelay = kIsWeb
         ? const Duration(milliseconds: 500)
         : Duration.zero,
+    this.maxPersistedChars = defaultMaxPersistedChars,
   }) : _retention = retention,
        _maxEntries = maxEntries,
        _prefs = prefs;
@@ -109,6 +110,13 @@ class HistoryController extends ChangeNotifier with WidgetsBindingObserver {
   /// is a synchronous localStorage encode; native writes go out immediately
   /// ([Duration.zero]) since they are cheap and survive a process kill.
   final Duration persistDelay;
+
+  /// Budget for the encoded persisted JSON. The per-entry caps allow ~16M
+  /// chars, but web localStorage holds ~5M chars for the whole origin and
+  /// `setItem` throws past it. Oldest unpinned entries are left out of the
+  /// persisted copy (they stay in memory) until it fits.
+  final int maxPersistedChars;
+  static const int defaultMaxPersistedChars = 1500000;
 
   /// Largest input/output (UTF-16 code units) a new entry may carry. Rows
   /// reopen a tool seeded with the full stored input and copy the full
@@ -334,14 +342,48 @@ class HistoryController extends ChangeNotifier with WidgetsBindingObserver {
     super.dispose();
   }
 
+  /// The newest-first entries that fit [budget] encoded chars: oldest
+  /// unpinned entries are dropped first, pinned ones only as a last resort.
+  List<HistoryEntry> _within(int budget) {
+    int total = 0;
+    for (final HistoryEntry e in _entries) {
+      total += e.encoded.length + 1;
+    }
+    if (total <= budget) return _entries;
+    final Set<HistoryEntry> drop = Set<HistoryEntry>.identity();
+    for (final bool pinnedPass in <bool>[false, true]) {
+      for (int i = _entries.length - 1; i >= 0 && total > budget; i--) {
+        final HistoryEntry e = _entries[i];
+        if (e.pinned != pinnedPass) continue;
+        drop.add(e);
+        total -= e.encoded.length + 1;
+      }
+    }
+    return <HistoryEntry>[
+      for (final HistoryEntry e in _entries)
+        if (!drop.contains(e)) e,
+    ];
+  }
+
   Future<void> _write() async {
     try {
       final SharedPreferences prefs =
           _prefs ?? await SharedPreferences.getInstance();
       _prefs = prefs;
-      final String encoded =
-          '[${_entries.map((HistoryEntry e) => e.encoded).join(',')}]';
-      await prefs.setString(_prefsKey, encoded);
+      int budget = maxPersistedChars;
+      while (true) {
+        final String encoded =
+            '[${_within(budget).map((HistoryEntry e) => e.encoded).join(',')}]';
+        try {
+          await prefs.setString(_prefsKey, encoded);
+          break;
+        } catch (e) {
+          // Quota exceeded (web localStorage): retry smaller before giving up.
+          if (budget < 50000) rethrow;
+          budget ~/= 2;
+          debugPrint('History persist failed, retrying smaller: $e');
+        }
+      }
     } catch (e) {
       debugPrint('History persist failed: $e');
     }

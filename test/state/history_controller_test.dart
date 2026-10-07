@@ -205,6 +205,16 @@ void main() {
   });
 
   group('HistoryController persistence', () {
+    HistoryEntry sized(String id, int chars, {bool pinned = false}) =>
+        HistoryEntry(
+          utilityId: 'json',
+          input: 'in $id',
+          output: 'o' * chars,
+          timestamp: DateTime.now(),
+          pinned: pinned,
+          id: id,
+        );
+
     Future<List<dynamic>> stored() async =>
         jsonDecode(
               (await SharedPreferences.getInstance()).getString(
@@ -254,5 +264,95 @@ void main() {
       await c.clear();
       expect(await stored(), isEmpty);
     });
+
+    test(
+      'persisted copy stays within the budget, oldest unpinned first',
+      () async {
+        final SharedPreferences prefs = await SharedPreferences.getInstance();
+        final HistoryController c = HistoryController(
+          prefs: prefs,
+          retention: const Duration(days: 36500),
+          maxPersistedChars: 1000,
+        );
+        // Oldest first so the list ends newest-first: n4 n3 n2 n1 old-pinned.
+        await c.add(sized('old-pinned', 200, pinned: true));
+        for (int i = 1; i <= 4; i++) {
+          await c.add(sized('n$i', 200));
+        }
+        await c.flush();
+        final String raw = prefs.getString('mb.history.entries')!;
+        expect(raw.length, lessThanOrEqualTo(1000));
+        final List<String> ids = (jsonDecode(raw) as List<dynamic>)
+            .map((dynamic e) => (e as Map<String, dynamic>)['id'] as String)
+            .toList();
+        expect(ids, <String>['n4', 'n3', 'old-pinned']);
+        // Memory keeps everything; only the persisted copy is trimmed.
+        expect(c.entries, hasLength(5));
+      },
+    );
+
+    test('pinned entries go last when the budget cannot fit them', () async {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final HistoryController c = HistoryController(
+        prefs: prefs,
+        retention: const Duration(days: 36500),
+        maxPersistedChars: 600,
+      );
+      await c.add(sized('p1', 300, pinned: true));
+      await c.add(sized('p2', 300, pinned: true));
+      await c.flush();
+      final List<dynamic> list = await stored();
+      expect(list, hasLength(1));
+      expect((list.single as Map<String, dynamic>)['id'], 'p2');
+    });
+
+    test('a failing write is swallowed and retried smaller', () async {
+      final _QuotaPrefs prefs = _QuotaPrefs(quota: 60000);
+      final HistoryController c = HistoryController(
+        prefs: prefs,
+        retention: const Duration(days: 36500),
+      );
+      for (int i = 0; i < 4; i++) {
+        await c.add(sized('e$i', 30000));
+      }
+      await c.flush();
+      expect(prefs.written, isNotNull);
+      expect(prefs.written!.length, lessThanOrEqualTo(60000));
+
+      final _QuotaPrefs dead = _QuotaPrefs(quota: 0);
+      final HistoryController d = HistoryController(
+        prefs: dead,
+        retention: const Duration(days: 36500),
+      );
+      await d.add(sized('x', 10));
+      await d.flush();
+      expect(dead.written, isNull);
+      expect(d.entries, hasLength(1));
+    });
   });
+}
+
+/// A SharedPreferences stand-in whose `setString` throws past [quota] chars,
+/// like a full web localStorage.
+class _QuotaPrefs implements SharedPreferences {
+  _QuotaPrefs({required this.quota});
+
+  final int quota;
+  String? written;
+
+  @override
+  int? getInt(String key) => null;
+
+  @override
+  Future<bool> setInt(String key, int value) async => true;
+
+  @override
+  Future<bool> setString(String key, String value) async {
+    if (value.length > quota) throw StateError('QuotaExceededError');
+    written = value;
+    return true;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
