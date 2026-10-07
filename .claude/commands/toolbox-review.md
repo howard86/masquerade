@@ -31,7 +31,7 @@ and the `toolbox-autoimprove` label, nothing else.
 
 REPO FACTS (pass relevant ones to the worker verbatim; fuller list in
 `.claude/commands/toolbox-improve.md`):
-- Flutter 3.41.8. Cupertino ONLY (`uses-material-design: false`). A PR adding
+- Flutter 3.47.6. Cupertino ONLY (`uses-material-design: false`). A PR adding
   `Material*`/`Scaffold`/`MaterialApp` or a new third-party UI dep FAILS review — report
   `blocked (review-reject)`, don't merge.
 - Lean deps (cupertino_icons, intl, package_info_plus, shared_preferences + shipped: qr,
