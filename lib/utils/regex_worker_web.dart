@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:js_interop';
+import 'dart:typed_data';
 
 import 'regex_parser.dart';
 
@@ -44,9 +45,8 @@ Future<RegexResult> runRegexWorker({
     worker = _Worker(url);
     worker.onmessage = ((_MessageEvent event) {
       try {
-        final Map<String, dynamic> response =
-            jsonDecode((event.data as JSString).toDart) as Map<String, dynamic>;
-        if (response['started'] == true) {
+        final _Response response = event.data;
+        if (response.started ?? false) {
           onStarted?.call();
           timeout = Timer(
             timeLimit,
@@ -56,7 +56,7 @@ Future<RegexResult> runRegexWorker({
           );
           return;
         }
-        finish(_decodeResponse(response, pattern));
+        finish(_decodeResponse(response, pattern, input));
       } on Object {
         finish(const RegexErr('Regular expression matching failed.'));
       }
@@ -119,6 +119,7 @@ class RegexWorkerSession {
     final _PendingRun run = _PendingRun(
       ++_nextId,
       pattern,
+      input,
       timeLimit,
       onStarted,
     );
@@ -177,16 +178,15 @@ class RegexWorkerSession {
       if (generation != _generation) return;
       final _PendingRun? run = _pending;
       if (run == null) return;
-      final Map<String, dynamic> response;
+      final _Response response;
       try {
-        response =
-            jsonDecode((event.data as JSString).toDart) as Map<String, dynamic>;
+        response = event.data;
+        if (response.id?.toDartInt != run.id) return;
       } on Object {
         _finish(run, const RegexErr('Regular expression matching failed.'));
         return;
       }
-      if (response['id'] != run.id) return;
-      if (response['started'] == true) {
+      if (response.started ?? false) {
         run.onStarted?.call();
         run.timeout = Timer(run.timeLimit, () {
           if (!identical(_pending, run)) return;
@@ -200,7 +200,7 @@ class RegexWorkerSession {
       }
       RegexResult result;
       try {
-        result = _decodeResponse(response, run.pattern);
+        result = _decodeResponse(response, run.pattern, run.input);
       } on Object {
         result = const RegexErr('Regular expression matching failed.');
       }
@@ -239,10 +239,17 @@ class RegexWorkerSession {
 }
 
 class _PendingRun {
-  _PendingRun(this.id, this.pattern, this.timeLimit, this.onStarted);
+  _PendingRun(
+    this.id,
+    this.pattern,
+    this.input,
+    this.timeLimit,
+    this.onStarted,
+  );
 
   final int id;
   final String pattern;
+  final String input;
   final Duration timeLimit;
   final void Function()? onStarted;
   final Completer<RegexResult> result = Completer<RegexResult>();
@@ -250,35 +257,48 @@ class _PendingRun {
   Timer? timeout;
 }
 
-/// Decodes a Worker's final (non-`started`) response for [pattern].
-RegexResult _decodeResponse(Map<String, dynamic> response, String pattern) {
-  if (response['error'] case final String message) {
+/// Decodes a Worker's final (non-`started`) response for [pattern] run
+/// over [input]. Matches stay views over the transferred offsets array.
+RegexResult _decodeResponse(_Response response, String pattern, String input) {
+  final String? message = response.error?.toDart;
+  if (message != null) {
     return RegexErr(
-      response['bounded'] == true
+      response.bounded ?? false
           ? message
           : RegexTester.formatCompileError(message, pattern),
     );
   }
-  final List<dynamic> encodedMatches = response['matches']! as List<dynamic>;
+  final Int32List offsets = response.offsets!.toDart;
+  final int slots = response.slots!.toDartInt;
+  final List<String> names = <String>[
+    for (final JSString name in response.names!.toDart) name.toDart,
+  ];
+  final int groupCount = slots == 0 ? 0 : slots - 1 - names.length;
+  final int count = slots == 0 ? 0 : offsets.length ~/ (2 * slots);
   return RegexOk(
-    matches: List<RegexMatchInfo>.unmodifiable(
-      encodedMatches.map((dynamic encoded) {
-        final Map<String, dynamic> match = encoded as Map<String, dynamic>;
-        return RegexMatchInfo(
-          start: match['start']! as int,
-          end: match['end']! as int,
-          text: match['text']! as String,
-          groups: List<String?>.unmodifiable(
-            (match['groups']! as List<dynamic>).cast<String?>(),
-          ),
-          named: Map<String, String?>.unmodifiable(
-            (match['named']! as Map<String, dynamic>).cast<String, String?>(),
-          ),
-        );
-      }),
-    ),
-    truncated: response['truncated']! as bool,
+    matches: List<RegexMatchInfo>.unmodifiable(<RegexMatchInfo>[
+      for (int index = 0; index < count; index++)
+        RegexMatchInfo.offsets(
+          input: input,
+          offsets: offsets,
+          base: index * 2 * slots,
+          groupCount: groupCount,
+          names: names,
+        ),
+    ]),
+    truncated: response.truncated ?? false,
   );
+}
+
+extension type _Response._(JSObject _) implements JSObject {
+  external JSNumber? get id;
+  external bool? get started;
+  external JSString? get error;
+  external bool? get bounded;
+  external JSInt32Array? get offsets;
+  external JSNumber? get slots;
+  external JSArray<JSString>? get names;
+  external bool? get truncated;
 }
 
 @JS('Blob')
@@ -297,7 +317,7 @@ extension type _Worker._(JSObject _) implements JSObject {
 }
 
 extension type _MessageEvent._(JSObject _) implements JSObject {
-  external JSAny? get data;
+  external _Response get data;
 }
 
 @JS('URL.createObjectURL')
@@ -306,51 +326,72 @@ external JSString _createObjectUrl(_Blob blob);
 @JS('URL.revokeObjectURL')
 external void _revokeObjectUrl(JSString url);
 
+// Responses are plain objects (structured clone, no JSON). A result carries
+// every match as one Int32Array of (start, end) code-unit pairs — `slots`
+// pairs per match: the whole match, each numbered group, then each name in
+// `names` — read via the `d` (hasIndices) flag; -1 marks a group that did
+// not participate. Dart builds match text lazily from these offsets.
 const String _workerSource = r'''
 self.onmessage = (event) => {
   const request = JSON.parse(event.data);
-  self.postMessage(JSON.stringify({id: request.id, started: true}));
+  self.postMessage({id: request.id, started: true});
   try {
-    let flags = 'g';
+    let flags = 'gd';
     if (!request.caseSensitive) flags += 'i';
     if (request.multiLine) flags += 'm';
     if (request.dotAll) flags += 's';
     if (request.unicode) flags += 'u';
     const expression = new RegExp(request.pattern, flags);
-    const probe = new RegExp('(?:)|(?:' + request.pattern + ')', flags.replace('g', ''));
+    const probe = new RegExp('(?:)|(?:' + request.pattern + ')', flags.replace('g', '').replace('d', ''));
     const captureGroups = probe.exec('').length - 1;
     if (captureGroups > request.maxCaptureGroups) {
-      self.postMessage(JSON.stringify({
+      self.postMessage({
         id: request.id,
         error: 'Pattern is limited to 100 capture groups.',
         bounded: true,
-      }));
+      });
       return;
     }
-    const matches = [];
+    let names = null;
+    let slots = 0;
+    let offsets = new Int32Array(0);
+    let count = 0;
     let truncated = false;
     for (const match of request.input.matchAll(expression)) {
-      if (matches.length === request.maxMatches) {
+      if (count === request.maxMatches) {
         truncated = true;
         break;
       }
-      const named = {};
-      if (match.groups) {
-        for (const name of Object.keys(match.groups)) {
-          named[name] = match.groups[name] ?? null;
-        }
+      const indices = match.indices;
+      if (names === null) {
+        names = indices.groups ? Object.keys(indices.groups) : [];
+        slots = indices.length + names.length;
       }
-      matches.push({
-        start: match.index,
-        end: match.index + match[0].length,
-        text: match[0],
-        groups: Array.from(match).slice(1).map((value) => value ?? null),
-        named,
-      });
+      if ((count + 1) * slots * 2 > offsets.length) {
+        const grown = new Int32Array(Math.max(64, offsets.length * 2, (count + 1) * slots * 2));
+        grown.set(offsets);
+        offsets = grown;
+      }
+      let at = count * slots * 2;
+      for (let i = 0; i < indices.length; i++) {
+        const pair = indices[i];
+        offsets[at++] = pair === undefined ? -1 : pair[0];
+        offsets[at++] = pair === undefined ? -1 : pair[1];
+      }
+      for (const name of names) {
+        const pair = indices.groups[name];
+        offsets[at++] = pair === undefined ? -1 : pair[0];
+        offsets[at++] = pair === undefined ? -1 : pair[1];
+      }
+      count++;
     }
-    self.postMessage(JSON.stringify({id: request.id, matches, truncated}));
+    offsets = offsets.slice(0, count * slots * 2);
+    self.postMessage(
+      {id: request.id, offsets, slots, names: names ?? [], truncated},
+      [offsets.buffer],
+    );
   } catch (error) {
-    self.postMessage(JSON.stringify({id: request.id, error: String(error?.message ?? '')}));
+    self.postMessage({id: request.id, error: String(error?.message ?? '')});
   }
 };
 ''';

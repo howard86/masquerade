@@ -141,7 +141,9 @@ class _Base64BodyState extends State<Base64Body>
         final Codec<List<int>, String> codec = _urlSafe ? base64Url : base64;
         // Keep the raw bytes for the canvas preview/byte-delta — the utf8 text
         // below is lossy for binary payloads, so the preview must use these.
-        decoded = Uint8List.fromList(codec.decode(src));
+        // base64's decoder already returns a fresh Uint8List — no copy.
+        final List<int> raw = codec.decode(src);
+        decoded = raw is Uint8List ? raw : Uint8List.fromList(raw);
         // Keep the previous instance when the bytes are unchanged (a chip
         // toggle or re-parse of the same input): MemoryImage keys the image
         // cache on identity, so a fresh copy would decode the preview again.

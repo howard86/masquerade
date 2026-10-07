@@ -20,7 +20,7 @@ EXECUTION MODEL — orchestrator + worker (keeps the loop's context small):
   `gh pr list` dedupe is a backstop, not the gate.
 
 REPO FACTS (pass relevant ones to the worker verbatim):
-- Flutter 3.41.8 (pinned in ci.yml). Cupertino widgets ONLY (`uses-material-design: false`) — never
+- Flutter 3.47.6 (pinned in ci.yml). Cupertino widgets ONLY (`uses-material-design: false`) — never
   `Material*`/`Scaffold`/`MaterialApp`. A Material-only need = BLOCKED, don't add the dep.
 - Lean runtime deps (cupertino_icons, intl, package_info_plus, shared_preferences + shipped: qr,
   flutter_lucide, url_launcher, json_annotation, flutter_native_splash); no third-party UI pkgs. Dev

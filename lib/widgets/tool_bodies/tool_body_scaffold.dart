@@ -59,7 +59,7 @@ mixin ToolBodyScaffold<T extends StatefulWidget> on State<T> {
   /// Whether [input] is "nothing to do" → [reset] instead of [parse]. Defaults
   /// to whitespace-only; a body that meaningfully processes leading/trailing
   /// whitespace (e.g. Base64 encode) overrides this to `input.isEmpty`.
-  bool isBlank(String input) => input.trim().isEmpty;
+  bool isBlank(String input) => isWhitespaceOnly(input);
 
   // ─── Provided ───────────────────────────────────────────────────────────
   final TextEditingController controller = TextEditingController();
@@ -171,4 +171,28 @@ mixin ToolBodyScaffold<T extends StatefulWidget> on State<T> {
     }
     bindActionBar();
   }
+}
+
+/// Whether [input] is empty or only whitespace — `input.trim().isEmpty`
+/// without copying the string (same whitespace set as [String.trim]).
+bool isWhitespaceOnly(String input) {
+  for (int i = 0; i < input.length; i++) {
+    if (!_isTrimWhitespace(input.codeUnitAt(i))) return false;
+  }
+  return true;
+}
+
+bool _isTrimWhitespace(int unit) {
+  if (unit <= 0x20) return unit == 0x20 || (unit >= 0x09 && unit <= 0x0D);
+  if (unit < 0x85) return false;
+  return unit == 0x85 ||
+      unit == 0xA0 ||
+      unit == 0x1680 ||
+      (unit >= 0x2000 && unit <= 0x200A) ||
+      unit == 0x2028 ||
+      unit == 0x2029 ||
+      unit == 0x202F ||
+      unit == 0x205F ||
+      unit == 0x3000 ||
+      unit == 0xFEFF;
 }

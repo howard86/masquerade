@@ -47,7 +47,7 @@ Plus, across every tool:
 
 ## Requirements
 
-- Flutter `3.41.8` (CI-pinned).
+- Flutter `3.47.6` (CI-pinned).
 - Platform toolchains for whichever target you're building (Xcode for iOS/macOS, Android SDK for `apk`, etc.).
 - Python 3 + `pip3` for the pre-commit hooks.
 

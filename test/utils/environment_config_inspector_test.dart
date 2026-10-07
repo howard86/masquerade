@@ -350,6 +350,70 @@ secretary_name=Ada
       }
     });
 
+    test('detectEntries agrees with parse on configuration', () {
+      for (final String input in <String>[
+        'A=1\nB=2',
+        'export TOKEN=abc\nexport HOST=x',
+        'Host: x\nAccept: y',
+        r'name=hello\npath=hello\u0020world',
+        'name=hello\nother=world',
+        'key = "value"\nother = 2',
+        'server.port=8080\nspring.datasource.url=jdbc:x\n# comment\nlog-level: info',
+      ]) {
+        final ConfigDetection? detection =
+            EnvironmentConfigInspector.detectEntries(input);
+        final ConfigInspection inspection = EnvironmentConfigInspector.parse(
+          input,
+        );
+        expect(detection, isNotNull, reason: input);
+        expect(detection!.format, inspection.format, reason: input);
+        expect(detection.entryCount, inspection.entries.length, reason: input);
+      }
+    });
+
+    test('detectEntries is null wherever parse throws', () {
+      for (final String input in <String>[
+        '',
+        'A=1\nB=\u0001',
+        'ghp_abcdefghijklmnopqrstuvwxyz1234=value\nB=2',
+        'A="unterminated\nB=2',
+      ]) {
+        expect(
+          () => EnvironmentConfigInspector.parse(input),
+          throwsA(isA<ConfigInspectorException>()),
+          reason: input,
+        );
+        expect(EnvironmentConfigInspector.detectEntries(input), isNull);
+      }
+    });
+
+    test(
+      'detectEntries rejects prose, Markdown, and logs that parse loosely',
+      () {
+        for (final String input in <String>[
+          'Note: this paragraph explains the setup.\n'
+              'See the docs for details.\n'
+              'Then run the installer and restart.',
+          '## Setup\n\n'
+              'Note: section covers **topic** and `code` usage.\n'
+              'See [docs](https://example.com/docs) for details.\n\n'
+              '- item one: value\n- item two: value',
+          '2026-01-01T10:00:00Z INFO worker[1] id=1 status=200\n'
+              '2026-01-01T10:00:01Z WARN worker[2] id=2 status=201',
+          'name: demo\nitems:\n  - a\n  - b',
+        ]) {
+          // Still parseable when the user opens the tool explicitly…
+          expect(EnvironmentConfigInspector.parse(input).entries, isNotEmpty);
+          // …but not claimed as configuration by detection.
+          expect(
+            EnvironmentConfigInspector.detectEntries(input),
+            isNull,
+            reason: input,
+          );
+        }
+      },
+    );
+
     test('auto-detects representative formats', () {
       expect(
         EnvironmentConfigInspector.detect('A=1\nB=2'),

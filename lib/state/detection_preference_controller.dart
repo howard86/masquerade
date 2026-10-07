@@ -130,4 +130,13 @@ class DetectionPreferenceScope
   static DetectionPreferenceController? maybeOf(BuildContext context) => context
       .dependOnInheritedWidgetOfExactType<DetectionPreferenceScope>()
       ?.notifier;
+
+  /// The controller without subscribing to its notifications, for event
+  /// handlers that only hold the reference.
+  static DetectionPreferenceController read(BuildContext context) {
+    final DetectionPreferenceScope? scope = context
+        .getInheritedWidgetOfExactType<DetectionPreferenceScope>();
+    assert(scope != null, 'DetectionPreferenceScope not found.');
+    return scope!.notifier!;
+  }
 }

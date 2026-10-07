@@ -303,4 +303,29 @@ void main() {
       throwsUnsupportedError,
     );
   });
+
+  test('isProtectedWorkflowString matches the per-interpretation policy', () {
+    bool oracle(String v) => <String?>[null, 'base64', 'bytes', 'url'].any(
+      (String? id) =>
+          SensitiveDataPolicy.protects(utilityId: id, values: <String>[v]),
+    );
+    final List<String> samples = <String>[
+      '',
+      'hello',
+      'aGVsbG8=',
+      'cGFzc3dvcmQ9aHVudGVyMg==',
+      'password%3Dhunter2',
+      '70 61 73 73 77 6f 72 64 3d 78',
+      '{"api_key":"x"}',
+      'a=b',
+      '%ZZ',
+      'eyJhIjoxfQ.eyJiIjoyfQ.c',
+      '-----BEGIN PRIVATE KEY-----',
+      'x' * 70000,
+      'plain prose with no secrets at all',
+    ];
+    for (final String v in samples) {
+      expect(isProtectedWorkflowString(v), oracle(v), reason: v);
+    }
+  });
 }

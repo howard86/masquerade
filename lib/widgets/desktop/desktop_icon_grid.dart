@@ -207,41 +207,45 @@ class _LauncherTileState extends State<_LauncherTile>
             onTap: _handleTap,
             child: ScaleTransition(
               scale: _bounceController,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                width: 78,
-                height: 78,
-                decoration: BoxDecoration(
-                  color: highlighted
-                      ? c.surface.withValues(alpha: 0.15)
-                      : const Color(0x00000000),
-                  borderRadius: BorderRadius.circular(MqRadius.md),
-                  border: Border.all(
-                    color: _focused
-                        ? c.accent
-                        : _hovered
-                        ? c.border.withValues(alpha: 0.25)
+              // The hover/focus highlight animates on its own layer so it
+              // doesn't repaint the whole grid.
+              child: RepaintBoundary(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: 78,
+                  height: 78,
+                  decoration: BoxDecoration(
+                    color: highlighted
+                        ? c.surface.withValues(alpha: 0.15)
                         : const Color(0x00000000),
-                    width: _focused ? 1.5 : 0.5,
-                  ),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: <Widget>[
-                    Icon(widget.icon, size: 24, color: widget.tint),
-                    const SizedBox(height: MqSpacing.xs),
-                    Text(
-                      widget.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: MqTextStyles.caption2.copyWith(
-                        color: c.textPri,
-                        fontWeight: highlighted
-                            ? FontWeight.w600
-                            : FontWeight.w400,
-                      ),
+                    borderRadius: BorderRadius.circular(MqRadius.md),
+                    border: Border.all(
+                      color: _focused
+                          ? c.accent
+                          : _hovered
+                          ? c.border.withValues(alpha: 0.25)
+                          : const Color(0x00000000),
+                      width: _focused ? 1.5 : 0.5,
                     ),
-                  ],
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      Icon(widget.icon, size: 24, color: widget.tint),
+                      const SizedBox(height: MqSpacing.xs),
+                      Text(
+                        widget.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: MqTextStyles.caption2.copyWith(
+                          color: c.textPri,
+                          fontWeight: highlighted
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

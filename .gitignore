@@ -93,3 +93,6 @@ Desktop.ini
 .claude/toolbox-improvement-backlog.md
 .claude/.toolbox-claims
 .claude/toolbox-verify-*.log
+
+# web perf harness
+tool/web_perf/node_modules

@@ -1,8 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/widgets.dart' show StringCharacters;
-import 'package:unorm_dart/unorm_dart.dart' as unorm;
-
+import 'unicode_normalize.dart' as unorm;
 import 'utf8_length.dart';
 
 enum UnicodeNormalization { nfc, nfd, nfkc, nfkd }
@@ -65,13 +64,13 @@ class LineEndingSummary {
 }
 
 class UnicodeInspection {
-  const UnicodeInspection._({
+  UnicodeInspection._({
     required this.input,
     required this.graphemes,
     required this.graphemeCount,
     required this.codePointCount,
     required this.utf8ByteCount,
-    required this.normalized,
+    required this.ascii,
     required this.lineEndings,
     required this.warnings,
     required this.truncated,
@@ -82,12 +81,25 @@ class UnicodeInspection {
   final int graphemeCount;
   final int codePointCount;
   final int utf8ByteCount;
-  final Map<UnicodeNormalization, String> normalized;
+  final bool ascii;
+  final Map<UnicodeNormalization, String> _normalized =
+      <UnicodeNormalization, String>{};
   final LineEndingSummary lineEndings;
   final List<String> warnings;
   final bool truncated;
 
-  String normalizedAs(UnicodeNormalization form) => normalized[form]!;
+  // Every normalization form maps ASCII to itself; other forms are computed on
+  // first access since the body only reads the ones it renders or applies.
+  String normalizedAs(UnicodeNormalization form) {
+    if (ascii) return input;
+    return _normalized[form] ??= switch (form) {
+      UnicodeNormalization.nfc => unorm.nfc(input),
+      UnicodeNormalization.nfd => unorm.nfd(input),
+      UnicodeNormalization.nfkc => unorm.nfkc(input),
+      UnicodeNormalization.nfkd => unorm.nfkd(input),
+    };
+  }
+
   bool changes(UnicodeNormalization form) {
     final String normalized = normalizedAs(form);
     return !identical(normalized, input) && normalized != input;
@@ -171,26 +183,10 @@ abstract final class UnicodeStringInspector {
     final Set<String> invisibleNames = <String>{};
     bool hasBidi = false;
 
-    for (final String cluster in input.characters) {
+    final clusters = input.characters.iterator;
+    while (graphemes.length < maxDisplayedGraphemes && clusters.moveNext()) {
+      final String cluster = clusters.current;
       graphemeCount++;
-      if (graphemes.length >= maxDisplayedGraphemes) {
-        // Past the display cap only the counts and warnings still matter.
-        int runeCount = 0;
-        for (final int rune in cluster.runes) {
-          if (++runeCount > maxCodePointsPerGrapheme) {
-            throw const UnicodeInspectorException(
-              'A grapheme cluster exceeds the 1,024-code-point limit.',
-            );
-          }
-          // Printable ASCII has no marker and is not a bidi control.
-          if (rune > 0x20 && rune < 0x7f) continue;
-          final String? marker = _markerFor(rune);
-          if (marker != null && marker != 'SPACE') invisibleNames.add(marker);
-          hasBidi |= _isBidi(rune);
-        }
-        codePointCount += runeCount;
-        continue;
-      }
       final List<int> runes = <int>[];
       int runeCount = 0;
       final List<String> markers = <String>[];
@@ -243,6 +239,43 @@ abstract final class UnicodeStringInspector {
       }
     }
 
+    // Past the display cap only the counts and warnings still matter, so the
+    // remainder is walked without materialising a string per cluster.
+    if (graphemes.length >= maxDisplayedGraphemes) {
+      final int restStart = input.length - clusters.stringAfterLength;
+      while (clusters.moveNext()) {
+        graphemeCount++;
+        final int start = clusters.stringBeforeLength;
+        final int units = input.length - start - clusters.stringAfterLength;
+        // Runes never outnumber code units, so only huge clusters need a count.
+        if (units > maxCodePointsPerGrapheme &&
+            input.substring(start, start + units).runes.length >
+                maxCodePointsPerGrapheme) {
+          throw const UnicodeInspectorException(
+            'A grapheme cluster exceeds the 1,024-code-point limit.',
+          );
+        }
+      }
+      for (int i = restStart; i < input.length; i++) {
+        int rune = input.codeUnitAt(i);
+        // Printable ASCII has no marker and is not a bidi control.
+        if (rune > 0x20 && rune < 0x7f) {
+          codePointCount++;
+          continue;
+        }
+        if (rune >= 0xd800 && rune <= 0xdbff) {
+          rune =
+              0x10000 +
+              ((rune - 0xd800) << 10) +
+              (input.codeUnitAt(++i) - 0xdc00);
+        }
+        codePointCount++;
+        final String? marker = _markerFor(rune);
+        if (marker != null && marker != 'SPACE') invisibleNames.add(marker);
+        hasBidi |= _isBidi(rune);
+      }
+    }
+
     final List<String> scripts = <String>[
       if (_latinScript.hasMatch(input)) 'Latin',
       if (_greekScript.hasMatch(input)) 'Greek',
@@ -264,21 +297,7 @@ abstract final class UnicodeStringInspector {
       graphemeCount: graphemeCount,
       codePointCount: codePointCount,
       utf8ByteCount: utf8ByteCount,
-      normalized: Map<UnicodeNormalization, String>.unmodifiable(
-        // Every normalization form maps ASCII to itself.
-        utf8ByteCount == input.length
-            ? <UnicodeNormalization, String>{
-                for (final UnicodeNormalization form
-                    in UnicodeNormalization.values)
-                  form: input,
-              }
-            : <UnicodeNormalization, String>{
-                UnicodeNormalization.nfc: unorm.nfc(input),
-                UnicodeNormalization.nfd: unorm.nfd(input),
-                UnicodeNormalization.nfkc: unorm.nfkc(input),
-                UnicodeNormalization.nfkd: unorm.nfkd(input),
-              },
-      ),
+      ascii: utf8ByteCount == input.length,
       lineEndings: endings,
       warnings: List<String>.unmodifiable(warnings),
       truncated: graphemeCount > maxDisplayedGraphemes,

@@ -131,12 +131,8 @@ class MarkdownParser {
     if (input.isEmpty) {
       return const MarkdownOk(blocks: <MarkdownBlock>[], headings: <String>[]);
     }
-    if (input.length > maxInputBytes) {
-      return const MarkdownErr('Markdown input is limited to 256 KiB.');
-    }
-    if (utf8LengthExceeds(input, maxInputBytes)) {
-      return const MarkdownErr('Markdown input is limited to 256 KiB.');
-    }
+    final MarkdownErr? limit = checkLimits(input);
+    if (limit != null) return limit;
     try {
       final List<md.Node> source = md.Document(
         extensionSet: md.ExtensionSet.gitHubFlavored,
@@ -151,6 +147,89 @@ class MarkdownParser {
     } on Object {
       return const MarkdownErr('Could not parse this Markdown document.');
     }
+  }
+
+  /// The error [parse] is certain to return for [input] without parsing it:
+  /// the size limits, plus a pre-count that bails when the document must map
+  /// to more than [maxListItems] list items or [maxNodes] nodes. Null when a
+  /// full parse is needed to decide.
+  ///
+  /// The pre-count is a lower bound, outside fenced code and HTML blocks:
+  /// bullet-item lines (marker indented at most 3 spaces, followed by
+  /// content, not a thematic break) each map to one list item, and ATX
+  /// headings each map to one heading node. (When several limits are
+  /// exceeded, the message may name a different one than the full parse
+  /// would hit first.)
+  static MarkdownErr? checkLimits(String input) {
+    if (input.length > maxInputBytes) {
+      return const MarkdownErr('Markdown input is limited to 256 KiB.');
+    }
+    if (utf8LengthExceeds(input, maxInputBytes)) {
+      return const MarkdownErr('Markdown input is limited to 256 KiB.');
+    }
+    // Every counted line takes at least two characters (`#` + newline), so a
+    // shorter input can't exceed either count.
+    if (input.length <= 2 * maxListItems) return null;
+    int items = 0;
+    int headings = 0;
+    int? fenceChar;
+    int fenceLength = 0;
+    bool html = false;
+    int start = 0;
+    while (start <= input.length) {
+      int end = input.indexOf('\n', start);
+      if (end < 0) end = input.length;
+      final Match? fence = _fenceLine.matchAsPrefix(input, start);
+      if (fenceChar != null) {
+        if (fence != null &&
+            fence.group(1)!.codeUnitAt(0) == fenceChar &&
+            fence.group(1)!.length >= fenceLength &&
+            _blankRest(input, fence.end, end)) {
+          fenceChar = null;
+        }
+      } else if (html) {
+        if (_blankRest(input, start, end)) html = false;
+      } else if (fence != null) {
+        fenceChar = fence.group(1)!.codeUnitAt(0);
+        fenceLength = fence.group(1)!.length;
+      } else if (_htmlStart.matchAsPrefix(input, start) != null) {
+        html = !_blankRest(input, start, end);
+      } else if (_bulletItem.matchAsPrefix(input, start) != null &&
+          _thematicBreak.matchAsPrefix(input, start) == null) {
+        if (++items > maxListItems) {
+          return const MarkdownErr(
+            'Markdown lists are limited to 2,000 items.',
+          );
+        }
+      } else if (_atxHeading.matchAsPrefix(input, start) != null &&
+          ++headings > maxNodes) {
+        return const MarkdownErr(
+          'Markdown documents are limited to 10,000 elements.',
+        );
+      }
+      start = end + 1;
+    }
+    return null;
+  }
+
+  static final RegExp _fenceLine = RegExp(r'[ \t]*(`{3,}|~{3,})');
+  static final RegExp _htmlStart = RegExp(r' {0,3}<');
+  static final RegExp _bulletItem = RegExp(r' {0,3}[-*+][ \t]+[^ \t\r\n]');
+  static final RegExp _thematicBreak = RegExp(
+    r' {0,3}(?:(?:-[ \t]*){3,}|(?:\*[ \t]*){3,}|(?:_[ \t]*){3,})\r?$',
+    multiLine: true,
+  );
+  static final RegExp _atxHeading = RegExp(
+    r' {0,3}#{1,6}(?:[ \t]|\r?$)',
+    multiLine: true,
+  );
+
+  static bool _blankRest(String input, int from, int end) {
+    for (int i = from; i < end; i++) {
+      final int c = input.codeUnitAt(i);
+      if (c != 0x20 && c != 0x09 && c != 0x0d) return false;
+    }
+    return true;
   }
 }
 

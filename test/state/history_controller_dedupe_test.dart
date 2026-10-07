@@ -179,7 +179,9 @@ void main() {
       final HistoryController c = await HistoryController.load();
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       final List<dynamic> persisted =
-          jsonDecode(prefs.getString('mb.history.entries')!) as List<dynamic>;
+          (jsonDecode(prefs.getString('mb.history.entries.v2')!)
+                  as Map<String, dynamic>)['entries']
+              as List<dynamic>;
 
       expect(c.entries, hasLength(1));
       expect(c.entries.single.utilityId, 'timestamp');
@@ -202,7 +204,7 @@ void main() {
 
         expect(c.entries, isEmpty);
         expect(
-          prefs.getString('mb.history.entries'),
+          prefs.getString('mb.history.entries.v2'),
           isNot(contains('raw-credential-fixture')),
         );
       },
@@ -303,7 +305,9 @@ void main() {
       final HistoryController c = await HistoryController.load();
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       final Map<String, dynamic> persisted =
-          (jsonDecode(prefs.getString('mb.history.entries')!) as List<dynamic>)
+          ((jsonDecode(prefs.getString('mb.history.entries.v2')!)
+                          as Map<String, dynamic>)['entries']
+                      as List<dynamic>)
                   .single
               as Map<String, dynamic>;
 

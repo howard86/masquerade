@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Masquerade is a Flutter utility-toolbox app. iOS-first (`CupertinoApp`). Tab scaffold (`lib/screens/root_tab_scaffold.dart`) with three tabs — home / history / settings (search is a field on Home, not a tab). Tools render on Home as `ToolGridCard` tiles and open full-screen through the shared `lib/screens/detail/tool_detail_route.dart`. Every tool is registered in `lib/utility_catalog.dart`:
+Masquerade is a Flutter utility-toolbox app. iOS-first (`CupertinoApp`). Tab scaffold (`lib/screens/root_tab_scaffold.dart`) with three tabs — Workbench (`home_screen.dart`: paste, detection, sessions) / Library / Activity (history); Settings opens from the nav bar. Tools render in Library as `ToolGridCard` tiles and open full-screen through the shared `lib/screens/detail/tool_detail_route.dart`. Every tool is registered in `lib/utility_catalog.dart`:
 
 - Environment & Config Inspector (normalize/compare/redact .env, properties, headers, config)
 - Log & Stack Inspector (group/search/redact logs and stack traces)
@@ -35,15 +35,15 @@ Masquerade is a Flutter utility-toolbox app. iOS-first (`CupertinoApp`). Tab sca
 - Generator (passwords, random tokens, UUIDs)
 - Markdown (preview headings, code, lists, links, tables)
 
-Add new tools by registering in `UtilityCatalog` plus an embeddable body widget under `lib/widgets/tool_bodies/<tool>_body.dart`. Home reads the catalog directly and renders each entry as a `ToolGridCard` — there is no manual wiring elsewhere.
+Add new tools by registering in `UtilityCatalog` plus an embeddable body widget under `lib/widgets/tool_bodies/<tool>_body.dart`, wired through a `ToolBodyKind` value (`deferred_tool_body.dart`) and its arm in `all_bodies.dart` (bodies load as one deferred unit on web). Library reads the catalog directly and renders each entry as a `ToolGridCard` — there is no manual wiring elsewhere.
 
 On native macOS and wide web (≥ 900 px) the same catalog tools open on a **desktop OS** (`lib/screens/desktop/`) — a full-bleed, skeuomorphic macOS-style desktop with a menubar, wallpaper, desktop icon grid, windowed cards (traffic-light chrome + a window manager with z-order, minimize/maximize, edge-snap), a dock, a Spotlight ⌘K palette, and History/Settings as system windows. Live links pipe one window's output into another. See `CONTEXT.md` for the domain language and `docs/adr/` (0001 for the link engine, 0002 for the desktop OS metaphor).
 
 ## Stack
 
-- Flutter `3.41.8` (pinned in `.github/workflows/ci.yml`).
+- Flutter `3.47.6` (pinned in `.github/workflows/ci.yml`).
 - UI: Cupertino widgets only (`uses-material-design: false` in `pubspec.yaml`). Do not introduce `Material*` widgets, `Scaffold`, or `MaterialApp`.
-- Runtime deps: `crypto`, `cupertino_icons`, `intl`, `package_info_plus`, `shared_preferences`, `mobile_scanner`, `qr_flutter`, `share_plus`, `cross_file`, `flutter_lucide`, `flutter_svg`, `flutter_native_splash` (keep `^2.4.7` — 2.4.8 conflicts with the flutter_test `meta` pin), `decimal`/`rational`, and `yaml`/`yaml_writer`/`toml`. No third-party UI kits — `lib/widgets/iphone_frame.dart` is hand-rolled.
+- Runtime deps: `crypto`, `cupertino_icons`, `intl`, `package_info_plus`, `shared_preferences`, `mobile_scanner`, `qr_flutter`, `share_plus`, `cross_file`, `flutter_lucide`, `flutter_native_splash`, `decimal`/`rational`, and `yaml`/`yaml_writer`/`toml`. No third-party UI kits — `lib/widgets/iphone_frame.dart` is hand-rolled.
 - Dev deps: `flutter_test`, `flutter_lints`, `fake_async`, `flutter_launcher_icons` (run-once icon generator, output committed). No codegen, no mock framework. If you reach for `build_runner`/`mockito`/`json_serializable`, add the dep AND wire the generator/CI step in the same change.
 
 ## Layout
@@ -114,5 +114,6 @@ Hooks (in `.pre-commit-config.yaml`):
 - Worktrees live at `.worktrees/<branch-name>` (gitignored). Run `git worktree list` before assuming working-tree state.
 - The `PostToolUse` hook in `.claude/settings.json` runs `dart format` on edited `*.dart` files. If a format error surfaces in the transcript, fix the syntax — don't silence it.
 - Prefer `widgets/mq/*` (`MqButton`, `MqInput`, `MqSurface`, `MqMonoCell`, ...) over raw Cupertino primitives — they carry theme + spacing tokens. Read colors via `MqTheme.of(context)`, not hardcoded `CupertinoColors`.
-- Tool registration is centralized: adding a tool means editing `lib/utility_catalog.dart` AND adding a body widget under `lib/widgets/tool_bodies/<tool>_body.dart`. Home auto-picks it up via `UtilityCatalog.all`.
+- Tool registration is centralized: adding a tool means editing `lib/utility_catalog.dart` AND adding a body widget under `lib/widgets/tool_bodies/<tool>_body.dart` plus its `ToolBodyKind` + `all_bodies.dart` arm. Import `all_bodies.dart` only `deferred` — an eager import folds every body back into `main.dart.js`. `test/flutter_test_config.dart` preloads the bodies for tests (it works around a VM deferred-loading zone quirk documented there). Library auto-picks it up via `UtilityCatalog.all`.
 - iOS ships **iPhone-only** (`TARGETED_DEVICE_FAMILY = 1`, all three configs). iPad has no layout — native iOS can't reach the macOS/web desktop shell and lands in `framedMobile`, i.e. a fake iPhone bezel on a real iPad. Re-enabling it needs a real layout first, not a manifest edit (`docs/adr/0003`). Release/submission gotchas live in `docs/launch-metadata.md` §8.
+- Web bundle: `deferred as` keeps a plugin's Dart API code out of `main.dart.js`, but the generated web plugin registrant still links every web plugin class eagerly (`mobile_scanner` ≈55 KB, `share_plus` ≈8 KB). Check the result with `flutter build web --release --dump-info` and `.github/scripts/web_size.py`; runtime web flows are measured with `tool/web_perf/` (see its README).
