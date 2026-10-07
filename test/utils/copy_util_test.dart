@@ -162,10 +162,10 @@ void main() {
         _harness(AnimatedCopyIcon(onCopy: () {}), disableAnimations: true),
       );
 
-      final AnimatedCrossFade crossFade = tester.widget<AnimatedCrossFade>(
+      final CopyFlipIcon crossFade = tester.widget<CopyFlipIcon>(
         find.descendant(
           of: find.byType(AnimatedCopyIcon),
-          matching: find.byType(AnimatedCrossFade),
+          matching: find.byType(CopyFlipIcon),
         ),
       );
       expect(
@@ -185,10 +185,10 @@ void main() {
     (WidgetTester tester) async {
       await tester.pumpWidget(_harness(AnimatedCopyIcon(onCopy: () {})));
 
-      final AnimatedCrossFade crossFade = tester.widget<AnimatedCrossFade>(
+      final CopyFlipIcon crossFade = tester.widget<CopyFlipIcon>(
         find.descendant(
           of: find.byType(AnimatedCopyIcon),
-          matching: find.byType(AnimatedCrossFade),
+          matching: find.byType(CopyFlipIcon),
         ),
       );
       expect(crossFade.duration, const Duration(milliseconds: 250));
@@ -291,4 +291,59 @@ void main() {
       await tester.pump(const Duration(seconds: 3));
     },
   );
+
+  group('CopyFlipIcon', () {
+    const Widget first = SizedBox(key: ValueKey<String>('first'), width: 16);
+    const Widget second = SizedBox(key: ValueKey<String>('second'), width: 16);
+    Widget flip(bool showSecond, {Duration? duration}) => Directionality(
+      textDirection: TextDirection.ltr,
+      child: Center(
+        child: CopyFlipIcon(
+          showSecond: showSecond,
+          first: first,
+          second: second,
+          duration: duration ?? const Duration(milliseconds: 200),
+        ),
+      ),
+    );
+    Finder fades() => find.descendant(
+      of: find.byType(CopyFlipIcon),
+      matching: find.byType(FadeTransition),
+    );
+
+    testWidgets('paints the shown icon without a fade layer at rest', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(flip(false));
+      expect(find.byKey(const ValueKey<String>('first')), findsOneWidget);
+      expect(find.byKey(const ValueKey<String>('second')), findsNothing);
+      expect(fades(), findsNothing);
+    });
+
+    testWidgets('cross-fades only while flipping, then drops the fades', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(flip(false));
+      await tester.pumpWidget(flip(true));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(fades(), findsNWidgets(2));
+      final List<FadeTransition> both = tester
+          .widgetList<FadeTransition>(fades())
+          .toList();
+      expect(both.first.opacity.value, closeTo(0.5, 0.01));
+      expect(both.last.opacity.value, closeTo(0.5, 0.01));
+
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(fades(), findsNothing);
+      expect(find.byKey(const ValueKey<String>('second')), findsOneWidget);
+      expect(find.byKey(const ValueKey<String>('first')), findsNothing);
+    });
+
+    testWidgets('a zero duration swaps instantly', (WidgetTester tester) async {
+      await tester.pumpWidget(flip(false, duration: Duration.zero));
+      await tester.pumpWidget(flip(true, duration: Duration.zero));
+      expect(fades(), findsNothing);
+      expect(find.byKey(const ValueKey<String>('second')), findsOneWidget);
+    });
+  });
 }
