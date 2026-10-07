@@ -203,4 +203,56 @@ void main() {
       expect(c.entries.single.input, big);
     });
   });
+
+  group('HistoryController persistence', () {
+    Future<List<dynamic>> stored() async =>
+        jsonDecode(
+              (await SharedPreferences.getInstance()).getString(
+                'mb.history.entries',
+              )!,
+            )
+            as List<dynamic>;
+
+    test('writes are debounced and flush writes immediately', () async {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final HistoryController c = HistoryController(
+        prefs: prefs,
+        retention: const Duration(days: 36500),
+        persistDelay: const Duration(milliseconds: 500),
+      );
+      await c.add(entry('json', '{"a":1}'));
+      await c.add(entry('json', '{"b":2}'));
+      expect(prefs.getString('mb.history.entries'), isNull);
+      await c.flush();
+      expect(await stored(), hasLength(2));
+    });
+
+    test('the debounce timer writes without a flush', () async {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final HistoryController c = HistoryController(
+        prefs: prefs,
+        retention: const Duration(days: 36500),
+        persistDelay: const Duration(milliseconds: 10),
+      );
+      await c.add(entry('json', '{"a":1}'));
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(await stored(), hasLength(1));
+    });
+
+    test('delete and clear write immediately', () async {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final HistoryController c = HistoryController(
+        prefs: prefs,
+        retention: const Duration(days: 36500),
+        persistDelay: const Duration(milliseconds: 500),
+      );
+      final HistoryEntry a = entry('json', '{"a":1}');
+      await c.add(a);
+      await c.add(entry('json', '{"b":2}'));
+      await c.delete(c.entries.last);
+      expect(await stored(), hasLength(1));
+      await c.clear();
+      expect(await stored(), isEmpty);
+    });
+  });
 }

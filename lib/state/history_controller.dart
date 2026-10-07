@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -53,6 +55,13 @@ class HistoryEntry {
     id: id ?? this.id,
   );
 
+  /// The entry's persisted JSON, encoded once. Entries are immutable, so the
+  /// string is reusable by every persist until the entry is replaced
+  /// (copyWith yields a new entry and a new cache slot).
+  String get encoded => _encodedCache[this] ??= jsonEncode(toJson());
+
+  static final Expando<String> _encodedCache = Expando<String>('history.json');
+
   Map<String, dynamic> toJson() {
     final bool redact = protected;
     return <String, dynamic>{
@@ -80,14 +89,26 @@ class HistoryEntry {
 }
 
 /// On-device history of utility usage. 7-day retention by default.
-class HistoryController extends ChangeNotifier {
+///
+/// Writes are debounced ([persistDelay]) and flushed when the app leaves the
+/// foreground or the controller is disposed; destructive actions (delete,
+/// clear, retention change) flush immediately. [flush] writes now.
+class HistoryController extends ChangeNotifier with WidgetsBindingObserver {
   HistoryController({
     Duration retention = const Duration(days: 7),
     int maxEntries = 200,
     SharedPreferences? prefs,
+    this.persistDelay = kIsWeb
+        ? const Duration(milliseconds: 500)
+        : Duration.zero,
   }) : _retention = retention,
        _maxEntries = maxEntries,
        _prefs = prefs;
+
+  /// Debounce for add/pin writes. Defaults to 500 ms on web, where each write
+  /// is a synchronous localStorage encode; native writes go out immediately
+  /// ([Duration.zero]) since they are cheap and survive a process kill.
+  final Duration persistDelay;
 
   /// Largest input/output (UTF-16 code units) a new entry may carry. Rows
   /// reopen a tool seeded with the full stored input and copy the full
@@ -105,6 +126,10 @@ class HistoryController extends ChangeNotifier {
   final int _maxEntries;
   SharedPreferences? _prefs;
   List<HistoryEntry> _entries = <HistoryEntry>[];
+  Timer? _persistTimer;
+  bool _dirty = false;
+  bool _observing = false;
+  Future<void> _writes = Future<void>.value();
 
   List<HistoryEntry> get entries => List<HistoryEntry>.unmodifiable(_entries);
   Duration get retention => _retention;
@@ -161,11 +186,13 @@ class HistoryController extends ChangeNotifier {
         c._entries.removeWhere((HistoryEntry e) => !c._allows(e));
         c._evictExpired();
         if (migratedIds || c._entries.length != loadedCount) {
-          await c._persist();
+          c._dirty = true;
+          unawaited(c.flush());
         }
       } catch (_) {
         c._entries = <HistoryEntry>[];
-        await c._persist();
+        c._dirty = true;
+        unawaited(c.flush());
       }
     }
     return c;
@@ -194,7 +221,7 @@ class HistoryController extends ChangeNotifier {
     }
     _evictExpired();
     notifyListeners();
-    await _persist();
+    await _persistSoon();
   }
 
   bool _allows(HistoryEntry entry) =>
@@ -204,7 +231,8 @@ class HistoryController extends ChangeNotifier {
   Future<void> clear() async {
     _entries = <HistoryEntry>[];
     notifyListeners();
-    await _persist();
+    _dirty = true;
+    await flush();
   }
 
   Future<void> delete(HistoryEntry entry) async {
@@ -212,7 +240,8 @@ class HistoryController extends ChangeNotifier {
     if (index == -1) return;
     _entries.removeAt(index);
     notifyListeners();
-    await _persist();
+    _dirty = true;
+    await flush();
   }
 
   Future<void> togglePinned(HistoryEntry entry) async {
@@ -221,7 +250,7 @@ class HistoryController extends ChangeNotifier {
     final HistoryEntry current = _entries[index];
     _entries[index] = current.copyWith(pinned: !current.pinned);
     notifyListeners();
-    await _persist();
+    await _persistSoon();
   }
 
   int _indexOf(HistoryEntry entry) {
@@ -252,7 +281,8 @@ class HistoryController extends ChangeNotifier {
         _prefs ?? await SharedPreferences.getInstance();
     _prefs = prefs;
     await prefs.setInt(_retentionKey, retention.inDays);
-    await _persist();
+    _dirty = true;
+    await flush();
   }
 
   void _evictExpired() {
@@ -261,14 +291,60 @@ class HistoryController extends ChangeNotifier {
     _entries.removeWhere((HistoryEntry e) => e.timestamp.isBefore(cutoff));
   }
 
-  Future<void> _persist() async {
-    final SharedPreferences prefs =
-        _prefs ?? await SharedPreferences.getInstance();
-    _prefs = prefs;
-    final String encoded = jsonEncode(
-      _entries.map((HistoryEntry e) => e.toJson()).toList(),
-    );
-    await prefs.setString(_prefsKey, encoded);
+  Future<void> _persistSoon() {
+    _dirty = true;
+    if (persistDelay == Duration.zero) return flush();
+    if (!_observing) {
+      try {
+        WidgetsBinding.instance.addObserver(this);
+        _observing = true;
+      } catch (_) {
+        // No binding (plain Dart test): the timer and dispose still flush.
+      }
+    }
+    _persistTimer?.cancel();
+    _persistTimer = Timer(persistDelay, () {
+      _persistTimer = null;
+      unawaited(flush());
+    });
+    return Future<void>.value();
+  }
+
+  /// Writes any pending change now.
+  Future<void> flush() {
+    _persistTimer?.cancel();
+    _persistTimer = null;
+    if (_dirty) {
+      _dirty = false;
+      _writes = _writes.then((_) => _write());
+    }
+    return _writes;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) unawaited(flush());
+  }
+
+  @override
+  void dispose() {
+    if (_observing) WidgetsBinding.instance.removeObserver(this);
+    _observing = false;
+    unawaited(flush());
+    super.dispose();
+  }
+
+  Future<void> _write() async {
+    try {
+      final SharedPreferences prefs =
+          _prefs ?? await SharedPreferences.getInstance();
+      _prefs = prefs;
+      final String encoded =
+          '[${_entries.map((HistoryEntry e) => e.encoded).join(',')}]';
+      await prefs.setString(_prefsKey, encoded);
+    } catch (e) {
+      debugPrint('History persist failed: $e');
+    }
   }
 }
 
