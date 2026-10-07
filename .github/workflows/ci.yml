@@ -18,7 +18,7 @@ permissions:
 env:
   # Pin the Flutter channel and version
   FLUTTER_CHANNEL: stable
-  FLUTTER_VERSION: "3.41.8"
+  FLUTTER_VERSION: "3.47.6"
   # Skip Flutter analytics in CI
   CI: true
 
@@ -75,7 +75,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 

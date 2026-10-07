@@ -41,9 +41,9 @@ On native macOS and wide web (≥ 900 px) the same catalog tools open on a **des
 
 ## Stack
 
-- Flutter `3.41.8` (pinned in `.github/workflows/ci.yml`).
+- Flutter `3.47.6` (pinned in `.github/workflows/ci.yml`).
 - UI: Cupertino widgets only (`uses-material-design: false` in `pubspec.yaml`). Do not introduce `Material*` widgets, `Scaffold`, or `MaterialApp`.
-- Runtime deps: `crypto`, `cupertino_icons`, `intl`, `package_info_plus`, `shared_preferences`, `mobile_scanner`, `qr_flutter`, `share_plus`, `cross_file`, `flutter_lucide`, `flutter_svg`, `flutter_native_splash` (keep `^2.4.7` — 2.4.8 conflicts with the flutter_test `meta` pin), `decimal`/`rational`, and `yaml`/`yaml_writer`/`toml`. No third-party UI kits — `lib/widgets/iphone_frame.dart` is hand-rolled.
+- Runtime deps: `crypto`, `cupertino_icons`, `intl`, `package_info_plus`, `shared_preferences`, `mobile_scanner`, `qr_flutter`, `share_plus`, `cross_file`, `flutter_lucide`, `flutter_svg`, `flutter_native_splash`, `decimal`/`rational`, and `yaml`/`yaml_writer`/`toml`. No third-party UI kits — `lib/widgets/iphone_frame.dart` is hand-rolled.
 - Dev deps: `flutter_test`, `flutter_lints`, `fake_async`, `flutter_launcher_icons` (run-once icon generator, output committed). No codegen, no mock framework. If you reach for `build_runner`/`mockito`/`json_serializable`, add the dep AND wire the generator/CI step in the same change.
 
 ## Layout
