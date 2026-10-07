@@ -4,6 +4,48 @@
 
 - **deps**: pin flutter_native_splash to ^2.4.7 for SDK compatibility
 
+## [1.29.1](https://github.com/howard86/masquerade/compare/v1.29.0...v1.29.1) (2026-10-07)
+
+
+### Bug Fixes
+
+* **desktop:** keep minimize animations alive across quick restore ([3cb8345](https://github.com/howard86/masquerade/commit/3cb83451fa05d1a8e76ce4b7df2138ac489c0acf))
+* **detection:** stop Environment Inspector claiming prose, markdown and logs ([f8b1f36](https://github.com/howard86/masquerade/commit/f8b1f36b275bdb5359c509bc3f225d3d7c755798))
+* **drafts:** count a draft as stored only after the write lands ([5a215bc](https://github.com/howard86/masquerade/commit/5a215bc4408c998354a8a04c5197eb425050f9b6))
+* **history:** bound persisted history and survive storage quota errors ([0711c68](https://github.com/howard86/masquerade/commit/0711c68ed22b555219c1345ef2c2b352eada90b2))
+* **history:** keep the policy version with the entries under a new key ([11e1d37](https://github.com/howard86/masquerade/commit/11e1d3755ab73c0eb2bb4bd371d29699f3d6877d))
+* **regex:** pick the Web Worker under dart2wasm too ([3a3520b](https://github.com/howard86/masquerade/commit/3a3520b1065bcc8136675f6d0b9c2c034367bf91))
+
+
+### Performance Improvements
+
+* **app:** skip the Dart splash hold on web ([00d4dd6](https://github.com/howard86/masquerade/commit/00d4dd6e3209f7507888e17d488fba71fb163523))
+* **bodies:** drop idle copy-icon layers and redundant copies ([80b0d97](https://github.com/howard86/masquerade/commit/80b0d97c360106373e2b2474902cd622c989836d))
+* **bodies:** load tool bodies as one deferred unit on web ([4f9b4a9](https://github.com/howard86/masquerade/commit/4f9b4a9d2b5dc4eaa65b6f972f86478917edfc48))
+* **canvas:** skip unchanged startup writes and cache canonical scans ([6caf267](https://github.com/howard86/masquerade/commit/6caf2676eca578daed04cfb9230953005bdd4705))
+* **desktop:** draw the dot grid in one drawRawPoints call ([ed439f7](https://github.com/howard86/masquerade/commit/ed439f736d1ab5fb33248c37f1af63e8775d6dbe))
+* **desktop:** drop the HUD blur, subscribe-free preference reads, per-tile repaint ([205a20f](https://github.com/howard86/masquerade/commit/205a20fed4a9bcbb0d38f20d48660ab58735f0ee))
+* **detection:** cap full Markdown/YAML/TOML parses during detection ([c2a580f](https://github.com/howard86/masquerade/commit/c2a580fc267cdde86b6cfce6e6e7dc352f8058c9))
+* **detection:** cheap prefilters for CSV, color, bps, X.509, URL and search ([9a37de7](https://github.com/howard86/masquerade/commit/9a37de7dd35c1c44d53ff2d79f1cf879d848b964))
+* **diff:** virtualize large diffs and share row styles ([fb68a16](https://github.com/howard86/masquerade/commit/fb68a16829e85a5444336a3cdb742d35ebfa1a2f))
+* **drafts:** skip unchanged draft writes and keep huge drafts in memory ([8867035](https://github.com/howard86/masquerade/commit/886703513de7d89877daca9424847604f9715002))
+* **hash:** compute SHA digests with SubtleCrypto on web ([c8415b8](https://github.com/howard86/masquerade/commit/c8415b84f729c9446c42eaf9c5becfe3f50052b8))
+* **history:** cache encoded entries and debounce writes on web ([46463c0](https://github.com/howard86/masquerade/commit/46463c064740a8c0f1b73673c715c9a8067c2d82))
+* **history:** cache search text and date labels; narrow Library rebuilds ([96a5a21](https://github.com/howard86/masquerade/commit/96a5a21dd316b5389a61769d1463d8f4ae9ad03e))
+* **home:** stop rebuilding Home on focus and cap the raw-text view ([f6a2066](https://github.com/howard86/masquerade/commit/f6a20660305af72ae0b99c8462d967696a1115e0))
+* **inspector:** reuse the input scan for match sensitivity ([c99bb25](https://github.com/howard86/masquerade/commit/c99bb2500e9e6edd3e121ce36048884d0315bb03))
+* **links:** apply inbound link values on a later task ([80f8c39](https://github.com/howard86/masquerade/commit/80f8c393e4ca9bb51a17e89aa4666074edddaabf))
+* **mq:** paint the monogram directly and drop flutter_svg ([7f63485](https://github.com/howard86/masquerade/commit/7f63485aad300dc06b900cc5e71d7516392f4691))
+* **regex:** return worker matches as offsets and cache highlight spans ([4c605e7](https://github.com/howard86/masquerade/commit/4c605e72bc20b843bd8474b8eb9ff53529e8dd77))
+* **sensitive:** prefilter the credential-key regex by keyword stems ([c06a22e](https://github.com/howard86/masquerade/commit/c06a22e020d84c5cd0bc7472626410f88ed3ed6f))
+* **share-inbox:** skip iOS-only channel calls on web ([f1e93a9](https://github.com/howard86/masquerade/commit/f1e93a93e99a49d55a236d828ebe8f17ff273f10))
+* **tabs:** make the tab bar opaque to avoid a per-frame backdrop blur ([c52c4e7](https://github.com/howard86/masquerade/commit/c52c4e7d678170e972200df1628e0c97a5e0b703))
+* **unicode:** count graphemes past the display cap without substrings ([9b4b7a5](https://github.com/howard86/masquerade/commit/9b4b7a5ac559189b8fb9eeae0a986c503dada235))
+* **unicode:** normalize with the browser on web and lazily per form ([1cc92fc](https://github.com/howard86/masquerade/commit/1cc92fc8c835d2b9ff7ce110a389b9536b300052))
+* **web:** faster load, smoother frames and a smaller bundle ([5a4ab17](https://github.com/howard86/masquerade/commit/5a4ab17c619d12d6cb9fa032bf3643c340b512eb))
+* **work-session:** debounce session persistence and skip redundant re-checks ([9d33526](https://github.com/howard86/masquerade/commit/9d335267e071bde3f331d00caff984f75c7118b7))
+* **work-session:** scan protected workflow strings once ([721953b](https://github.com/howard86/masquerade/commit/721953b3d98bea5a63f9300e7bea1876363e51e3))
+
 ## [1.29.0](https://github.com/howard86/masquerade/compare/v1.28.0...v1.29.0) (2026-09-29)
 
 
