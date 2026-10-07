@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -845,19 +847,43 @@ class _DotGridPainter extends CustomPainter {
   final Color color;
   final ValueListenable<Offset> offset;
 
+  static const double _radius = 0.75;
+
+  // Dot lattice for the last painted size, one extra step on each axis so a
+  // pan can be applied with a translate instead of rebuilding the points.
+  static Size? _cachedSize;
+  static Float32List? _cachedPoints;
+
+  static Float32List _points(Size size) {
+    if (_cachedSize == size) return _cachedPoints!;
+    final int cols = (size.width / _step).ceil() + 1;
+    final int rows = (size.height / _step).ceil() + 1;
+    final Float32List points = Float32List(cols * rows * 2);
+    int i = 0;
+    for (int cx = 0; cx < cols; cx++) {
+      for (int cy = 0; cy < rows; cy++) {
+        points[i++] = cx * _step;
+        points[i++] = cy * _step;
+      }
+    }
+    _cachedSize = size;
+    return _cachedPoints = points;
+  }
+
   static const double _step = 24;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final Paint paint = Paint()..color = color;
+    final Paint paint = Paint()
+      ..color = color
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = _radius * 2;
     final Offset pan = offset.value;
-    final double startX = pan.dx % _step;
-    final double startY = pan.dy % _step;
-    for (double x = startX; x < size.width; x += _step) {
-      for (double y = startY; y < size.height; y += _step) {
-        canvas.drawCircle(Offset(x, y), 0.75, paint);
-      }
-    }
+    // Same phase as before: dots at (pan % step) + k * step, kept inside size.
+    canvas.save();
+    canvas.translate(pan.dx % _step, pan.dy % _step);
+    canvas.drawRawPoints(ui.PointMode.points, _points(size), paint);
+    canvas.restore();
   }
 
   @override
