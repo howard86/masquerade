@@ -133,8 +133,15 @@ class HistoryController extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Bump when [SensitiveDataPolicy] or a tool's history policy changes what
   /// may be stored: `load` rescans stored entries only on a version mismatch.
+  /// The version is stored in the same prefs value as the entries
+  /// (`{"v":N,"entries":[...]}` under [_prefsKey]), so no writer can change
+  /// one without the other; any other version is stale. The legacy bare-array
+  /// key ([_legacyPrefsKey]) is only read to migrate (always stale, so fully
+  /// rescanned) and is never written, so an older build in another tab keeps
+  /// working on its own copy. The guard test in
+  /// `history_policy_fingerprint_test.dart` fails when the inputs change
+  /// without this being bumped.
   static const int policyVersion = 1;
-  static const String _policyVersionKey = 'mb.history.policy.version';
 
   /// Largest input/output (UTF-16 code units) a new entry may carry. Rows
   /// reopen a tool seeded with the full stored input and copy the full
@@ -144,7 +151,9 @@ class HistoryController extends ChangeNotifier with WidgetsBindingObserver {
   static const int maxInputLength = 16 * 1024;
   static const int maxOutputLength = 64 * 1024;
 
-  static const String _prefsKey = 'mb.history.entries';
+  static const String _prefsKey = 'mb.history.entries.v2';
+  static const String _legacyPrefsKey = 'mb.history.entries';
+  static const String _legacyPolicyVersionKey = 'mb.history.policy.version';
   static const String _retentionKey = 'mb.history.retention.days';
   static int _nextId = 0;
 
@@ -155,8 +164,8 @@ class HistoryController extends ChangeNotifier with WidgetsBindingObserver {
   List<HistoryEntry>? _view;
   Timer? _persistTimer;
   bool _dirty = false;
+  bool _wipe = false;
   bool _observing = false;
-  int? _storedPolicyVersion;
   Future<void> _writes = Future<void>.value();
 
   /// Unmodifiable snapshot, rebuilt only after a mutation, so callers may
@@ -191,12 +200,22 @@ class HistoryController extends ChangeNotifier with WidgetsBindingObserver {
       retention: Duration(days: days ?? 7),
       prefs: prefs,
     );
-    final String? raw = prefs.getString(_prefsKey);
-    c._storedPolicyVersion = prefs.getInt(_policyVersionKey);
+    final String? raw =
+        prefs.getString(_prefsKey) ?? prefs.getString(_legacyPrefsKey);
     if (raw != null && raw.isNotEmpty) {
       try {
-        final List<dynamic> arr = jsonDecode(raw) as List<dynamic>;
-        final bool current = c._storedPolicyVersion == policyVersion;
+        final Object? root = jsonDecode(raw);
+        final List<dynamic> arr;
+        final bool current;
+        if (root is Map<String, dynamic>) {
+          arr = root['entries'] as List<dynamic>;
+          current = root['v'] == policyVersion;
+        } else {
+          // Bare array: written before the version moved into the value (or
+          // by an older build), so it was never vetted by this policy.
+          arr = root as List<dynamic>;
+          current = false;
+        }
         final List<HistoryEntry> decoded = <HistoryEntry>[];
         for (final dynamic e in arr) {
           final HistoryEntry entry = HistoryEntry.fromJson(
@@ -271,6 +290,7 @@ class HistoryController extends ChangeNotifier with WidgetsBindingObserver {
     _view = null;
     notifyListeners();
     _dirty = true;
+    _wipe = true;
     await flush();
   }
 
@@ -404,10 +424,20 @@ class HistoryController extends ChangeNotifier with WidgetsBindingObserver {
       final SharedPreferences prefs =
           _prefs ?? await SharedPreferences.getInstance();
       _prefs = prefs;
+      if (_wipe) {
+        _wipe = false;
+        if (_entries.isEmpty) {
+          // Cleared: leave no copy in storage, including the legacy ones.
+          await prefs.remove(_prefsKey);
+          await prefs.remove(_legacyPrefsKey);
+          await prefs.remove(_legacyPolicyVersionKey);
+          return;
+        }
+      }
       int budget = maxPersistedChars;
       while (true) {
         final String encoded =
-            '[${_within(budget).map((HistoryEntry e) => e.encoded).join(',')}]';
+            '{"v":$policyVersion,"entries":[${_within(budget).map((HistoryEntry e) => e.encoded).join(',')}]}';
         try {
           await prefs.setString(_prefsKey, encoded);
           break;
@@ -417,10 +447,6 @@ class HistoryController extends ChangeNotifier with WidgetsBindingObserver {
           budget ~/= 2;
           debugPrint('History persist failed, retrying smaller: $e');
         }
-      }
-      if (_storedPolicyVersion != policyVersion) {
-        await prefs.setInt(_policyVersionKey, policyVersion);
-        _storedPolicyVersion = policyVersion;
       }
     } catch (e) {
       debugPrint('History persist failed: $e');
