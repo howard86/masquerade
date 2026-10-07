@@ -111,8 +111,31 @@ abstract final class SensitiveDataPolicy {
       _privateKey.hasMatch(value) ||
       _jwt.hasMatch(value);
 
-  static bool _containsProtectedToolValue(String value, String? utilityId) {
-    final bool direct = containsSensitiveArtifact(value);
+  /// Whether [value] is protected under any of the generic, base64, bytes or
+  /// url interpretations, scanning the value directly only once.
+  static bool protectsAnyInterpretation(String value) {
+    if (containsSensitiveArtifact(value)) return true;
+    return <String>[
+      'base64',
+      'bytes',
+      'url',
+    ].any((String id) => _containsProtectedToolValue(value, id, direct: false));
+  }
+
+  static bool _containsProtectedToolValue(
+    String value,
+    String? utilityId, {
+    bool? direct,
+  }) {
+    final bool scanned = direct ?? containsSensitiveArtifact(value);
+    return _protectedToolValue(value, utilityId, scanned);
+  }
+
+  static bool _protectedToolValue(
+    String value,
+    String? utilityId,
+    bool direct,
+  ) {
     if (utilityId != 'base64' && utilityId != 'bytes' && utilityId != 'url') {
       return direct;
     }
