@@ -28,35 +28,8 @@ import 'utils/x509_inspector.dart';
 import 'utils/yaml_parser.dart';
 import 'widgets/mq/mq_icons.dart';
 import 'widgets/mq/tool_action_bar.dart';
-import 'widgets/tool_bodies/artifact_inspector_body.dart';
-import 'widgets/tool_bodies/base64_body.dart';
-import 'widgets/tool_bodies/bps_body.dart';
-import 'widgets/tool_bodies/bytes_body.dart';
-import 'widgets/tool_bodies/case_body.dart';
-import 'widgets/tool_bodies/color_body.dart';
-import 'widgets/tool_bodies/cron_body.dart';
-import 'widgets/tool_bodies/csv_body.dart';
-import 'widgets/tool_bodies/diff_body.dart';
-import 'widgets/tool_bodies/environment_config_inspector_body.dart';
-import 'widgets/tool_bodies/generator_body.dart';
-import 'widgets/tool_bodies/hash_body.dart';
-import 'widgets/tool_bodies/http_inspector_body.dart';
-import 'widgets/tool_bodies/ip_body.dart';
-import 'widgets/tool_bodies/json_body.dart';
-import 'widgets/tool_bodies/jwt_body.dart';
-import 'widgets/tool_bodies/list_body.dart';
-import 'widgets/tool_bodies/log_stack_inspector_body.dart';
-import 'widgets/tool_bodies/math_body.dart';
-import 'widgets/tool_bodies/markdown_body.dart';
-import 'widgets/tool_bodies/number_base_body.dart';
-import 'widgets/tool_bodies/qr_code_body.dart';
-import 'widgets/tool_bodies/regex_body.dart';
+import 'widgets/tool_bodies/deferred_tool_body.dart';
 import 'widgets/tool_bodies/seed_source.dart';
-import 'widgets/tool_bodies/timestamp_body.dart';
-import 'widgets/tool_bodies/unicode_string_inspector_body.dart';
-import 'widgets/tool_bodies/url_body.dart';
-import 'widgets/tool_bodies/uuid_body.dart';
-import 'widgets/tool_bodies/x509_inspector_body.dart';
 
 /// Routes a cross-tool "Open in X" tap from any tool body's footer back to
 /// the host screen, which expands the target tool's inline card seeded with
@@ -229,22 +202,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.disabled,
       defaultCardWidth: CardWidthClass.wide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => EnvironmentConfigInspectorBody(
-            initialInput: initialInput,
-            initialArtifact: initialArtifact,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.environmentConfigInspector),
       detectArtifact: _detectEnvironmentConfig,
     ),
     UtilityDescriptor(
@@ -279,22 +237,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.disabled,
       defaultCardWidth: CardWidthClass.wide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => LogStackInspectorBody(
-            initialInput: initialInput,
-            initialArtifact: initialArtifact,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.logStackInspector),
     ),
     UtilityDescriptor(
       id: 'unicode_string_inspector',
@@ -331,22 +274,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.disabled,
       defaultCardWidth: CardWidthClass.wide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => UnicodeStringInspectorBody(
-            initialInput: initialInput,
-            initialArtifact: initialArtifact,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.unicodeStringInspector),
     ),
     UtilityDescriptor(
       id: 'x509_inspector',
@@ -379,22 +307,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.disabled,
       defaultCardWidth: CardWidthClass.wide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => X509InspectorBody(
-            initialInput: initialInput,
-            initialArtifact: initialArtifact,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.x509Inspector),
       detectArtifact: _detectX509,
     ),
     UtilityDescriptor(
@@ -424,22 +337,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.disabled,
       defaultCardWidth: CardWidthClass.wide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => HttpInspectorBody(
-            initialInput: initialInput,
-            initialArtifact: initialArtifact,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.httpInspector),
     ),
     UtilityDescriptor(
       id: 'artifact_inspector',
@@ -464,23 +362,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.disabled,
       defaultCardWidth: CardWidthClass.wide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => ArtifactInspectorBody(
-            initialInput: initialInput,
-            initialArtifact: initialArtifact,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-            link: link,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.artifactInspector),
     ),
     UtilityDescriptor(
       id: 'uuid',
@@ -509,22 +391,7 @@ class UtilityCatalog {
       },
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => UuidBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-            link: link,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.uuid),
       detectArtifact: _detectUuid,
     ),
     UtilityDescriptor(
@@ -553,22 +420,7 @@ class UtilityCatalog {
       },
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => IpBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-            link: link,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.ip),
       detectArtifact: _detectIp,
     ),
     UtilityDescriptor(
@@ -595,22 +447,7 @@ class UtilityCatalog {
       },
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => NumberBaseBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-            link: link,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.numberBase),
       detectArtifact: _detectNumberBase,
     ),
     UtilityDescriptor(
@@ -644,23 +481,7 @@ class UtilityCatalog {
       },
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => TimestampBody(
-            initialInput: initialInput,
-            initialArtifact: initialArtifact,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-            link: link,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.timestamp),
       detectArtifact: _detectTimestamp,
     ),
     UtilityDescriptor(
@@ -687,21 +508,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
       defaultCardWidth: CardWidthClass.wide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => CronBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.cron),
       detectArtifact: _detectCron,
     ),
     UtilityDescriptor(
@@ -743,23 +550,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
       defaultCardWidth: CardWidthClass.xwide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => JSONBody(
-            initialInput: initialInput,
-            initialArtifact: initialArtifact,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-            link: link,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.json),
       detectArtifact: _detectStructured,
     ),
     UtilityDescriptor(
@@ -789,22 +580,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
       defaultCardWidth: CardWidthClass.xwide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => CsvBody(
-            initialInput: initialInput,
-            initialArtifact: initialArtifact,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.csv),
       detectArtifact: _detectCsv,
     ),
     UtilityDescriptor(
@@ -832,22 +608,7 @@ class UtilityCatalog {
       },
       batchCapable: false,
       historyPolicy: HistoryPolicy.disabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => JwtBody(
-            initialInput: initialInput,
-            initialArtifact: initialArtifact,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.jwt),
       detectArtifact: _detectJwt,
     ),
     UtilityDescriptor(
@@ -874,22 +635,7 @@ class UtilityCatalog {
       },
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => Base64Body(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-            link: link,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.base64),
       detectArtifact: _detectBase64,
     ),
     UtilityDescriptor(
@@ -923,21 +669,7 @@ class UtilityCatalog {
       },
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => CaseBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.textCase),
       detectArtifact: _detectCase,
     ),
     UtilityDescriptor(
@@ -975,22 +707,7 @@ class UtilityCatalog {
       },
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => UrlBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-            link: link,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.url),
       detectArtifact: _detectUrl,
     ),
     UtilityDescriptor(
@@ -1022,22 +739,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
       defaultCardWidth: CardWidthClass.wide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => ColorBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-            link: link,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.color),
       detectArtifact: _detectColor,
     ),
     UtilityDescriptor(
@@ -1074,22 +776,7 @@ class UtilityCatalog {
       },
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => MathBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-            link: link,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.math),
       detectArtifact: _detectMath,
     ),
     UtilityDescriptor(
@@ -1115,21 +802,7 @@ class UtilityCatalog {
       },
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => BpsBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.bps),
       detectArtifact: _detectBps,
     ),
     UtilityDescriptor(
@@ -1159,21 +832,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
       defaultCardWidth: CardWidthClass.wide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => BytesBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.bytes),
       detectArtifact: _detectBytes,
     ),
     UtilityDescriptor(
@@ -1208,22 +867,7 @@ class UtilityCatalog {
       },
       batchCapable: true,
       historyPolicy: HistoryPolicy.enabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => ListToolBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-            link: link,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.list),
       detectArtifact: _detectList,
     ),
     UtilityDescriptor(
@@ -1252,20 +896,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
       defaultCardWidth: CardWidthClass.wide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => RegexBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.regex),
       detectArtifact: _detectRegex,
     ),
     UtilityDescriptor(
@@ -1292,21 +923,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
       defaultCardWidth: CardWidthClass.xwide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => DiffBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            actionBar: actionBar,
-            link: link,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.diff),
     ),
     UtilityDescriptor(
       id: 'hash',
@@ -1341,21 +958,7 @@ class UtilityCatalog {
       },
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => HashBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.hash),
       detectArtifact: _detectHashAndPem,
     ),
     UtilityDescriptor(
@@ -1387,21 +990,7 @@ class UtilityCatalog {
       },
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => QrCodeBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.qrCode),
     ),
     UtilityDescriptor(
       id: 'generator',
@@ -1431,22 +1020,7 @@ class UtilityCatalog {
       },
       batchCapable: false,
       historyPolicy: HistoryPolicy.disabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => GeneratorBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-            link: link,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.generator),
     ),
     UtilityDescriptor(
       id: 'markdown',
@@ -1475,21 +1049,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
       defaultCardWidth: CardWidthClass.wide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => MarkdownBody(
-            initialInput: initialInput,
-            initialArtifact: initialArtifact,
-            seedSource: seedSource,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.markdown),
       detectArtifact: _detectMarkdown,
     ),
   ];

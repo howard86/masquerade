@@ -22,6 +22,7 @@ import 'theme/mq_theme.dart';
 import 'utils/external_input_importer.dart';
 import 'widgets/iphone_frame.dart';
 import 'widgets/mq/mq_splash_screen.dart';
+import 'widgets/tool_bodies/deferred_tool_body.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class MyApp extends StatefulWidget {
@@ -129,6 +130,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     // On web, index.html already paints the same splash; skipping the Dart
     // one also lets dart2js tree-shake MqSplashScreen out of the bundle.
     _showSplash = !widget.skipSplash && !kIsWeb;
+    // Tool bodies are a deferred library (web: a separate .part.js). Warm it
+    // right after the first frame so it is loaded before the first tap.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(ensureToolBodiesLoaded().catchError((Object _) {}));
+    });
     if (!widget.skipSplash) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         // Dart splash now painted — release the native overlay and start
