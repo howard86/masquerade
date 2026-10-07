@@ -96,7 +96,10 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
 
   /// The card whose title bar is being dragged (drives the snap preview).
   final ValueNotifier<int?> _draggingCardId = ValueNotifier<int?>(null);
-  final Set<int> _animatingMinimizedIds = <int>{};
+
+  /// Card id -> generation of its latest minimize/restore animation.
+  final Map<int, int> _animatingMinimizedIds = <int, int>{};
+  int _animationGeneration = 0;
   final Map<int, bool> _prevMinimized = <int, bool>{};
 
   /// Built once: the launcher grid depends on no canvas state, so reusing the
@@ -162,19 +165,13 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     setState(() {
       for (final card in currentCards) {
         final bool wasMinimized = _prevMinimized[card.id] ?? false;
-        if (card.minimized && !wasMinimized) {
-          _animatingMinimizedIds.add(card.id);
+        if (card.minimized != wasMinimized) {
+          // A newer minimize/restore of the same card supersedes the pending
+          // removal, so a quick toggle can't clear the flag mid-animation.
+          final int generation = ++_animationGeneration;
+          _animatingMinimizedIds[card.id] = generation;
           Future.delayed(const Duration(milliseconds: 350), () {
-            if (mounted) {
-              setState(() {
-                _animatingMinimizedIds.remove(card.id);
-              });
-            }
-          });
-        } else if (!card.minimized && wasMinimized) {
-          _animatingMinimizedIds.add(card.id);
-          Future.delayed(const Duration(milliseconds: 350), () {
-            if (mounted) {
+            if (mounted && _animatingMinimizedIds[card.id] == generation) {
               setState(() {
                 _animatingMinimizedIds.remove(card.id);
               });
@@ -301,7 +298,8 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
               builder: (BuildContext context, Widget? _) => _snapPreview(c),
             ),
             for (final CanvasCard card in zCards)
-              if (!card.minimized || _animatingMinimizedIds.contains(card.id))
+              if (!card.minimized ||
+                  _animatingMinimizedIds.containsKey(card.id))
                 _buildCardWrapper(
                   card: card,
                   openOrder: openOrder,
@@ -410,7 +408,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     final int slot = openOrder.indexWhere((c) => c.id == card.id) + 1;
     final int id = card.id;
 
-    if (_animatingMinimizedIds.contains(id)) {
+    if (_animatingMinimizedIds.containsKey(id)) {
       final Widget frame = _cardFrame(card, slot: slot);
       return ValueListenableBuilder<Offset>(
         valueListenable: _pan,
