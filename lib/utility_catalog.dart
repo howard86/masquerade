@@ -1891,6 +1891,47 @@ List<DetectionMatch<Object?>> _detectIp(
   ];
 }
 
+/// Largest input [_detectStructured] fully parses as YAML or TOML. Above it
+/// (a YAML parse costs ~0.13 ms/KB on the VM, several times that on the web
+/// main thread) the match rests on line shape alone, at a lower confidence
+/// and without a parserResult; the JSON body parses for itself.
+const int _structuredDetectionParseLimit = 128 * 1024;
+
+// Column-0 lines a block YAML document can have: a comment, a document
+// marker, a sequence item, or a `key:` mapping entry.
+final RegExp _yamlTopLevelLine = RegExp(
+  r'''#|---|\.\.\.|-(?:[ \t]|\r?$)|(?:"[^"\n]*"|'[^'\n]*'|[^\s#\-\[\]{},&*!|>'"%@`:][^:\n]*):(?:[ \t]|\r?$)''',
+  multiLine: true,
+);
+
+// Column-0 lines a TOML document can have: a comment, a table header, a
+// `key = value` entry, or the closing bracket of a multi-line array.
+final RegExp _tomlTopLevelLine = RegExp(
+  r'''#|\]|\[\[?(?:[A-Za-z0-9_\-. \t]|"[^"\n]*"|'[^'\n]*')+\]\]?[ \t]*(?:#|\r?$)|(?:[A-Za-z0-9_\-. \t]|"[^"\n]*"|'[^'\n]*')+=''',
+  multiLine: true,
+);
+
+/// Whether every non-blank line starting at column 0 matches [topLevel] (as a
+/// prefix). Indented lines are nested content and always pass.
+bool _linesShaped(String t, RegExp topLevel) {
+  int start = 0;
+  while (start < t.length) {
+    int end = t.indexOf('\n', start);
+    if (end < 0) end = t.length;
+    if (start < end) {
+      final int first = t.codeUnitAt(start);
+      if (first != 0x20 &&
+          first != 0x09 &&
+          first != 0x0D &&
+          topLevel.matchAsPrefix(t, start) == null) {
+        return false;
+      }
+    }
+    start = end + 1;
+  }
+  return true;
+}
+
 List<DetectionMatch<Object?>> _detectStructured(
   String input,
   ArtifactProvenance provenance,
@@ -1923,7 +1964,25 @@ List<DetectionMatch<Object?>> _detectStructured(
       ),
     ];
   }
+  final bool shapeOnly = t.length > _structuredDetectionParseLimit;
   if (TomlParser.looksLike(t)) {
+    if (shapeOnly) {
+      if (!_linesShaped(t, _tomlTopLevelLine)) {
+        return const <DetectionMatch<Object?>>[];
+      }
+      return <DetectionMatch<Object?>>[
+        _evidence(
+          provenance: provenance,
+          kind: ArtifactKind.toml,
+          rawValue: input,
+          parserResult: null,
+          confidence: .83,
+          reason:
+              'TOML table or key-value line structure (too large to fully validate during detection).',
+          primaryToolId: 'json',
+        ),
+      ];
+    }
     final TomlParseResult result = TomlParser.parse(t);
     if (result is! TomlOk) return const <DetectionMatch<Object?>>[];
     return <DetectionMatch<Object?>>[
@@ -1939,6 +1998,23 @@ List<DetectionMatch<Object?>> _detectStructured(
     ];
   }
   if (!YamlParser.looksLike(t)) return const <DetectionMatch<Object?>>[];
+  if (shapeOnly) {
+    if (!_linesShaped(t, _yamlTopLevelLine)) {
+      return const <DetectionMatch<Object?>>[];
+    }
+    return <DetectionMatch<Object?>>[
+      _evidence(
+        provenance: provenance,
+        kind: ArtifactKind.yaml,
+        rawValue: input,
+        parserResult: null,
+        confidence: .8,
+        reason:
+            'YAML document line structure (too large to fully validate during detection).',
+        primaryToolId: 'json',
+      ),
+    ];
+  }
   final YamlParseResult result = YamlParser.parse(t);
   if (result is! YamlOk) return const <DetectionMatch<Object?>>[];
   return <DetectionMatch<Object?>>[
@@ -2736,6 +2812,9 @@ final RegExp _markdownTableRow = RegExp(
   multiLine: true,
 );
 
+/// Largest input [_detectMarkdown] fully parses to confirm a match.
+const int _markdownDetectionParseLimit = 32 * 1024;
+
 List<DetectionMatch<Object?>> _detectMarkdown(
   String input,
   ArtifactProvenance provenance,
@@ -2764,14 +2843,24 @@ List<DetectionMatch<Object?>> _detectMarkdown(
     return const <DetectionMatch<Object?>>[];
   }
 
-  final MarkdownParseResult result = MarkdownParser.parse(input);
-  if (result is! MarkdownOk) return const <DetectionMatch<Object?>>[];
-  final bool sensitive =
-      SensitiveDataPolicy.protects(
-        utilityId: 'markdown',
-        values: <String>[input],
-      ) ||
-      SensitiveDataPolicy.containsSecretLikeValue(input);
+  // Gating on a full parse costs ~0.7 ms/KB, so above the cap the syntax
+  // signals decide alone (minus what the limit pre-count already rules out);
+  // the Markdown body parses for itself and never reads this parserResult.
+  final MarkdownOk? result;
+  if (input.length <= _markdownDetectionParseLimit) {
+    final MarkdownParseResult parsed = MarkdownParser.parse(input);
+    if (parsed is! MarkdownOk) return const <DetectionMatch<Object?>>[];
+    result = parsed;
+  } else {
+    if (MarkdownParser.checkLimits(input) != null) {
+      return const <DetectionMatch<Object?>>[];
+    }
+    result = null;
+  }
+  // `protects(utilityId: 'markdown')` reduces to the direct artifact scan
+  // that [Artifact.isSensitive] already runs lazily; only the secret-like
+  // value check must be declared up front.
+  final bool sensitive = SensitiveDataPolicy.containsSecretLikeValue(input);
   return <DetectionMatch<Object?>>[
     _evidence(
       provenance: provenance,

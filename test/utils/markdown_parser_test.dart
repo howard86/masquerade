@@ -106,4 +106,35 @@ void main() {
     expect(result, isA<MarkdownOk>());
     expect((result as MarkdownOk).blocks, isNotEmpty);
   });
+
+  test('pre-count rejects oversized lists before parsing, outside fences', () {
+    final String items = List<String>.generate(
+      MarkdownParser.maxListItems + 1,
+      (int i) => '- item $i',
+    ).join('\n');
+    final MarkdownErr precount = MarkdownParser.checkLimits(items)!;
+    expect(precount.message, 'Markdown lists are limited to 2,000 items.');
+    expect(
+      (MarkdownParser.parse(items) as MarkdownErr).message,
+      precount.message,
+    );
+
+    // The same lines inside a fenced code block or as thematic breaks are
+    // not list items.
+    expect(MarkdownParser.checkLimits('```\n$items\n```'), isNull);
+    expect(MarkdownParser.parse('```\n$items\n```'), isA<MarkdownOk>());
+    final String rules = List<String>.filled(
+      MarkdownParser.maxListItems + 1,
+      '- - -',
+    ).join('\n');
+    expect(MarkdownParser.checkLimits(rules), isNull);
+
+    // Exactly at the limit still parses.
+    final String atLimit = List<String>.generate(
+      MarkdownParser.maxListItems,
+      (int i) => '- item $i',
+    ).join('\n');
+    expect(MarkdownParser.checkLimits(atLimit), isNull);
+    expect(MarkdownParser.parse(atLimit), isA<MarkdownOk>());
+  });
 }

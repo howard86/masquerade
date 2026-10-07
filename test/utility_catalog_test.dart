@@ -239,6 +239,67 @@ void main() {
       );
     });
 
+    test('large Markdown is matched on signals without a full parse', () {
+      final StringBuffer b = StringBuffer();
+      for (int i = 0; b.length < 40 * 1024; i++) {
+        b.write('## Section $i\n\nSome **bold** text and `code`.\n\n');
+      }
+      final DetectionMatch<Object?> match =
+          UtilityCatalog.detectArtifacts(b.toString()).firstWhere(
+            (DetectionMatch<Object?> m) => m.primaryToolId == 'markdown',
+          );
+      expect(match.confidence, .52);
+      expect(match.artifact.parserResult, isNull);
+
+      // The limit pre-count still rules out documents the parser rejects.
+      final String bullets = List<String>.generate(
+        2100,
+        (int i) => '- item $i with some padding text',
+      ).join('\n');
+      expect(bullets.length, greaterThan(32 * 1024));
+      expect(
+        UtilityCatalog.detectArtifacts(
+          '# Title\n\n$bullets',
+        ).map((DetectionMatch<Object?> m) => m.primaryToolId),
+        isNot(contains('markdown')),
+      );
+    });
+
+    test('YAML and TOML above 128 KB match on line shape only', () {
+      final StringBuffer yaml = StringBuffer('items:\n');
+      for (int i = 0; yaml.length < 130 * 1024; i++) {
+        yaml.write('  - id: $i\n    name: item-$i\n');
+      }
+      final DetectionMatch<Object?> yamlMatch = UtilityCatalog.detectArtifacts(
+        yaml.toString(),
+      ).firstWhere((DetectionMatch<Object?> m) => m.primaryToolId == 'json');
+      expect(yamlMatch.artifact.kind, ArtifactKind.yaml);
+      expect(yamlMatch.confidence, .8);
+      expect(yamlMatch.artifact.parserResult, isNull);
+
+      final StringBuffer toml = StringBuffer();
+      for (int i = 0; toml.length < 130 * 1024; i++) {
+        toml.write('[server_$i]\nhost = "h$i"\nport = $i\n\n');
+      }
+      final DetectionMatch<Object?> tomlMatch = UtilityCatalog.detectArtifacts(
+        toml.toString(),
+      ).firstWhere((DetectionMatch<Object?> m) => m.primaryToolId == 'json');
+      expect(tomlMatch.artifact.kind, ArtifactKind.toml);
+      expect(tomlMatch.confidence, .83);
+
+      // Large Markdown with a couple of `Key: value` lines is not YAML.
+      final StringBuffer prose = StringBuffer('Title: notes\nAuthor: me\n\n');
+      while (prose.length < 130 * 1024) {
+        prose.write('See [docs](https://example.com) for **details**.\n');
+      }
+      expect(
+        UtilityCatalog.detectArtifacts(
+          prose.toString(),
+        ).map((DetectionMatch<Object?> m) => m.artifact.kind),
+        isNot(contains(ArtifactKind.yaml)),
+      );
+    });
+
     test('Markdown detection protects secret-like artifacts', () {
       const String secret =
           '# Private\n\n[endpoint](https://user:password@example.com)';
