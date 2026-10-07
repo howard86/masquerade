@@ -179,6 +179,71 @@ void main() {
     );
   });
 
+  group('redundant writes', () {
+    test('loading a clean stored draft writes nothing', () async {
+      final ToolDraftController drafts = await ToolDraftController.load();
+      await drafts.saveJson(input: '{"a":1}', source: 'json', target: 'tree');
+      await drafts.flush();
+      expect(drafts.debugWrites, 1);
+
+      final ToolDraftController restored = await ToolDraftController.load();
+      expect(restored.json!.input, '{"a":1}');
+      expect(restored.debugWrites, 0);
+    });
+
+    test('loading a draft that decoding normalises rewrites it', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        ToolDraftController.storageKey: jsonEncode(<String, Object?>{
+          'version': 1,
+          'json': <String, Object>{
+            'input': '{"a":1}',
+            'source': 'json',
+            'target': 'tree',
+          },
+          'generator': <String, Object>{'mode': 'bogus'},
+        }),
+      });
+      final ToolDraftController drafts = await ToolDraftController.load();
+      expect(drafts.debugWrites, 1);
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final String raw = prefs.getString(ToolDraftController.storageKey)!;
+      expect(raw, isNot(contains('bogus')));
+      expect(raw, contains('{\\"a\\":1}'));
+    });
+
+    test('an unchanged payload is not rewritten on the next flush', () async {
+      final ToolDraftController drafts = await ToolDraftController.load();
+      await drafts.saveJson(input: '{"a":1}', source: 'json', target: 'tree');
+      await drafts.flush();
+      await drafts.saveJson(input: '{"a":1}', source: 'json', target: 'tree');
+      await drafts.flush();
+      expect(drafts.debugWrites, 1);
+      await drafts.saveJson(input: '{"a":2}', source: 'json', target: 'tree');
+      await drafts.flush();
+      expect(drafts.debugWrites, 2);
+    });
+
+    test('an oversized draft stays in memory only', () async {
+      final ToolDraftController drafts = await ToolDraftController.load();
+      final String big =
+          '"${'x' * ToolDraftController.maxPersistedFieldLength}"';
+      await drafts.saveJson(input: big, source: 'json', target: 'tree');
+      await drafts.saveDiff(
+        a: 'before',
+        b: big,
+        wordHighlight: false,
+        ignoreWhitespace: false,
+      );
+      await drafts.flush();
+
+      expect(drafts.json!.input, big);
+      expect(drafts.diff!.b, big);
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      expect(prefs.containsKey(ToolDraftController.storageKey), isFalse);
+      expect(drafts.debugWrites, 0);
+    });
+  });
+
   group('debounced persistence', () {
     test('coalesces saves and writes once after the idle delay', () {
       fakeAsync((FakeAsync async) {
