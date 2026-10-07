@@ -1,26 +1,53 @@
 default_platform(:ios)
 
+APP_IDENTIFIER = "dev.howardism.Masquerade"
+
+def asc_api_key
+  app_store_connect_api_key(
+    key_id: ENV.fetch("ASC_KEY_ID"),
+    issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+    key_content: ENV.fetch("ASC_KEY_P8"),
+    is_key_content_base64: true,
+  )
+end
+
 platform :ios do
+  # CFBundleVersion only has to be unique within one CFBundleShortVersionString,
+  # so asking App Store Connect what it already has for this marketing version
+  # gives a count that restarts at 1 on every release and still climbs if the
+  # same version is uploaded twice. Nothing in the repo tracks it.
+  desc "Resolve the next TestFlight build number for the version in pubspec.yaml"
+  lane :next_build_number do
+    version = File.read("../pubspec.yaml")[/^version:\s*([0-9]+\.[0-9]+\.[0-9]+)/, 1]
+    UI.user_error!("No version: line in pubspec.yaml") if version.nil?
+
+    build = latest_testflight_build_number(
+      api_key: asc_api_key,
+      app_identifier: APP_IDENTIFIER,
+      version: version,
+      initial_build_number: 0,
+    ) + 1
+
+    UI.important("Next build for #{version}: #{build}")
+    out = ENV["GITHUB_OUTPUT"]
+    File.write(out, "value=#{build}\n", mode: "a") if out
+  end
+
   desc "Push a new build to TestFlight"
   lane :beta do
-    api_key = app_store_connect_api_key(
-      key_id: ENV.fetch("ASC_KEY_ID"),
-      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
-      key_content: ENV.fetch("ASC_KEY_P8"),
-      is_key_content_base64: true,
-    )
+    api_key = asc_api_key
 
     # The distribution cert is already in the keychain (imported by CI). The app
     # and extension have different bundle IDs, so each needs its own profile.
     get_provisioning_profile(
       api_key: api_key,
-      app_identifier: "dev.howardism.Masquerade",
+      app_identifier: APP_IDENTIFIER,
     )
     runner_profile = lane_context[SharedValues::SIGH_NAME]
 
     get_provisioning_profile(
       api_key: api_key,
-      app_identifier: "dev.howardism.Masquerade.ShareExtension",
+      app_identifier: "#{APP_IDENTIFIER}.ShareExtension",
     )
     share_extension_profile = lane_context[SharedValues::SIGH_NAME]
 
@@ -52,8 +79,8 @@ platform :ios do
       export_method: "app-store",
       export_options: {
         provisioningProfiles: {
-          "dev.howardism.Masquerade" => runner_profile,
-          "dev.howardism.Masquerade.ShareExtension" => share_extension_profile,
+          APP_IDENTIFIER => runner_profile,
+          "#{APP_IDENTIFIER}.ShareExtension" => share_extension_profile,
         },
       },
     )

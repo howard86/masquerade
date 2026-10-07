@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'diff_parser.dart';
 import 'json_parser.dart';
 import 'sensitive_data_policy.dart';
+import 'utf8_length.dart';
 import 'yaml_parser.dart';
 
 enum ConfigFormat { environment, properties, headers, keyValue }
@@ -191,8 +192,7 @@ class EnvironmentConfigInspector {
     if (_hasUnpairedSurrogate(input)) {
       throw const ConfigInspectorException('Input contains invalid UTF-16.');
     }
-    if (input.length > maxInputCharacters ||
-        utf8.encode(input).length > maxInputCharacters) {
+    if (utf8LengthExceeds(input, maxInputCharacters)) {
       throw const ConfigInspectorException('Input exceeds the 512 KiB limit.');
     }
     if (input.contains('\u0000')) {
@@ -223,7 +223,7 @@ class EnvironmentConfigInspector {
       }
     }
 
-    final ConfigFormat selected = format ?? detect(normalized);
+    final ConfigFormat selected = format ?? _detectLines(lines);
     final _Parsed parsed = switch (selected) {
       ConfigFormat.environment => _parseEnvironment(lines),
       ConfigFormat.properties => _parseProperties(lines),
@@ -282,11 +282,19 @@ class EnvironmentConfigInspector {
     );
   }
 
-  static ConfigFormat detect(String input) {
-    final List<String> lines = input
-        .replaceAll('\r\n', '\n')
-        .replaceAll('\r', '\n')
-        .split('\n')
+  static final RegExp _environmentLine = RegExp(r'^[A-Z_][A-Z0-9_]*\s*=');
+  static final RegExp _headerLine = RegExp(
+    r'''^[!#$%&'*+.^_`|~0-9A-Za-z-]+\s*:''',
+  );
+  static final RegExp _propertiesLine = RegExp(r'^\S+\s+\S');
+
+  static ConfigFormat detect(String input) => _detectLines(
+    input.replaceAll('\r\n', '\n').replaceAll('\r', '\n').split('\n'),
+  );
+
+  /// [detect] over input that is already line-normalized and split.
+  static ConfigFormat _detectLines(List<String> physical) {
+    final List<String> lines = physical
         .map((String line) => line.trim())
         .where(
           (String line) =>
@@ -294,20 +302,14 @@ class EnvironmentConfigInspector {
         )
         .toList();
     if (lines.any((String line) => line.startsWith('export ')) ||
-        lines.every(
-          (String line) => RegExp(r'^[A-Z_][A-Z0-9_]*\s*=').hasMatch(line),
-        )) {
+        lines.every(_environmentLine.hasMatch)) {
       return ConfigFormat.environment;
     }
-    if (lines.isNotEmpty &&
-        lines.every(
-          (String line) =>
-              RegExp(r'''^[!#$%&'*+.^_`|~0-9A-Za-z-]+\s*:''').hasMatch(line),
-        )) {
+    if (lines.isNotEmpty && lines.every(_headerLine.hasMatch)) {
       return ConfigFormat.headers;
     }
     if (lines.any((String line) => line.contains(r'\u')) ||
-        lines.any((String line) => RegExp(r'^\S+\s+\S').hasMatch(line))) {
+        lines.any(_propertiesLine.hasMatch)) {
       return ConfigFormat.properties;
     }
     return ConfigFormat.keyValue;
@@ -367,23 +369,34 @@ _Parsed _parseEnvironment(List<String> lines) {
       );
     }
     String valueSource = match.group(3)!;
-    if ((valueSource.trimLeft().startsWith('"') ||
-            valueSource.trimLeft().startsWith("'")) &&
-        !_hasClosingEnvQuote(valueSource.trimLeft())) {
+    final _EnvQuoteScanner quote = _EnvQuoteScanner(valueSource.trimLeft());
+    if (!quote.closed) {
+      // Scan only each appended line, carrying quote/escape state, so an
+      // unterminated quote stays linear in the input size.
+      final StringBuffer joined = StringBuffer(valueSource);
       while (++index < lines.length) {
-        valueSource = '$valueSource\n${lines[index]}';
-        if (_hasClosingEnvQuote(valueSource.trimLeft())) break;
+        joined
+          ..write('\n')
+          ..write(lines[index]);
+        quote
+          ..feed('\n')
+          ..feed(lines[index]);
+        if (quote.closed) break;
       }
-      if (!_hasClosingEnvQuote(valueSource.trimLeft())) {
+      if (!quote.closed) {
         throw ConfigInspectorException(
           'Invalid quoted value on line $startLine.',
         );
       }
+      valueSource = joined.toString();
     } else {
-      while (_oddTrailingBackslashes(valueSource) && index + 1 < lines.length) {
-        valueSource =
-            '${valueSource.substring(0, valueSource.length - 1)}${lines[++index].trimLeft()}';
-      }
+      final (String joined, int lastIndex) = _joinEnvContinuation(
+        lines,
+        valueSource,
+        index,
+      );
+      valueSource = joined;
+      index = lastIndex;
     }
     values.add(
       _Value(
@@ -397,20 +410,89 @@ _Parsed _parseEnvironment(List<String> lines) {
   return _Parsed(values, comments);
 }
 
-bool _hasClosingEnvQuote(String value) {
-  if (value.isEmpty || (value[0] != '"' && value[0] != "'")) return true;
-  final String quote = value[0];
-  bool escaped = false;
-  for (int i = 1; i < value.length; i++) {
-    if (quote == '"' && value[i] == r'\' && !escaped) {
-      escaped = true;
-      continue;
+/// Incremental form of "does this quoted value close?": [feed] scans only the
+/// new text, carrying the escape state across calls.
+class _EnvQuoteScanner {
+  _EnvQuoteScanner(String value) {
+    if (value.isEmpty || (value[0] != '"' && value[0] != "'")) {
+      closed = true;
+      return;
     }
-    if (value[i] == quote && !escaped) return true;
-    escaped = false;
+    _quote = value.codeUnitAt(0);
+    _feedFrom(value, 1);
   }
-  return false;
+
+  static const int _backslash = 0x5c;
+  static const int _doubleQuote = 0x22;
+
+  bool closed = false;
+  int _quote = 0;
+  bool _escaped = false;
+
+  void feed(String text) => _feedFrom(text, 0);
+
+  void _feedFrom(String text, int start) {
+    if (closed) return;
+    for (int i = start; i < text.length; i++) {
+      final int unit = text.codeUnitAt(i);
+      if (_quote == _doubleQuote && unit == _backslash && !_escaped) {
+        _escaped = true;
+        continue;
+      }
+      if (unit == _quote && !_escaped) {
+        closed = true;
+        return;
+      }
+      _escaped = false;
+    }
+  }
 }
+
+/// Joins backslash-continued lines onto [first] (which ends in an odd run of
+/// backslashes): each continuation drops one trailing backslash and appends
+/// the next line left-trimmed. Tracks the trailing-backslash run
+/// incrementally instead of rescanning the accumulated value.
+/// Returns the joined value and the index of the last consumed line.
+(String, int) _joinEnvContinuation(
+  List<String> lines,
+  String first,
+  int index,
+) {
+  if (!_oddTrailingBackslashes(first) || index + 1 >= lines.length) {
+    return (first, index);
+  }
+  final StringBuffer out = StringBuffer();
+  // Trailing backslashes already written to [out].
+  int writtenTrailing = 0;
+  String pending = first;
+  int trailing() {
+    final int own = _trailingBackslashes(pending);
+    return own == pending.length ? own + writtenTrailing : own;
+  }
+
+  while (trailing().isOdd && index + 1 < lines.length) {
+    final String kept = pending.substring(0, pending.length - 1);
+    final int keptTrailing = _trailingBackslashes(kept);
+    writtenTrailing = keptTrailing == kept.length
+        ? keptTrailing + writtenTrailing
+        : keptTrailing;
+    out.write(kept);
+    pending = lines[++index].trimLeft();
+  }
+  out.write(pending);
+  return (out.toString(), index);
+}
+
+int _trailingBackslashes(String line) {
+  int count = 0;
+  for (int i = line.length - 1; i >= 0 && line.codeUnitAt(i) == 0x5c; i--) {
+    count++;
+  }
+  return count;
+}
+
+final RegExp _inlineComment = RegExp(r'\s+#');
+final RegExp _bareEnvValue = RegExp(r'^[A-Za-z0-9_./:@%+,-]+$');
 
 String _decodeEnvValue(String source, int line) {
   final String value = source.trim();
@@ -453,7 +535,7 @@ String _decodeEnvValue(String source, int line) {
     }
     return out.toString();
   }
-  final Match? comment = RegExp(r'\s+#').firstMatch(value);
+  final Match? comment = _inlineComment.firstMatch(value);
   return (comment == null ? value : value.substring(0, comment.start))
       .trimRight();
 }
@@ -675,7 +757,7 @@ String _serialize(ConfigFormat format, ConfigEntry entry) {
 
 String _quoteEnv(String value) {
   if (value.isEmpty) return "''";
-  if (RegExp(r'^[A-Za-z0-9_./:@%+,-]+$').hasMatch(value)) return value;
+  if (_bareEnvValue.hasMatch(value)) return value;
   return '"${value.replaceAll(r'\', r'\\').replaceAll('"', r'\"').replaceAll('\n', r'\n').replaceAll('\r', r'\r').replaceAll('\t', r'\t').replaceAll(r'$', r'\$')}"';
 }
 

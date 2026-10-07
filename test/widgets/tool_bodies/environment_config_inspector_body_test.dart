@@ -96,6 +96,46 @@ void main() {
     );
   });
 
+  testWidgets('sorted output and cached comparison follow A and format', (
+    WidgetTester tester,
+  ) async {
+    await pumpBodyAtWidth(
+      tester,
+      const EnvironmentConfigInspectorBody(initialInput: 'A=one'),
+      340,
+    );
+    await tester.enterText(find.byType(EditableText).last, 'export A=one');
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.textContaining('NO SEMANTIC DIFFERENCES'), findsOneWidget);
+
+    // A changes: B's cached parse is reused, the comparison is redone.
+    await tester.enterText(find.byType(EditableText).first, 'Z=last\nA=two');
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.textContaining('1 REMOVED'), findsOneWidget);
+    expect(find.textContaining('1 CHANGED'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(MqButton, 'Sort keys'));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(MqButton, 'Copy redacted'));
+    await tester.pump();
+    expect(clipboardText, 'A=two\nZ=last');
+
+    await tester.enterText(find.byType(EditableText).first, 'Y=1\nB=2');
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.widgetWithText(MqButton, 'Copy redacted'));
+    await tester.pump();
+    expect(clipboardText, 'B=2\nY=1');
+
+    // A format change must re-parse B: as key/value, `export A` is its own key.
+    await tester.enterText(find.byType(EditableText).first, 'A=one');
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.textContaining('NO SEMANTIC DIFFERENCES'), findsOneWidget);
+    await tester.tap(find.widgetWithText(MqButton, 'Key/value'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.textContaining('1 ADDED'), findsOneWidget);
+    expect(find.textContaining('1 REMOVED'), findsOneWidget);
+  });
+
   testWidgets('routes typed JSON and Diff payloads with protected lineage', (
     WidgetTester tester,
   ) async {

@@ -61,4 +61,32 @@ void main() {
     }
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('hides Clear when no clear action is bound', (
+    WidgetTester tester,
+  ) async {
+    int pasteCount = 0;
+    final ToolActionBarController controller = ToolActionBarController()
+      ..bind(onPaste: () => pasteCount++);
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      CupertinoApp(
+        home: MqTheme(
+          tokens: MqTokens(
+            colors: MqColors.light(),
+            brightness: Brightness.light,
+          ),
+          child: CupertinoPageScaffold(
+            child: ToolActionBar(controller: controller),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Paste'), findsOneWidget);
+    expect(find.text('Clear'), findsNothing);
+    await tester.tap(find.text('Paste'));
+    expect(pasteCount, 1);
+  });
 }

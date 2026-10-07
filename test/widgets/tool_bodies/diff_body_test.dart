@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -42,6 +43,35 @@ void main() {
       find.text('No differences — A and B are identical.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('Diff — Word highlight toggles spans on the same diff', (
+    WidgetTester tester,
+  ) async {
+    Finder row(String text, {required bool rich}) => find.byWidgetPredicate(
+      (Widget widget) =>
+          widget is Text &&
+          (rich
+              ? widget.data == null && widget.textSpan?.toPlainText() == text
+              : widget.data == text),
+    );
+    await openDiff(tester);
+    await tester.enterText(find.byType(EditableText).first, 'the quick fox');
+    await tester.enterText(find.byType(EditableText).last, 'the slow fox');
+    await tester.pumpAndSettle(kDebouncePump);
+    expect(row('the quick fox', rich: true), findsOneWidget);
+    expect(row('the slow fox', rich: true), findsOneWidget);
+
+    await tester.tap(find.text('Word highlight'));
+    await tester.pump();
+    expect(row('the quick fox', rich: false), findsOneWidget);
+    expect(row('the slow fox', rich: false), findsOneWidget);
+    expect(find.text('+1'), findsOneWidget);
+
+    await tester.tap(find.text('Word highlight'));
+    await tester.pump();
+    expect(row('the quick fox', rich: true), findsOneWidget);
+    expect(row('the slow fox', rich: true), findsOneWidget);
   });
 
   testWidgets('Diff — Ignore whitespace collapses spacing-only changes', (
@@ -93,15 +123,28 @@ void main() {
 
     // The collapse control announces itself as a button with a descriptive,
     // state-aware label so a screen reader can find and operate it.
-    expect(
-      find.byWidgetPredicate(
-        (Widget w) =>
-            w is Semantics &&
-            w.properties.button == true &&
-            (w.properties.label ?? '').startsWith('Expand ') &&
-            (w.properties.label ?? '').endsWith(' unchanged lines'),
-      ),
-      findsOneWidget,
+    final Finder divider = find.byWidgetPredicate(
+      (Widget w) =>
+          w is Semantics &&
+          w.properties.button == true &&
+          (w.properties.label ?? '').startsWith('Expand ') &&
+          (w.properties.label ?? '').endsWith(' unchanged lines'),
     );
+    expect(divider, findsOneWidget);
+    expect(tester.getSize(divider).height, greaterThanOrEqualTo(44));
+    final Rect dividerRect = tester.getRect(divider);
+    for (int i = 0; i < 20; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      final BuildContext? context = FocusManager.instance.primaryFocus?.context;
+      final RenderObject? renderObject = context?.findRenderObject();
+      if (renderObject is RenderBox &&
+          dividerRect.contains(renderObject.localToGlobal(Offset.zero))) {
+        break;
+      }
+    }
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(divider, findsNothing);
+    expect(find.text('line 10'), findsWidgets);
   });
 }

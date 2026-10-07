@@ -9,6 +9,7 @@ import 'json_parser.dart';
 import 'jwt_parser.dart';
 import 'sensitive_data_policy.dart';
 import 'toml_parser.dart';
+import 'utf8_length.dart';
 import 'yaml_parser.dart';
 
 enum InspectorLayerType { input, detection, transform }
@@ -443,7 +444,7 @@ class _InspectionBuilder {
   bool _withinLimit(String value) {
     if (value.length > ArtifactInspector.maxTextBytes) return false;
     try {
-      return utf8.encode(value).length <= ArtifactInspector.maxTextBytes;
+      return !utf8LengthExceeds(value, ArtifactInspector.maxTextBytes);
     } catch (_) {
       return false;
     }

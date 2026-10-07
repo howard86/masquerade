@@ -40,7 +40,11 @@ class JSONErr extends JSONParseResult {
 class JSONParser {
   const JSONParser._();
 
-  static JSONParseResult parse(String input) {
+  /// Parses [input]. When [suggestFix] is false the one-tap auto-fix probe
+  /// (which rebuilds and re-decodes the whole input) is skipped, so a
+  /// [JSONErr] never carries a [JSONParseError.fixedText]. Detection only
+  /// needs success/failure and passes false.
+  static JSONParseResult parse(String input, {bool suggestFix = true}) {
     final String trimmed = input.trim();
     if (trimmed.isEmpty) {
       return const JSONErr(
@@ -53,7 +57,9 @@ class JSONParser {
     } on FormatException catch (e) {
       final int offset = e.offset ?? 0;
       final ({int line, int col}) loc = _offsetToLineCol(input, offset);
-      final String? fixed = _tryAutoFix(input, offset, e.message);
+      final String? fixed = suggestFix
+          ? _tryAutoFix(input, offset, e.message)
+          : null;
       return JSONErr(
         JSONParseError(
           message: e.message,
@@ -184,29 +190,44 @@ class JSONParser {
   /// Indented key-path renderer used by the JSON tool's "Tree" view. Sits
   /// next to [pretty] / [minify] so callers can dispatch by enum without
   /// leaving the parser layer.
-  static String tree(Object? value) => _renderTree(value, 0);
+  static String tree(Object? value) {
+    final StringBuffer out = StringBuffer();
+    _renderTree(out, value, 0);
+    return out.toString();
+  }
 
-  static String _renderTree(Object? v, int depth) {
+  /// Writes the same text the old per-level `lines.join('\n')` renderer
+  /// produced, into one shared buffer so each node is copied once instead of
+  /// once per ancestor.
+  static void _renderTree(StringBuffer out, Object? v, int depth) {
     final String indent = '  ' * depth;
     if (v is Map) {
-      if (v.isEmpty) return '{}';
-      final List<String> lines = <String>['{'];
+      if (v.isEmpty) {
+        out.write('{}');
+        return;
+      }
+      out.write('{');
       v.forEach((Object? k, Object? val) {
-        lines.add('$indent  $k: ${_renderTree(val, depth + 1)}');
+        out.write('\n$indent  $k: ');
+        _renderTree(out, val, depth + 1);
       });
-      lines.add('$indent}');
-      return lines.join('\n');
+      out.write('\n$indent}');
+      return;
     }
     if (v is List) {
-      if (v.isEmpty) return '[]';
-      final List<String> lines = <String>['['];
-      for (int i = 0; i < v.length; i++) {
-        lines.add('$indent  [$i] ${_renderTree(v[i], depth + 1)}');
+      if (v.isEmpty) {
+        out.write('[]');
+        return;
       }
-      lines.add('$indent]');
-      return lines.join('\n');
+      out.write('[');
+      for (int i = 0; i < v.length; i++) {
+        out.write('\n$indent  [$i] ');
+        _renderTree(out, v[i], depth + 1);
+      }
+      out.write('\n$indent]');
+      return;
     }
-    return '$v';
+    out.write('$v');
   }
 
   static ({int line, int col}) _offsetToLineCol(String input, int offset) {

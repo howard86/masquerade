@@ -13,6 +13,8 @@ enum BpsForm { bps, percent, decimal }
 class BpsParser {
   const BpsParser._();
 
+  static final RegExp _bpsSuffix = RegExp(r'\s*bps?$');
+
   static BpsResult? parse(String input) {
     String s = input.trim().toLowerCase();
     if (s.isEmpty) return null;
@@ -20,7 +22,7 @@ class BpsParser {
     BpsForm? form;
     if (s.endsWith('bps') || s.endsWith('bp')) {
       form = BpsForm.bps;
-      s = s.replaceAll(RegExp(r'\s*bps?$'), '').trim();
+      s = s.replaceAll(_bpsSuffix, '').trim();
     } else if (s.endsWith('%')) {
       form = BpsForm.percent;
       s = s.substring(0, s.length - 1).trim();

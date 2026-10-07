@@ -1,9 +1,15 @@
+import 'dart:ui' show Tristate;
+
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
+import 'package:masquerade/screens/detail/tool_detail_route.dart';
 import 'package:masquerade/state/history_controller.dart';
 import 'package:masquerade/state/library_controller.dart';
 import 'package:masquerade/utility_catalog.dart';
+import 'package:masquerade/widgets/mq/mq_chip.dart';
+import 'package:masquerade/widgets/mq/mq_search_bar.dart';
 import 'package:masquerade/widgets/mq/tool_grid_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -189,6 +195,81 @@ void main() {
     },
   );
 
+  testWidgets('recent card opens newest full input while catalog stays blank', (
+    WidgetTester tester,
+  ) async {
+    const String newest =
+        '{"message":"this safe input is deliberately longer than its preview"}';
+    final HistoryController history = HistoryController();
+    final DateTime now = DateTime.now();
+    await history.add(
+      HistoryEntry(
+        utilityId: 'json',
+        input: '{"version":"old"}',
+        output: '{\n  "version": "old"\n}',
+        timestamp: now,
+      ),
+    );
+    await history.add(
+      HistoryEntry(
+        utilityId: 'base64',
+        input: 'hello',
+        output: 'aGVsbG8=',
+        timestamp: now.add(const Duration(seconds: 1)),
+      ),
+    );
+    await history.add(
+      HistoryEntry(
+        utilityId: 'json',
+        input: newest,
+        output:
+            '{\n  "message": "this safe input is deliberately longer than its preview"\n}',
+        timestamp: now.add(const Duration(seconds: 2)),
+      ),
+    );
+
+    await _pumpLibrary(tester, history: history);
+    final List<ToolGridCard> recentCards = tester
+        .widgetList<ToolGridCard>(find.byType(ToolGridCard))
+        .where((ToolGridCard card) => card.lastEntry != null)
+        .toList();
+    expect(recentCards.map((ToolGridCard card) => card.descriptor.id), <String>[
+      'json',
+      'base64',
+    ]);
+    expect(recentCards.first.lastEntry!.input, newest);
+    expect(
+      find.bySemanticsLabel('Open JSON / YAML / TOML with recent input'),
+      findsOneWidget,
+    );
+    expect(find.bySemanticsLabel('Open JSON / YAML / TOML'), findsOneWidget);
+
+    Finder card = find.byWidget(recentCards.first);
+    await tester.ensureVisible(card);
+    await tester.tap(card);
+    await tester.pumpAndSettle();
+    ToolDetailRoute route = tester.widget(find.byType(ToolDetailRoute));
+    expect(route.descriptor.id, 'json');
+    expect(route.seed, newest);
+    expect(route.initialArtifact, isNull);
+    expect(route.sessionStepIndex, isNull);
+
+    await tester.tap(find.byType(CupertinoNavigationBarBackButton));
+    await tester.pumpAndSettle();
+    card = find.byWidgetPredicate(
+      (Widget widget) =>
+          widget is ToolGridCard &&
+          widget.descriptor.id == 'json' &&
+          widget.lastEntry == null,
+    );
+    expect(card, findsOneWidget);
+    tester.widget<ToolGridCard>(card).onTap();
+    await tester.pumpAndSettle();
+    route = tester.widget(find.byType(ToolDetailRoute));
+    expect(route.descriptor.id, 'json');
+    expect(route.seed, isNull);
+  });
+
   testWidgets('search finds tools across categories in stable order', (
     WidgetTester tester,
   ) async {
@@ -204,6 +285,46 @@ void main() {
     expect(find.text('SEARCH RESULTS'), findsOneWidget);
   });
 
+  testWidgets('search hides and then restores the selected category', (
+    WidgetTester tester,
+  ) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await _pumpLibrary(tester);
+
+    await tester.tap(find.text('Generate'));
+    await tester.pump();
+    expect(
+      _cardIds(tester),
+      UtilityCatalog.inCategory(
+        UtilityCategory.generate,
+      ).map((UtilityDescriptor tool) => tool.id),
+    );
+
+    await tester.enterText(find.byType(CupertinoTextField), 'encode');
+    await tester.pump();
+    expect(find.byType(MqChip), findsNothing);
+    expect(
+      _cardIds(tester),
+      UtilityCatalog.searchStable(
+        'encode',
+      ).map((UtilityDescriptor tool) => tool.id),
+    );
+
+    await tester.tap(find.bySemanticsLabel('Clear search'));
+    await tester.pump();
+    expect(find.byType(MqChip), findsWidgets);
+    final SemanticsNode generate = tester.getSemantics(find.text('Generate'));
+    expect(generate.flagsCollection.isSelected, Tristate.isTrue);
+    expect(
+      _cardIds(tester),
+      UtilityCatalog.inCategory(
+        UtilityCategory.generate,
+      ).map((UtilityDescriptor tool) => tool.id),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('clear affordance empties the field and resets the filter', (
     WidgetTester tester,
   ) async {
@@ -213,7 +334,12 @@ void main() {
     await tester.pump();
     expect(find.text('SEARCH RESULTS'), findsOneWidget);
 
-    await tester.tap(find.bySemanticsLabel('Clear search'));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(MqSearchBar),
+        matching: find.byType(CupertinoButton),
+      ),
+    );
     await tester.pump();
 
     expect(

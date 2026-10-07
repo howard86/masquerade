@@ -196,4 +196,40 @@ void main() {
       expect(watch.elapsed, lessThan(const Duration(seconds: 1)));
     },
   );
+
+  test('ASCII input normalizes to itself without changes', () {
+    const String ascii = 'plain ASCII\ttext\r\n';
+    final UnicodeInspection inspection = UnicodeStringInspector.parse(ascii);
+    for (final UnicodeNormalization form in UnicodeNormalization.values) {
+      expect(inspection.normalizedAs(form), ascii);
+      expect(inspection.changes(form), isFalse);
+    }
+    final UnicodeInspection composed = UnicodeStringInspector.parse(
+      'e\u0301 ﬁ',
+    );
+    expect(composed.normalizedAs(UnicodeNormalization.nfc), 'é ﬁ');
+    expect(composed.changes(UnicodeNormalization.nfkc), isTrue);
+  });
+
+  test('counts and warnings cover graphemes past the display cap', () {
+    final String input = '${'ab' * 600}\u202e😀x\u200b';
+    final UnicodeInspection inspection = UnicodeStringInspector.parse(input);
+    expect(inspection.truncated, isTrue);
+    expect(inspection.graphemes, hasLength(1000));
+    expect(inspection.graphemeCount, 1204);
+    expect(inspection.codePointCount, input.runes.length);
+    expect(inspection.utf8ByteCount, 1200 + 3 + 4 + 1 + 3);
+    expect(
+      inspection.warnings.join(' '),
+      allOf(
+        contains('RIGHT-TO-LEFT OVERRIDE'),
+        contains('ZERO WIDTH SPACE'),
+        contains('Bidirectional controls'),
+      ),
+    );
+    expect(
+      () => UnicodeStringInspector.parse('${'b' * 1200}a${'\u0301' * 1025}'),
+      throwsA(isA<UnicodeInspectorException>()),
+    );
+  });
 }

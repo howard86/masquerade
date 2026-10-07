@@ -86,6 +86,39 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('JSON mode warnings follow each conversion', (
+    WidgetTester tester,
+  ) async {
+    await pumpBodyAtWidth(
+      tester,
+      const CsvBody(initialInput: '[{"@header":"plain","n":2}]'),
+      340,
+    );
+    await tester.tap(find.text('JSON → CSV'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('SPREADSHEET APPS MAY EXECUTE'), findsOneWidget);
+    expect(
+      find.textContaining('NUMBERS AND BOOLEANS BECOME TEXT'),
+      findsOneWidget,
+    );
+
+    await tester.enterText(
+      find.byType(EditableText).first,
+      '[["plain","text"],["more"," -1"]]',
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.textContaining('SPREADSHEET APPS MAY EXECUTE'), findsOneWidget);
+    expect(
+      find.textContaining('NUMBERS AND BOOLEANS BECOME TEXT'),
+      findsNothing,
+    );
+
+    await tester.enterText(find.byType(EditableText).first, '[["a","b"]]');
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.textContaining('SPREADSHEET APPS MAY EXECUTE'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('JSON mode warns that scalar types become CSV text', (
     WidgetTester tester,
   ) async {

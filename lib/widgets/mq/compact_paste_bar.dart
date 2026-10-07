@@ -145,9 +145,9 @@ class _BarIconButton extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(6),
-          child: Icon(icon, size: 20, color: color),
+        child: SizedBox.square(
+          dimension: 44,
+          child: Center(child: Icon(icon, size: 20, color: color)),
         ),
       ),
     );

@@ -105,7 +105,7 @@ class _QrCodeBodyState extends State<QrCodeBody> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _recorder ??= HistoryRecorder(
-      controller: HistoryScope.of(context),
+      controller: HistoryScope.read(context),
       utilityId: 'qr_code',
       sensitive:
           MobileSessionRouteScope.maybeOf(context)?.protectedSession ?? false,

@@ -75,20 +75,22 @@ class _LibraryScreenState extends State<LibraryScreen> {
               showShortcutHint: false,
               onChanged: (_) => setState(() {}),
             ),
-            const SizedBox(height: MqSpacing.md),
-            Wrap(
-              spacing: MqSpacing.sm,
-              runSpacing: MqSpacing.sm,
-              children: <Widget>[
-                for (final UtilityCategory category in UtilityCategory.values)
-                  MqChip(
-                    label: category.label,
-                    mono: false,
-                    selected: _category == category,
-                    onTap: () => setState(() => _category = category),
-                  ),
-              ],
-            ),
+            if (query.isEmpty) ...<Widget>[
+              const SizedBox(height: MqSpacing.md),
+              Wrap(
+                spacing: MqSpacing.sm,
+                runSpacing: MqSpacing.sm,
+                children: <Widget>[
+                  for (final UtilityCategory category in UtilityCategory.values)
+                    MqChip(
+                      label: category.label,
+                      mono: false,
+                      selected: _category == category,
+                      onTap: () => setState(() => _category = category),
+                    ),
+                ],
+              ),
+            ],
             if (query.isEmpty && favorites.isNotEmpty) ...<Widget>[
               const SectionRule(label: 'Favorites'),
               _grid(context, favorites, library),
@@ -136,14 +138,15 @@ class _LibraryScreenState extends State<LibraryScreen> {
       itemCount: tools.length,
       itemBuilder: (BuildContext context, int index) {
         final UtilityDescriptor tool = tools[index];
+        final HistoryEntry? entry = entries[tool.id];
         return ToolGridCard(
           descriptor: tool,
           matched: false,
-          lastEntry: entries[tool.id],
+          lastEntry: entry,
           favorite: library.isFavorite(tool.id),
           onToggleFavorite: () => library.toggleFavorite(tool.id),
           showMetadata: true,
-          onTap: () => ToolDetailRoute.push(context, tool),
+          onTap: () => ToolDetailRoute.push(context, tool, seed: entry?.input),
         );
       },
     );

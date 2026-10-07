@@ -22,9 +22,15 @@ class MqMarkdownRenderer extends StatelessWidget {
 
   final List<MarkdownBlock> blocks;
 
+  // The plan depends only on the (immutable) block list, so rebuilds with the
+  // same parse reuse it.
+  static final Expando<_PreviewPlan> _plans = Expando<_PreviewPlan>();
+
   @override
   Widget build(BuildContext context) {
-    final _PreviewPlan plan = _PreviewPlanner().build(blocks);
+    final _PreviewPlan plan = _plans[blocks] ??= _PreviewPlanner().build(
+      blocks,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -444,9 +450,32 @@ String _inlinePlainText(List<MarkdownInline> nodes) {
 }
 
 String _preview(String value, int max) {
-  final List<int> runes = value.runes.toList(growable: false);
-  if (runes.length <= max) return value;
-  return '${String.fromCharCodes(runes.take(max))}\n… ${runes.length - max} characters hidden';
+  // Code points never outnumber code units.
+  if (value.length <= max) return value;
+  final int end = _runeWalk(value, 0, max).end;
+  if (end == value.length) return value;
+  final int hidden = _runeWalk(value, end, value.length).taken;
+  return '${value.substring(0, end)}\n… $hidden characters hidden';
+}
+
+/// Walks up to [count] runes of [value] from [start], counting as
+/// `String.runes` does (a surrogate pair or a lone surrogate is one rune).
+/// Returns the code-unit index just past them and how many were taken.
+({int end, int taken}) _runeWalk(String value, int start, int count) {
+  int index = start;
+  int taken = 0;
+  final int length = value.length;
+  while (taken < count && index < length) {
+    final int unit = value.codeUnitAt(index++);
+    if (unit >= 0xd800 &&
+        unit <= 0xdbff &&
+        index < length &&
+        (value.codeUnitAt(index) & 0xfc00) == 0xdc00) {
+      index++;
+    }
+    taken++;
+  }
+  return (end: index, taken: taken);
 }
 
 final class _PreviewPlan {
@@ -503,15 +532,14 @@ final class _PreviewPlanner {
   };
 
   MarkdownCodeBlock _code(String code, String? language) {
-    final List<int> runes = code.runes.toList(growable: false);
-    final int cap = runes.length > MqMarkdownRenderer._maxCodePreview
-        ? MqMarkdownRenderer._maxCodePreview
-        : runes.length;
-    final int take = cap > _remaining ? _remaining : cap;
-    _remaining -= take;
-    final bool shortened = take < runes.length;
+    final int limit = MqMarkdownRenderer._maxCodePreview > _remaining
+        ? _remaining
+        : MqMarkdownRenderer._maxCodePreview;
+    final ({int end, int taken}) walk = _runeWalk(code, 0, limit);
+    final bool shortened = walk.end < code.length;
+    _remaining -= walk.taken;
     if (shortened) _truncated = true;
-    final String preview = String.fromCharCodes(runes.take(take));
+    final String preview = code.substring(0, walk.end);
     return MarkdownCodeBlock(
       code,
       language,
@@ -617,12 +645,12 @@ final class _PreviewPlanner {
   }
 
   String _take(String value) {
-    final List<int> runes = value.runes.toList(growable: false);
-    if (runes.length <= _remaining) {
-      _remaining -= runes.length;
+    final ({int end, int taken}) walk = _runeWalk(value, 0, _remaining);
+    if (walk.end == value.length) {
+      _remaining -= walk.taken;
       return value;
     }
-    final String visible = String.fromCharCodes(runes.take(_remaining));
+    final String visible = value.substring(0, walk.end);
     _remaining = 0;
     _truncated = true;
     return '$visible…';

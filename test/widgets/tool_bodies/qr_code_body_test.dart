@@ -34,6 +34,25 @@ void main() {
 
     expect(find.byType(QrImageView), findsNothing);
     expect(find.textContaining('Type text or a URL'), findsOneWidget);
+    expect(find.text('Clear'), findsNothing);
+  });
+
+  testWidgets('QR Code — Clear appears with input and clears it', (
+    WidgetTester tester,
+  ) async {
+    await pumpHomeAndOpen(tester, 'QR Code');
+    final Finder input = find.byType(EditableText).last;
+
+    await tester.enterText(input, 'https://example.com');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Clear'), findsOneWidget);
+    await tester.tap(find.text('Clear'));
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<EditableText>(input).controller.text, isEmpty);
+    expect(find.text('Clear'), findsNothing);
+    expect(find.byType(QrImageView), findsNothing);
   });
 
   testWidgets('QR Code — switching to Scan mode reveals Scan QR action', (

@@ -269,5 +269,40 @@ void main() {
         throwsA(isA<HttpInspectorException>()),
       );
     });
+
+    test('JavaScript parser skips exactly the RegExp \\s whitespace set', () {
+      // NBSP, EM SPACE, BOM and NEL-free line separators are \s; ZWSP is not.
+      final HttpRequestDescriptor spaced = HttpRequestInspector.parse(
+        "fetch(\u00a0'https://example.com/a',\u2003{\ufeffmethod\u2028:\t'POST',"
+        " body:\u3000JSON.stringify({\u202fcount :\n-12.5e1, ok: true})})",
+      );
+      expect(spaced.method, 'POST');
+      expect(spaced.body, '{"count":-125.0,"ok":true}');
+      expect(
+        () => HttpRequestInspector.parse(
+          "fetch('https://example.com',\u200b{method: 'POST'})",
+        ),
+        throwsA(isA<HttpInspectorException>()),
+      );
+    });
+
+    test('JavaScript parser stays fast on whitespace-heavy snippets', () {
+      final String pad = ' ' * 60;
+      final StringBuffer source = StringBuffer(
+        "fetch('https://example.com',$pad{${pad}headers$pad:$pad{",
+      );
+      for (int i = 0; i < 90; i++) {
+        source.write("$pad'X-H$i'$pad:$pad'v$i'$pad,");
+      }
+      source.write("$pad'X-Last':'v'}$pad})");
+      final Stopwatch watch = Stopwatch()..start();
+      for (int i = 0; i < 20; i++) {
+        expect(
+          HttpRequestInspector.parse(source.toString()).headers.length,
+          91,
+        );
+      }
+      expect(watch.elapsed, lessThan(const Duration(seconds: 1)));
+    });
   });
 }

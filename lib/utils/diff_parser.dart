@@ -9,6 +9,8 @@
 /// returns [DiffResult.tooLarge].
 library;
 
+import 'dart:typed_data';
+
 /// One edit operation on a line or word token.
 enum DiffOp { equal, insert, delete }
 
@@ -199,19 +201,21 @@ class DiffTool {
     final List<String> at = _tokenize(a);
     final List<String> bt = _tokenize(b);
 
-    final Map<String, int> intern = <String, int>{};
-    int idOf(String t) => intern.putIfAbsent(t, () => intern.length);
-    final List<int> ak = <int>[for (final String t in at) idOf(t)];
-    final List<int> bk = <int>[for (final String t in bt) idOf(t)];
-
-    // Token counts are bounded by line length, so the delta cap never trips
-    // here; fall back to a coarse replace if it somehow does.
-    final List<DiffOp> ops =
-        _myers(ak, bk) ??
-        <DiffOp>[
-          for (int i = 0; i < at.length; i++) DiffOp.delete,
-          for (int i = 0; i < bt.length; i++) DiffOp.insert,
-        ];
+    // Very long lines, or a pair past the delta cap, fall back to a coarse
+    // whole-line replace.
+    List<DiffOp>? ops;
+    if (at.length + bt.length <= maxWordDiffTokens) {
+      final Map<String, int> intern = <String, int>{};
+      int idOf(String t) => intern.putIfAbsent(t, () => intern.length);
+      ops = _myers(
+        <int>[for (final String t in at) idOf(t)],
+        <int>[for (final String t in bt) idOf(t)],
+      );
+    }
+    ops ??= <DiffOp>[
+      for (int i = 0; i < at.length; i++) DiffOp.delete,
+      for (int i = 0; i < bt.length; i++) DiffOp.insert,
+    ];
 
     final List<WordSpan> spans = <WordSpan>[];
     final StringBuffer buf = StringBuffer();
@@ -352,6 +356,10 @@ class DiffTool {
   static String _normalizeWs(String line) =>
       line.trim().replaceAll(_wsRun, ' ');
 
+  /// Above this many tokens per line pair the word diff (O(N·D) in tokens)
+  /// is skipped and the pair is highlighted as a whole-line replace.
+  static const int maxWordDiffTokens = 2000;
+
   static List<String> _tokenize(String s) =>
       _token.allMatches(s).map((Match m) => m.group(0)!).toList();
 
@@ -365,10 +373,13 @@ class DiffTool {
     if (m == 0) return List<DiffOp>.filled(n, DiffOp.delete);
 
     final int max = n + m;
-    final int off = max;
-    final List<int> v = List<int>.filled(2 * max + 1, 0);
+    // Depths past _maxDelta bail out, so v only ever spans k in
+    // [-(_maxDelta + 1), _maxDelta + 1].
+    final int reach = max < _maxDelta + 1 ? max : _maxDelta + 1;
+    final int off = reach;
+    final Int32List v = Int32List(2 * reach + 1);
     // Compact per-depth snapshots of the active band [-d, d].
-    final List<List<int>> trace = <List<int>>[];
+    final List<Int32List> trace = <Int32List>[];
     int dEnd = -1;
 
     for (int d = 0; d <= max; d++) {
@@ -402,7 +413,7 @@ class DiffTool {
     int x = n;
     int y = m;
     for (int d = dEnd; d > 0; d--) {
-      final List<int> band = trace[d]; // band[k + d] == v[off + k]
+      final Int32List band = trace[d]; // band[k + d] == v[off + k]
       final int k = x - y;
       final bool down =
           k == -d || (k != d && band[(k - 1) + d] < band[(k + 1) + d]);

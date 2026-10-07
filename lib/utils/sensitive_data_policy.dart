@@ -33,6 +33,9 @@ abstract final class SensitiveDataPolicy {
     caseSensitive: false,
   );
 
+  static final RegExp _percentEscape = RegExp(r'%(?:[0-9A-Fa-f]{2})');
+  static final RegExp _base64Shaped = RegExp(r'^[A-Za-z0-9_+/-]+={0,2}$');
+
   static bool isSensitiveTool(String? utilityId) =>
       utilityId == 'jwt' ||
       utilityId == 'generator' ||
@@ -63,11 +66,10 @@ abstract final class SensitiveDataPolicy {
     if (!inspectEncoding) {
       return false;
     }
-    final bool percentEncoded = RegExp(r'%(?:[0-9A-Fa-f]{2})').hasMatch(value);
+    final bool percentEncoded = _percentEscape.hasMatch(value);
     final String compact = value.trim();
     final bool base64Shaped =
-        compact.length >= 8 &&
-        RegExp(r'^[A-Za-z0-9_+/-]+={0,2}$').hasMatch(compact);
+        compact.length >= 8 && _base64Shaped.hasMatch(compact);
     if (value.length > _maxReversibleInspectionLength) {
       return percentEncoded || base64Shaped;
     }

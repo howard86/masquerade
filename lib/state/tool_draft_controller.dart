@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
@@ -57,25 +58,49 @@ class GeneratorToolDraft {
 }
 
 /// The three explicit draft codecs shipped by the initial workflow tools.
+///
+/// Saves are cheap and run per keystroke: they record the latest values and
+/// defer both the sensitivity scan and the prefs write to a trailing
+/// [persistDelay] timer. Reads resolve any pending value first, so a getter
+/// never exposes content the scan would drop. [flush] writes immediately;
+/// [ToolDraftScope] calls it when the app pauses and when the scope unmounts.
 class ToolDraftController extends ChangeNotifier {
-  ToolDraftController({SharedPreferences? prefs}) : _prefs = prefs;
+  ToolDraftController({
+    SharedPreferences? prefs,
+    this.persistDelay = const Duration(milliseconds: 500),
+  }) : _prefs = prefs;
 
   static const String storageKey = 'mb.tool_drafts';
   static const int _version = 1;
 
+  /// Idle time after the last save before drafts are written to prefs.
+  final Duration persistDelay;
+
   SharedPreferences? _prefs;
   Future<void> _writes = Future<void>.value();
+  Timer? _persistTimer;
+  bool _dirty = false;
   bool _ready = false;
   bool _suspended = false;
   int _revision = 0;
   JsonToolDraft? _json;
   DiffToolDraft? _diff;
   GeneratorToolDraft? _generator;
+  JsonToolDraft? _pendingJson;
+  DiffToolDraft? _pendingDiff;
 
   bool get ready => _ready;
   int get revision => _revision;
-  JsonToolDraft? get json => _json;
-  DiffToolDraft? get diff => _diff;
+  JsonToolDraft? get json {
+    _resolvePending();
+    return _json;
+  }
+
+  DiffToolDraft? get diff {
+    _resolvePending();
+    return _diff;
+  }
+
   GeneratorToolDraft? get generator => _generator;
 
   static Future<ToolDraftController> load() async {
@@ -115,14 +140,8 @@ class ToolDraftController extends ChangeNotifier {
     int? revision,
   }) async {
     if (_suspended || (revision != null && revision != _revision)) return;
-    final String? safe = SensitiveDataPolicy.persistedValue(
-      input,
-      utilityId: 'json',
-    );
-    _json = safe == null || safe.isEmpty
-        ? null
-        : JsonToolDraft(input: safe, source: source, target: target);
-    await _persist();
+    _pendingJson = JsonToolDraft(input: input, source: source, target: target);
+    _schedulePersist();
   }
 
   Future<void> saveDiff({
@@ -133,33 +152,36 @@ class ToolDraftController extends ChangeNotifier {
     int? revision,
   }) async {
     if (_suspended || (revision != null && revision != _revision)) return;
-    final String? safeA = SensitiveDataPolicy.persistedValue(
-      a,
-      utilityId: 'diff',
+    _pendingDiff = DiffToolDraft(
+      a: a,
+      b: b,
+      wordHighlight: wordHighlight,
+      ignoreWhitespace: ignoreWhitespace,
     );
-    final String? safeB = SensitiveDataPolicy.persistedValue(
-      b,
-      utilityId: 'diff',
-    );
-    _diff = safeA == null || safeB == null || (safeA.isEmpty && safeB.isEmpty)
-        ? null
-        : DiffToolDraft(
-            a: safeA,
-            b: safeB,
-            wordHighlight: wordHighlight,
-            ignoreWhitespace: ignoreWhitespace,
-          );
-    await _persist();
+    _schedulePersist();
   }
 
   Future<void> saveGenerator(GeneratorToolDraft draft, {int? revision}) async {
     if (_suspended || (revision != null && revision != _revision)) return;
     _generator = draft;
+    _schedulePersist();
+  }
+
+  /// Writes any unsaved draft now instead of waiting for [persistDelay].
+  Future<void> flush() async {
+    _persistTimer?.cancel();
+    _persistTimer = null;
+    if (!_dirty || _suspended) return;
     await _persist();
   }
 
   Future<void> clear() async {
     _revision++;
+    _persistTimer?.cancel();
+    _persistTimer = null;
+    _dirty = false;
+    _pendingJson = null;
+    _pendingDiff = null;
     _json = null;
     _diff = null;
     _generator = null;
@@ -167,11 +189,54 @@ class ToolDraftController extends ChangeNotifier {
     notifyListeners();
   }
 
+  @override
+  void dispose() {
+    unawaited(flush());
+    super.dispose();
+  }
+
   void suspendWrites() => _suspended = true;
 
   void resumeWrites() => _suspended = false;
 
+  void _schedulePersist() {
+    _dirty = true;
+    _persistTimer?.cancel();
+    _persistTimer = Timer(persistDelay, () {
+      _persistTimer = null;
+      if (_dirty && !_suspended) unawaited(_persist());
+    });
+  }
+
+  /// Applies the sensitivity gate to values saved since the last read/write.
+  void _resolvePending() {
+    if (_pendingJson case final JsonToolDraft d) {
+      _pendingJson = null;
+      final String? safe = SensitiveDataPolicy.persistedValue(
+        d.input,
+        utilityId: 'json',
+      );
+      _json = safe == null || safe.isEmpty ? null : d;
+    }
+    if (_pendingDiff case final DiffToolDraft d) {
+      _pendingDiff = null;
+      final String? safeA = SensitiveDataPolicy.persistedValue(
+        d.a,
+        utilityId: 'diff',
+      );
+      final String? safeB = SensitiveDataPolicy.persistedValue(
+        d.b,
+        utilityId: 'diff',
+      );
+      _diff = safeA == null || safeB == null || (safeA.isEmpty && safeB.isEmpty)
+          ? null
+          : d;
+    }
+  }
+
   Future<void> _persist() async {
+    _resolvePending();
+    _dirty = false;
     final Map<String, Object?> payload = <String, Object?>{
       'version': _version,
       if (_json case final JsonToolDraft d)
@@ -313,13 +378,65 @@ class ToolDraftController extends ChangeNotifier {
   }
 }
 
-class ToolDraftScope extends InheritedNotifier<ToolDraftController> {
+/// Provides the [ToolDraftController] and flushes its debounced writes when
+/// the app leaves the foreground or the scope unmounts, so a pending draft is
+/// not lost to process death.
+class ToolDraftScope extends StatefulWidget {
   const ToolDraftScope({
     super.key,
+    required this.controller,
+    required this.child,
+  });
+
+  final ToolDraftController controller;
+  final Widget child;
+
+  static ToolDraftController? maybeOf(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<_ToolDraftInherited>()
+      ?.notifier;
+
+  @override
+  State<ToolDraftScope> createState() => _ToolDraftScopeState();
+}
+
+class _ToolDraftScopeState extends State<ToolDraftScope>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didUpdateWidget(ToolDraftScope oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.controller, widget.controller)) {
+      unawaited(oldWidget.controller.flush());
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) {
+      unawaited(widget.controller.flush());
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(widget.controller.flush());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      _ToolDraftInherited(controller: widget.controller, child: widget.child);
+}
+
+class _ToolDraftInherited extends InheritedNotifier<ToolDraftController> {
+  const _ToolDraftInherited({
     required ToolDraftController controller,
     required super.child,
   }) : super(notifier: controller);
-
-  static ToolDraftController? maybeOf(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<ToolDraftScope>()?.notifier;
 }

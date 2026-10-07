@@ -7,13 +7,14 @@ import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utils/copy_util.dart';
 import '../../utils/sensitive_data_policy.dart';
+import '../../utils/text_truncate.dart';
 import '../desktop/pipe.dart';
 import 'mq_icons.dart';
 
 /// Masquerade mono output cell. Uppercase caption + mono value + optional copy.
 /// Default surface is `monoBg` (= surface3) so code reads on the cream/espresso
 /// recess. Accent variant tints with the editorial accent color.
-class MqMonoCell extends StatelessWidget {
+class MqMonoCell extends StatefulWidget {
   const MqMonoCell({
     super.key,
     required this.label,
@@ -45,18 +46,71 @@ class MqMonoCell extends StatelessWidget {
   /// type. Null (or no [PipeScope]) leaves the cell exactly as on mobile/Home.
   final ContentType? pipeType;
 
+  /// Longest [value] rendered in full. A longer value renders its first
+  /// [maxDisplayChars] characters plus a truncation marker, so a multi-MB
+  /// output isn't laid out as one giant paragraph; copy and pipe still carry
+  /// the whole string.
+  static const int maxDisplayChars = 100000;
+
+  @override
+  State<MqMonoCell> createState() => _MqMonoCellState();
+}
+
+class _MqMonoCellState extends State<MqMonoCell> {
+  // Sensitivity scan memo: four regexes over [value] and [copyValue] (~26 ms
+  // per MB), so rebuilds that keep both strings (drag frames, parent
+  // rebuilds) reuse the last answer.
+  String? _scannedValue;
+  String? _scannedCopyValue;
+  bool _scanned = false;
+  bool _containsArtifact = false;
+
+  bool _artifact() {
+    final String value = widget.value;
+    final String? copyValue = widget.copyValue;
+    if (!_scanned || value != _scannedValue || copyValue != _scannedCopyValue) {
+      _scanned = true;
+      _scannedValue = value;
+      _scannedCopyValue = copyValue;
+      _containsArtifact =
+          SensitiveDataPolicy.containsSensitiveArtifact(value) ||
+          (copyValue != null &&
+              SensitiveDataPolicy.containsSensitiveArtifact(copyValue));
+    }
+    return _containsArtifact;
+  }
+
+  String? _previewSource;
+  String _preview = '';
+
+  /// [MqMonoCell.value] capped at [MqMonoCell.maxDisplayChars], marked the
+  /// same way as the CSV output preview.
+  String _displayValue() {
+    final String value = widget.value;
+    if (value.length <= MqMonoCell.maxDisplayChars) return value;
+    if (value != _previewSource) {
+      _previewSource = value;
+      _preview =
+          '${truncateWithEllipsis(value, max: MqMonoCell.maxDisplayChars)}'
+          ' [preview truncated]';
+    }
+    return _preview;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final String label = widget.label;
+    final String value = widget.value;
+    final String? copyValue = widget.copyValue;
+    final bool accent = widget.accent;
+    final String? hint = widget.hint;
+    final ContentType? pipeType = widget.pipeType;
     final tokens = context.mq;
     final c = tokens.colors;
-    final bool protected =
-        sensitive ||
-        SensitiveDataPolicy.containsSensitiveArtifact(value) ||
-        (copyValue != null &&
-            SensitiveDataPolicy.containsSensitiveArtifact(copyValue!));
+    final bool protected = widget.sensitive || _artifact();
 
     final TextStyle valueStyle =
-        (large ? MqTextStyles.monoLg : MqTextStyles.monoMd).copyWith(
+        (widget.large ? MqTextStyles.monoLg : MqTextStyles.monoMd).copyWith(
           color: c.monoText,
         );
     final TextStyle labelStyle = MqTextStyles.sectionLabel.copyWith(
@@ -80,7 +134,7 @@ class MqMonoCell extends StatelessWidget {
             Row(
               children: <Widget>[
                 Expanded(child: Text(label, style: labelStyle)),
-                if (copyable)
+                if (widget.copyable)
                   _CopyButton(
                     value: copyValue ?? value,
                     color: c.textTer,
@@ -90,13 +144,17 @@ class MqMonoCell extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 4),
-            Text(value, style: valueStyle, semanticsLabel: semanticsLabel),
+            Text(
+              _displayValue(),
+              style: valueStyle,
+              semanticsLabel: widget.semanticsLabel,
+            ),
             if (hint != null) ...<Widget>[
               const SizedBox(height: 4),
               Text(
-                hint!,
+                hint,
                 style: MqTextStyles.caption1.copyWith(
-                  color: c.textTer,
+                  color: accent ? c.accentInk : c.textTer,
                   fontFamily: MqTextStyles.monoFamily,
                   fontFamilyFallback: MqTextStyles.monoFallback,
                 ),
@@ -180,6 +238,26 @@ class _CopyButton extends StatefulWidget {
 class _CopyButtonState extends State<_CopyButton> {
   bool _copied = false;
 
+  // Memo for the caption-less semantics preview, which scans [value] again.
+  String? _previewValue;
+  bool? _previewSensitive;
+  String _preview = '';
+
+  String _safePreview() {
+    if (_previewValue == null ||
+        widget.value != _previewValue ||
+        widget.sensitive != _previewSensitive) {
+      _previewValue = widget.value;
+      _previewSensitive = widget.sensitive;
+      _preview = SensitiveDataPolicy.safePreview(
+        widget.value,
+        max: 32,
+        sensitive: widget.sensitive,
+      );
+    }
+    return _preview;
+  }
+
   void _handle() {
     CopyToClipboardUtil.copyToClipboard(
       context,
@@ -203,33 +281,27 @@ class _CopyButtonState extends State<_CopyButton> {
     // empty) fall back to today's preview-based label so they don't regress
     // to a bare "Copy".
     final String semanticsLabel = widget.label.isEmpty
-        ? 'Copy ${SensitiveDataPolicy.safePreview(widget.value, max: 32, sensitive: widget.sensitive)}'
+        ? 'Copy ${_safePreview()}'
         : 'Copy ${widget.label}';
     return Semantics(
       button: true,
       label: semanticsLabel,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: _handle,
-        // Grow the tappable region to the 44×44 iOS HIG minimum without
-        // enlarging the glyph: a min-size box centers the unchanged icon so a
-        // tap anywhere in the 44×44 area copies, while the visual stays put.
-        child: ConstrainedBox(
-          key: const ValueKey<String>('mqMonoCellCopyTarget'),
-          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-          child: Center(
-            widthFactor: 1,
-            heightFactor: 1,
-            child: Padding(
-              padding: const EdgeInsets.all(4),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                child: Icon(
-                  _copied ? MqIcons.check : MqIcons.copy,
-                  key: ValueKey<bool>(_copied),
-                  size: 14,
-                  color: _copied ? tokens.colors.success : widget.color,
-                ),
+      child: CupertinoButton(
+        key: const ValueKey<String>('mqMonoCellCopyTarget'),
+        padding: EdgeInsets.zero,
+        minimumSize: const Size.square(44),
+        borderRadius: BorderRadius.circular(MqRadius.sm),
+        onPressed: _handle,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: Icon(
+                _copied ? MqIcons.check : MqIcons.copy,
+                key: ValueKey<bool>(_copied),
+                size: 14,
+                color: _copied ? tokens.colors.success : widget.color,
               ),
             ),
           ),

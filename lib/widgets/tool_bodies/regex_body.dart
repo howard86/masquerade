@@ -8,6 +8,8 @@ import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utils/history_recorder.dart';
 import '../../utils/regex_parser.dart';
+import '../../utils/regex_worker_native.dart'
+    if (dart.library.html) '../../utils/regex_worker_web.dart';
 import '../mq/mq_button.dart';
 import '../mq/mq_chip.dart';
 import '../mq/mq_empty_hint.dart';
@@ -63,6 +65,10 @@ class _RegexBodyState extends State<RegexBody> {
   int _visibleMatches = _pageSize;
   int _runRequest = 0;
 
+  /// One long-lived matcher for this body: reused across runs, and a newer
+  /// run kills a still-busy older one instead of letting it spin.
+  final RegexWorkerSession _worker = RegexWorkerSession();
+
   @override
   void initState() {
     super.initState();
@@ -79,7 +85,7 @@ class _RegexBodyState extends State<RegexBody> {
     super.didChangeDependencies();
     if (_recorder == null) {
       _recorder = HistoryRecorder(
-        controller: HistoryScope.of(context),
+        controller: HistoryScope.read(context),
         utilityId: 'regex',
         sensitive:
             MobileSessionRouteScope.maybeOf(context)?.protectedSession ?? false,
@@ -114,7 +120,18 @@ class _RegexBodyState extends State<RegexBody> {
 
   @override
   void dispose() {
+    // Deliver an edit still waiting on the debounce. The tree is locked
+    // during dispose (the sink notifies listeners), so hand it off to a
+    // microtask with the sink captured while the context was live.
+    final ValueChanged<Map<String, Object?>>? sink = _settingsSink;
+    if (_settingsDirty && sink != null) {
+      final Map<String, Object?> settings = _settings;
+      scheduleMicrotask(() => sink(settings));
+    }
+    _settingsDirty = false;
+    _lifecycle?.dispose();
     _debounce?.cancel();
+    _worker.dispose();
     _recorder?.dispose();
     _pattern.dispose();
     _input.dispose();
@@ -123,9 +140,32 @@ class _RegexBodyState extends State<RegexBody> {
 
   void _changed(String _) {
     _runRequest++;
-    _saveSettings();
+    _markSettingsDirty();
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 150), _run);
+    _debounce = Timer(const Duration(milliseconds: 150), () {
+      _flushSettings();
+      _run();
+    });
+  }
+
+  /// Pattern edits persist on the run debounce rather than per keystroke;
+  /// a pending edit is flushed by the timer, on app pause, or on dispose.
+  bool _settingsDirty = false;
+  ValueChanged<Map<String, Object?>>? _settingsSink;
+  AppLifecycleListener? _lifecycle;
+
+  void _markSettingsDirty() {
+    _settingsDirty = true;
+    _settingsSink = MobileSessionRouteScope.maybeOf(context)?.onSettingsChanged;
+    _lifecycle ??= AppLifecycleListener(
+      onStateChange: (AppLifecycleState state) {
+        if (state != AppLifecycleState.resumed) _flushSettings();
+      },
+    );
+  }
+
+  void _flushSettings() {
+    if (_settingsDirty && mounted) _saveSettings();
   }
 
   void _toggle(void Function() change) {
@@ -141,7 +181,7 @@ class _RegexBodyState extends State<RegexBody> {
     final String input = _input.text;
     final RegexResult? result = pattern.isEmpty && input.isEmpty
         ? null
-        : await widget.runner(
+        : await _runner(
             pattern: pattern,
             input: input,
             caseSensitive: _caseSensitive,
@@ -166,15 +206,42 @@ class _RegexBodyState extends State<RegexBody> {
     }
   }
 
-  void _saveSettings() => MobileSessionRouteScope.maybeOf(context)
-      ?.onSettingsChanged
-      ?.call(<String, Object?>{
-        'pattern': _pattern.text,
-        'caseSensitive': _caseSensitive,
-        'multiLine': _multiLine,
-        'dotAll': _dotAll,
-        'unicode': _unicode,
-      });
+  /// The injected runner, except that the default [RegexTester.runAsync]
+  /// runs on this body's [_worker] instead of a one-shot isolate per run.
+  RegexRunner get _runner =>
+      widget.runner == RegexTester.runAsync ? _runOnWorker : widget.runner;
+
+  Future<RegexResult> _runOnWorker({
+    required String pattern,
+    required String input,
+    bool caseSensitive = true,
+    bool multiLine = false,
+    bool dotAll = false,
+    bool unicode = true,
+  }) => RegexTester.runAsync(
+    pattern: pattern,
+    input: input,
+    caseSensitive: caseSensitive,
+    multiLine: multiLine,
+    dotAll: dotAll,
+    unicode: unicode,
+    workerRunner: _worker.run,
+  );
+
+  Map<String, Object?> get _settings => <String, Object?>{
+    'pattern': _pattern.text,
+    'caseSensitive': _caseSensitive,
+    'multiLine': _multiLine,
+    'dotAll': _dotAll,
+    'unicode': _unicode,
+  };
+
+  void _saveSettings() {
+    _settingsDirty = false;
+    MobileSessionRouteScope.maybeOf(
+      context,
+    )?.onSettingsChanged?.call(_settings);
+  }
 
   void _clear() {
     _debounce?.cancel();

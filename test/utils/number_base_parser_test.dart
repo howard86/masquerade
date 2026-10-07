@@ -103,4 +103,31 @@ void main() {
       });
     });
   });
+
+  group('invalid-digit messages', () {
+    // Messages recorded from the previous split('') implementation.
+    const Map<String, String> expected = <String, String>{
+      '12z4': '"z" is not a valid digit for a decimal number.',
+      '0x1g': '"g" is not a valid hexadecimal digit.',
+      '0b102': '"2" is not a valid binary digit.',
+      '0o78': '"8" is not a valid octal digit.',
+      'hello': '"h" is not a valid digit for a decimal number.',
+      '1 2': '" " is not a valid digit for a decimal number.',
+      '1\u00a02': '"\u00a0" is not a valid digit for a decimal number.',
+      '12\u{1F600}': '"\ud83d" is not a valid digit for a decimal number.',
+      'ff-ff': '"f" is not a valid digit for a decimal number.',
+      '0xFF_FG': '"g" is not a valid hexadecimal digit.',
+      '0x': 'Enter hexadecimal digits after the prefix.',
+      '-': 'Enter a number.',
+      '12.5': '"." is not a valid digit for a decimal number.',
+    };
+
+    test('are unchanged', () {
+      expected.forEach((String input, String message) {
+        final NumberBaseParseResult r = NumberBaseParser.parse(input);
+        expect(r, isA<NumberBaseError>(), reason: input);
+        expect((r as NumberBaseError).message, message, reason: input);
+      });
+    });
+  });
 }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,6 +25,7 @@ const Size _phone = Size(393, 852);
 Future<void> _pumpWorkbench(
   WidgetTester tester, {
   TextScaler textScaler = TextScaler.noScaling,
+  ValueListenable<EdgeInsets>? viewInsets,
   DetectionPreferenceController? detectionPreferenceController,
   WorkSessionController? workSessionController,
   ShareInboxController? shareInboxController,
@@ -33,19 +35,31 @@ Future<void> _pumpWorkbench(
 }) async {
   await tester.binding.setSurfaceSize(_phone);
   addTearDown(() => tester.binding.setSurfaceSize(null));
-  await tester.pumpWidget(
-    MediaQuery(
-      data: MediaQueryData(size: _phone, textScaler: textScaler),
-      child: MyApp(
-        isWebOverride: isWebOverride,
-        skipSplash: true,
-        detectionPreferenceController: detectionPreferenceController,
-        workSessionController: workSessionController,
-        shareInboxController: shareInboxController,
-        externalInputImporter: externalInputImporter,
-        qrScanner: qrScanner,
-      ),
+  final Widget app = MyApp(
+    isWebOverride: isWebOverride,
+    skipSplash: true,
+    detectionPreferenceController: detectionPreferenceController,
+    workSessionController: workSessionController,
+    shareInboxController: shareInboxController,
+    externalInputImporter: externalInputImporter,
+    qrScanner: qrScanner,
+  );
+  Widget withMediaQuery(EdgeInsets insets) => MediaQuery(
+    data: MediaQueryData(
+      size: _phone,
+      textScaler: textScaler,
+      viewInsets: insets,
     ),
+    child: app,
+  );
+  await tester.pumpWidget(
+    viewInsets == null
+        ? withMediaQuery(EdgeInsets.zero)
+        : ValueListenableBuilder<EdgeInsets>(
+            valueListenable: viewInsets,
+            builder: (BuildContext context, EdgeInsets insets, Widget? child) =>
+                withMediaQuery(insets),
+          ),
   );
   await tester.pumpAndSettle();
 }
@@ -128,9 +142,63 @@ void main() {
     await _enter(tester, 'unrecognized prose value');
     expect(find.text('Unknown text'), findsOneWidget);
     expect(
-      _semantics('Unknown text. Open as text or send to a tool.'),
+      _semantics('Unknown text. No tool matched this value.'),
       findsOneWidget,
     );
+  });
+
+  group('detection cache', () {
+    TextEditingController heroController(WidgetTester tester) => tester
+        .widget<CupertinoTextField>(find.byType(CupertinoTextField).first)
+        .controller!;
+
+    testWidgets('caret and focus changes reuse the last sweep', (
+      WidgetTester tester,
+    ) async {
+      await _pumpWorkbench(tester);
+      await _enter(tester, '{"ok":true}');
+      final TextEditingController hero = heroController(tester);
+      final int before = UtilityCatalog.debugSweepCount;
+      for (int i = 0; i < 5; i++) {
+        hero.selection = TextSelection.collapsed(offset: i);
+        await tester.pump();
+      }
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pump();
+      expect(UtilityCatalog.debugSweepCount, before);
+      expect(find.text('Artifact detected'), findsOneWidget);
+
+      await _enter(tester, 'uuid');
+      expect(UtilityCatalog.debugSweepCount, before + 1);
+      expect(find.text('Tool search'), findsOneWidget);
+    });
+
+    testWidgets('keystrokes into long text wait for typing to pause', (
+      WidgetTester tester,
+    ) async {
+      await _pumpWorkbench(tester);
+      final String long = 'word ' * 1000;
+      final int initial = UtilityCatalog.debugSweepCount;
+      await _enter(tester, long);
+      final int before = UtilityCatalog.debugSweepCount;
+      expect(before, initial + 1);
+
+      await _enter(tester, '${long}x');
+      await _enter(tester, '${long}xy');
+      expect(UtilityCatalog.debugSweepCount, before);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(UtilityCatalog.debugSweepCount, before);
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(UtilityCatalog.debugSweepCount, before + 1);
+
+      // A bulk replacement (paste-sized edit) sweeps immediately.
+      await _enter(tester, '{"ok":true}');
+      expect(UtilityCatalog.debugSweepCount, before + 2);
+      expect(
+        _semanticsStarts('Open JSON / YAML / TOML. Primary'),
+        findsOneWidget,
+      );
+    });
   });
 
   testWidgets('shared inbox resumes safe content and deletes the handoff', (
@@ -346,6 +414,26 @@ void main() {
     expect(find.textContaining('not supported'), findsNothing);
   });
 
+  testWidgets('file picker failure has one live warning announcement', (
+    WidgetTester tester,
+  ) async {
+    final ExternalInputImporter importer = ExternalInputImporter(
+      pickFile: ({required List<XTypeGroup> acceptedTypeGroups}) async =>
+          throw StateError('picker failed'),
+    );
+    await _pumpWorkbench(tester, externalInputImporter: importer);
+    await tester.tap(find.bySemanticsLabel('Import file'));
+    await tester.pumpAndSettle();
+
+    const String error = 'The file picker could not be opened.';
+    expect(find.text(error.toUpperCase()), findsOneWidget);
+    expect(_semantics(error), findsOneWidget);
+    expect(
+      tester.getSemantics(_semantics(error)).flagsCollection.isLiveRegion,
+      isTrue,
+    );
+  });
+
   testWidgets(
     'cancel is silent and stale file result cannot overwrite typing',
     (WidgetTester tester) async {
@@ -550,11 +638,20 @@ void main() {
     );
     expect(inbox.items, hasLength(1));
     expect(inbox.error, 'Shared item could not be removed.');
+    expect(_semantics(inbox.error!), findsOneWidget);
+    expect(
+      tester
+          .getSemantics(_semantics(inbox.error!))
+          .flagsCollection
+          .isLiveRegion,
+      isTrue,
+    );
   });
 
   testWidgets('unknown text opens inline or routes to a chosen tool', (
     WidgetTester tester,
   ) async {
+    final SemanticsHandle semantics = tester.ensureSemantics();
     await _pumpWorkbench(tester);
     const String input = '  unrecognized prose value  ';
     await _enter(tester, input);
@@ -562,16 +659,76 @@ void main() {
     await tester.tap(find.text('Open as text'));
     await tester.pump();
     expect(find.text('TEXT'), findsOneWidget);
-    expect(_semantics('Opened text: $input'), findsOneWidget);
+    final Finder opened = _semantics('Opened text: $input');
+    expect(opened, findsOneWidget);
+    expect(
+      tester.getSemantics(opened).getSemanticsData().label,
+      'Opened text: $input',
+    );
 
     await tester.tap(find.text('Send to tool'));
     await tester.pumpAndSettle();
     expect(find.byType(CupertinoActionSheet), findsOneWidget);
+    await tester.enterText(find.byType(CupertinoTextField).last, 'uuid');
+    await tester.pump();
+    expect(find.text('UUID'), findsOneWidget);
+    expect(find.text('Timestamp'), findsNothing);
+    await tester.enterText(
+      find.byType(CupertinoTextField).first,
+      'mutated behind modal',
+    );
+    await tester.pump();
     await tester.tap(find.text('UUID').last);
     await tester.pumpAndSettle();
     final ToolDetailRoute route = tester.widget(find.byType(ToolDetailRoute));
     expect(route.descriptor.id, 'uuid');
     expect(route.seed, input);
+    semantics.dispose();
+  });
+
+  testWidgets('tool chooser keeps no-match cancellation above the keyboard', (
+    WidgetTester tester,
+  ) async {
+    final ValueNotifier<EdgeInsets> viewInsets = ValueNotifier<EdgeInsets>(
+      EdgeInsets.zero,
+    );
+    addTearDown(viewInsets.dispose);
+    await _pumpWorkbench(
+      tester,
+      textScaler: const TextScaler.linear(2),
+      viewInsets: viewInsets,
+    );
+    const String input = '  unrecognized prose value  ';
+    await _enter(tester, input);
+
+    await tester.tap(find.text('Send to tool'));
+    await tester.pumpAndSettle();
+    viewInsets.value = const EdgeInsets.only(bottom: 300);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byType(CupertinoTextField).last,
+      'definitely-no-such-tool',
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('No tools found'), findsOneWidget);
+    expect(
+      tester.getBottomRight(find.text('Cancel')).dy,
+      lessThanOrEqualTo(552),
+    );
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CupertinoActionSheet), findsNothing);
+    expect(find.byType(ToolDetailRoute), findsNothing);
+    expect(
+      tester
+          .widget<CupertinoTextField>(find.byType(CupertinoTextField).first)
+          .controller!
+          .text,
+      input,
+    );
   });
 
   testWidgets('Workbench input never reorders the Library catalog', (
@@ -593,11 +750,27 @@ void main() {
   testWidgets('suggestions open the detected tool with the captured input', (
     WidgetTester tester,
   ) async {
+    final SemanticsHandle semantics = tester.ensureSemantics();
     final WorkSessionController sessions = WorkSessionController();
     await _pumpWorkbench(tester, workSessionController: sessions);
     await _enter(tester, '{"ok":true}');
 
-    await tester.tap(find.text('JSON / YAML / TOML'));
+    final Finder suggestion = _semanticsStarts(
+      'Open JSON / YAML / TOML. Primary',
+    );
+    expect(suggestion, findsOneWidget);
+    expect(
+      tester
+          .getSemantics(suggestion)
+          .getSemanticsData()
+          .hasAction(SemanticsAction.tap),
+      isTrue,
+    );
+    tester.semantics.tap(
+      find.semantics.byLabel(
+        tester.getSemantics(suggestion).getSemanticsData().label,
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.byType(ToolDetailRoute), findsOneWidget);
     final ToolDetailRoute route = tester.widget(find.byType(ToolDetailRoute));
@@ -612,6 +785,7 @@ void main() {
           ),
       isTrue,
     );
+    semantics.dispose();
   });
 
   testWidgets('shows ranked reasons and preserves the captured artifact', (
@@ -854,6 +1028,32 @@ void main() {
     expect(route.sessionStepIndex, 0);
   });
 
+  testWidgets('session steps support keyboard activation', (
+    WidgetTester tester,
+  ) async {
+    final WorkSessionController sessions = _safeCompletedSession();
+    await _pumpWorkbench(tester, workSessionController: sessions);
+    final Finder first = _stepSemantics(1, 'bps', 'Completed');
+
+    await tester.ensureVisible(first);
+    final Rect stepRect = tester.getRect(first);
+    for (int i = 0; i < 20; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      final BuildContext? context = FocusManager.instance.primaryFocus?.context;
+      final RenderObject? renderObject = context?.findRenderObject();
+      if (renderObject is RenderBox &&
+          stepRect.contains(renderObject.localToGlobal(Offset.zero))) {
+        break;
+      }
+    }
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Step 1 actions'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('protected step omits clipboard and share actions', (
     WidgetTester tester,
   ) async {
@@ -1068,6 +1268,7 @@ void main() {
       ),
       'JWT inspector',
     );
+    await tester.pump();
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
     expect(find.text('JWT inspector'), findsOneWidget);
@@ -1078,6 +1279,39 @@ void main() {
     await tester.pumpAndSettle();
     expect(sessions.savedWorkflows, isEmpty);
     expect(find.text('SAVED WORKFLOWS'), findsNothing);
+  });
+
+  testWidgets('unavailable saved workflow cannot run', (
+    WidgetTester tester,
+  ) async {
+    final WorkSessionController sessions = WorkSessionController(
+      savedWorkflows: <SavedWorkflow>[
+        SavedWorkflow(
+          id: 'retired',
+          name: 'Retired workflow',
+          createdAt: DateTime.fromMillisecondsSinceEpoch(1),
+          updatedAt: DateTime.fromMillisecondsSinceEpoch(2),
+          steps: <SavedWorkflowStep>[
+            SavedWorkflowStep(
+              toolId: 'retired-tool',
+              settings: const <String, Object?>{},
+              available: false,
+            ),
+          ],
+        ),
+      ],
+    );
+    await _pumpWorkbench(tester, workSessionController: sessions);
+    await _enter(tester, 'input');
+    await tester.ensureVisible(find.text('Run'));
+
+    expect(find.text('retired-tool (unavailable)'), findsOneWidget);
+    final Semantics run = tester.widget<Semantics>(_semantics('Run'));
+    expect(run.properties.enabled, isFalse);
+    expect(run.properties.onTap, isNull);
+    expect(find.text('Rename'), findsOneWidget);
+    expect(find.text('Delete'), findsOneWidget);
+    expect(sessions.workflowError, isNull);
   });
 
   testWidgets('workflow errors reveal the saved workflows section', (
@@ -1096,6 +1330,56 @@ void main() {
     );
   });
 
+  testWidgets('workflow dialog keeps blank names open', (
+    WidgetTester tester,
+  ) async {
+    final WorkSessionController sessions = _safeCompletedSession();
+    await _pumpWorkbench(tester, workSessionController: sessions);
+    await tester.ensureVisible(find.text('Save workflow'));
+    await tester.tap(find.text('Save workflow'));
+    await tester.pumpAndSettle();
+
+    Finder saveAction() => find.ancestor(
+      of: find.text('Save'),
+      matching: find.byType(CupertinoDialogAction),
+    );
+    expect(
+      tester.widget<CupertinoDialogAction>(saveAction()).onPressed,
+      isNotNull,
+    );
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(CupertinoAlertDialog),
+        matching: find.byType(CupertinoTextField),
+      ),
+      '   ',
+    );
+    await tester.pump();
+    expect(
+      tester.widget<CupertinoDialogAction>(saveAction()).onPressed,
+      isNull,
+    );
+    expect(find.byType(CupertinoAlertDialog), findsOneWidget);
+    expect(sessions.workflowError, isNull);
+
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(CupertinoAlertDialog),
+        matching: find.byType(CupertinoTextField),
+      ),
+      'Safe flow',
+    );
+    await tester.pump();
+    expect(
+      tester.widget<CupertinoDialogAction>(saveAction()).onPressed,
+      isNotNull,
+    );
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(sessions.savedWorkflows.single.name, 'Safe flow');
+    expect(find.byType(CupertinoAlertDialog), findsNothing);
+  });
+
   testWidgets('saving current workflow and incompatible rerun errors inline', (
     WidgetTester tester,
   ) async {
@@ -1111,6 +1395,7 @@ void main() {
       ),
       'Rates',
     );
+    await tester.pump();
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
     expect(find.text('Rates'), findsOneWidget);

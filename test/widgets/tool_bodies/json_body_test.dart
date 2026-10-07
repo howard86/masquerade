@@ -29,6 +29,29 @@ void main() {
     expect(find.text('{\n  "a": 1\n}'), findsOneWidget);
   });
 
+  testWidgets('JSON — Minified target re-renders on each parse', (
+    WidgetTester tester,
+  ) async {
+    await pumpBodyAtWidth(
+      tester,
+      const JSONBody(initialInput: '{ "a" : 1 }'),
+      380,
+    );
+    await tester.tap(find.text('Pretty JSON'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Minified JSON').last);
+    await tester.pumpAndSettle();
+    expect(find.text('{"a":1}'), findsOneWidget);
+
+    await tester.enterText(
+      find.byType(EditableText).first,
+      '{\n  "b": [1, 2],\n  "c": "x"\n}',
+    );
+    await tester.pumpAndSettle(kDebouncePump);
+    expect(find.text('{"b":[1,2],"c":"x"}'), findsOneWidget);
+    expect(find.text('{"a":1}'), findsNothing);
+  });
+
   testWidgets('JSON reuses a compatible detected parser result', (
     WidgetTester tester,
   ) async {
@@ -184,6 +207,7 @@ void main() {
   testWidgets('swap button moves output to input and exchanges selectors', (
     WidgetTester tester,
   ) async {
+    final SemanticsHandle semantics = tester.ensureSemantics();
     await pumpHomeAndOpen(tester, 'JSON / YAML / TOML');
 
     await tester.enterText(find.byType(EditableText).last, '{"a":1}');
@@ -198,13 +222,17 @@ void main() {
     // YAML output visible.
     expect(find.text('YAML'), findsWidgets);
 
-    await tester.tap(find.bySemanticsLabel('Swap source and target'));
+    final Finder swap = find.bySemanticsLabel('Swap source and target');
+    expect(swap, findsOneWidget);
+    expect(tester.getSize(swap).shortestSide, greaterThanOrEqualTo(44));
+    tester.semantics.tap(find.semantics.byLabel('Swap source and target'));
     await tester.pumpAndSettle(kDebouncePump);
 
     // Input now holds YAML; Target now shows Pretty JSON.
     expect(find.text('Pretty JSON'), findsOneWidget);
     expect(find.text('YAML'), findsWidgets); // source dropdown shows YAML
     expect(find.text('{\n  "a": 1\n}'), findsOneWidget);
+    semantics.dispose();
   });
 
   testWidgets('list-root input hides the TOML target option', (
