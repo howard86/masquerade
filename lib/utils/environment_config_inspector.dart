@@ -180,6 +180,13 @@ class ConfigInspection {
   }
 }
 
+/// Result of [EnvironmentConfigInspector.detectEntries].
+class ConfigDetection {
+  const ConfigDetection({required this.format, required this.entryCount});
+  final ConfigFormat format;
+  final int entryCount;
+}
+
 class EnvironmentConfigInspector {
   const EnvironmentConfigInspector._();
 
@@ -188,48 +195,9 @@ class EnvironmentConfigInspector {
   static const int maxLineCharacters = 16 * 1024;
 
   static ConfigInspection parse(String input, {ConfigFormat? format}) {
-    if (input.isEmpty) throw const ConfigInspectorException('Empty input.');
-    if (_hasUnpairedSurrogate(input)) {
-      throw const ConfigInspectorException('Input contains invalid UTF-16.');
-    }
-    if (utf8LengthExceeds(input, maxInputCharacters)) {
-      throw const ConfigInspectorException('Input exceeds the 512 KiB limit.');
-    }
-    if (input.contains('\u0000')) {
-      throw const ConfigInspectorException('NUL bytes are not valid config.');
-    }
-    final String withoutBom = input.startsWith('\uFEFF')
-        ? input.substring(1)
-        : input;
-    final String normalized = withoutBom
-        .replaceAll('\r\n', '\n')
-        .replaceAll('\r', '\n');
-    final List<String> lines = normalized.split('\n');
-    if (lines.length > maxLines) {
-      throw const ConfigInspectorException(
-        'Input exceeds the 10,000-line limit.',
-      );
-    }
-    if (lines.any((String line) => line.length > maxLineCharacters)) {
-      throw const ConfigInspectorException('A line exceeds the 16 KiB limit.');
-    }
-    for (final String line in lines) {
-      for (final int rune in line.runes) {
-        if (rune < 0x20 && rune != 0x09) {
-          throw const ConfigInspectorException(
-            'Control characters are not valid config.',
-          );
-        }
-      }
-    }
-
+    final List<String> lines = _validatedLines(input);
     final ConfigFormat selected = format ?? _detectLines(lines);
-    final _Parsed parsed = switch (selected) {
-      ConfigFormat.environment => _parseEnvironment(lines),
-      ConfigFormat.properties => _parseProperties(lines),
-      ConfigFormat.headers => _parseHeaders(lines),
-      ConfigFormat.keyValue => _parseKeyValue(lines),
-    };
+    final _Parsed parsed = _parseLines(selected, lines);
     if (parsed.values.isEmpty) {
       throw const ConfigInspectorException('No configuration entries found.');
     }
@@ -280,6 +248,100 @@ class EnvironmentConfigInspector {
       hadSensitiveInput: sensitive,
       commentCount: parsed.comments,
     );
+  }
+
+  /// Detection-only counterpart of [parse] with auto-detected format: the
+  /// same validation, parsing and secret-like-key rejection, but no per-value
+  /// redaction or duplicate bookkeeping. Returns null wherever [parse] would
+  /// throw, and also when the entries don't look like configuration (see
+  /// [_keyShaped]) so prose, Markdown and log lines that happen to parse as
+  /// loose properties/key-value pairs aren't claimed.
+  static ConfigDetection? detectEntries(String input) {
+    try {
+      final List<String> lines = _validatedLines(input);
+      final ConfigFormat format = _detectLines(lines);
+      final _Parsed parsed = _parseLines(format, lines);
+      if (parsed.values.isEmpty) return null;
+      for (final _Value value in parsed.values) {
+        if (SensitiveDataPolicy.containsSecretLikeValue(value.key)) {
+          return null;
+        }
+      }
+      if (!_keyShaped(format, lines, parsed.values)) return null;
+      return ConfigDetection(format: format, entryCount: parsed.values.length);
+    } on ConfigInspectorException {
+      return null;
+    }
+  }
+
+  static List<String> _validatedLines(String input) {
+    if (input.isEmpty) throw const ConfigInspectorException('Empty input.');
+    if (_hasUnpairedSurrogate(input)) {
+      throw const ConfigInspectorException('Input contains invalid UTF-16.');
+    }
+    if (utf8LengthExceeds(input, maxInputCharacters)) {
+      throw const ConfigInspectorException('Input exceeds the 512 KiB limit.');
+    }
+    if (input.contains('\u0000')) {
+      throw const ConfigInspectorException('NUL bytes are not valid config.');
+    }
+    final String withoutBom = input.startsWith('\uFEFF')
+        ? input.substring(1)
+        : input;
+    final String normalized = withoutBom
+        .replaceAll('\r\n', '\n')
+        .replaceAll('\r', '\n');
+    final List<String> lines = normalized.split('\n');
+    if (lines.length > maxLines) {
+      throw const ConfigInspectorException(
+        'Input exceeds the 10,000-line limit.',
+      );
+    }
+    if (lines.any((String line) => line.length > maxLineCharacters)) {
+      throw const ConfigInspectorException('A line exceeds the 16 KiB limit.');
+    }
+    for (final String line in lines) {
+      for (final int rune in line.runes) {
+        if (rune < 0x20 && rune != 0x09) {
+          throw const ConfigInspectorException(
+            'Control characters are not valid config.',
+          );
+        }
+      }
+    }
+    return lines;
+  }
+
+  static _Parsed _parseLines(ConfigFormat format, List<String> lines) =>
+      switch (format) {
+        ConfigFormat.environment => _parseEnvironment(lines),
+        ConfigFormat.properties => _parseProperties(lines),
+        ConfigFormat.headers => _parseHeaders(lines),
+        ConfigFormat.keyValue => _parseKeyValue(lines),
+      };
+
+  // An identifier-like key followed directly by `=` or `:`.
+  static final RegExp _configKeyLine = RegExp(
+    r'^[A-Za-z_][A-Za-z0-9_.-]*\s*[=:]',
+  );
+
+  /// Environment detection already requires every line to be a strict
+  /// `NAME=` assignment. Header, properties and key/value parsing accept
+  /// lines that are not configuration (an ISO timestamp is a valid header
+  /// token, and "Note: see below", "- item: x" or a log line's first word
+  /// parse as loose properties), so at least 80% of their entries must start
+  /// with an identifier-like key and an `=`/`:` separator.
+  static bool _keyShaped(
+    ConfigFormat format,
+    List<String> lines,
+    List<_Value> values,
+  ) {
+    if (format == ConfigFormat.environment) return true;
+    int shaped = 0;
+    for (final _Value value in values) {
+      if (_configKeyLine.hasMatch(lines[value.line - 1].trimLeft())) shaped++;
+    }
+    return shaped * 5 >= values.length * 4;
   }
 
   static final RegExp _environmentLine = RegExp(r'^[A-Z_][A-Z0-9_]*\s*=');

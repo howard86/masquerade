@@ -205,6 +205,40 @@ void main() {
       expect(detected('__init__ and __name__'), isNot(contains('markdown')));
     });
 
+    test('prose, Markdown, and logs with colons are not configuration', () {
+      Iterable<String> detected(String value) => UtilityCatalog.detectArtifacts(
+        value,
+      ).map((DetectionMatch<Object?> match) => match.primaryToolId);
+
+      const String markdown =
+          '## Setup\n\n'
+          'Note: section covers **topic** and `code` usage.\n'
+          'See [docs](https://example.com/docs) for details.\n\n'
+          '- item one: value\n- item two: value';
+      expect(detected(markdown).first, 'markdown');
+      expect(
+        detected(markdown),
+        isNot(contains('environment_config_inspector')),
+      );
+      expect(
+        detected(
+          '2026-01-01T10:00:00Z INFO worker[1] id=1 status=200\n'
+          '2026-01-01T10:00:01Z WARN worker[2] id=2 status=201',
+        ),
+        isNot(contains('environment_config_inspector')),
+      );
+      expect(
+        detected('Note: read this first.\nThen run the installer twice.'),
+        isNot(contains('environment_config_inspector')),
+      );
+      // Real configuration still routes to the inspector.
+      expect(detected('A=1\nB=2').first, 'environment_config_inspector');
+      expect(
+        detected('server.port=8080\nlog-level: info'),
+        contains('environment_config_inspector'),
+      );
+    });
+
     test('Markdown detection protects secret-like artifacts', () {
       const String secret =
           '# Private\n\n[endpoint](https://user:password@example.com)';

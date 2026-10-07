@@ -2618,26 +2618,29 @@ List<DetectionMatch<Object?>> _detectEnvironmentConfig(
   if (trimmed.isEmpty || (!trimmed.contains('=') && !trimmed.contains(':'))) {
     return const <DetectionMatch<Object?>>[];
   }
+  // Detection only needs the format and entry count, not the redacted
+  // inspection the tool body builds (nothing reads this parserResult).
+  final ConfigDetection? detection;
   try {
-    final ConfigInspection inspection = EnvironmentConfigInspector.parse(input);
-    if (inspection.entries.length < 2) {
-      return const <DetectionMatch<Object?>>[];
-    }
-    return <DetectionMatch<Object?>>[
-      _evidence(
-        provenance: provenance,
-        kind: ArtifactKind.unknown,
-        rawValue: input,
-        parserResult: inspection,
-        confidence: .9,
-        reason:
-            'Parsed ${inspection.entries.length} ${inspection.format.name} configuration entries.',
-        primaryToolId: 'environment_config_inspector',
-      ),
-    ];
+    detection = EnvironmentConfigInspector.detectEntries(input);
   } catch (_) {
     return const <DetectionMatch<Object?>>[];
   }
+  if (detection == null || detection.entryCount < 2) {
+    return const <DetectionMatch<Object?>>[];
+  }
+  return <DetectionMatch<Object?>>[
+    _evidence(
+      provenance: provenance,
+      kind: ArtifactKind.unknown,
+      rawValue: input,
+      parserResult: detection,
+      confidence: .9,
+      reason:
+          'Parsed ${detection.entryCount} ${detection.format.name} configuration entries.',
+      primaryToolId: 'environment_config_inspector',
+    ),
+  ];
 }
 
 List<DetectionMatch<Object?>> _detectHashAndPem(
