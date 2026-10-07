@@ -329,6 +329,85 @@ void main() {
       expect(dead.written, isNull);
       expect(d.entries, hasLength(1));
     });
+
+    test('load skips the rescan for the current policy version', () async {
+      final Map<String, dynamic> secret = <String, dynamic>{
+        'utilityId': 'json',
+        'input': '{"password":"hunter2hunter2"}',
+        'output': 'out',
+        'ts': DateTime.now().millisecondsSinceEpoch,
+        'id': 'a',
+      };
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'mb.history.entries': jsonEncode(<Map<String, dynamic>>[secret]),
+      });
+      // No stored version: rescan drops it and records the version.
+      final HistoryController stale = await HistoryController.load();
+      expect(stale.entries, isEmpty);
+      await stale.flush();
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      expect(prefs.getInt('mb.history.policy.version'), isNotNull);
+
+      // Stored by the current version: trusted as already clean.
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'mb.history.entries': jsonEncode(<Map<String, dynamic>>[secret]),
+        'mb.history.policy.version': HistoryController.policyVersion,
+      });
+      final HistoryController current = await HistoryController.load();
+      expect(current.entries, hasLength(1));
+      await current.flush();
+      expect(
+        ((await stored()).single as Map<String, dynamic>)['input'],
+        secret['input'],
+      );
+    });
+
+    test('load persists migrations without blocking, then flushes', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'mb.history.entries': jsonEncode(<Map<String, dynamic>>[
+          <String, dynamic>{
+            'utilityId': 'json',
+            'input': '{}',
+            'output': '{}',
+            'ts': DateTime.now().millisecondsSinceEpoch,
+          },
+        ]),
+        'mb.history.policy.version': HistoryController.policyVersion,
+      });
+      final HistoryController c = await HistoryController.load();
+      await c.flush();
+      expect(
+        ((await stored()).single as Map<String, dynamic>)['id'],
+        isNotNull,
+      );
+    });
+
+    test('entries is a stable view until a mutation', () async {
+      final HistoryController c = HistoryController(
+        retention: const Duration(days: 36500),
+      );
+      expect(identical(c.entries, c.entries), isTrue);
+      final List<HistoryEntry> before = c.entries;
+      await c.add(entry('json', '{"a":1}'));
+      expect(identical(before, c.entries), isFalse);
+      expect(before, isEmpty);
+      final List<HistoryEntry> afterAdd = c.entries;
+      expect(identical(afterAdd, c.entries), isTrue);
+      expect(() => c.entries.add(entry('json', 'x')), throwsUnsupportedError);
+      await c.togglePinned(c.entries.single);
+      expect(identical(afterAdd, c.entries), isFalse);
+    });
+
+    test('search sees updated entries after a mutation', () async {
+      final HistoryController c = HistoryController(
+        retention: const Duration(days: 36500),
+      );
+      await c.add(entry('json', '{"Alpha":1}'));
+      expect(c.search('alpha'), hasLength(1));
+      await c.add(entry('json', '{"Beta":1}'));
+      expect(c.search('beta'), hasLength(1));
+      expect(c.search('alpha'), hasLength(1));
+    });
   });
 }
 

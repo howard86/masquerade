@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -62,6 +63,18 @@ class HistoryEntry {
 
   static final Expando<String> _encodedCache = Expando<String>('history.json');
 
+  /// Lowercased searchable text (everything except the tool/date labels,
+  /// which callers supply). Built on first search, then reused per keystroke.
+  String get _haystack => _haystackCache[this] ??= <String>[
+    utilityId,
+    timestamp.toIso8601String(),
+    if (!protected) ...<String>[input, output],
+  ].join('\u0000').toLowerCase();
+
+  static final Expando<String> _haystackCache = Expando<String>(
+    'history.haystack',
+  );
+
   Map<String, dynamic> toJson() {
     final bool redact = protected;
     return <String, dynamic>{
@@ -118,6 +131,11 @@ class HistoryController extends ChangeNotifier with WidgetsBindingObserver {
   final int maxPersistedChars;
   static const int defaultMaxPersistedChars = 1500000;
 
+  /// Bump when [SensitiveDataPolicy] or a tool's history policy changes what
+  /// may be stored: `load` rescans stored entries only on a version mismatch.
+  static const int policyVersion = 1;
+  static const String _policyVersionKey = 'mb.history.policy.version';
+
   /// Largest input/output (UTF-16 code units) a new entry may carry. Rows
   /// reopen a tool seeded with the full stored input and copy the full
   /// output, so a truncated entry would reopen wrong; an oversized one is not
@@ -134,12 +152,17 @@ class HistoryController extends ChangeNotifier with WidgetsBindingObserver {
   final int _maxEntries;
   SharedPreferences? _prefs;
   List<HistoryEntry> _entries = <HistoryEntry>[];
+  List<HistoryEntry>? _view;
   Timer? _persistTimer;
   bool _dirty = false;
   bool _observing = false;
+  int? _storedPolicyVersion;
   Future<void> _writes = Future<void>.value();
 
-  List<HistoryEntry> get entries => List<HistoryEntry>.unmodifiable(_entries);
+  /// Unmodifiable snapshot, rebuilt only after a mutation, so callers may
+  /// compare it by identity.
+  List<HistoryEntry> get entries => _view ??=
+      UnmodifiableListView<HistoryEntry>(List<HistoryEntry>.of(_entries));
   Duration get retention => _retention;
 
   List<HistoryEntry> search(
@@ -151,16 +174,12 @@ class HistoryController extends ChangeNotifier with WidgetsBindingObserver {
     if (q.isEmpty) return entries;
     return _entries
         .where((HistoryEntry entry) {
-          final Iterable<String> searchable = <String>[
-            entry.utilityId,
-            if (toolName != null) toolName(entry),
-            entry.timestamp.toIso8601String(),
-            if (dateLabel != null) dateLabel(entry),
-            if (!entry.protected) ...<String>[entry.input, entry.output],
-          ];
-          return searchable.any(
-            (String value) => value.toLowerCase().contains(q),
-          );
+          if (entry._haystack.contains(q)) return true;
+          if (toolName != null && toolName(entry).toLowerCase().contains(q)) {
+            return true;
+          }
+          return dateLabel != null &&
+              dateLabel(entry).toLowerCase().contains(q);
         })
         .toList(growable: false);
   }
@@ -173,14 +192,22 @@ class HistoryController extends ChangeNotifier with WidgetsBindingObserver {
       prefs: prefs,
     );
     final String? raw = prefs.getString(_prefsKey);
+    c._storedPolicyVersion = prefs.getInt(_policyVersionKey);
     if (raw != null && raw.isNotEmpty) {
       try {
         final List<dynamic> arr = jsonDecode(raw) as List<dynamic>;
-        final List<HistoryEntry> decoded = arr
-            .map(
-              (dynamic e) => HistoryEntry.fromJson(e as Map<String, dynamic>),
-            )
-            .toList();
+        final bool current = c._storedPolicyVersion == policyVersion;
+        final List<HistoryEntry> decoded = <HistoryEntry>[];
+        for (final dynamic e in arr) {
+          final HistoryEntry entry = HistoryEntry.fromJson(
+            e as Map<String, dynamic>,
+          );
+          // Stored by this policy version: the stored text is already the
+          // persisted form, so reuse it instead of re-encoding (and
+          // rescanning) on the next write.
+          if (current) HistoryEntry._encodedCache[entry] = jsonEncode(e);
+          decoded.add(entry);
+        }
         final bool migratedIds = decoded.any(
           (HistoryEntry entry) => entry.id == null,
         );
@@ -191,9 +218,11 @@ class HistoryController extends ChangeNotifier with WidgetsBindingObserver {
             )
             .toList();
         final int loadedCount = c._entries.length;
-        c._entries.removeWhere((HistoryEntry e) => !c._allows(e));
+        if (!current) {
+          c._entries.removeWhere((HistoryEntry e) => !c._allows(e));
+        }
         c._evictExpired();
-        if (migratedIds || c._entries.length != loadedCount) {
+        if (migratedIds || !current || c._entries.length != loadedCount) {
           c._dirty = true;
           unawaited(c.flush());
         }
@@ -228,6 +257,7 @@ class HistoryController extends ChangeNotifier with WidgetsBindingObserver {
       _entries = _entries.sublist(0, _maxEntries);
     }
     _evictExpired();
+    _view = null;
     notifyListeners();
     await _persistSoon();
   }
@@ -238,6 +268,7 @@ class HistoryController extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> clear() async {
     _entries = <HistoryEntry>[];
+    _view = null;
     notifyListeners();
     _dirty = true;
     await flush();
@@ -247,6 +278,7 @@ class HistoryController extends ChangeNotifier with WidgetsBindingObserver {
     final int index = _indexOf(entry);
     if (index == -1) return;
     _entries.removeAt(index);
+    _view = null;
     notifyListeners();
     _dirty = true;
     await flush();
@@ -257,6 +289,7 @@ class HistoryController extends ChangeNotifier with WidgetsBindingObserver {
     if (index == -1) return;
     final HistoryEntry current = _entries[index];
     _entries[index] = current.copyWith(pinned: !current.pinned);
+    _view = null;
     notifyListeners();
     await _persistSoon();
   }
@@ -284,6 +317,7 @@ class HistoryController extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> setRetention(Duration retention) async {
     _retention = retention;
     _evictExpired();
+    _view = null;
     notifyListeners();
     final SharedPreferences prefs =
         _prefs ?? await SharedPreferences.getInstance();
@@ -383,6 +417,10 @@ class HistoryController extends ChangeNotifier with WidgetsBindingObserver {
           budget ~/= 2;
           debugPrint('History persist failed, retrying smaller: $e');
         }
+      }
+      if (_storedPolicyVersion != policyVersion) {
+        await prefs.setInt(_policyVersionKey, policyVersion);
+        _storedPolicyVersion = policyVersion;
       }
     } catch (e) {
       debugPrint('History persist failed: $e');
