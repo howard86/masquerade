@@ -232,4 +232,17 @@ void main() {
       throwsA(isA<UnicodeInspectorException>()),
     );
   });
+
+  test('normalized forms are lazy and stable across calls', () {
+    final UnicodeInspection inspection = UnicodeStringInspector.parse(
+      'e\u0301',
+    );
+    final String first = inspection.normalizedAs(UnicodeNormalization.nfc);
+    expect(first, '\u00e9');
+    expect(
+      identical(inspection.normalizedAs(UnicodeNormalization.nfc), first),
+      isTrue,
+    );
+    expect(inspection.normalizedAs(UnicodeNormalization.nfd), 'e\u0301');
+  });
 }
