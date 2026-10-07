@@ -65,7 +65,7 @@ class _DesktopShellState extends State<DesktopShell>
     final String? text = data?.text;
     if (text == null || text.isEmpty || !mounted) return;
     final List<DetectionMatch<Object?>> matches =
-        DetectionPreferenceScope.of(context).rank(
+        DetectionPreferenceScope.read(context).rank(
           UtilityCatalog.detectArtifacts(
             text,
             provenance: ArtifactProvenance.clipboard,

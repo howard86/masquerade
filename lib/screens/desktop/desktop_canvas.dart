@@ -381,7 +381,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
 
   void _onDropOnCanvas(DragTargetDetails<PipePayload> details) {
     final List<DetectionMatch<Object?>> matches =
-        DetectionPreferenceScope.of(context).rank(
+        DetectionPreferenceScope.read(context).rank(
           UtilityCatalog.detectArtifacts(
             details.data.value,
             provenance: ArtifactProvenance.liveLink,
@@ -845,6 +845,8 @@ class _DotGridPainter extends CustomPainter {
   final Color color;
   final ValueListenable<Offset> offset;
 
+  static const double _step = 24;
+
   static const double _radius = 0.75;
 
   // Dot lattice for the last painted size, one extra step on each axis so a
@@ -867,8 +869,6 @@ class _DotGridPainter extends CustomPainter {
     _cachedSize = size;
     return _cachedPoints = points;
   }
-
-  static const double _step = 24;
 
   @override
   void paint(Canvas canvas, Size size) {
