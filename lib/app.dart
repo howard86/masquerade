@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 
+import 'models/saved_workflow.dart';
 import 'screens/root_tab_scaffold.dart';
 import 'state/density_controller.dart';
 import 'state/detection_preference_controller.dart';
@@ -103,7 +104,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _shareInbox = widget.shareInboxController ?? ShareInboxController();
     _workSession = widget.workSessionController ?? WorkSessionController();
     _workSession.addListener(_syncShortcutWorkflows);
-    unawaited(_shareInbox.syncWorkflows(_workSession.savedWorkflows));
+    _syncShortcutWorkflows();
     _toolDrafts = widget.toolDraftController ?? ToolDraftController();
     unawaited(_toolDrafts.attach());
     _sensitiveSession = SensitiveSessionController(
@@ -133,8 +134,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         // Dart splash now painted — release the native overlay and start
         // the hold timer for the crossfade.
         FlutterNativeSplash.remove();
-        Future<void>.delayed(_splashHold, () {
         if (!_showSplash) return;
+        Future<void>.delayed(_splashHold, () {
           if (mounted) setState(() => _showSplash = false);
         });
       });
@@ -184,8 +185,20 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     }
   }
 
-  void _syncShortcutWorkflows() =>
-      unawaited(_shareInbox.syncWorkflows(_workSession.savedWorkflows));
+  /// `id\u0000name` per workflow: the only fields `syncWorkflows` sends.
+  List<String>? _syncedWorkflowKeys;
+
+  void _syncShortcutWorkflows() {
+    final List<SavedWorkflow> workflows = _workSession.savedWorkflows;
+    final List<String> keys = <String>[
+      for (final SavedWorkflow w in workflows) '${w.id}\u0000${w.name}',
+    ];
+    if (_syncedWorkflowKeys != null && listEquals(_syncedWorkflowKeys, keys)) {
+      return;
+    }
+    _syncedWorkflowKeys = keys;
+    unawaited(_shareInbox.syncWorkflows(workflows));
+  }
 
   Brightness _resolveBrightness(MqThemeMode mode) => switch (mode) {
     MqThemeMode.light => Brightness.light,
