@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 
 import 'screens/root_tab_scaffold.dart';
@@ -124,13 +125,16 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _platformBrightness =
         WidgetsBinding.instance.platformDispatcher.platformBrightness;
     WidgetsBinding.instance.addObserver(this);
-    _showSplash = !widget.skipSplash;
+    // On web, index.html already paints the same splash; skipping the Dart
+    // one also lets dart2js tree-shake MqSplashScreen out of the bundle.
+    _showSplash = !widget.skipSplash && !kIsWeb;
     if (!widget.skipSplash) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         // Dart splash now painted — release the native overlay and start
         // the hold timer for the crossfade.
         FlutterNativeSplash.remove();
         Future<void>.delayed(_splashHold, () {
+        if (!_showSplash) return;
           if (mounted) setState(() => _showSplash = false);
         });
       });
