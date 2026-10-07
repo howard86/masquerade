@@ -183,26 +183,10 @@ abstract final class UnicodeStringInspector {
     final Set<String> invisibleNames = <String>{};
     bool hasBidi = false;
 
-    for (final String cluster in input.characters) {
+    final clusters = input.characters.iterator;
+    while (graphemes.length < maxDisplayedGraphemes && clusters.moveNext()) {
+      final String cluster = clusters.current;
       graphemeCount++;
-      if (graphemes.length >= maxDisplayedGraphemes) {
-        // Past the display cap only the counts and warnings still matter.
-        int runeCount = 0;
-        for (final int rune in cluster.runes) {
-          if (++runeCount > maxCodePointsPerGrapheme) {
-            throw const UnicodeInspectorException(
-              'A grapheme cluster exceeds the 1,024-code-point limit.',
-            );
-          }
-          // Printable ASCII has no marker and is not a bidi control.
-          if (rune > 0x20 && rune < 0x7f) continue;
-          final String? marker = _markerFor(rune);
-          if (marker != null && marker != 'SPACE') invisibleNames.add(marker);
-          hasBidi |= _isBidi(rune);
-        }
-        codePointCount += runeCount;
-        continue;
-      }
       final List<int> runes = <int>[];
       int runeCount = 0;
       final List<String> markers = <String>[];
@@ -252,6 +236,43 @@ abstract final class UnicodeStringInspector {
             detailsTruncated: detailsTruncated,
           ),
         );
+      }
+    }
+
+    // Past the display cap only the counts and warnings still matter, so the
+    // remainder is walked without materialising a string per cluster.
+    if (graphemes.length >= maxDisplayedGraphemes) {
+      final int restStart = input.length - clusters.stringAfterLength;
+      while (clusters.moveNext()) {
+        graphemeCount++;
+        final int start = clusters.stringBeforeLength;
+        final int units = input.length - start - clusters.stringAfterLength;
+        // Runes never outnumber code units, so only huge clusters need a count.
+        if (units > maxCodePointsPerGrapheme &&
+            input.substring(start, start + units).runes.length >
+                maxCodePointsPerGrapheme) {
+          throw const UnicodeInspectorException(
+            'A grapheme cluster exceeds the 1,024-code-point limit.',
+          );
+        }
+      }
+      for (int i = restStart; i < input.length; i++) {
+        int rune = input.codeUnitAt(i);
+        // Printable ASCII has no marker and is not a bidi control.
+        if (rune > 0x20 && rune < 0x7f) {
+          codePointCount++;
+          continue;
+        }
+        if (rune >= 0xd800 && rune <= 0xdbff) {
+          rune =
+              0x10000 +
+              ((rune - 0xd800) << 10) +
+              (input.codeUnitAt(++i) - 0xdc00);
+        }
+        codePointCount++;
+        final String? marker = _markerFor(rune);
+        if (marker != null && marker != 'SPACE') invisibleNames.add(marker);
+        hasBidi |= _isBidi(rune);
       }
     }
 
