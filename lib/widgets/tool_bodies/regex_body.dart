@@ -9,7 +9,7 @@ import '../../theme/mq_typography.dart';
 import '../../utils/history_recorder.dart';
 import '../../utils/regex_parser.dart';
 import '../../utils/regex_worker_native.dart'
-    if (dart.library.html) '../../utils/regex_worker_web.dart';
+    if (dart.library.js_interop) '../../utils/regex_worker_web.dart';
 import '../mq/mq_button.dart';
 import '../mq/mq_chip.dart';
 import '../mq/mq_empty_hint.dart';

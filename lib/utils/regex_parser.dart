@@ -1,5 +1,5 @@
 import 'regex_worker_native.dart'
-    if (dart.library.html) 'regex_worker_web.dart'
+    if (dart.library.js_interop) 'regex_worker_web.dart'
     as worker;
 
 typedef RegexWorkerRunner =
