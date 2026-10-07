@@ -229,6 +229,30 @@ void main() {
       expect(c.isEmpty, isTrue);
     });
 
+    test('a clean restore and layout sanitize write nothing', () async {
+      final SharedPreferences seedPrefs = await SharedPreferences.getInstance();
+      final CanvasController writer = CanvasController(prefs: seedPrefs);
+      final int a = writer.openTool(json, seed: '{"a":1}');
+      final int b = writer.openTool(base64Tool);
+      writer.linkCards(a, b, type: ContentType.text, seedCanonical: 'hi');
+      writer.saveLayout('Clean');
+      await Future<void>.delayed(Duration.zero);
+      final String stored = seedPrefs.getString(CanvasController.currentKey)!;
+      final String layouts = seedPrefs.getString(CanvasController.layoutsKey)!;
+
+      final int sanitizeWritesBefore =
+          CanvasController.debugLayoutSanitizeWrites;
+      final CanvasController c = CanvasController()..attachPrefs(seedPrefs);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(c.length, 2);
+      expect(c.groups.single.canonical.value, 'hi');
+      expect(c.debugPersistWrites, 0);
+      expect(CanvasController.debugLayoutSanitizeWrites, sanitizeWritesBefore);
+      expect(seedPrefs.getString(CanvasController.currentKey), stored);
+      expect(seedPrefs.getString(CanvasController.layoutsKey), layouts);
+    });
+
     test(
       'restore drops and rewrites a legacy encoded credential seed',
       () async {
@@ -498,6 +522,29 @@ void main() {
         expect(prefs.getString(CanvasController.currentKey), isNull);
       },
     );
+  });
+
+  group('sanitized canonical cache', () {
+    test('a snapshot follows canonical edits and sensitivity changes', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(json);
+      final int b = c.openTool(timestamp);
+      c.linkCards(a, b, type: ContentType.text, seedCanonical: 'first-value');
+      String canonical() =>
+          ((c.toJson()['groups'] as List<dynamic>).single
+                  as Map<String, dynamic>)['canonical']
+              as String;
+
+      expect(canonical(), 'first-value');
+      expect(canonical(), 'first-value'); // cached path, same answer
+      c.channelForCard(a)!.emit('second-value');
+      expect(canonical(), 'second-value');
+
+      // A sensitive member joining the group must drop the cached value.
+      final int gen = c.openTool(generator);
+      c.linkCards(b, gen, type: ContentType.text);
+      expect(canonical(), isEmpty);
+    });
   });
 
   group('sanitized seed cache', () {
