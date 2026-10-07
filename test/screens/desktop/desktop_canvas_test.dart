@@ -230,4 +230,24 @@ void main() {
     expect(await snap(), equals(before));
     await g.up();
   });
+
+  testWidgets('minimize then quick restore keeps animating for the latest '
+      'toggle, not the first timer', (WidgetTester tester) async {
+    final CanvasController c = await _pumpWithWindows(tester);
+    final Finder animated = find.byWidgetPredicate(
+      (Widget w) => w.runtimeType.toString() == '_AnimatedWindow',
+    );
+    final int id = c.cards.first.id;
+    c.minimize(id);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    c.restoreWindow(id);
+    await tester.pump();
+    // 120 ms after the restore the first (minimize) timer has fired at 350 ms
+    // total; the restore's own animation must still be running.
+    await tester.pump(const Duration(milliseconds: 260));
+    expect(animated, findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(animated, findsNothing);
+  });
 }

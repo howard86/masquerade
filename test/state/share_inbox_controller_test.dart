@@ -325,4 +325,21 @@ void main() {
 
     expect(controller.error, isNull);
   });
+
+  test('refresh notifies only when inbox state actually changed', () async {
+    final ShareInboxController controller = ShareInboxController();
+    int notifications = 0;
+    controller.addListener(() => notifications++);
+
+    await controller.refresh();
+    await controller.refreshIntents();
+    expect(notifications, 0);
+
+    nativeItems = <Object?>[item()];
+    await controller.refresh();
+    expect(notifications, 1);
+
+    await controller.refresh();
+    expect(notifications, 1);
+  });
 }

@@ -128,7 +128,7 @@ class _CommandPaletteState extends State<_CommandPalette> {
     final bool protected = SensitiveDataPolicy.containsSensitiveArtifact(text);
     final List<DetectionMatch<Object?>> detected = protected
         ? const <DetectionMatch<Object?>>[]
-        : DetectionPreferenceScope.of(
+        : DetectionPreferenceScope.read(
             context,
           ).rank(UtilityCatalog.detectArtifacts(text));
     setState(() {

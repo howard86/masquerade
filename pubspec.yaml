@@ -51,7 +51,6 @@ dependencies:
   # Renders assets/brand/*.svg in MqMonogram. SVG sources live with the
   # repo so the brand mark is editable + diffable; PNGs in
   # assets/brand/source/ are exports for native icon/splash pipelines.
-  flutter_svg: ^2.0.10+1
 
   # Provides the runtime FlutterNativeSplash.preserve/remove API used in
   # main.dart + app.dart to hand off from the native splash to

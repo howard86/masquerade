@@ -9,6 +9,7 @@
 /// returns [DiffResult.tooLarge].
 library;
 
+import 'dart:collection';
 import 'dart:typed_data';
 
 /// One edit operation on a line or word token.
@@ -346,7 +347,7 @@ class DiffTool {
       aCount: aCount,
       bStart: bStart,
       bCount: bCount,
-      lines: lines.sublist(start, end),
+      lines: _RangeView<DiffLine>(lines, start, end),
     );
   }
 
@@ -444,4 +445,31 @@ class DiffTool {
     }
     return ops.reversed.toList();
   }
+}
+
+/// Read-only view of `source[start, end)` — a hunk's lines without copying
+/// them out of [DiffResult.lines] (which is never mutated after the diff).
+class _RangeView<E> extends ListBase<E> {
+  _RangeView(this._source, this._start, this._end);
+
+  final List<E> _source;
+  final int _start;
+  final int _end;
+
+  @override
+  int get length => _end - _start;
+
+  @override
+  E operator [](int index) {
+    RangeError.checkValidIndex(index, this, null, length);
+    return _source[_start + index];
+  }
+
+  @override
+  void operator []=(int index, E value) =>
+      throw UnsupportedError('Cannot modify a diff hunk');
+
+  @override
+  set length(int newLength) =>
+      throw UnsupportedError('Cannot change the length of a diff hunk');
 }

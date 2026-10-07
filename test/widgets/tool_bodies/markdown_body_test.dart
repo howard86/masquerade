@@ -203,6 +203,20 @@ void main() {
       ),
     );
     expect(history.entries, hasLength(1));
+
+    // Oversized input skips the sensitivity scans but is still never stored.
+    await _pumpWithHistory(
+      tester,
+      history,
+      MarkdownBody(
+        key: const ValueKey<String>('oversized'),
+        initialInput:
+            '# Private\n\n[endpoint](https://user:password@example.com)\n'
+            '${'**more** text\n' * 2000}',
+        seedSource: SeedSource.paste,
+      ),
+    );
+    expect(history.entries, hasLength(1));
   });
 }
 

@@ -64,6 +64,11 @@ class GeneratorToolDraft {
 /// [persistDelay] timer. Reads resolve any pending value first, so a getter
 /// never exposes content the scan would drop. [flush] writes immediately;
 /// [ToolDraftScope] calls it when the app pauses and when the scope unmounts.
+///
+/// A write is skipped when the encoded payload equals the last one stored, and
+/// a JSON / Diff draft with a field longer than [maxPersistedFieldLength] stays
+/// in memory only — rewriting a multi-hundred-KB draft on every idle flush is
+/// the dominant cost of typing into a large input.
 class ToolDraftController extends ChangeNotifier {
   ToolDraftController({
     SharedPreferences? prefs,
@@ -73,11 +78,18 @@ class ToolDraftController extends ChangeNotifier {
   static const String storageKey = 'mb.tool_drafts';
   static const int _version = 1;
 
+  /// Drafts with a text field longer than this are not persisted.
+  static const int maxPersistedFieldLength = 64 * 1024;
+
   /// Idle time after the last save before drafts are written to prefs.
   final Duration persistDelay;
 
   SharedPreferences? _prefs;
   Future<void> _writes = Future<void>.value();
+
+  /// The payload last written to (or read from) prefs; '' when the key is
+  /// absent, null when unknown. A persist whose payload matches is skipped.
+  String? _stored;
   Timer? _persistTimer;
   bool _dirty = false;
   bool _ready = false;
@@ -115,6 +127,7 @@ class ToolDraftController extends ChangeNotifier {
         _prefs ?? await SharedPreferences.getInstance();
     _prefs = prefs;
     final String? raw = prefs.getString(storageKey);
+    _stored = raw ?? '';
     if (raw != null) {
       try {
         final Object? decoded = jsonDecode(raw);
@@ -124,8 +137,10 @@ class ToolDraftController extends ChangeNotifier {
         _json = _decodeJson(decoded['json']);
         _diff = _decodeDiff(decoded['diff']);
         _generator = _decodeGenerator(decoded['generator']);
+        // Re-writes only when decoding dropped or normalised something.
         await _persist();
       } catch (_) {
+        _stored = '';
         await prefs.remove(storageKey);
       }
     }
@@ -185,6 +200,7 @@ class ToolDraftController extends ChangeNotifier {
     _json = null;
     _diff = null;
     _generator = null;
+    _stored = '';
     await _enqueue((SharedPreferences prefs) => prefs.remove(storageKey));
     notifyListeners();
   }
@@ -239,13 +255,16 @@ class ToolDraftController extends ChangeNotifier {
     _dirty = false;
     final Map<String, Object?> payload = <String, Object?>{
       'version': _version,
-      if (_json case final JsonToolDraft d)
+      if (_json case final JsonToolDraft d
+          when d.input.length <= maxPersistedFieldLength)
         'json': <String, Object>{
           'input': d.input,
           'source': d.source,
           'target': d.target,
         },
-      if (_diff case final DiffToolDraft d)
+      if (_diff case final DiffToolDraft d
+          when d.a.length <= maxPersistedFieldLength &&
+              d.b.length <= maxPersistedFieldLength)
         'diff': <String, Object>{
           'a': d.a,
           'b': d.b,
@@ -265,19 +284,39 @@ class ToolDraftController extends ChangeNotifier {
           'uuidVersion': d.uuidVersion,
         },
     };
-    if (payload.length == 1) {
-      await _enqueue((SharedPreferences prefs) => prefs.remove(storageKey));
-    } else {
-      final String encoded = jsonEncode(payload);
-      await _enqueue(
-        (SharedPreferences prefs) => prefs.setString(storageKey, encoded),
-      );
+    final String encoded = payload.length == 1 ? '' : jsonEncode(payload);
+    // Skip only when nothing is in flight: an unlanded write may still
+    // overwrite the stored value this one was compared against.
+    if (_inFlight == 0 && encoded == _stored) return;
+    _inFlight++;
+    try {
+      if (encoded.isEmpty) {
+        await _enqueue((SharedPreferences prefs) => prefs.remove(storageKey));
+      } else {
+        await _enqueue(
+          (SharedPreferences prefs) => prefs.setString(storageKey, encoded),
+        );
+      }
+      _stored = encoded;
+    } catch (_) {
+      // A failed write is not stored; unknown state forces the next persist.
+      _stored = null;
+      rethrow;
+    } finally {
+      _inFlight--;
     }
   }
+
+  int _inFlight = 0;
+
+  /// Number of prefs writes / removes enqueued (for tests).
+  @visibleForTesting
+  int debugWrites = 0;
 
   Future<void> _enqueue(
     Future<bool> Function(SharedPreferences prefs) operation,
   ) {
+    debugWrites++;
     final Future<void> next = _writes.then((_) async {
       final SharedPreferences prefs =
           _prefs ?? await SharedPreferences.getInstance();

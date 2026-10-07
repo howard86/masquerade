@@ -13,6 +13,13 @@ abstract final class SensitiveDataPolicy {
     caseSensitive: false,
     multiLine: true,
   );
+  // Every `_credentialKey` alternative contains one of these stems, so inputs
+  // without any cannot match; the cheap linear scan skips the backtracking
+  // `\s*` over indentation on large pretty-printed text.
+  static final RegExp _credentialKeyStem = RegExp(
+    r'access|api|auth|client|consumer|credential|pass|pwd|private|proxy|refresh|secret|session|token',
+    caseSensitive: false,
+  );
   // key=value is also valid TOML; without source-format metadata, fail closed.
   static final RegExp _environmentEntry = RegExp(
     r'^\s*(?:export\s+)?[A-Za-z_][A-Za-z0-9_]*\s*=\s*\S',
@@ -99,13 +106,36 @@ abstract final class SensitiveDataPolicy {
       isCredentialKey(key) || containsSecretLikeValue(value) ? mask : value;
 
   static bool containsSensitiveArtifact(String value) =>
-      _credentialKey.hasMatch(value) ||
+      (_credentialKeyStem.hasMatch(value) && _credentialKey.hasMatch(value)) ||
       _environmentEntry.hasMatch(value) ||
       _privateKey.hasMatch(value) ||
       _jwt.hasMatch(value);
 
-  static bool _containsProtectedToolValue(String value, String? utilityId) {
-    final bool direct = containsSensitiveArtifact(value);
+  /// Whether [value] is protected under any of the generic, base64, bytes or
+  /// url interpretations, scanning the value directly only once.
+  static bool protectsAnyInterpretation(String value) {
+    if (containsSensitiveArtifact(value)) return true;
+    return <String>[
+      'base64',
+      'bytes',
+      'url',
+    ].any((String id) => _containsProtectedToolValue(value, id, direct: false));
+  }
+
+  static bool _containsProtectedToolValue(
+    String value,
+    String? utilityId, {
+    bool? direct,
+  }) {
+    final bool scanned = direct ?? containsSensitiveArtifact(value);
+    return _protectedToolValue(value, utilityId, scanned);
+  }
+
+  static bool _protectedToolValue(
+    String value,
+    String? utilityId,
+    bool direct,
+  ) {
     if (utilityId != 'base64' && utilityId != 'bytes' && utilityId != 'url') {
       return direct;
     }

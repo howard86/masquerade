@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../../state/history_controller.dart';
 import '../../state/link_group.dart';
 import '../../state/tool_draft_controller.dart';
+import '../../theme/mq_colors.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
@@ -429,55 +430,190 @@ class _DiffBodyState extends State<DiffBody> with LinkableToolBody<DiffBody> {
     );
   }
 
+  /// Above this many rows the diff view is virtualized: a lazily built list
+  /// in a bounded viewport ([_virtualHeight]) instead of every row laid out
+  /// at once inside the page's scroll.
+  static const int _virtualizeAbove = 300;
+  static const double _virtualHeight = 480;
+
+  // Content-width memo for the virtualized view: one TextPainter pass over
+  // the longest lines instead of IntrinsicWidth over every row.
+  List<DiffLine>? _widthLines;
+  TextScaler? _widthScaler;
+  double _lineWidth = 0;
+
   Widget _buildDiffView(List<DiffLine> lines) {
-    final List<Widget> rows = <Widget>[];
+    final c = context.mq.colors;
+    final _DiffStyles styles = _DiffStyles(c);
+    final List<_DiffItem> items = <_DiffItem>[];
     int cursor = 0;
     for (final DiffHunk h in _hunks) {
-      _emitGap(rows, lines, cursor, h.startIndex);
+      _emitGap(items, cursor, h.startIndex);
       for (int idx = h.startIndex; idx < h.endIndex; idx++) {
-        rows.add(_DiffRow(line: lines[idx], spans: _spans[idx]));
+        items.add(_DiffItem.line(idx, spans: true));
       }
       cursor = h.endIndex;
     }
-    _emitGap(rows, lines, cursor, lines.length);
+    _emitGap(items, cursor, lines.length);
+
+    Widget row(_DiffItem item) => item.gap > 0
+        ? _CollapseDivider(
+            count: item.gap,
+            onTap: () => setState(() => _expanded.add(item.index)),
+          )
+        : _DiffRow(
+            line: lines[item.index],
+            spans: item.spans ? _spans[item.index] : null,
+            styles: styles,
+          );
+
+    final Widget body;
+    if (items.length <= _virtualizeAbove) {
+      // Lines stay single-line and the body scrolls horizontally so the
+      // old/new gutters stay column-aligned. IntrinsicWidth sizes every row
+      // to the widest line so the red/green washes span the full scrolled
+      // width rather than stopping at the viewport edge.
+      body = SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: IntrinsicWidth(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[for (final _DiffItem item in items) row(item)],
+          ),
+        ),
+      );
+    } else {
+      // Large diffs: only visible rows are built. The scrolled width comes
+      // from measuring the longest lines once (not IntrinsicWidth over every
+      // row) so the washes still span it.
+      final double contentWidth =
+          _DiffRow.chromeWidth + _measureLines(lines, styles.mono);
+      body = LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final double width = contentWidth > constraints.maxWidth
+              ? contentWidth
+              : constraints.maxWidth;
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: width,
+              height: _virtualHeight,
+              child: ListView.builder(
+                key: const ValueKey<String>('diff-virtual-list'),
+                primary: false,
+                itemCount: items.length,
+                itemBuilder: (BuildContext context, int index) =>
+                    row(items[index]),
+              ),
+            ),
+          );
+        },
+      );
+    }
 
     return MqSurface(
       padded: false,
-      background: context.mq.colors.monoBg,
+      background: c.monoBg,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(MqRadius.md),
-        // Lines stay single-line and the body scrolls horizontally so the
-        // old/new gutters stay column-aligned. IntrinsicWidth sizes every row
-        // to the widest line so the red/green washes span the full scrolled
-        // width rather than stopping at the viewport edge.
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: IntrinsicWidth(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: rows,
-            ),
-          ),
-        ),
+        child: body,
       ),
     );
   }
 
-  void _emitGap(List<Widget> rows, List<DiffLine> lines, int from, int to) {
+  /// Widest rendered line, measured on the few longest lines by length (a
+  /// shorter line of wide glyphs can still win, hence more than one). Lines
+  /// a hair wider than the estimate clip rather than overflow.
+  double _measureLines(List<DiffLine> lines, TextStyle mono) {
+    final TextScaler scaler = MediaQuery.textScalerOf(context);
+    if (identical(_widthLines, lines) && _widthScaler == scaler) {
+      return _lineWidth;
+    }
+    const int candidates = 8;
+    final List<String> longest = <String>[];
+    for (final DiffLine line in lines) {
+      final String text = line.text;
+      if (longest.length < candidates) {
+        longest.add(text);
+        longest.sort((String a, String b) => b.length.compareTo(a.length));
+      } else if (text.length > longest.last.length) {
+        longest[candidates - 1] = text;
+        longest.sort((String a, String b) => b.length.compareTo(a.length));
+      }
+    }
+    double width = 0;
+    for (final String text in longest) {
+      final TextPainter painter = TextPainter(
+        text: TextSpan(
+          text: text,
+          style: mono.copyWith(fontWeight: FontWeight.w600),
+        ),
+        textDirection: TextDirection.ltr,
+        textScaler: scaler,
+        maxLines: 1,
+      )..layout();
+      if (painter.width > width) width = painter.width;
+      painter.dispose();
+    }
+    _widthLines = lines;
+    _widthScaler = scaler;
+    _lineWidth = width.ceilToDouble();
+    return _lineWidth;
+  }
+
+  void _emitGap(List<_DiffItem> items, int from, int to) {
     if (to <= from) return;
     if (_expanded.contains(from)) {
       for (int idx = from; idx < to; idx++) {
-        rows.add(_DiffRow(line: lines[idx], spans: null));
+        items.add(_DiffItem.line(idx, spans: false));
       }
     } else {
-      rows.add(
-        _CollapseDivider(
-          count: to - from,
-          onTap: () => setState(() => _expanded.add(from)),
-        ),
-      );
+      items.add(_DiffItem.gap(from, to - from));
     }
   }
+}
+
+/// One row of the diff view: a line (with or without word spans) or a
+/// collapsed run of [gap] unchanged lines starting at [index].
+class _DiffItem {
+  const _DiffItem.line(this.index, {required this.spans}) : gap = 0;
+  const _DiffItem.gap(this.index, this.gap) : spans = false;
+
+  final int index;
+  final int gap;
+  final bool spans;
+}
+
+/// Row text styles, built once per diff build rather than per row/span.
+class _DiffStyles {
+  _DiffStyles(MqColors c)
+    : mono = MqTextStyles.monoSm.copyWith(color: c.monoText),
+      deleteWord = MqTextStyles.monoSm.copyWith(
+        color: c.onTint,
+        backgroundColor: c.danger,
+        fontWeight: FontWeight.w600,
+      ),
+      insertWord = MqTextStyles.monoSm.copyWith(
+        color: c.onTint,
+        backgroundColor: c.success,
+        fontWeight: FontWeight.w600,
+      ),
+      deleteMark = MqTextStyles.monoSm.copyWith(color: c.danger),
+      insertMark = MqTextStyles.monoSm.copyWith(color: c.success),
+      equalMark = MqTextStyles.monoSm.copyWith(color: c.textTer),
+      gutter = MqTextStyles.monoSm.copyWith(color: c.textTer),
+      deleteBg = c.dangerBg,
+      insertBg = c.successBg;
+
+  final TextStyle mono;
+  final TextStyle deleteWord;
+  final TextStyle insertWord;
+  final TextStyle deleteMark;
+  final TextStyle insertMark;
+  final TextStyle equalMark;
+  final TextStyle gutter;
+  final Color deleteBg;
+  final Color insertBg;
 }
 
 /// `+N additions  −M deletions` with a copy-unified-diff affordance.
@@ -564,27 +700,35 @@ class _CollapseDivider extends StatelessWidget {
 /// One rendered diff line: old/new gutters, marker, and (optionally word-level
 /// highlighted) content over a red/green/neutral wash.
 class _DiffRow extends StatelessWidget {
-  const _DiffRow({required this.line, required this.spans});
+  const _DiffRow({
+    required this.line,
+    required this.spans,
+    required this.styles,
+  });
+
+  /// Horizontal space besides the line text: padding, two gutters, marker.
+  static const double chromeWidth = MqSpacing.sm * 2 + 32 + 32 + 14;
 
   final DiffLine line;
   final List<WordSpan>? spans;
+  final _DiffStyles styles;
 
   @override
   Widget build(BuildContext context) {
-    final c = context.mq.colors;
-    final TextStyle mono = MqTextStyles.monoSm.copyWith(color: c.monoText);
-
+    final TextStyle mono = styles.mono;
     final Color rowBg = switch (line.op) {
-      DiffOp.delete => c.dangerBg,
-      DiffOp.insert => c.successBg,
+      DiffOp.delete => styles.deleteBg,
+      DiffOp.insert => styles.insertBg,
       DiffOp.equal => const Color(0x00000000),
     };
-    final ({String mark, Color color}) marker = switch (line.op) {
-      DiffOp.delete => (mark: '-', color: c.danger),
-      DiffOp.insert => (mark: '+', color: c.success),
-      DiffOp.equal => (mark: ' ', color: c.textTer),
+    final ({String mark, TextStyle style}) marker = switch (line.op) {
+      DiffOp.delete => (mark: '-', style: styles.deleteMark),
+      DiffOp.insert => (mark: '+', style: styles.insertMark),
+      DiffOp.equal => (mark: ' ', style: styles.equalMark),
     };
-    final Color highlight = line.op == DiffOp.delete ? c.danger : c.success;
+    final TextStyle highlight = line.op == DiffOp.delete
+        ? styles.deleteWord
+        : styles.insertWord;
 
     final Widget content = spans == null
         ? Text(line.text, style: mono, softWrap: false)
@@ -594,13 +738,7 @@ class _DiffRow extends StatelessWidget {
                 for (final WordSpan s in spans!)
                   TextSpan(
                     text: s.text,
-                    style: s.op == DiffOp.equal
-                        ? mono
-                        : mono.copyWith(
-                            color: c.onTint,
-                            backgroundColor: highlight,
-                            fontWeight: FontWeight.w600,
-                          ),
+                    style: s.op == DiffOp.equal ? mono : highlight,
                   ),
               ],
             ),
@@ -617,16 +755,12 @@ class _DiffRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          _Gutter(line.aLine),
-          _Gutter(line.bLine),
-          SizedBox(
-            width: 14,
-            child: Text(
-              marker.mark,
-              style: MqTextStyles.monoSm.copyWith(color: marker.color),
-            ),
-          ),
-          content,
+          _Gutter(line.aLine, styles.gutter),
+          _Gutter(line.bLine, styles.gutter),
+          SizedBox(width: 14, child: Text(marker.mark, style: marker.style)),
+          // Flexible (not Expanded) keeps the IntrinsicWidth path's sizing;
+          // in the measured virtual view a line past the estimate clips.
+          Flexible(child: content),
         ],
       ),
     );
@@ -634,9 +768,10 @@ class _DiffRow extends StatelessWidget {
 }
 
 class _Gutter extends StatelessWidget {
-  const _Gutter(this.number);
+  const _Gutter(this.number, this.style);
 
   final int? number;
+  final TextStyle style;
 
   @override
   Widget build(BuildContext context) {
@@ -645,7 +780,7 @@ class _Gutter extends StatelessWidget {
       child: Text(
         number?.toString() ?? '',
         textAlign: TextAlign.right,
-        style: MqTextStyles.monoSm.copyWith(color: context.mq.colors.textTer),
+        style: style,
       ),
     );
   }

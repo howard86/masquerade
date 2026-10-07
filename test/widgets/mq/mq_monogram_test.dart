@@ -1,5 +1,4 @@
 import 'package:flutter/cupertino.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/theme/mq_colors.dart';
 import 'package:masquerade/theme/mq_theme.dart';
@@ -17,30 +16,38 @@ Widget _host(Brightness brightness, Widget child) => CupertinoApp(
   ),
 );
 
-String _assetOf(WidgetTester tester) {
-  final SvgPicture svg = tester.widget<SvgPicture>(find.byType(SvgPicture));
-  return (svg.bytesLoader as SvgAssetLoader).assetName;
-}
+CustomPainter _painterOf(WidgetTester tester) => tester
+    .widget<CustomPaint>(
+      find.descendant(
+        of: find.byType(MqMonogram),
+        matching: find.byType(CustomPaint),
+      ),
+    )
+    .painter!;
 
 void main() {
   group('MqMonogram', () {
-    testWidgets('loads the light SVG under light brightness', (tester) async {
+    testWidgets('repaints when brightness flips', (tester) async {
       await tester.pumpWidget(_host(Brightness.light, const MqMonogram()));
-      expect(_assetOf(tester), 'assets/brand/monogram-light.svg');
-    });
-
-    testWidgets('loads the dark SVG under dark brightness', (tester) async {
+      final CustomPainter light = _painterOf(tester);
       await tester.pumpWidget(_host(Brightness.dark, const MqMonogram()));
-      expect(_assetOf(tester), 'assets/brand/monogram-dark.svg');
+      final CustomPainter dark = _painterOf(tester);
+      expect(dark.shouldRepaint(light), isTrue);
+      expect(dark.shouldRepaint(_painterOf(tester)), isFalse);
     });
 
-    testWidgets('applies the requested size to the picture', (tester) async {
+    testWidgets('applies the requested size', (tester) async {
       await tester.pumpWidget(
         _host(Brightness.light, const MqMonogram(size: 64)),
       );
-      final SvgPicture svg = tester.widget<SvgPicture>(find.byType(SvgPicture));
-      expect(svg.width, 64);
-      expect(svg.height, 64);
+      expect(tester.getSize(find.byType(MqMonogram)), const Size(64, 64));
+    });
+
+    testWidgets('paints without throwing in both themes', (tester) async {
+      for (final Brightness b in Brightness.values) {
+        await tester.pumpWidget(_host(b, const MqMonogram()));
+        expect(tester.takeException(), isNull);
+      }
     });
   });
 }

@@ -147,4 +147,61 @@ void main() {
     expect(divider, findsNothing);
     expect(find.text('line 10'), findsWidgets);
   });
+
+  testWidgets('Diff — a large diff renders lazily in a bounded list', (
+    WidgetTester tester,
+  ) async {
+    await openDiff(tester);
+    // 1,000 changed lines → 2,000 rows, well past the virtualization bound;
+    // the last line is far wider than the viewport.
+    final String wide = 'w' * 400;
+    final String a = <String>[
+      for (int i = 0; i < 1000; i++) 'old $i',
+      wide,
+    ].join('\n');
+    final String b = <String>[
+      for (int i = 0; i < 1000; i++) 'new $i',
+      wide,
+    ].join('\n');
+    await tester.enterText(find.byType(EditableText).first, a);
+    await tester.enterText(find.byType(EditableText).last, b);
+    await tester.pumpAndSettle(kDebouncePump);
+
+    final Finder list = find.byKey(const ValueKey<String>('diff-virtual-list'));
+    expect(list, findsOneWidget);
+    expect(tester.takeException(), isNull);
+    expect(find.text('+1000'), findsOneWidget);
+    // Only the rows in view are built, not all 2,000.
+    final int built = find
+        .byWidgetPredicate(
+          (Widget w) =>
+              w is Text &&
+              (w.data?.startsWith('old ') ??
+                  w.textSpan?.toPlainText().startsWith('old ') ??
+                  false),
+        )
+        .evaluate()
+        .length;
+    expect(built, greaterThan(0));
+    expect(built, lessThan(200));
+
+    // The measured width covers the widest line, so the view scrolls
+    // horizontally past the viewport.
+    final ScrollableState horizontal = tester.state<ScrollableState>(
+      find.ancestor(of: list, matching: find.byType(Scrollable)).first,
+    );
+    expect(horizontal.position.axis, Axis.horizontal);
+    expect(horizontal.position.maxScrollExtent, greaterThan(0));
+
+    // Scrolling the list reaches later rows.
+    await tester.ensureVisible(list);
+    await tester.pumpAndSettle();
+    // The list is as wide as the widest line; drag from its visible corner.
+    await tester.dragFrom(
+      tester.getTopLeft(list) + const Offset(100, 100),
+      const Offset(0, -3000),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('old 0'), findsNothing);
+  });
 }
