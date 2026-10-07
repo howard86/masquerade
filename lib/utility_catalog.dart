@@ -1531,9 +1531,10 @@ class UtilityCatalog {
   static List<UtilityDescriptor> searchStable(String query) {
     final String q = query.trim().toLowerCase();
     if (q.isEmpty) return List<UtilityDescriptor>.unmodifiable(all);
-    return List<UtilityDescriptor>.unmodifiable(
-      all.where((UtilityDescriptor u) => _scoreTool(u, q) > 0),
-    );
+    return List<UtilityDescriptor>.unmodifiable(<UtilityDescriptor>[
+      for (int i = 0; i < all.length; i++)
+        if (_scoreTool(i, q) > 0) all[i],
+    ]);
   }
 
   /// Ranks the catalog by name/synonym match for the command palette's
@@ -1546,9 +1547,9 @@ class UtilityCatalog {
     if (q.isEmpty) return List<UtilityDescriptor>.unmodifiable(all);
     final List<({UtilityDescriptor u, int score})> ranked =
         <({UtilityDescriptor u, int score})>[];
-    for (final UtilityDescriptor u in all) {
-      final int s = _scoreTool(u, q);
-      if (s > 0) ranked.add((u: u, score: s));
+    for (int i = 0; i < all.length; i++) {
+      final int s = _scoreTool(i, q);
+      if (s > 0) ranked.add((u: all[i], score: s));
     }
     ranked.sort(
       (
@@ -1684,19 +1685,34 @@ class UtilityCatalog {
 
   static int _catalogIndex(String id) => _indexById[id] ?? -1;
 
-  static int _scoreTool(UtilityDescriptor u, String q) {
-    final String name = u.name.toLowerCase();
+  // Lowercased name and synonyms per tool, in [all] order, built once
+  // instead of per keystroke per tool.
+  static final List<({String name, List<String> synonyms})> _lowerNames =
+      <({String name, List<String> synonyms})>[
+        for (final UtilityDescriptor u in all)
+          (
+            name: u.name.toLowerCase(),
+            synonyms: <String>[
+              for (final String syn in u.synonyms) syn.toLowerCase(),
+            ],
+          ),
+      ];
+
+  /// Scores `all[index]` against the lowercased query [q].
+  static int _scoreTool(int index, String q) {
+    final ({String name, List<String> synonyms}) lower = _lowerNames[index];
+    final String name = lower.name;
     if (name == q) return 100;
-    for (final String syn in u.synonyms) {
-      if (syn.toLowerCase() == q) return 90;
+    for (final String syn in lower.synonyms) {
+      if (syn == q) return 90;
     }
     if (name.startsWith(q)) return 70;
-    for (final String syn in u.synonyms) {
-      if (syn.toLowerCase().startsWith(q)) return 60;
+    for (final String syn in lower.synonyms) {
+      if (syn.startsWith(q)) return 60;
     }
     if (name.contains(q)) return 40;
-    for (final String syn in u.synonyms) {
-      if (syn.toLowerCase().contains(q)) return 30;
+    for (final String syn in lower.synonyms) {
+      if (syn.contains(q)) return 30;
     }
     return 0;
   }
@@ -2038,6 +2054,13 @@ List<DetectionMatch<Object?>> _detectCsv(
   if (trimmed.isEmpty || trimmed.startsWith('{') || trimmed.startsWith('[')) {
     return const <DetectionMatch<Object?>>[];
   }
+  // A match needs at least two columns, so some supported delimiter.
+  if (_prefilter &&
+      !trimmed.contains(',') &&
+      !trimmed.contains('\t') &&
+      !trimmed.contains(';')) {
+    return const <DetectionMatch<Object?>>[];
+  }
   final CsvParseResult result = CsvParser.parse(input);
   if (result is! CsvOk) return const <DetectionMatch<Object?>>[];
   final int columns =
@@ -2089,17 +2112,29 @@ List<DetectionMatch<Object?>> _detectCsv(
   ];
 }
 
+/// Longest trimmed input the Color and bps detectors consider.
+const int _maxColorOrRateLength = 64;
+
+/// `s.toLowerCase().startsWith(prefix)` for a lowercase ASCII [prefix],
+/// without lowercasing all of [s].
+bool _startsWithIgnoreCase(String s, String prefix) =>
+    s.length >= prefix.length &&
+    s.substring(0, prefix.length).toLowerCase() == prefix;
+
 List<DetectionMatch<Object?>> _detectColor(
   String input,
   ArtifactProvenance provenance,
 ) {
   final String t = _trimmed(input);
-  if (t.isEmpty) return const <DetectionMatch<Object?>>[];
+  // The longest realistic color literal (`hsla(…)` with decimals) is well
+  // under 64 characters; skip the parse for anything longer.
+  if (t.isEmpty || t.length > _maxColorOrRateLength) {
+    return const <DetectionMatch<Object?>>[];
+  }
   // Reject base-prefixed numbers — those should fire Number Base only.
-  final String lower = t.toLowerCase();
-  if (lower.startsWith('0x') ||
-      lower.startsWith('0b') ||
-      lower.startsWith('0o')) {
+  if (_startsWithIgnoreCase(t, '0x') ||
+      _startsWithIgnoreCase(t, '0b') ||
+      _startsWithIgnoreCase(t, '0o')) {
     return const <DetectionMatch<Object?>>[];
   }
   final MqColorValue? result = MqColorParser.parse(t);
@@ -2432,7 +2467,8 @@ List<DetectionMatch<Object?>> _detectUrl(
 ) {
   final String t = _trimmed(input);
   if (t.isEmpty) return const <DetectionMatch<Object?>>[];
-  bool matches = _percentEscape.hasMatch(t) || _queryShapeUrl.hasMatch(t);
+  final bool percentEncoded = _percentEscape.hasMatch(t);
+  bool matches = percentEncoded || _queryShapeUrl.hasMatch(t);
   // Bare `a=b&c=d`: every `&`-segment must be a clean key=value pair, and there
   // must be at least two — a single `k=v` is too ambiguous to claim.
   if (t.contains('&') && !t.contains(' ')) {
@@ -2446,8 +2482,8 @@ List<DetectionMatch<Object?>> _detectUrl(
       kind: ArtifactKind.url,
       rawValue: input,
       parserResult: Uri.tryParse(t),
-      confidence: _percentEscape.hasMatch(t) ? .91 : .86,
-      reason: _percentEscape.hasMatch(t)
+      confidence: percentEncoded ? .91 : .86,
+      reason: percentEncoded
           ? 'Contains valid percent-encoded URL bytes.'
           : 'Contains a valid URL query-string shape.',
       primaryToolId: 'url',
@@ -2459,8 +2495,11 @@ List<DetectionMatch<Object?>> _detectBps(
   String input,
   ArtifactProvenance provenance,
 ) {
-  final String t = _trimmed(input).toLowerCase();
-  if (t.isEmpty) return const <DetectionMatch<Object?>>[];
+  final String trimmed = _trimmed(input);
+  if (trimmed.isEmpty || trimmed.length > _maxColorOrRateLength) {
+    return const <DetectionMatch<Object?>>[];
+  }
+  final String t = trimmed.toLowerCase();
   final BpsResult? result = BpsParser.parse(t);
   if (result == null) return const <DetectionMatch<Object?>>[];
   // Without an explicit suffix, only suggest bps for small decimals (≤ 1).
@@ -2663,8 +2702,8 @@ List<DetectionMatch<Object?>> _detectX509(
 ) {
   final String trimmed = _trimmed(input);
   if (!trimmed.startsWith('-----BEGIN CERTIFICATE-----') &&
-      !trimmed.toLowerCase().startsWith('base64:') &&
-      !trimmed.toLowerCase().startsWith('hex:')) {
+      !_startsWithIgnoreCase(trimmed, 'base64:') &&
+      !_startsWithIgnoreCase(trimmed, 'hex:')) {
     return const <DetectionMatch<Object?>>[];
   }
   try {

@@ -495,7 +495,7 @@ abstract final class LogStackInspector {
   static LogLevel _jsonLevel(Object? value) {
     if (value is! Map) return LogLevel.unknown;
     for (final MapEntry<Object?, Object?> entry in value.entries) {
-      if (<String>{
+      if (const <String>{
             'level',
             'severity',
             'loglevel',
@@ -510,7 +510,7 @@ abstract final class LogStackInspector {
   static DateTime? _jsonTimestamp(Object? value) {
     if (value is! Map) return null;
     for (final MapEntry<Object?, Object?> entry in value.entries) {
-      if (<String>{
+      if (const <String>{
             'timestamp',
             'time',
             'ts',
