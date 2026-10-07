@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
@@ -44,6 +45,8 @@ class _HashBodyState extends State<HashBody> with ToolBodyScaffold<HashBody> {
   String _sha256 = '';
   String _sha512 = '';
   String? _matchLabel;
+  // Bumped per parse/reset so a slower async digest never overwrites a newer.
+  int _generation = 0;
 
   @override
   String get utilityId => 'hash';
@@ -80,11 +83,28 @@ class _HashBodyState extends State<HashBody> with ToolBodyScaffold<HashBody> {
   @override
   void parse(String input) {
     final List<int> bytes = utf8.encode(input);
+    final int generation = ++_generation;
+    final String md5 = HashTool.md5Hex(bytes);
+    final FutureOr<ShaDigests> sha = HashTool.shaDigests(bytes);
+    if (sha is ShaDigests) {
+      _apply(input, md5, sha);
+      return;
+    }
+    // Web digests resolve asynchronously; only the latest input may land.
+    sha.then((ShaDigests digests) {
+      if (!mounted || generation != _generation) return;
+      _apply(input, md5, digests);
+      // Landed after parse's bindActionBar; refresh Copy all's payload.
+      bindActionBar();
+    });
+  }
+
+  void _apply(String input, String md5, ShaDigests sha) {
     setState(() {
-      _md5 = HashTool.md5Hex(bytes);
-      _sha1 = HashTool.sha1Hex(bytes);
-      _sha256 = HashTool.sha256Hex(bytes);
-      _sha512 = HashTool.sha512Hex(bytes);
+      _md5 = md5;
+      _sha1 = sha.sha1;
+      _sha256 = sha.sha256;
+      _sha512 = sha.sha512;
       _matchLabel = _findMatch();
     });
     if (input.isNotEmpty) {
@@ -94,6 +114,7 @@ class _HashBodyState extends State<HashBody> with ToolBodyScaffold<HashBody> {
 
   @override
   void reset() {
+    _generation++;
     _expectController.clear();
     setState(() {
       _md5 = '';
