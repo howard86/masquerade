@@ -22,6 +22,14 @@ const C = {
   linkIcon: [364, 70],
   inputField: [56, 200],
 };
+const TAB = {
+  // Mobile shell tab bar (390x844): Workbench / Library / Activity centres.
+  workbench: [65, 815],
+  library: [195, 815],
+  activity: [325, 815],
+};
+const MOBILE_SCROLL = { x: 195, from: 650, to: 200, steps: 60 }; // touch-swipe path of the list
+const PAN = { from: [640, 400], steps: 60, dx: 6, dy: 3 }; // empty wallpaper, clear of icons and windows
 const ICON = {
   json: [1142, 332],
   base64: [1142, 589],
@@ -36,6 +44,8 @@ const ALL_FLOWS = [
   'drag',
   'resize',
   'spotlight',
+  'mobile-scroll',
+  'pan',
 ];
 
 // -------------------------------------------------------------------- args
@@ -220,6 +230,27 @@ async function openJson(ctx) {
   await ctx.page.waitForTimeout(800);
 }
 
+/** Touch scroll via CDP touch events: swipes down the list, then back up. */
+async function touchScroll(ctx, steps) {
+  const { page } = ctx;
+  const cdp = await page.context().newCDPSession(page);
+  const { x, from, to } = MOBILE_SCROLL;
+  const half = steps >> 1;
+  const stepPx = (from - to) / half;
+  const swipe = async (y0, y1, n) => {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y: y0 }] });
+    for (let i = 1; i <= n; i++) {
+      const y = y0 + ((y1 - y0) * i) / n;
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y }] });
+      await sleep(16);
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  };
+  // Down: finger moves up. Each swipe covers 10 steps.
+  for (let i = 0; i < half; i += 10) await swipe(from, from - stepPx * 10, 10);
+  for (let i = 0; i < steps - half; i += 10) await swipe(to, to + stepPx * 10, 10);
+}
+
 const FLOWS = {
   'load-desktop': loadFlow('desktop'),
   'load-mobile': loadFlow('mobile'),
@@ -300,6 +331,30 @@ const FLOWS = {
         await page.keyboard.type('json', { delay: KEY_DELAY_MS });
       }, 800);
       await ctx.shot('palette');
+      return m;
+    },
+  },
+  'mobile-scroll': {
+    viewport: MOBILE,
+    mobile: true,
+    async run(ctx) {
+      await ctx.page.waitForTimeout(SETTLE_MS);
+      await ctx.shot('workbench');
+      await ctx.click(TAB.library);
+      await ctx.page.waitForTimeout(600);
+      await ctx.shot('library');
+      const m = await ctx.window(() => touchScroll(ctx, 60), 400);
+      await ctx.shot('after-scroll');
+      return m;
+    },
+  },
+  pan: {
+    viewport: DESKTOP,
+    async run(ctx) {
+      await ctx.page.waitForTimeout(SETTLE_MS);
+      await ctx.shot('before');
+      const m = await ctx.window(() => ctx.drag(PAN.from, PAN.steps, PAN.dx, PAN.dy), 300);
+      await ctx.shot('after-pan');
       return m;
     },
   },
