@@ -180,19 +180,19 @@ jobs:
         run: flutter pub get
       # Catches web-only regressions (manifest, splash injection, asset
       # paths, tree-shake-icons). The output also feeds the size report below.
+      # --dump-info is hidden from --help but supported: it adds
+      # main.dart.js.info.json (per-library sizes) without changing
+      # main.dart.js, so the size report gets a package breakdown for free.
       - name: Build web (release)
-        run: flutter build web --release
+        run: flutter build web --release --dump-info
 
       # Free to measure: this job already builds and discards the bundle.
       # main.dart.js gzipped is the number that actually moves per PR --
-      # canvaskit ships several multi-MB variants of which one loads, so it
-      # swamps any real diff and is only folded into the total.
+      # canvaskit ships several multi-MB variants of which one loads, so the
+      # engine and its debug symbols get rows of their own instead of
+      # swamping the total. See .github/scripts/web_size.py for each row.
       - name: Measure bundle size
-        run: |
-          printf 'gzip_main\t%s\tmain.dart.js (gzip)\n' \
-            "$(gzip -9c build/web/main.dart.js | wc -c)" > size.tsv
-          printf 'total\t%s\tbuild/web total\n' \
-            "$(du -sb build/web | cut -f1)" >> size.tsv
+        run: python3 .github/scripts/web_size.py measure build/web
 
       # Cache entries are immutable, so the key carries the SHA and the prefix
       # restore-key picks up the most recent published baseline. PR runs can
@@ -200,14 +200,23 @@ jobs:
       - name: Restore size baseline
         uses: actions/cache/restore@v6
         with:
-          path: baseline.tsv
+          path: |
+            baseline.tsv
+            baseline-files.tsv
+            baseline-packages.tsv
+            baseline-flutter.txt
           key: websize-${{ github.sha }}
           restore-keys: websize-
 
       - name: Report bundle size
+        env:
+          WARN_KEYS: gzip_main
         run: |
-          bash .github/scripts/bundle-size.sh "Web bundle size" \
-            | tee size-report.md >> "$GITHUB_STEP_SUMMARY"
+          {
+            bash .github/scripts/bundle-size.sh "Web bundle size"
+            echo
+            python3 .github/scripts/web_size.py details
+          } | tee size-report.md >> "$GITHUB_STEP_SUMMARY"
 
       # --edit-last keeps one comment updated across pushes instead of stacking
       # a new one per run; --create-if-none writes the first. No other workflow
@@ -227,12 +236,20 @@ jobs:
 
       - name: Publish baseline
         if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
-        run: cp size.tsv baseline.tsv
+        run: |
+          cp size.tsv baseline.tsv
+          cp files.tsv baseline-files.tsv
+          cp packages.tsv baseline-packages.tsv
+          cp flutter.txt baseline-flutter.txt
       - name: Save size baseline
         if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
         uses: actions/cache/save@v6
         with:
-          path: baseline.tsv
+          path: |
+            baseline.tsv
+            baseline-files.tsv
+            baseline-packages.tsv
+            baseline-flutter.txt
           key: websize-${{ github.sha }}
 
   # Reports the iOS bundle size trend, one build per merged PR.
