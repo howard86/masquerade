@@ -285,16 +285,29 @@ class ToolDraftController extends ChangeNotifier {
         },
     };
     final String encoded = payload.length == 1 ? '' : jsonEncode(payload);
-    if (encoded == _stored) return;
-    _stored = encoded;
-    if (encoded.isEmpty) {
-      await _enqueue((SharedPreferences prefs) => prefs.remove(storageKey));
-    } else {
-      await _enqueue(
-        (SharedPreferences prefs) => prefs.setString(storageKey, encoded),
-      );
+    // Skip only when nothing is in flight: an unlanded write may still
+    // overwrite the stored value this one was compared against.
+    if (_inFlight == 0 && encoded == _stored) return;
+    _inFlight++;
+    try {
+      if (encoded.isEmpty) {
+        await _enqueue((SharedPreferences prefs) => prefs.remove(storageKey));
+      } else {
+        await _enqueue(
+          (SharedPreferences prefs) => prefs.setString(storageKey, encoded),
+        );
+      }
+      _stored = encoded;
+    } catch (_) {
+      // A failed write is not stored; unknown state forces the next persist.
+      _stored = null;
+      rethrow;
+    } finally {
+      _inFlight--;
     }
   }
+
+  int _inFlight = 0;
 
   /// Number of prefs writes / removes enqueued (for tests).
   @visibleForTesting

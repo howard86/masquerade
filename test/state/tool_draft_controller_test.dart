@@ -5,6 +5,19 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/state/tool_draft_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+// ignore: depend_on_referenced_packages
+import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
+
+class _FlakyStore extends InMemorySharedPreferencesStore {
+  _FlakyStore() : super.empty();
+  bool failWrites = false;
+
+  @override
+  Future<bool> setValue(String valueType, String key, Object value) {
+    if (failWrites) throw StateError('write failed');
+    return super.setValue(valueType, key, value);
+  }
+}
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues(<String, Object>{}));
@@ -209,6 +222,24 @@ void main() {
       final String raw = prefs.getString(ToolDraftController.storageKey)!;
       expect(raw, isNot(contains('bogus')));
       expect(raw, contains('{\\"a\\":1}'));
+    });
+
+    test('a failed write is not treated as stored', () async {
+      final _FlakyStore store = _FlakyStore();
+      SharedPreferences.resetStatic();
+      SharedPreferencesStorePlatform.instance = store;
+      final ToolDraftController drafts = await ToolDraftController.load();
+      store.failWrites = true;
+      await drafts.saveJson(input: '{"a":1}', source: 'json', target: 'tree');
+      await expectLater(drafts.flush(), throwsStateError);
+      expect(drafts.debugWrites, 1);
+
+      store.failWrites = false;
+      await drafts.saveJson(input: '{"a":1}', source: 'json', target: 'tree');
+      await drafts.flush();
+      expect(drafts.debugWrites, 2);
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString(ToolDraftController.storageKey), contains('a'));
     });
 
     test('an unchanged payload is not rewritten on the next flush', () async {
