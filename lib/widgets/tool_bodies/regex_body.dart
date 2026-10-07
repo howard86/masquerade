@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 
 import '../../state/history_controller.dart';
+import '../../theme/mq_colors.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
@@ -371,7 +372,7 @@ class _RegexBodyState extends State<RegexBody> {
       MqChip(label: label, mono: false, selected: selected, onTap: onTap);
 }
 
-class _Highlight extends StatelessWidget {
+class _Highlight extends StatefulWidget {
   const _Highlight({required this.input, required this.matches});
 
   static const int _maxHighlights = 2000;
@@ -380,44 +381,73 @@ class _Highlight extends StatelessWidget {
   final List<RegexMatchInfo> matches;
 
   @override
-  Widget build(BuildContext context) {
-    final c = context.mq.colors;
+  State<_Highlight> createState() => _HighlightState();
+
+  static bool _isHigh(int unit) => unit >= 0xD800 && unit <= 0xDBFF;
+
+  static bool _isLow(int unit) => unit >= 0xDC00 && unit <= 0xDFFF;
+}
+
+class _HighlightState extends State<_Highlight> {
+  // Span list memoized on (input, matches, colors) identity: unrelated
+  // rebuilds (flag chips, paging the match cards) reuse up to 2,000 spans.
+  String? _spansInput;
+  List<RegexMatchInfo>? _spansMatches;
+  MqColors? _spansColors;
+  TextSpan _spans = const TextSpan();
+  bool _bounded = false;
+
+  void _buildSpans(MqColors c) {
+    final String input = widget.input;
+    final List<RegexMatchInfo> matches = widget.matches;
     final TextStyle normal = MqTextStyles.monoSm.copyWith(color: c.monoText);
+    final TextStyle highlight = normal.copyWith(
+      color: c.onTint,
+      backgroundColor: c.accent,
+      fontWeight: FontWeight.w600,
+    );
     final List<TextSpan> spans = <TextSpan>[];
     int cursor = 0;
     int highlighted = 0;
     for (final RegexMatchInfo match in matches) {
       if (match.start == match.end) continue;
-      if (highlighted == _maxHighlights) break;
+      if (highlighted == _Highlight._maxHighlights) break;
       int start = match.start;
       int end = match.end;
-      if (start > 0 && _isLow(input.codeUnitAt(start))) start--;
-      if (end < input.length && _isHigh(input.codeUnitAt(end - 1))) end++;
+      if (start > 0 && _Highlight._isLow(input.codeUnitAt(start))) start--;
+      if (end < input.length && _Highlight._isHigh(input.codeUnitAt(end - 1))) {
+        end++;
+      }
       if (end <= cursor) continue;
       if (start < cursor) start = cursor;
       if (start > cursor) {
         spans.add(TextSpan(text: input.substring(cursor, start)));
       }
-      spans.add(
-        TextSpan(
-          text: input.substring(start, end),
-          style: normal.copyWith(
-            color: c.onTint,
-            backgroundColor: c.accent,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      );
+      spans.add(TextSpan(text: input.substring(start, end), style: highlight));
       cursor = end;
       highlighted++;
     }
     if (cursor < input.length) {
       spans.add(TextSpan(text: input.substring(cursor)));
     }
-    final bool bounded = matches
+    _spans = TextSpan(style: normal, children: spans);
+    _bounded = matches
         .where((RegexMatchInfo match) => match.start != match.end)
-        .skip(_maxHighlights)
+        .skip(_Highlight._maxHighlights)
         .isNotEmpty;
+    _spansInput = input;
+    _spansMatches = matches;
+    _spansColors = c;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mq.colors;
+    if (!identical(_spansInput, widget.input) ||
+        !identical(_spansMatches, widget.matches) ||
+        !identical(_spansColors, c)) {
+      _buildSpans(c);
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -425,10 +455,10 @@ class _Highlight extends StatelessWidget {
           background: c.monoBg,
           child: RichText(
             key: const ValueKey<String>('regex-highlight'),
-            text: TextSpan(style: normal, children: spans),
+            text: _spans,
           ),
         ),
-        if (bounded) ...<Widget>[
+        if (_bounded) ...<Widget>[
           const SizedBox(height: MqSpacing.sm),
           const MqStatus(
             label: 'Highlighting is limited to the first 2,000 matches.',
@@ -438,10 +468,6 @@ class _Highlight extends StatelessWidget {
       ],
     );
   }
-
-  static bool _isHigh(int unit) => unit >= 0xD800 && unit <= 0xDBFF;
-
-  static bool _isLow(int unit) => unit >= 0xDC00 && unit <= 0xDFFF;
 }
 
 class _MatchCard extends StatefulWidget {

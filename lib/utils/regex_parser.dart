@@ -40,11 +40,76 @@ class RegexMatchInfo {
     required this.named,
   });
 
+  /// A match over [input] described only by code-unit offsets.
+  ///
+  /// [offsets] holds `slots` (start, end) pairs per match from [base]: slot 0
+  /// is the whole match, then one per numbered group, then one per entry of
+  /// [names]; a non-participating group is (-1, -1). Text, groups and named
+  /// groups are substrings of [input] built on first access, so a worker can
+  /// hand back thousands of matches as one flat int array.
+  factory RegexMatchInfo.offsets({
+    required String input,
+    required List<int> offsets,
+    required int base,
+    required int groupCount,
+    required List<String> names,
+  }) = _OffsetMatchInfo;
+
   final int start;
   final int end;
   final String text;
   final List<String?> groups;
   final Map<String, String?> named;
+}
+
+class _OffsetMatchInfo implements RegexMatchInfo {
+  _OffsetMatchInfo({
+    required String input,
+    required List<int> offsets,
+    required int base,
+    required int groupCount,
+    required List<String> names,
+  }) : _input = input,
+       _offsets = offsets,
+       _base = base,
+       _groupCount = groupCount,
+       _names = names;
+
+  final String _input;
+  final List<int> _offsets;
+  final int _base;
+  final int _groupCount;
+  final List<String> _names;
+
+  String? _slot(int slot) {
+    final int start = _offsets[_base + 2 * slot];
+    if (start < 0) return null;
+    return _input.substring(start, _offsets[_base + 2 * slot + 1]);
+  }
+
+  @override
+  int get start => _offsets[_base];
+
+  @override
+  int get end => _offsets[_base + 1];
+
+  @override
+  late final String text = _input.substring(start, end);
+
+  @override
+  late final List<String?> groups = _groupCount == 0
+      ? const <String?>[]
+      : List<String?>.unmodifiable(<String?>[
+          for (int slot = 1; slot <= _groupCount; slot++) _slot(slot),
+        ]);
+
+  @override
+  late final Map<String, String?> named = _names.isEmpty
+      ? const <String, String?>{}
+      : Map<String, String?>.unmodifiable(<String, String?>{
+          for (final (int index, String name) in _names.indexed)
+            name: _slot(1 + _groupCount + index),
+        });
 }
 
 class RegexTester {
@@ -143,14 +208,18 @@ class RegexTester {
           start: match.start,
           end: match.end,
           text: match.group(0)!,
-          groups: List<String?>.unmodifiable(<String?>[
-            for (int index = 1; index <= match.groupCount; index++)
-              match.group(index),
-          ]),
-          named: Map<String, String?>.unmodifiable(<String, String?>{
-            for (final String name in match.groupNames)
-              name: match.namedGroup(name),
-          }),
+          groups: match.groupCount == 0
+              ? const <String?>[]
+              : List<String?>.unmodifiable(<String?>[
+                  for (int index = 1; index <= match.groupCount; index++)
+                    match.group(index),
+                ]),
+          named: match.groupNames.isEmpty
+              ? const <String, String?>{}
+              : Map<String, String?>.unmodifiable(<String, String?>{
+                  for (final String name in match.groupNames)
+                    name: match.namedGroup(name),
+                }),
         ),
       );
     }

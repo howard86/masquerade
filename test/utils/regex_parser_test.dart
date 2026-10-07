@@ -205,4 +205,61 @@ void main() {
       expect(input.message, isNot(contains(secret)));
     });
   });
+
+  group('RegexMatchInfo.offsets', () {
+    test('derives text, groups and named groups from offset pairs', () {
+      const String input = 'key=value; other';
+      // slots: whole, group 1, group 2 (unmatched), named "k".
+      final List<int> offsets = <int>[0, 9, 4, 9, -1, -1, 0, 3];
+      final RegexMatchInfo match = RegexMatchInfo.offsets(
+        input: input,
+        offsets: offsets,
+        base: 0,
+        groupCount: 2,
+        names: const <String>['k'],
+      );
+      expect(match.start, 0);
+      expect(match.end, 9);
+      expect(match.text, 'key=value');
+      expect(match.groups, <String?>['value', null]);
+      expect(match.named, <String, String?>{'k': 'key'});
+      expect(() => match.groups.add('x'), throwsUnsupportedError);
+    });
+
+    test('reads its own slice of a flat multi-match array', () {
+      const String input = 'a1 b2';
+      final List<int> offsets = <int>[0, 2, 1, 2, 3, 5, 4, 5];
+      final RegexMatchInfo second = RegexMatchInfo.offsets(
+        input: input,
+        offsets: offsets,
+        base: 4,
+        groupCount: 1,
+        names: const <String>[],
+      );
+      expect(second.text, 'b2');
+      expect(second.groups, <String?>['2']);
+      expect(second.named, isEmpty);
+    });
+
+    test('zero-capture matches share const empties', () {
+      final RegexMatchInfo a = RegexMatchInfo.offsets(
+        input: 'xx',
+        offsets: const <int>[0, 1, 1, 2],
+        base: 0,
+        groupCount: 0,
+        names: const <String>[],
+      );
+      final RegexMatchInfo b = RegexMatchInfo.offsets(
+        input: 'xx',
+        offsets: const <int>[0, 1, 1, 2],
+        base: 2,
+        groupCount: 0,
+        names: const <String>[],
+      );
+      expect(identical(a.groups, b.groups), isTrue);
+      expect(identical(a.named, b.named), isTrue);
+      final RegexOk run = RegexTester.run(pattern: 'x', input: 'xx') as RegexOk;
+      expect(identical(run.matches[0].groups, run.matches[1].groups), isTrue);
+    });
+  });
 }
