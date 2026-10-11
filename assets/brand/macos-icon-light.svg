@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- macOS app icon source. Unlike the iOS/web monogram (full-bleed square), macOS
+     icons float: a rounded-rect tile on a transparent canvas with ~10% margin, per
+     Apple's macOS icon grid (824x824 tile centred in 1024). The mark is the same
+     bracketed hammer+quill, centred at ~61% of the tile. No hairline box — it would
+     read as a square inside the rounded tile.
+     ponytail: no baked drop-shadow; add an feDropShadow if the dock look needs it. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>Masquerade macOS app icon (light)</title>
+  <rect x="100" y="100" width="824" height="824" rx="180" fill="#FAF7F2"/>
+  <g transform="translate(512 512) scale(0.95) translate(-512 -512)">
+    <g fill="none" stroke="#8B2635" stroke-width="28" stroke-linecap="square" stroke-linejoin="miter">
+      <path d="M334 296H248V728H334"/>
+      <path d="M690 296H776V728H690"/>
+    </g>
+    <g transform="rotate(50 512 512)" fill="#8B2635">
+      <rect x="476" y="360" width="138" height="78" rx="10"/>
+      <rect x="486" y="438" width="34" height="246" rx="16"/>
+    </g>
+    <g transform="rotate(-16 512 512)">
+      <path fill="#8B2635" d="M512 330 C560 380 572 452 556 520 C548 566 530 596 521 622 L512 700 L503 622 C494 596 476 566 468 520 C452 452 464 380 512 330 Z"/>
+      <g stroke="#FAF7F2" stroke-width="7" stroke-linecap="round">
+        <path d="M512 366 L512 636"/>
+        <path d="M512 420 L470 452"/>
+        <path d="M512 470 L466 500"/>
+        <path d="M512 520 L474 544"/>
+        <path d="M512 400 L554 430"/>
+        <path d="M512 452 L556 480"/>
+        <path d="M512 504 L550 528"/>
+      </g>
+    </g>
+  </g>
+</svg>
