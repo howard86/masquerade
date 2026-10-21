@@ -35,7 +35,7 @@ void main() {
     final Finder hero = find.byWidgetPredicate(
       (Widget widget) =>
           widget is CupertinoTextField &&
-          widget.placeholder == 'Paste timestamp, JSON, hex, base64, color…',
+          widget.placeholder == 'Paste or type anything…',
     );
     await tester.enterText(hero, '{"password":"live-credential-fixture"}');
     await tester.tap(find.bySemanticsLabel('Open Settings'));
@@ -50,7 +50,7 @@ void main() {
     final Finder resetHeroFinder = find.byWidgetPredicate(
       (Widget widget) =>
           widget is CupertinoTextField &&
-          widget.placeholder == 'Paste timestamp, JSON, hex, base64, color…',
+          widget.placeholder == 'Paste or type anything…',
       skipOffstage: false,
     );
     final CupertinoTextField resetHero = tester.widget<CupertinoTextField>(
