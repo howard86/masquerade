@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
 import 'package:masquerade/state/view_mode_controller.dart';
+import 'package:masquerade/state/wallpaper_controller.dart';
 import 'package:masquerade/state/window_content.dart';
 import 'package:masquerade/theme/mq_colors.dart';
 import 'package:masquerade/theme/mq_theme.dart';
@@ -31,23 +32,36 @@ Future<void> _pump(WidgetTester tester) async {
 /// tools launched via [DesktopIconGrid.onOpen].
 Future<void> _pumpGrid(
   WidgetTester tester,
-  List<UtilityDescriptor> opened,
-) async {
+  List<UtilityDescriptor> opened, {
+  MqWallpaperType wallpaper = MqWallpaperType.auroraEspresso,
+  Brightness brightness = Brightness.light,
+}) async {
   await tester.binding.setSurfaceSize(_desktop);
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
     CupertinoApp(
       home: MqTheme(
         tokens: MqTokens(
-          colors: MqColors.light(),
-          brightness: Brightness.light,
+          colors: brightness == Brightness.light
+              ? MqColors.light()
+              : MqColors.dark(),
+          brightness: brightness,
         ),
-        child: DesktopIconGrid(onOpen: opened.add, onOpenSystem: (_) {}),
+        child: WallpaperScope(
+          controller: WallpaperController(initial: wallpaper),
+          child: DesktopIconGrid(onOpen: opened.add, onOpenSystem: (_) {}),
+        ),
       ),
     ),
   );
   await tester.pumpAndSettle();
 }
+
+List<UtilityDescriptor> _sortedTools() => UtilityCatalog.all.toList()
+  ..sort(
+    (UtilityDescriptor a, UtilityDescriptor b) =>
+        a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+  );
 
 /// The tool name of the currently-focused launcher tile, read off the
 /// [Semantics] wrapper enclosing the focused node, or null if no tile is
@@ -96,7 +110,7 @@ void main() {
       final Rect viewport = tester.getRect(find.byType(DesktopIconGrid));
       final Set<double> columns = <double>{};
       final List<String> labels = <String>[
-        for (final UtilityDescriptor d in UtilityCatalog.all) d.name,
+        for (final UtilityDescriptor d in _sortedTools()) d.name,
         for (final SystemApp app in SystemApp.values) SystemWindow(app).title,
       ];
 
@@ -122,7 +136,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await _pump(tester);
-      final UtilityDescriptor first = UtilityCatalog.all.first;
+      final UtilityDescriptor first = _sortedTools().first;
       await tester.tap(find.text(first.name));
       await tester.pumpAndSettle();
       // The tool card frame should now be visible.
@@ -173,7 +187,7 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
 
-      expect(opened, <UtilityDescriptor>[UtilityCatalog.all.first]);
+      expect(opened, <UtilityDescriptor>[_sortedTools().first]);
     });
 
     testWidgets('Space activates the focused tile', (
@@ -187,7 +201,7 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.space);
       await tester.pumpAndSettle();
 
-      expect(opened, <UtilityDescriptor>[UtilityCatalog.all.first]);
+      expect(opened, <UtilityDescriptor>[_sortedTools().first]);
     });
 
     testWidgets(
@@ -200,36 +214,86 @@ void main() {
         // Tab onto the first tile (visual order).
         await tester.sendKeyEvent(LogicalKeyboardKey.tab);
         await tester.pumpAndSettle();
-        expect(_focusedTileLabel(), UtilityCatalog.all[0].name);
+        final List<UtilityDescriptor> tools = _sortedTools();
+        expect(_focusedTileLabel(), tools[0].name);
 
         // ArrowLeft crosses to the next visual column; ArrowRight reverses.
         await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
         await tester.pumpAndSettle();
-        expect(_focusedTileLabel(), UtilityCatalog.all[9].name);
+        expect(_focusedTileLabel(), tools[9].name);
         await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
         await tester.pumpAndSettle();
-        expect(_focusedTileLabel(), UtilityCatalog.all[0].name);
+        expect(_focusedTileLabel(), tools[0].name);
 
         // ArrowDown steps to the tile directly below (the next column entry).
         await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
         await tester.pumpAndSettle();
-        expect(_focusedTileLabel(), UtilityCatalog.all[1].name);
+        expect(_focusedTileLabel(), tools[1].name);
 
         // A second ArrowDown continues spatially down the grid.
         await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
         await tester.pumpAndSettle();
-        expect(_focusedTileLabel(), UtilityCatalog.all[2].name);
+        expect(_focusedTileLabel(), tools[2].name);
 
         // ArrowUp reverses, returning focus to the tile above.
         await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
         await tester.pumpAndSettle();
-        expect(_focusedTileLabel(), UtilityCatalog.all[1].name);
+        expect(_focusedTileLabel(), tools[1].name);
 
         // Enter still activates the now-focused tile through the onOpen path.
         await tester.sendKeyEvent(LogicalKeyboardKey.enter);
         await tester.pumpAndSettle();
-        expect(opened, <UtilityDescriptor>[UtilityCatalog.all[1]]);
+        expect(opened, <UtilityDescriptor>[tools[1]]);
       },
     );
+  });
+
+  testWidgets('label color follows wallpaper in either app theme', (
+    WidgetTester tester,
+  ) async {
+    final List<UtilityDescriptor> opened = <UtilityDescriptor>[];
+    await _pumpGrid(tester, opened);
+    final Text darkWallpaperLabel = tester.widget<Text>(
+      find.text(_sortedTools().first.name),
+    );
+    expect(darkWallpaperLabel.style?.color, const Color(0xFFF5F1ED));
+
+    await _pumpGrid(
+      tester,
+      opened,
+      wallpaper: MqWallpaperType.parchmentMinimalist,
+      brightness: Brightness.dark,
+    );
+    final Text lightWallpaperLabel = tester.widget<Text>(
+      find.text(_sortedTools().first.name),
+    );
+    expect(lightWallpaperLabel.style?.color, const Color(0xFF211D19));
+  });
+
+  testWidgets('tools sort alphabetically before system apps', (
+    WidgetTester tester,
+  ) async {
+    final List<UtilityDescriptor> opened = <UtilityDescriptor>[];
+    await _pumpGrid(tester, opened);
+    final List<String> visibleLabels = <String>[
+      for (final Element e in tester.allElements)
+        if (e.widget is Semantics &&
+            (e.widget as Semantics).properties.label != null)
+          (e.widget as Semantics).properties.label!,
+    ];
+    expect(visibleLabels.take(_sortedTools().length).toList(), <String>[
+      for (final UtilityDescriptor d in _sortedTools()) d.name,
+    ]);
+    expect(visibleLabels.skip(_sortedTools().length), <String>[
+      for (final SystemApp app in SystemApp.values) SystemWindow(app).title,
+    ]);
+
+    final String longestLabel = _sortedTools()
+        .map((UtilityDescriptor d) => d.name)
+        .reduce((String a, String b) => a.length >= b.length ? a : b);
+    final Text label = tester.widget<Text>(find.text(longestLabel));
+    expect(label.maxLines, 2);
+    expect(label.textAlign, TextAlign.center);
+    expect(label.overflow, TextOverflow.ellipsis);
   });
 }
