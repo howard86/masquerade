@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
 import 'package:masquerade/screens/desktop/desktop_shell.dart';
@@ -78,6 +79,81 @@ void main() {
       expect(find.byType(DesktopIconGrid), findsOneWidget);
     });
 
+    testWidgets('opening a tool focuses its first text input', (
+      WidgetTester tester,
+    ) async {
+      await _pump(tester, size: _desktop);
+      await tester.tap(find.text(UtilityCatalog.all.first.name));
+      await tester.pumpAndSettle();
+
+      final CupertinoTextField input = tester.widget<CupertinoTextField>(
+        find.byType(CupertinoTextField).first,
+      );
+      expect(input.focusNode?.hasFocus, isTrue);
+    });
+
+    testWidgets('empty desktop shows the shortcut hint only without cards', (
+      WidgetTester tester,
+    ) async {
+      await _pump(tester, size: _desktop);
+      const String hint = '⌘K open a tool · ⌘V paste anything';
+      expect(find.text(hint), findsOneWidget);
+
+      await tester.tap(find.text(UtilityCatalog.all.first.name));
+      await tester.pumpAndSettle();
+      expect(find.text(hint), findsNothing);
+
+      await tester.tap(find.bySemanticsLabel('Close (Esc)'));
+      await tester.pumpAndSettle();
+      expect(find.text(hint), findsOneWidget);
+    });
+
+    testWidgets('unrecognized paste shows a transient notice', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
+      final TestDefaultBinaryMessenger messenger =
+          tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(SystemChannels.platform, (
+        MethodCall call,
+      ) async {
+        if (call.method == 'Clipboard.getData') {
+          return <String, Object>{'text': 'plain unrecognized words'};
+        }
+        return null;
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+      await _pump(tester, size: _desktop);
+
+      await tester.tap(find.text('Edit'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Paste & Detect  ⌘V'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('No tool recognized this text'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('No tool recognized this text'),
+        findsOneWidget,
+      );
+      expect(find.byType(ToolCardFrame), findsNothing);
+      await tester.pump(const Duration(seconds: 3));
+      expect(
+        find.bySemanticsLabel('No tool recognized this text'),
+        findsNothing,
+      );
+      expect(
+        tester
+            .widget<AnimatedOpacity>(
+              find.byKey(const ValueKey<String>('unrecognized-paste-notice')),
+            )
+            .opacity,
+        0,
+      );
+      semantics.dispose();
+    });
+
     testWidgets('canvas auto-restores open cards after a reload', (
       WidgetTester tester,
     ) async {
@@ -96,6 +172,35 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.byType(ToolCardFrame), findsOneWidget);
+    });
+
+    testWidgets('startup-restored tool does not request body focus', (
+      WidgetTester tester,
+    ) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        CanvasController.currentKey: jsonEncode(<String, Object>{
+          'nextId': 2,
+          'nextZ': 2,
+          'focused': 1,
+          'cards': <Map<String, Object>>[
+            <String, Object>{
+              'id': 1,
+              'tool': 'json',
+              'x': 32,
+              'y': 24,
+              'w': 520,
+              'z': 1,
+            },
+          ],
+          'groups': <Object>[],
+        }),
+      });
+      await _pump(tester, size: _desktop);
+
+      final CupertinoTextField input = tester.widget<CupertinoTextField>(
+        find.byType(CupertinoTextField).first,
+      );
+      expect(input.focusNode?.hasFocus, isFalse);
     });
 
     testWidgets('menubar "Mobile view" switches to the iPhone frame', (
