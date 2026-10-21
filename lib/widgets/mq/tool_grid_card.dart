@@ -94,7 +94,7 @@ class ToolGridCard extends StatelessWidget {
                           style: MqTextStyles.headline.copyWith(
                             color: c.textPri,
                           ),
-                          maxLines: 2,
+                          maxLines: showMetadata ? 2 : 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),

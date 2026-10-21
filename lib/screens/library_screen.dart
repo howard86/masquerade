@@ -75,7 +75,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     final String query = _search.text.trim();
     final List<UtilityDescriptor> mainTools = query.isEmpty
         ? UtilityCatalog.inCategory(_category)
-        : UtilityCatalog.searchStable(query);
+        : UtilityCatalog.searchByName(query);
     final List<UtilityDescriptor> favorites = UtilityCatalog.all
         .where((UtilityDescriptor u) => library.isFavorite(u.id))
         .toList(growable: false);
@@ -100,18 +100,27 @@ class _LibraryScreenState extends State<LibraryScreen> {
             ),
             if (query.isEmpty) ...<Widget>[
               const SizedBox(height: MqSpacing.md),
-              Wrap(
-                spacing: MqSpacing.sm,
-                runSpacing: MqSpacing.sm,
-                children: <Widget>[
-                  for (final UtilityCategory category in UtilityCategory.values)
-                    MqChip(
-                      label: category.label,
-                      mono: false,
-                      selected: _category == category,
-                      onTap: () => setState(() => _category = category),
-                    ),
-                ],
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: <Widget>[
+                    for (final UtilityCategory category in <UtilityCategory>[
+                      UtilityCategory.all,
+                      ...UtilityCategory.values.where(
+                        (UtilityCategory value) => value != UtilityCategory.all,
+                      ),
+                    ]) ...<Widget>[
+                      if (category != UtilityCategory.all)
+                        const SizedBox(width: MqSpacing.sm),
+                      MqChip(
+                        label: category.label,
+                        mono: false,
+                        selected: _category == category,
+                        onTap: () => setState(() => _category = category),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ],
             if (query.isEmpty && favorites.isNotEmpty) ...<Widget>[
@@ -167,6 +176,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
     final double textScale = MediaQuery.textScalerOf(
       context,
     ).scale(1).clamp(1, 2);
+    double lineHeight(TextStyle style) =>
+        style.fontSize! * (style.height ?? 1) * textScale;
+
+    final double cardContentHeight =
+        density.cardPadding * 2 +
+        lineHeight(MqTextStyles.headline) +
+        MqSpacing.sm +
+        lineHeight(MqTextStyles.caption1) +
+        (entries.isEmpty ? 0 : lineHeight(MqTextStyles.monoSm)) +
+        1 + // Two 0.5px border edges.
+        3; // A few pixels of room for font and rasterization differences.
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -174,7 +194,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         maxCrossAxisExtent: 560,
         mainAxisSpacing: density.cardGap,
         crossAxisSpacing: density.cardGap,
-        mainAxisExtent: 120 + (80 * (textScale - 1)),
+        mainAxisExtent: cardContentHeight,
       ),
       itemCount: tools.length,
       itemBuilder: (BuildContext context, int index) {
@@ -186,7 +206,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
           lastEntry: entry,
           favorite: library.isFavorite(tool.id),
           onToggleFavorite: () => library.toggleFavorite(tool.id),
-          showMetadata: true,
+          showMetadata: false,
           onTap: () => ToolDetailRoute.push(context, tool, seed: entry?.input),
         );
       },
