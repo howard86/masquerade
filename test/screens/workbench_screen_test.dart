@@ -27,6 +27,7 @@ Future<void> _pumpWorkbench(
   TextScaler textScaler = TextScaler.noScaling,
   ValueListenable<EdgeInsets>? viewInsets,
   DetectionPreferenceController? detectionPreferenceController,
+  HistoryController? historyController,
   WorkSessionController? workSessionController,
   ShareInboxController? shareInboxController,
   ExternalInputImporter? externalInputImporter,
@@ -39,6 +40,7 @@ Future<void> _pumpWorkbench(
     isWebOverride: isWebOverride,
     skipSplash: true,
     detectionPreferenceController: detectionPreferenceController,
+    historyController: historyController,
     workSessionController: workSessionController,
     shareInboxController: shareInboxController,
     externalInputImporter: externalInputImporter,
@@ -145,6 +147,74 @@ void main() {
       _semantics('Unknown text. No tool matched this value.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('empty Workbench lists recent tools and opens them', (
+    WidgetTester tester,
+  ) async {
+    final HistoryController history = HistoryController();
+    for (final (String, String) item in <(String, String)>[
+      ('uuid', '550e8400-e29b-41d4-a716-446655440000'),
+      ('ip', '192.0.2.1'),
+      ('cron', '0 0 * * *'),
+      ('number_base', '255'),
+      ('timestamp', '1700000000'),
+      ('json', '{}'),
+      ('json', '{"new":true}'),
+    ]) {
+      await history.add(
+        HistoryEntry(
+          utilityId: item.$1,
+          input: item.$2,
+          output: item.$2,
+          timestamp: DateTime.now(),
+        ),
+      );
+    }
+    expect(history.entries, hasLength(7));
+    await _pumpWorkbench(tester, historyController: history);
+
+    expect(find.text('RECENT TOOLS'), findsOneWidget);
+    expect(find.text('Timestamp'), findsOneWidget);
+    expect(find.text('JSON / YAML / TOML'), findsOneWidget);
+    expect(find.text('IP / CIDR'), findsOneWidget);
+    expect(find.text('UUID'), findsNothing);
+    await tester.tap(find.text('Timestamp'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ToolDetailRoute), findsOneWidget);
+  });
+
+  testWidgets('empty Workbench hides recent tools when retention is zero', (
+    WidgetTester tester,
+  ) async {
+    final HistoryController history = HistoryController(
+      retention: Duration.zero,
+    );
+    await _pumpWorkbench(tester, historyController: history);
+    expect(find.text('RECENT TOOLS'), findsNothing);
+  });
+
+  testWidgets('active session takes priority over recent tools when empty', (
+    WidgetTester tester,
+  ) async {
+    final HistoryController history = HistoryController();
+    await history.add(
+      HistoryEntry(
+        utilityId: 'timestamp',
+        input: '1700000000',
+        output: '2023-11-14',
+        timestamp: DateTime.now(),
+      ),
+    );
+    await _pumpWorkbench(
+      tester,
+      textScaler: const TextScaler.linear(2),
+      historyController: history,
+      workSessionController: _safeCompletedSession(),
+    );
+
+    expect(find.text('RECENT TOOLS'), findsNothing);
+    expect(find.text('CURRENT SESSION'), findsOneWidget);
   });
 
   group('detection cache', () {
@@ -1455,7 +1525,7 @@ void main() {
     await tester.tap(find.text('Reopen'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Pretty JSON'));
+    await tester.tap(find.text('Pretty'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Tree').last);
     await tester.pumpAndSettle();
@@ -1505,7 +1575,7 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.tap(find.text('Pretty JSON'));
+    await tester.tap(find.text('Pretty'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Tree').last);
     await tester.pumpAndSettle();
@@ -1539,7 +1609,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(ToolDetailRoute), findsOneWidget);
-    expect(find.text('Pretty JSON'), findsOneWidget);
+    expect(find.text('Pretty'), findsOneWidget);
+    expect(find.text('PRETTY'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
