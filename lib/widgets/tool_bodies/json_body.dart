@@ -45,8 +45,8 @@ enum SourceFormat {
 }
 
 enum TargetFormat {
-  prettyJson('Pretty JSON', 'PRETTY'),
-  minifiedJson('Minified JSON', 'MINIFY'),
+  prettyJson('Pretty', 'PRETTY'),
+  minifiedJson('Minified', 'MINIFY'),
   tree('Tree', 'TREE'),
   yaml('YAML', 'YAML'),
   toml('TOML', 'TOML');

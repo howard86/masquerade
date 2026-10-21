@@ -48,9 +48,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('JSON').last);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Pretty JSON'));
+    await tester.tap(find.text('Pretty'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Minified JSON').last);
+    await tester.tap(find.text('Minified').last);
     await tester.pumpAndSettle(kDebouncePump);
 
     await tester.pageBack();
@@ -63,7 +63,7 @@ void main() {
           .text,
       '{"draft":1}',
     );
-    expect(find.text('Minified JSON'), findsOneWidget);
+    expect(find.text('Minified'), findsOneWidget);
     expect(
       tester
           .widgetList<MqDropdown<SourceFormat>>(
@@ -85,7 +85,7 @@ void main() {
           .text,
       '{"draft":1}',
     );
-    expect(find.text('Minified JSON'), findsOneWidget);
+    expect(find.text('Minified'), findsOneWidget);
     expect(
       tester
           .widgetList<MqDropdown<SourceFormat>>(
@@ -205,7 +205,7 @@ void main() {
       tester.widget<EditableText>(find.byType(EditableText)).controller.text,
       '{"fresh":true}',
     );
-    expect(find.text('Minified JSON'), findsOneWidget);
+    expect(find.text('Minified'), findsOneWidget);
   });
 
   testWidgets('body without mobile route scope cannot read or write drafts', (
