@@ -51,10 +51,11 @@ class DesktopIconGrid extends StatelessWidget {
     final double scaledLineHeight =
         MediaQuery.textScalerOf(context).scale(fontSize) *
         (labelStyle.height ?? 1);
-    // Reserve two label lines, the icon, their gap and the tile border. Keep
-    // the original footprint at ordinary text sizes and grow it with dynamic
-    // type so labels and their hit targets never overlap the next row.
-    final double contentHeight = 24 + MqSpacing.xs + 2 * scaledLineHeight + 2;
+    // Reserve two label lines, the icon, their gap, the largest focus border,
+    // and one pixel of rounding slack. Keep the original footprint at ordinary
+    // text sizes and grow it with dynamic type so labels and hit targets never
+    // overlap the next row.
+    final double contentHeight = 24 + MqSpacing.xs + 2 * scaledLineHeight + 4;
     return contentHeight > 78 ? contentHeight : 78;
   }
 

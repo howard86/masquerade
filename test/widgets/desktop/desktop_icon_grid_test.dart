@@ -154,7 +154,7 @@ void main() {
             .first;
         final Rect rect = tester.getRect(tile);
         tileRects.add(rect);
-        expect(rect.height, greaterThanOrEqualTo(86));
+        expect(rect.height, greaterThanOrEqualTo(88));
         expect(tester.getRect(label).bottom, lessThanOrEqualTo(rect.bottom));
       }
 
@@ -168,6 +168,18 @@ void main() {
           expect(column[i].top - column[i - 1].bottom, greaterThanOrEqualTo(8));
         }
       }
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      final String focusedLabel = _focusedTileLabel()!;
+      final Finder focusedText = find.text(focusedLabel);
+      final Finder focusedTile = find
+          .ancestor(of: focusedText, matching: find.byType(AnimatedContainer))
+          .first;
+      final Rect focusedRect = tester.getRect(focusedTile);
+      final Rect labelRect = tester.getRect(focusedText);
+      expect(labelRect.height, greaterThan(28));
+      expect(labelRect.bottom, lessThanOrEqualTo(focusedRect.bottom - 1.5));
       expect(tester.takeException(), isNull);
     });
 
