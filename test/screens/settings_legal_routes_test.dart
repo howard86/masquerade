@@ -59,32 +59,36 @@ void main() {
     );
   });
 
-  testWidgets(
-    'Settings opens the bundled privacy policy and acknowledgements',
-    (WidgetTester tester) async {
-      LicenseRegistry.reset();
-      registerBundledFontLicenses();
-      await tester.binding.setSurfaceSize(const Size(480, 900));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(_host());
-      await tester.pumpAndSettle();
+  testWidgets('Settings opens the bundled privacy policy and acknowledgements', (
+    WidgetTester tester,
+  ) async {
+    LicenseRegistry.reset();
+    registerBundledFontLicenses();
+    await tester.binding.setSurfaceSize(const Size(480, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(_host());
+    await tester.pumpAndSettle();
 
-      await tester.scrollUntilVisible(find.text('Privacy Policy'), 200);
-      await tester.tap(find.text('Privacy Policy'));
-      await tester.pumpAndSettle();
-      expect(find.byType(PrivacyPolicyScreen), findsOneWidget);
-      expect(find.textContaining('does not collect, store'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Privacy Policy'), 200);
+    await tester.tap(find.text('Privacy Policy'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PrivacyPolicyScreen), findsOneWidget);
+    expect(
+      find.textContaining(
+        'Masquerade does not collect, store, transmit, or share any personal data.',
+      ),
+      findsOneWidget,
+    );
 
-      Navigator.of(tester.element(find.byType(PrivacyPolicyScreen))).pop();
-      await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(find.text('Acknowledgements'), 200);
-      await tester.tap(find.text('Acknowledgements'));
-      await tester.pump();
-      await tester.pump(const Duration(seconds: 1));
-      expect(find.byType(AcknowledgementsScreen), findsOneWidget);
-      expect(find.text('Acknowledgements'), findsOneWidget);
-    },
-  );
+    Navigator.of(tester.element(find.byType(PrivacyPolicyScreen))).pop();
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Acknowledgements'), 200);
+    await tester.tap(find.text('Acknowledgements'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(AcknowledgementsScreen), findsOneWidget);
+    expect(find.text('Acknowledgements'), findsOneWidget);
+  });
 
   testWidgets('Acknowledgements reports a license collector failure', (
     WidgetTester tester,
