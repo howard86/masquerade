@@ -60,6 +60,8 @@ jobs:
         run: |
           app=build/ios/iphoneos/Runner.app
           extension="$app/PlugIns/ShareExtension.appex"
+          # Check only the top-level app and extension; vendored frameworks
+          # inside a no-codesign build may carry their own platform signatures.
           if codesign -dv "$app" 2>/dev/null || codesign -dv "$extension" 2>/dev/null; then
             echo "::error::The validation artifact must be unsigned."
             exit 1
