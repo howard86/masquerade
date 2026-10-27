@@ -258,10 +258,10 @@ packages:
     dependency: "direct main"
     description:
       name: flutter_lucide
-      sha256: "2a0501c47ea7b4c6c72a2a00fb8d6e82cb20e7d422216c6e8e52e45929e87d27"
+      sha256: ad0f2fc5c683a42c85528b25b9938c8833e437d36f965c4bbc8587f32af2622b
       url: "https://pub.dev"
     source: hosted
-    version: "1.52.0"
+    version: "1.61.0"
   flutter_native_splash:
     dependency: "direct main"
     description:

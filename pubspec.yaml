@@ -47,7 +47,7 @@ dependencies:
   qr_flutter: ^4.1.0
   share_plus: ^13.3.1
   cross_file: ^0.3.4+2
-  flutter_lucide: ^1.47.0
+  flutter_lucide: ^1.61.0
   # Renders assets/brand/*.svg in MqMonogram. SVG sources live with the
   # repo so the brand mark is editable + diffable; PNGs in
   # assets/brand/source/ are exports for native icon/splash pipelines.
