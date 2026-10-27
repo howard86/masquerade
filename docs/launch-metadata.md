@@ -229,7 +229,7 @@ Repo state:
 - [ ] **Privacy policy reachable inside the app.** Guideline 5.1.1(i) wants the link in the ASC metadata field *and* "within the app in an easily accessible manner" — unconditional, including for `Data Not Collected` apps. Settings has a Privacy section (posture blurb, retention, clear-history) but nothing that opens the policy. Needs either `url_launcher` + a row linking `privacy_policy_url`, or the policy text rendered as a page (no dep, works offline, but duplicates `docs/privacy.md` unless it reads it from an asset).
 - [ ] **Acknowledgements screen.** Nothing in the app surfaces third-party licenses. Bundling `OFL.txt` satisfies OFL's letter (the text ships in the IPA); a Settings → Acknowledgements page is what makes it discoverable, and is table stakes for a paid app. `LicenseRegistry.addLicense` for the fonts + a Cupertino page over `LicenseRegistry.licenses` — Flutter's `showLicensePage` is Material-only, so it cannot be used here (`uses-material-design: false`).
 
-Privacy manifests: no app-level `PrivacyInfo.xcprivacy` is needed — the Dart app code uses no required-reason APIs directly; the Flutter engine and plugin pods (`shared_preferences` etc.) ship their own manifests, and the app collects nothing (`Data Not Collected`).
+The app and Share Extension each bundle `ios/Shared/PrivacyInfo.xcprivacy`. `ShareInboxStore` reads file modification timestamps while cleaning orphaned shared-container payloads, so the manifest declares `NSPrivacyAccessedAPICategoryFileTimestamp` with reason `C617.1`. The manifest declares no collected data or tracking; verify the final built bundles retain both manifests.
 
 Submission (App Store Connect):
 

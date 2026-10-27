@@ -88,6 +88,14 @@ jobs:
       - name: Install pre-commit
         run: pip install pre-commit
 
+      - name: Set up Ruby for the Fastlane path regression test
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Verify Fastlane version lookup from another working directory
+        run: ruby ios/fastlane/test_fastfile_version_path.rb
+
       - name: Run pre-commit hooks
         run: pre-commit run --all-files
         env:

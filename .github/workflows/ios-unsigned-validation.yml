@@ -1,0 +1,79 @@
+name: iOS unsigned release validation
+
+on:
+  push:
+    branches:
+      - fix/release-fastlane-path
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-unsigned-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-unsigned:
+    name: Build and validate unsigned iOS app
+    runs-on: macos-26-arm64
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Select Xcode 26.6
+        run: |
+          sudo xcode-select --switch /Applications/Xcode_26.6.app/Contents/Developer
+          xcodebuild -version
+          test "$(xcodebuild -version | awk '/^Xcode / { print $2; exit }')" = "26.6"
+          sdk_version="$(xcodebuild -version -sdk iphoneos SDKVersion)"
+          echo "iOS SDK $sdk_version"
+          test "$sdk_version" = "26.5"
+
+      - name: Set up Ruby for the Fastfile regression test
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Verify Fastlane version lookup from another working directory
+        run: ruby ios/fastlane/test_fastfile_version_path.rb
+
+      - name: Set up Flutter 3.41.8
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.8"
+          channel: stable
+          cache: true
+
+      - name: Install locked dependencies
+        run: |
+          test "$(flutter --version --machine | python3 -c 'import json, sys; print(json.load(sys.stdin)["frameworkVersion"])')" = "3.41.8"
+          flutter pub get --enforce-lockfile
+
+      - name: Build release app without signing
+        run: flutter build ios --release --no-codesign --no-pub
+
+      - name: Validate app, extension, manifests, and all Mach-O deployment targets
+        run: |
+          app=build/ios/iphoneos/Runner.app
+          extension="$app/PlugIns/ShareExtension.appex"
+          if codesign -dv "$app" 2>/dev/null || codesign -dv "$extension" 2>/dev/null; then
+            echo "::error::The validation artifact must be unsigned."
+            exit 1
+          fi
+          python3 ios/fastlane/validate_unsigned_app.py build/ios/iphoneos/Runner.app \
+            | tee build/ios/unsigned-validation.json \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload unsigned validation artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-unsigned-validation-1.29.0-${{ github.sha }}
+          path: |
+            build/ios/iphoneos/Runner.app
+            build/ios/unsigned-validation.json
+          if-no-files-found: error
+          retention-days: 3
