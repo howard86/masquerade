@@ -32,11 +32,46 @@ class _LibraryScreenState extends State<LibraryScreen> {
     super.dispose();
   }
 
+  List<HistoryEntry>? _recentsEntries;
+  Duration? _recentsRetention;
+  (List<UtilityDescriptor>, Map<String, HistoryEntry>) _recentsResult = (
+    const <UtilityDescriptor>[],
+    const <String, HistoryEntry>{},
+  );
+
+  /// Latest entry per tool, recomputed only when the controller's entries or
+  /// retention change.
+  (List<UtilityDescriptor>, Map<String, HistoryEntry>) _recentsFor(
+    HistoryController history,
+  ) {
+    final List<HistoryEntry> entries = history.entries;
+    if (identical(_recentsEntries, entries) &&
+        _recentsRetention == history.retention) {
+      return _recentsResult;
+    }
+    final Map<String, HistoryEntry> recentEntries = <String, HistoryEntry>{};
+    if (history.retention != Duration.zero) {
+      for (final HistoryEntry entry in entries) {
+        recentEntries.putIfAbsent(entry.utilityId, () => entry);
+      }
+    }
+    _recentsEntries = entries;
+    _recentsRetention = history.retention;
+    return _recentsResult = (
+      <UtilityDescriptor>[
+        for (final String id in recentEntries.keys)
+          if (UtilityCatalog.byIdOrNull(id) case final UtilityDescriptor tool)
+            tool,
+      ],
+      recentEntries,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
     final LibraryController library = LibraryScope.of(context);
-    final HistoryController history = HistoryScope.of(context);
+    final HistoryController history = HistoryScope.read(context);
     final String query = _search.text.trim();
     final List<UtilityDescriptor> mainTools = query.isEmpty
         ? UtilityCatalog.inCategory(_category)
@@ -44,18 +79,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
     final List<UtilityDescriptor> favorites = UtilityCatalog.all
         .where((UtilityDescriptor u) => library.isFavorite(u.id))
         .toList(growable: false);
-
-    final Map<String, HistoryEntry> recentEntries = <String, HistoryEntry>{};
-    if (history.retention != Duration.zero) {
-      for (final HistoryEntry entry in history.entries) {
-        recentEntries.putIfAbsent(entry.utilityId, () => entry);
-      }
-    }
-    final List<UtilityDescriptor> recents = <UtilityDescriptor>[
-      for (final String id in recentEntries.keys)
-        if (UtilityCatalog.byIdOrNull(id) case final UtilityDescriptor tool)
-          tool,
-    ];
 
     return CupertinoPageScaffold(
       backgroundColor: c.bg,
@@ -95,10 +118,28 @@ class _LibraryScreenState extends State<LibraryScreen> {
               const SectionRule(label: 'Favorites'),
               _grid(context, favorites, library),
             ],
-            if (query.isEmpty && recents.isNotEmpty) ...<Widget>[
-              const SectionRule(label: 'Recently used'),
-              _grid(context, recents, library, entries: recentEntries),
-            ],
+            if (query.isEmpty)
+              // Only this section follows history writes; the rest of the
+              // screen reads the controller without subscribing.
+              ListenableBuilder(
+                listenable: history,
+                builder: (BuildContext context, _) {
+                  final (
+                    List<UtilityDescriptor> recents,
+                    Map<String, HistoryEntry> entries,
+                  ) = _recentsFor(
+                    history,
+                  );
+                  if (recents.isEmpty) return const SizedBox.shrink();
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      const SectionRule(label: 'Recently used'),
+                      _grid(context, recents, library, entries: entries),
+                    ],
+                  );
+                },
+              ),
             SectionRule(
               label: query.isEmpty ? _category.label : 'Search results',
             ),

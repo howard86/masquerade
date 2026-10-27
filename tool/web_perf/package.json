@@ -1,0 +1,9 @@
+{
+  "name": "masquerade-web-perf",
+  "private": true,
+  "type": "module",
+  "description": "Web runtime perf harness (Playwright + CDP) for the Flutter web build",
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

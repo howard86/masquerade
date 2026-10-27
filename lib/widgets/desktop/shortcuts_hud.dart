@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 
 import '../../theme/mq_metrics.dart';
@@ -57,76 +56,63 @@ class _ShortcutsHUD extends StatelessWidget {
         border: Border.all(color: c.borderStrong, width: 0.5),
         boxShadow: c.shadowLg,
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(MqRadius.md),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-          child: Padding(
-            padding: const EdgeInsets.all(MqSpacing.lg),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: Padding(
+        padding: const EdgeInsets.all(MqSpacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Row(
               children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Icon(MqIcons.keyboard, size: 20, color: c.accent),
-                    const SizedBox(width: MqSpacing.sm),
-                    Text(
-                      'Desktop Shortcuts',
-                      style: MqTextStyles.title3.copyWith(color: c.textPri),
-                    ),
-                    const Spacer(),
-                    Semantics(
-                      button: true,
-                      label: 'Close',
-                      onTap: () => Navigator.of(context).pop(),
-                      child: GestureDetector(
-                        onTap: () => Navigator.of(context).pop(),
-                        child: MouseRegion(
-                          cursor: SystemMouseCursors.click,
-                          child: Icon(
-                            MqIcons.clear,
-                            size: 18,
-                            color: c.textTer,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                Icon(MqIcons.keyboard, size: 20, color: c.accent),
+                const SizedBox(width: MqSpacing.sm),
+                Text(
+                  'Desktop Shortcuts',
+                  style: MqTextStyles.title3.copyWith(color: c.textPri),
                 ),
-                const SizedBox(height: MqSpacing.md),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: MqSpacing.xs),
-                  child: SizedBox(
-                    height: 0.5,
-                    child: ColoredBox(color: c.border),
+                const Spacer(),
+                Semantics(
+                  button: true,
+                  label: 'Close',
+                  onTap: () => Navigator.of(context).pop(),
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: Icon(MqIcons.clear, size: 18, color: c.textTer),
+                    ),
                   ),
                 ),
-                const SizedBox(height: MqSpacing.sm),
-                const _ShortcutRow(
-                  keys: <String>['⌘', 'K'],
-                  label: 'Open Spotlight Search',
-                ),
-                const _ShortcutRow(
-                  keys: <String>['⌥', '1..9'],
-                  label: 'Focus Window Slot 1-9',
-                ),
-                const _ShortcutRow(
-                  keys: <String>['⌥', 'D'],
-                  label: 'Duplicate Window',
-                ),
-                const _ShortcutRow(
-                  keys: <String>['Esc'],
-                  label: 'Close Active Window',
-                ),
-                const _ShortcutRow(
-                  keys: <String>['⌥', '/'],
-                  label: 'Toggle Shortcuts HUD',
-                ),
-                const SizedBox(height: MqSpacing.sm),
               ],
             ),
-          ),
+            const SizedBox(height: MqSpacing.md),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: MqSpacing.xs),
+              child: SizedBox(height: 0.5, child: ColoredBox(color: c.border)),
+            ),
+            const SizedBox(height: MqSpacing.sm),
+            const _ShortcutRow(
+              keys: <String>['⌘', 'K'],
+              label: 'Open Spotlight Search',
+            ),
+            const _ShortcutRow(
+              keys: <String>['⌥', '1..9'],
+              label: 'Focus Window Slot 1-9',
+            ),
+            const _ShortcutRow(
+              keys: <String>['⌥', 'D'],
+              label: 'Duplicate Window',
+            ),
+            const _ShortcutRow(
+              keys: <String>['Esc'],
+              label: 'Close Active Window',
+            ),
+            const _ShortcutRow(
+              keys: <String>['⌥', '/'],
+              label: 'Toggle Shortcuts HUD',
+            ),
+            const SizedBox(height: MqSpacing.sm),
+          ],
         ),
       ),
     );

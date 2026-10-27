@@ -67,22 +67,39 @@ class HistoryBody extends StatefulWidget {
 
 class _HistoryBodyState extends State<HistoryBody> {
   String _query = '';
+  // Memo of the last search: a rebuild that changes neither the query, the
+  // entries (the controller hands back the same list until it mutates), nor
+  // the calendar day reuses the result.
+  List<HistoryEntry>? _filteredFor;
+  String? _filteredQuery;
+  int? _filteredDay;
+  List<HistoryEntry> _filtered = const <HistoryEntry>[];
+
+  List<HistoryEntry> _search(HistoryController history) {
+    final List<HistoryEntry> entries = history.entries;
+    final int day = DateTime.now().day;
+    if (!identical(_filteredFor, entries) ||
+        _filteredQuery != _query ||
+        _filteredDay != day) {
+      _filtered = history.search(
+        _query,
+        toolName: (HistoryEntry entry) => _toolName(entry.utilityId),
+        dateLabel: (HistoryEntry entry) =>
+            '${_dayLabel(entry.timestamp)} ${_absoluteDateLabel(entry.timestamp)}',
+      );
+      _filteredFor = entries;
+      _filteredQuery = _query;
+      _filteredDay = day;
+    }
+    return _filtered;
+  }
 
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
     final HistoryController history = HistoryScope.of(context);
     final bool activity = widget.title == 'Activity';
-    final List<HistoryEntry> filtered = history.search(
-      _query,
-      toolName: (HistoryEntry entry) => _toolName(entry.utilityId),
-      dateLabel: (HistoryEntry entry) => <String>[
-        _dayLabel(entry.timestamp),
-        _ymdFormat.format(entry.timestamp),
-        _longDayFormat.format(entry.timestamp),
-        _timeFormat.format(entry.timestamp),
-      ].join(' '),
-    );
+    final List<HistoryEntry> filtered = _search(history);
     final List<HistoryEntry> pinned = filtered
         .where((HistoryEntry entry) => entry.pinned)
         .toList();
@@ -313,6 +330,18 @@ final DateFormat _longDayFormat = DateFormat('EEEE MMMM d');
 final DateFormat _timeFormat = DateFormat('HH:mm');
 final DateFormat _shortDayFormat = DateFormat('EEE MMM d');
 
+// The date-only labels never change for a timestamp, so format them once; only
+// the Today/Yesterday relation depends on the current day.
+final Expando<String> _shortDayCache = Expando<String>('history.shortDay');
+final Expando<String> _absoluteDateCache = Expando<String>('history.absDate');
+
+String _absoluteDateLabel(DateTime timestamp) =>
+    _absoluteDateCache[timestamp] ??= <String>[
+      _ymdFormat.format(timestamp),
+      _longDayFormat.format(timestamp),
+      _timeFormat.format(timestamp),
+    ].join(' ');
+
 String _dayLabel(DateTime timestamp) {
   final DateTime now = DateTime.now();
   final DateTime today = DateTime(now.year, now.month, now.day);
@@ -324,7 +353,7 @@ String _dayLabel(DateTime timestamp) {
   );
   if (date == today) return 'Today';
   if (date == yesterday) return 'Yesterday';
-  return _shortDayFormat.format(timestamp);
+  return _shortDayCache[timestamp] ??= _shortDayFormat.format(timestamp);
 }
 
 String _toolName(String utilityId) {

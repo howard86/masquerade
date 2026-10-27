@@ -29,6 +29,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const int _n = 15;
 
+/// The web default: add/pin writes coalesce behind a 500 ms debounce.
+const Duration _webDelay = Duration(milliseconds: 500);
+
 /// Ordinary, non-sensitive text of roughly [bytes] characters.
 String _text(int seed, int bytes) {
   final StringBuffer b = StringBuffer();
@@ -116,6 +119,7 @@ void main() {
     final HistoryController c = HistoryController(
       prefs: prefs,
       retention: const Duration(days: 36500),
+      persistDelay: _webDelay,
     );
     for (final HistoryEntry e in _entries(200).reversed) {
       await c.add(e);
@@ -133,11 +137,53 @@ void main() {
     );
   });
 
+  for (final int outKb in <int>[1, 64]) {
+    test(
+      'history 200 entries, ${outKb}K outputs: add persist + search',
+      () async {
+        final SharedPreferences prefs = await SharedPreferences.getInstance();
+        final HistoryController c = HistoryController(
+          prefs: prefs,
+          retention: const Duration(days: 36500),
+        );
+        final DateTime now = DateTime.now();
+        HistoryEntry make(int i) => HistoryEntry(
+          utilityId: 'json',
+          input: _text(i, 1000),
+          output: _text(i + 1, outKb * 1024),
+          timestamp: now.subtract(Duration(minutes: i)),
+        );
+        for (int i = 199; i >= 0; i--) {
+          await c.add(make(i));
+        }
+        await c.flushForBench();
+        int k = 1000;
+        final double add = await _minUsAsync(() async {
+          await c.add(make(k++));
+          await c.flushForBench();
+        });
+        _report('history.add+persist 200 x ${outKb}K output', add);
+        print(
+          'BENCH history.persisted chars ${outKb}K: ${prefs.getString('mb.history.entries')!.length}',
+        );
+        int q = 0;
+        final double search = _minUs(() {
+          // Typing: a new query each time, matching a late entry.
+          c.search('lorem ipsum ${q++ % 5} dolor 7');
+        });
+        _report('history.search query, 200 x ${outKb}K output', search);
+        final double miss = _minUs(() => c.search('zzq${q++}'));
+        _report('history.search no-match, 200 x ${outKb}K output', miss);
+      },
+    );
+  }
+
   test('history add + persist, burst of 10 adds', () async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final HistoryController c = HistoryController(
       prefs: prefs,
       retention: const Duration(days: 36500),
+      persistDelay: _webDelay,
     );
     for (final HistoryEntry e in _entries(200).reversed) {
       await c.add(e);
@@ -159,6 +205,7 @@ void main() {
     final HistoryController c = HistoryController(
       prefs: prefs,
       retention: const Duration(days: 36500),
+      persistDelay: _webDelay,
     );
     final List<HistoryEntry> normal = _entries(150);
     for (int i = 0; i < 200; i++) {
@@ -334,6 +381,7 @@ void main() {
     final HistoryController history = HistoryController(
       prefs: prefs,
       retention: const Duration(days: 36500),
+      persistDelay: _webDelay,
     );
     for (final HistoryEntry e in _entries(200).reversed) {
       await history.add(e);
@@ -500,10 +548,9 @@ void main() {
   });
 }
 
-// HistoryController persists synchronously per write (no flush API);
-// ToolDraftController debounces and exposes flush().
+// Both controllers debounce their writes and expose flush().
 extension on HistoryController {
-  Future<void> flushForBench() async {}
+  Future<void> flushForBench() => flush();
 }
 
 extension on ToolDraftController {

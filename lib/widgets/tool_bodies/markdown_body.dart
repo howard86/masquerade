@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 
 import '../../models/artifact.dart';
+import '../../state/history_controller.dart';
 import '../../theme/mq_metrics.dart';
 import '../../utils/markdown_parser.dart';
 import '../../utils/sensitive_data_policy.dart';
@@ -54,14 +55,22 @@ class _MarkdownBodyState extends State<MarkdownBody>
     });
     if (result is MarkdownOk &&
         widget.initialArtifact?.isSensitive != true &&
-        !SensitiveDataPolicy.protects(
-          utilityId: 'markdown',
-          values: <String>[input],
-        ) &&
-        !SensitiveDataPolicy.containsSecretLikeValue(input)) {
+        (_tooLongForHistory(input) ||
+            (!SensitiveDataPolicy.protects(
+                  utilityId: 'markdown',
+                  values: <String>[input],
+                ) &&
+                !SensitiveDataPolicy.containsSecretLikeValue(input)))) {
+      // History drops oversized entries before storing anything, so skip the
+      // whole-input sensitivity scans for them; still record so the recorder
+      // keeps its paste/typing bookkeeping.
       recordOutput(input, input);
     }
   }
+
+  static bool _tooLongForHistory(String input) =>
+      input.length > HistoryController.maxInputLength ||
+      input.length > HistoryController.maxOutputLength;
 
   @override
   void reset() => setState(() {

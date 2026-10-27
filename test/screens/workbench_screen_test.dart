@@ -1472,6 +1472,8 @@ void main() {
     expect(workflow.steps.first.settings['target'], 'tree');
     expect(restored.rerun(workflow, '{"at":1800000000}'), 0);
     expect(restored.session!.steps.single.settings['target'], 'tree');
+    // rerun's recents write is debounced; flush so no timer outlives the test.
+    await restored.flush();
   });
 
   testWidgets('stale tool route cannot write settings into a new session', (

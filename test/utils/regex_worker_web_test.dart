@@ -74,4 +74,61 @@ void main() {
     );
     expect((result as RegexOk).matches.single.groups, <String?>['12', '34']);
   });
+
+  test('offset results: numbered, unmatched and named groups', () async {
+    final RegexWorkerSession session = RegexWorkerSession();
+    addTearDown(session.dispose);
+    final RegexOk result =
+        await run(session, r'(?<k>\w+)=(\d+)?(x)?', 'a=1 b= c=3x') as RegexOk;
+    expect(result.matches.map((RegexMatchInfo m) => m.text), <String>[
+      'a=1',
+      'b=',
+      'c=3x',
+    ]);
+    expect(result.matches[1].start, 4);
+    expect(result.matches[1].end, 6);
+    expect(result.matches[0].groups, <String?>['a', '1', null]);
+    expect(result.matches[1].groups, <String?>['b', null, null]);
+    expect(result.matches[2].groups, <String?>['c', '3', 'x']);
+    expect(result.matches[2].named, <String, String?>{'k': 'c'});
+    expect(result.truncated, isFalse);
+  });
+
+  test('offset results: zero-length, astral and no-match runs', () async {
+    final RegexWorkerSession session = RegexWorkerSession();
+    addTearDown(session.dispose);
+    final RegexOk empty = await run(session, 'z', 'abc') as RegexOk;
+    expect(empty.matches, isEmpty);
+    final RegexOk zero = await run(session, r'\b', 'ab cd') as RegexOk;
+    expect(zero.matches.map((RegexMatchInfo m) => m.start), <int>[0, 2, 3, 5]);
+    expect(zero.matches.first.text, '');
+    expect(zero.matches.first.groups, isEmpty);
+    final RegexOk astral = await run(session, '.', 'a😀') as RegexOk;
+    expect(astral.matches.map((RegexMatchInfo m) => m.text), <String>[
+      'a',
+      '😀',
+    ]);
+    expect(astral.matches.last.end, 3);
+  });
+
+  test('offset results honour the match cap', () async {
+    final RegexWorkerSession session = RegexWorkerSession();
+    addTearDown(session.dispose);
+    final RegexOk result =
+        await run(session, '.', 'a' * (RegexTester.maxMatches + 5)) as RegexOk;
+    expect(result.matches, hasLength(RegexTester.maxMatches));
+    expect(result.truncated, isTrue);
+    expect(result.matches.last.start, RegexTester.maxMatches - 1);
+  });
+
+  test(
+    'RegexTester.runAsync selects the Web Worker (dart2js and wasm)',
+    () async {
+      final RegexResult result = await RegexTester.runAsync(
+        pattern: r'(\d)',
+        input: 'a1',
+      );
+      expect((result as RegexOk).matches.single.groups, <String?>['1']);
+    },
+  );
 }

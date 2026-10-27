@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 
 import '../../state/link_group.dart';
@@ -15,6 +17,12 @@ import '../../state/link_group.dart';
 ///    value in flight.
 ///
 /// So a propagation re-projects each peer at most once, then terminates.
+///
+/// Inbound values are applied on a later task, not inside the emitting body's
+/// [LinkChannel.emit]: each peer schedules its own zero-delay timer, so a heavy
+/// re-parse (a 200 KB JSON, say) runs in the peer's own task instead of
+/// stacking every peer's parse onto the source's frame. Values that arrive
+/// before the timer fires coalesce — the peer applies only the latest.
 ///
 /// The mixin self-wires through the [State] lifecycle (`initState`,
 /// `didUpdateWidget`, `dispose`) via the super-chain — compose it alongside
@@ -36,6 +44,7 @@ mixin LinkableToolBody<T extends StatefulWidget> on State<T> {
   void applyInbound(String canonical);
 
   LinkChannel? _subscribed;
+  Timer? _inboundTimer;
 
   @override
   void initState() {
@@ -58,6 +67,8 @@ mixin LinkableToolBody<T extends StatefulWidget> on State<T> {
 
   @override
   void dispose() {
+    _inboundTimer?.cancel();
+    _inboundTimer = null;
     _subscribed?.inbound.removeListener(_onInbound);
     _subscribed = null;
     super.dispose();
@@ -90,11 +101,23 @@ mixin LinkableToolBody<T extends StatefulWidget> on State<T> {
     if (currentCanonical().isNotEmpty) {
       link.emit(currentCanonical());
     } else {
-      _onInbound();
+      _applyInbound();
     }
   }
 
+  /// Inbound listener: defers the re-projection to a later task (see the
+  /// class doc). A value this body already shows needs no apply at all.
   void _onInbound() {
+    if (_inboundTimer != null) return; // already scheduled; latest value wins
+    final LinkChannel? link = linkChannel;
+    if (link == null || link.inbound.value == currentCanonical()) return;
+    _inboundTimer = Timer(Duration.zero, () {
+      _inboundTimer = null;
+      if (mounted) _applyInbound();
+    });
+  }
+
+  void _applyInbound() {
     final LinkChannel? link = linkChannel;
     if (link == null) return;
     final String incoming = link.inbound.value;

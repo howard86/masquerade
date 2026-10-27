@@ -358,4 +358,88 @@ void main() {
     );
     expect(WorkSessionController.canExport(directCredential), isFalse);
   });
+
+  test(
+    'edit-driven recents writes are debounced and flush writes once',
+    () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final WorkSessionController controller = WorkSessionController(
+        prefs: prefs,
+      );
+      final int first = controller.start(
+        UtilityCatalog.byId('bps'),
+        artifact(ArtifactKind.bps, '25 bps'),
+      );
+      controller.addNext(
+        first,
+        UtilityCatalog.byId('number_base'),
+        '1700000000',
+      );
+      controller.addNext(1, UtilityCatalog.byId('timestamp'), '1700000000');
+
+      expect(controller.debugPersistWrites, 0);
+      expect(prefs.getString(WorkSessionController.storageKey), isNull);
+
+      await controller.flush();
+      expect(controller.debugPersistWrites, 1);
+      final Object? stored = jsonDecode(
+        prefs.getString(WorkSessionController.storageKey)!,
+      );
+      expect(
+        ((stored! as Map<String, Object?>)['recentSessions']! as List<Object?>),
+        hasLength(1),
+      );
+
+      // Nothing pending: a second flush does not rewrite.
+      await controller.flush();
+      expect(controller.debugPersistWrites, 1);
+    },
+  );
+
+  test('debounced recents write fires after the delay', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final WorkSessionController controller = WorkSessionController(
+      prefs: prefs,
+    );
+    controller.start(
+      UtilityCatalog.byId('bps'),
+      artifact(ArtifactKind.bps, '25 bps'),
+    );
+    controller.addNext(0, UtilityCatalog.byId('number_base'), '1700000000');
+    await Future<void>.delayed(
+      WorkSessionController.persistDebounce + const Duration(milliseconds: 100),
+    );
+    await controller.flush();
+    expect(controller.debugPersistWrites, 1);
+    expect(prefs.getString(WorkSessionController.storageKey), isNotNull);
+  });
+
+  test('updateSettings treats equal settings as a no-op', () {
+    final WorkSessionController controller = WorkSessionController();
+    controller.start(
+      UtilityCatalog.byId('json'),
+      artifact(ArtifactKind.json, '{}'),
+    );
+    final WorkSession lease = controller.session!;
+    expect(
+      controller.updateSettings(0, lease, <String, Object?>{'target': 'tree'}),
+      isTrue,
+    );
+    final WorkSession after = controller.session!;
+    expect(after, isNot(same(lease)));
+    expect(
+      controller.updateSettings(0, after, <String, Object?>{'target': 'tree'}),
+      isTrue,
+    );
+    expect(controller.session, same(after));
+    expect(
+      controller.updateSettings(0, after, <String, Object?>{
+        'target': 'pretty',
+      }),
+      isTrue,
+    );
+    expect(controller.session, isNot(same(after)));
+  });
 }

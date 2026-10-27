@@ -34,7 +34,7 @@ class MqIcons {
   static const IconData bytes = LucideIcons.layers;
   static const IconData trash = LucideIcons.trash;
   static const IconData plus = LucideIcons.plus;
-  static const IconData history = LucideIcons.history;
+  static const IconData history = LucideIcons.rotate_ccw_clock;
   static const IconData keyboard = LucideIcons.keyboard;
   static const IconData setting = LucideIcons.settings;
   static const IconData chevL = LucideIcons.chevron_left;

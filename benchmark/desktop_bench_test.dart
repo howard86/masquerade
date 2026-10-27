@@ -260,6 +260,50 @@ void main() {
     );
   });
 
+  testWidgets('link emit: 3 linked JSON cards, 200 KB value', (
+    WidgetTester tester,
+  ) async {
+    final CanvasController c = await _pumpDesktop(tester);
+    final List<int> ids = <int>[
+      c.openTool(UtilityCatalog.byId('json')),
+      c.openTool(UtilityCatalog.byId('json')),
+      c.openTool(UtilityCatalog.byId('json')),
+    ];
+    c.linkCards(ids[0], ids[1], type: ContentType.text);
+    c.linkCards(ids[1], ids[2], type: ContentType.text);
+    await tester.pumpAndSettle(const Duration(milliseconds: 300));
+    final LinkChannel ch = c.channelForCard(ids[0])!;
+    // ~200 KB JSON array; the per-iteration suffix makes every emit distinct.
+    final String body = List<String>.generate(
+      3300,
+      (int i) => '{"id":$i,"name":"item-$i","tags":["a","b","c"],"v":$i.5}',
+    ).join(',');
+    final List<int> emitFrameUs = <int>[];
+    final List<int> followUpUs = <int>[];
+    for (int i = 0; i < 9; i++) {
+      final String value = '[$body,{"iter":$i}]';
+      // The emit plus the frame it lands in: what the source pays.
+      final Stopwatch sw = Stopwatch()..start();
+      ch.emit(value);
+      await tester.pump();
+      emitFrameUs.add(sw.elapsedMicroseconds);
+      // Anything deferred to a later task/frame (peers' coalesced applies).
+      sw
+        ..reset()
+        ..start();
+      await tester.pump(Duration.zero);
+      await tester.pump();
+      followUpUs.add(sw.elapsedMicroseconds);
+      await tester.pumpAndSettle(const Duration(milliseconds: 300));
+    }
+    // ignore: avoid_print
+    print(
+      '[link-emit] value ${(body.length / 1024).toStringAsFixed(0)} KB, '
+      'emit+frame ${_stats(emitFrameUs)}; '
+      'deferred follow-up ${_stats(followUpUs)}',
+    );
+  });
+
   group('controller', () {
     test('link emit + focus persistence', () async {
       final SharedPreferences prefs = await SharedPreferences.getInstance();

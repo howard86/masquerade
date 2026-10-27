@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:masquerade/utils/hash_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '_helpers.dart';
@@ -146,5 +149,38 @@ void main() {
     await tester.enterText(find.byType(EditableText).first, '');
     await tester.pumpAndSettle(kDebouncePump);
     expect(find.text('Copy all'), findsNothing);
+  });
+
+  testWidgets('hash — a slower async digest never overwrites a newer input', (
+    WidgetTester tester,
+  ) async {
+    // Web computes SHA digests asynchronously (crypto.subtle); simulate that
+    // with digests that resolve only when the test completes them.
+    final List<(Completer<ShaDigests>, List<int>)> pending =
+        <(Completer<ShaDigests>, List<int>)>[];
+    HashTool.debugShaDigestsOverride = (List<int> bytes) {
+      final Completer<ShaDigests> completer = Completer<ShaDigests>();
+      pending.add((completer, bytes));
+      return completer.future;
+    };
+    addTearDown(() => HashTool.debugShaDigestsOverride = null);
+    await pumpHomeAndOpen(tester, 'Hash');
+
+    await tester.enterText(find.byType(EditableText).first, 'abc');
+    await tester.pump(kDebouncePump);
+    await tester.enterText(find.byType(EditableText).first, 'xyz');
+    await tester.pump(kDebouncePump);
+    expect(pending, hasLength(2));
+
+    // The newer input resolves first, then the stale one lands late.
+    pending[1].$1.complete(HashTool.shaDigestsSync(pending[1].$2));
+    await tester.pump();
+    pending[0].$1.complete(HashTool.shaDigestsSync(pending[0].$2));
+    await tester.pumpAndSettle();
+
+    const String xyz = '3608bca1e44ea6c4d268eb6db0226026';
+    const String abc = 'ba7816bf8f01cfea414140de5dae2223';
+    expect(find.textContaining(xyz), findsOneWidget);
+    expect(find.textContaining(abc), findsNothing);
   });
 }

@@ -28,35 +28,8 @@ import 'utils/x509_inspector.dart';
 import 'utils/yaml_parser.dart';
 import 'widgets/mq/mq_icons.dart';
 import 'widgets/mq/tool_action_bar.dart';
-import 'widgets/tool_bodies/artifact_inspector_body.dart';
-import 'widgets/tool_bodies/base64_body.dart';
-import 'widgets/tool_bodies/bps_body.dart';
-import 'widgets/tool_bodies/bytes_body.dart';
-import 'widgets/tool_bodies/case_body.dart';
-import 'widgets/tool_bodies/color_body.dart';
-import 'widgets/tool_bodies/cron_body.dart';
-import 'widgets/tool_bodies/csv_body.dart';
-import 'widgets/tool_bodies/diff_body.dart';
-import 'widgets/tool_bodies/environment_config_inspector_body.dart';
-import 'widgets/tool_bodies/generator_body.dart';
-import 'widgets/tool_bodies/hash_body.dart';
-import 'widgets/tool_bodies/http_inspector_body.dart';
-import 'widgets/tool_bodies/ip_body.dart';
-import 'widgets/tool_bodies/json_body.dart';
-import 'widgets/tool_bodies/jwt_body.dart';
-import 'widgets/tool_bodies/list_body.dart';
-import 'widgets/tool_bodies/log_stack_inspector_body.dart';
-import 'widgets/tool_bodies/math_body.dart';
-import 'widgets/tool_bodies/markdown_body.dart';
-import 'widgets/tool_bodies/number_base_body.dart';
-import 'widgets/tool_bodies/qr_code_body.dart';
-import 'widgets/tool_bodies/regex_body.dart';
+import 'widgets/tool_bodies/deferred_tool_body.dart';
 import 'widgets/tool_bodies/seed_source.dart';
-import 'widgets/tool_bodies/timestamp_body.dart';
-import 'widgets/tool_bodies/unicode_string_inspector_body.dart';
-import 'widgets/tool_bodies/url_body.dart';
-import 'widgets/tool_bodies/uuid_body.dart';
-import 'widgets/tool_bodies/x509_inspector_body.dart';
 
 /// Routes a cross-tool "Open in X" tap from any tool body's footer back to
 /// the host screen, which expands the target tool's inline card seeded with
@@ -229,22 +202,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.disabled,
       defaultCardWidth: CardWidthClass.wide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => EnvironmentConfigInspectorBody(
-            initialInput: initialInput,
-            initialArtifact: initialArtifact,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.environmentConfigInspector),
       detectArtifact: _detectEnvironmentConfig,
     ),
     UtilityDescriptor(
@@ -279,22 +237,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.disabled,
       defaultCardWidth: CardWidthClass.wide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => LogStackInspectorBody(
-            initialInput: initialInput,
-            initialArtifact: initialArtifact,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.logStackInspector),
     ),
     UtilityDescriptor(
       id: 'unicode_string_inspector',
@@ -331,22 +274,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.disabled,
       defaultCardWidth: CardWidthClass.wide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => UnicodeStringInspectorBody(
-            initialInput: initialInput,
-            initialArtifact: initialArtifact,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.unicodeStringInspector),
     ),
     UtilityDescriptor(
       id: 'x509_inspector',
@@ -379,22 +307,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.disabled,
       defaultCardWidth: CardWidthClass.wide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => X509InspectorBody(
-            initialInput: initialInput,
-            initialArtifact: initialArtifact,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.x509Inspector),
       detectArtifact: _detectX509,
     ),
     UtilityDescriptor(
@@ -424,22 +337,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.disabled,
       defaultCardWidth: CardWidthClass.wide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => HttpInspectorBody(
-            initialInput: initialInput,
-            initialArtifact: initialArtifact,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.httpInspector),
     ),
     UtilityDescriptor(
       id: 'artifact_inspector',
@@ -464,23 +362,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.disabled,
       defaultCardWidth: CardWidthClass.wide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => ArtifactInspectorBody(
-            initialInput: initialInput,
-            initialArtifact: initialArtifact,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-            link: link,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.artifactInspector),
     ),
     UtilityDescriptor(
       id: 'uuid',
@@ -509,22 +391,7 @@ class UtilityCatalog {
       },
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => UuidBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-            link: link,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.uuid),
       detectArtifact: _detectUuid,
     ),
     UtilityDescriptor(
@@ -553,22 +420,7 @@ class UtilityCatalog {
       },
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => IpBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-            link: link,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.ip),
       detectArtifact: _detectIp,
     ),
     UtilityDescriptor(
@@ -595,22 +447,7 @@ class UtilityCatalog {
       },
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => NumberBaseBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-            link: link,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.numberBase),
       detectArtifact: _detectNumberBase,
     ),
     UtilityDescriptor(
@@ -644,23 +481,7 @@ class UtilityCatalog {
       },
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => TimestampBody(
-            initialInput: initialInput,
-            initialArtifact: initialArtifact,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-            link: link,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.timestamp),
       detectArtifact: _detectTimestamp,
     ),
     UtilityDescriptor(
@@ -687,21 +508,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
       defaultCardWidth: CardWidthClass.wide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => CronBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.cron),
       detectArtifact: _detectCron,
     ),
     UtilityDescriptor(
@@ -743,23 +550,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
       defaultCardWidth: CardWidthClass.xwide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => JSONBody(
-            initialInput: initialInput,
-            initialArtifact: initialArtifact,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-            link: link,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.json),
       detectArtifact: _detectStructured,
     ),
     UtilityDescriptor(
@@ -789,22 +580,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
       defaultCardWidth: CardWidthClass.xwide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => CsvBody(
-            initialInput: initialInput,
-            initialArtifact: initialArtifact,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.csv),
       detectArtifact: _detectCsv,
     ),
     UtilityDescriptor(
@@ -832,22 +608,7 @@ class UtilityCatalog {
       },
       batchCapable: false,
       historyPolicy: HistoryPolicy.disabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => JwtBody(
-            initialInput: initialInput,
-            initialArtifact: initialArtifact,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.jwt),
       detectArtifact: _detectJwt,
     ),
     UtilityDescriptor(
@@ -874,22 +635,7 @@ class UtilityCatalog {
       },
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => Base64Body(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-            link: link,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.base64),
       detectArtifact: _detectBase64,
     ),
     UtilityDescriptor(
@@ -923,21 +669,7 @@ class UtilityCatalog {
       },
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => CaseBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.textCase),
       detectArtifact: _detectCase,
     ),
     UtilityDescriptor(
@@ -975,22 +707,7 @@ class UtilityCatalog {
       },
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => UrlBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-            link: link,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.url),
       detectArtifact: _detectUrl,
     ),
     UtilityDescriptor(
@@ -1022,22 +739,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
       defaultCardWidth: CardWidthClass.wide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => ColorBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-            link: link,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.color),
       detectArtifact: _detectColor,
     ),
     UtilityDescriptor(
@@ -1074,22 +776,7 @@ class UtilityCatalog {
       },
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => MathBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-            link: link,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.math),
       detectArtifact: _detectMath,
     ),
     UtilityDescriptor(
@@ -1115,21 +802,7 @@ class UtilityCatalog {
       },
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => BpsBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.bps),
       detectArtifact: _detectBps,
     ),
     UtilityDescriptor(
@@ -1159,21 +832,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
       defaultCardWidth: CardWidthClass.wide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => BytesBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.bytes),
       detectArtifact: _detectBytes,
     ),
     UtilityDescriptor(
@@ -1208,22 +867,7 @@ class UtilityCatalog {
       },
       batchCapable: true,
       historyPolicy: HistoryPolicy.enabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => ListToolBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-            link: link,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.list),
       detectArtifact: _detectList,
     ),
     UtilityDescriptor(
@@ -1252,20 +896,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
       defaultCardWidth: CardWidthClass.wide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => RegexBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.regex),
       detectArtifact: _detectRegex,
     ),
     UtilityDescriptor(
@@ -1292,21 +923,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
       defaultCardWidth: CardWidthClass.xwide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => DiffBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            actionBar: actionBar,
-            link: link,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.diff),
     ),
     UtilityDescriptor(
       id: 'hash',
@@ -1341,21 +958,7 @@ class UtilityCatalog {
       },
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => HashBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.hash),
       detectArtifact: _detectHashAndPem,
     ),
     UtilityDescriptor(
@@ -1387,21 +990,7 @@ class UtilityCatalog {
       },
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => QrCodeBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.qrCode),
     ),
     UtilityDescriptor(
       id: 'generator',
@@ -1431,22 +1020,7 @@ class UtilityCatalog {
       },
       batchCapable: false,
       historyPolicy: HistoryPolicy.disabled,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => GeneratorBody(
-            initialInput: initialInput,
-            seedSource: seedSource,
-            onSwitchTool: onSwitchTool,
-            actionBar: actionBar,
-            link: link,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.generator),
     ),
     UtilityDescriptor(
       id: 'markdown',
@@ -1475,21 +1049,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
       defaultCardWidth: CardWidthClass.wide,
-      builder:
-          (
-            BuildContext _, {
-            String? initialInput,
-            Artifact<Object?>? initialArtifact,
-            SeedSource seedSource = SeedSource.none,
-            OpenInToolCallback? onSwitchTool,
-            ToolActionBarController? actionBar,
-            LinkChannel? link,
-          }) => MarkdownBody(
-            initialInput: initialInput,
-            initialArtifact: initialArtifact,
-            seedSource: seedSource,
-            actionBar: actionBar,
-          ),
+      builder: deferredToolBuilder(ToolBodyKind.markdown),
       detectArtifact: _detectMarkdown,
     ),
   ];
@@ -1531,9 +1091,10 @@ class UtilityCatalog {
   static List<UtilityDescriptor> searchStable(String query) {
     final String q = query.trim().toLowerCase();
     if (q.isEmpty) return List<UtilityDescriptor>.unmodifiable(all);
-    return List<UtilityDescriptor>.unmodifiable(
-      all.where((UtilityDescriptor u) => _scoreTool(u, q) > 0),
-    );
+    return List<UtilityDescriptor>.unmodifiable(<UtilityDescriptor>[
+      for (int i = 0; i < all.length; i++)
+        if (_scoreTool(i, q) > 0) all[i],
+    ]);
   }
 
   /// Ranks the catalog by name/synonym match for the command palette's
@@ -1546,9 +1107,9 @@ class UtilityCatalog {
     if (q.isEmpty) return List<UtilityDescriptor>.unmodifiable(all);
     final List<({UtilityDescriptor u, int score})> ranked =
         <({UtilityDescriptor u, int score})>[];
-    for (final UtilityDescriptor u in all) {
-      final int s = _scoreTool(u, q);
-      if (s > 0) ranked.add((u: u, score: s));
+    for (int i = 0; i < all.length; i++) {
+      final int s = _scoreTool(i, q);
+      if (s > 0) ranked.add((u: all[i], score: s));
     }
     ranked.sort(
       (
@@ -1684,19 +1245,34 @@ class UtilityCatalog {
 
   static int _catalogIndex(String id) => _indexById[id] ?? -1;
 
-  static int _scoreTool(UtilityDescriptor u, String q) {
-    final String name = u.name.toLowerCase();
+  // Lowercased name and synonyms per tool, in [all] order, built once
+  // instead of per keystroke per tool.
+  static final List<({String name, List<String> synonyms})> _lowerNames =
+      <({String name, List<String> synonyms})>[
+        for (final UtilityDescriptor u in all)
+          (
+            name: u.name.toLowerCase(),
+            synonyms: <String>[
+              for (final String syn in u.synonyms) syn.toLowerCase(),
+            ],
+          ),
+      ];
+
+  /// Scores `all[index]` against the lowercased query [q].
+  static int _scoreTool(int index, String q) {
+    final ({String name, List<String> synonyms}) lower = _lowerNames[index];
+    final String name = lower.name;
     if (name == q) return 100;
-    for (final String syn in u.synonyms) {
-      if (syn.toLowerCase() == q) return 90;
+    for (final String syn in lower.synonyms) {
+      if (syn == q) return 90;
     }
     if (name.startsWith(q)) return 70;
-    for (final String syn in u.synonyms) {
-      if (syn.toLowerCase().startsWith(q)) return 60;
+    for (final String syn in lower.synonyms) {
+      if (syn.startsWith(q)) return 60;
     }
     if (name.contains(q)) return 40;
-    for (final String syn in u.synonyms) {
-      if (syn.toLowerCase().contains(q)) return 30;
+    for (final String syn in lower.synonyms) {
+      if (syn.contains(q)) return 30;
     }
     return 0;
   }
@@ -1891,6 +1467,47 @@ List<DetectionMatch<Object?>> _detectIp(
   ];
 }
 
+/// Largest input [_detectStructured] fully parses as YAML or TOML. Above it
+/// (a YAML parse costs ~0.13 ms/KB on the VM, several times that on the web
+/// main thread) the match rests on line shape alone, at a lower confidence
+/// and without a parserResult; the JSON body parses for itself.
+const int _structuredDetectionParseLimit = 128 * 1024;
+
+// Column-0 lines a block YAML document can have: a comment, a document
+// marker, a sequence item, or a `key:` mapping entry.
+final RegExp _yamlTopLevelLine = RegExp(
+  r'''#|---|\.\.\.|-(?:[ \t]|\r?$)|(?:"[^"\n]*"|'[^'\n]*'|[^\s#\-\[\]{},&*!|>'"%@`:][^:\n]*):(?:[ \t]|\r?$)''',
+  multiLine: true,
+);
+
+// Column-0 lines a TOML document can have: a comment, a table header, a
+// `key = value` entry, or the closing bracket of a multi-line array.
+final RegExp _tomlTopLevelLine = RegExp(
+  r'''#|\]|\[\[?(?:[A-Za-z0-9_\-. \t]|"[^"\n]*"|'[^'\n]*')+\]\]?[ \t]*(?:#|\r?$)|(?:[A-Za-z0-9_\-. \t]|"[^"\n]*"|'[^'\n]*')+=''',
+  multiLine: true,
+);
+
+/// Whether every non-blank line starting at column 0 matches [topLevel] (as a
+/// prefix). Indented lines are nested content and always pass.
+bool _linesShaped(String t, RegExp topLevel) {
+  int start = 0;
+  while (start < t.length) {
+    int end = t.indexOf('\n', start);
+    if (end < 0) end = t.length;
+    if (start < end) {
+      final int first = t.codeUnitAt(start);
+      if (first != 0x20 &&
+          first != 0x09 &&
+          first != 0x0D &&
+          topLevel.matchAsPrefix(t, start) == null) {
+        return false;
+      }
+    }
+    start = end + 1;
+  }
+  return true;
+}
+
 List<DetectionMatch<Object?>> _detectStructured(
   String input,
   ArtifactProvenance provenance,
@@ -1923,7 +1540,25 @@ List<DetectionMatch<Object?>> _detectStructured(
       ),
     ];
   }
+  final bool shapeOnly = t.length > _structuredDetectionParseLimit;
   if (TomlParser.looksLike(t)) {
+    if (shapeOnly) {
+      if (!_linesShaped(t, _tomlTopLevelLine)) {
+        return const <DetectionMatch<Object?>>[];
+      }
+      return <DetectionMatch<Object?>>[
+        _evidence(
+          provenance: provenance,
+          kind: ArtifactKind.toml,
+          rawValue: input,
+          parserResult: null,
+          confidence: .83,
+          reason:
+              'TOML table or key-value line structure (too large to fully validate during detection).',
+          primaryToolId: 'json',
+        ),
+      ];
+    }
     final TomlParseResult result = TomlParser.parse(t);
     if (result is! TomlOk) return const <DetectionMatch<Object?>>[];
     return <DetectionMatch<Object?>>[
@@ -1939,6 +1574,23 @@ List<DetectionMatch<Object?>> _detectStructured(
     ];
   }
   if (!YamlParser.looksLike(t)) return const <DetectionMatch<Object?>>[];
+  if (shapeOnly) {
+    if (!_linesShaped(t, _yamlTopLevelLine)) {
+      return const <DetectionMatch<Object?>>[];
+    }
+    return <DetectionMatch<Object?>>[
+      _evidence(
+        provenance: provenance,
+        kind: ArtifactKind.yaml,
+        rawValue: input,
+        parserResult: null,
+        confidence: .8,
+        reason:
+            'YAML document line structure (too large to fully validate during detection).',
+        primaryToolId: 'json',
+      ),
+    ];
+  }
   final YamlParseResult result = YamlParser.parse(t);
   if (result is! YamlOk) return const <DetectionMatch<Object?>>[];
   return <DetectionMatch<Object?>>[
@@ -1960,6 +1612,13 @@ List<DetectionMatch<Object?>> _detectCsv(
 ) {
   final String trimmed = _trimmed(input);
   if (trimmed.isEmpty || trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    return const <DetectionMatch<Object?>>[];
+  }
+  // A match needs at least two columns, so some supported delimiter.
+  if (_prefilter &&
+      !trimmed.contains(',') &&
+      !trimmed.contains('\t') &&
+      !trimmed.contains(';')) {
     return const <DetectionMatch<Object?>>[];
   }
   final CsvParseResult result = CsvParser.parse(input);
@@ -2013,17 +1672,29 @@ List<DetectionMatch<Object?>> _detectCsv(
   ];
 }
 
+/// Longest trimmed input the Color and bps detectors consider.
+const int _maxColorOrRateLength = 64;
+
+/// `s.toLowerCase().startsWith(prefix)` for a lowercase ASCII [prefix],
+/// without lowercasing all of [s].
+bool _startsWithIgnoreCase(String s, String prefix) =>
+    s.length >= prefix.length &&
+    s.substring(0, prefix.length).toLowerCase() == prefix;
+
 List<DetectionMatch<Object?>> _detectColor(
   String input,
   ArtifactProvenance provenance,
 ) {
   final String t = _trimmed(input);
-  if (t.isEmpty) return const <DetectionMatch<Object?>>[];
+  // The longest realistic color literal (`hsla(…)` with decimals) is well
+  // under 64 characters; skip the parse for anything longer.
+  if (t.isEmpty || t.length > _maxColorOrRateLength) {
+    return const <DetectionMatch<Object?>>[];
+  }
   // Reject base-prefixed numbers — those should fire Number Base only.
-  final String lower = t.toLowerCase();
-  if (lower.startsWith('0x') ||
-      lower.startsWith('0b') ||
-      lower.startsWith('0o')) {
+  if (_startsWithIgnoreCase(t, '0x') ||
+      _startsWithIgnoreCase(t, '0b') ||
+      _startsWithIgnoreCase(t, '0o')) {
     return const <DetectionMatch<Object?>>[];
   }
   final MqColorValue? result = MqColorParser.parse(t);
@@ -2356,7 +2027,8 @@ List<DetectionMatch<Object?>> _detectUrl(
 ) {
   final String t = _trimmed(input);
   if (t.isEmpty) return const <DetectionMatch<Object?>>[];
-  bool matches = _percentEscape.hasMatch(t) || _queryShapeUrl.hasMatch(t);
+  final bool percentEncoded = _percentEscape.hasMatch(t);
+  bool matches = percentEncoded || _queryShapeUrl.hasMatch(t);
   // Bare `a=b&c=d`: every `&`-segment must be a clean key=value pair, and there
   // must be at least two — a single `k=v` is too ambiguous to claim.
   if (t.contains('&') && !t.contains(' ')) {
@@ -2370,8 +2042,8 @@ List<DetectionMatch<Object?>> _detectUrl(
       kind: ArtifactKind.url,
       rawValue: input,
       parserResult: Uri.tryParse(t),
-      confidence: _percentEscape.hasMatch(t) ? .91 : .86,
-      reason: _percentEscape.hasMatch(t)
+      confidence: percentEncoded ? .91 : .86,
+      reason: percentEncoded
           ? 'Contains valid percent-encoded URL bytes.'
           : 'Contains a valid URL query-string shape.',
       primaryToolId: 'url',
@@ -2383,8 +2055,11 @@ List<DetectionMatch<Object?>> _detectBps(
   String input,
   ArtifactProvenance provenance,
 ) {
-  final String t = _trimmed(input).toLowerCase();
-  if (t.isEmpty) return const <DetectionMatch<Object?>>[];
+  final String trimmed = _trimmed(input);
+  if (trimmed.isEmpty || trimmed.length > _maxColorOrRateLength) {
+    return const <DetectionMatch<Object?>>[];
+  }
+  final String t = trimmed.toLowerCase();
   final BpsResult? result = BpsParser.parse(t);
   if (result == null) return const <DetectionMatch<Object?>>[];
   // Without an explicit suffix, only suggest bps for small decimals (≤ 1).
@@ -2587,8 +2262,8 @@ List<DetectionMatch<Object?>> _detectX509(
 ) {
   final String trimmed = _trimmed(input);
   if (!trimmed.startsWith('-----BEGIN CERTIFICATE-----') &&
-      !trimmed.toLowerCase().startsWith('base64:') &&
-      !trimmed.toLowerCase().startsWith('hex:')) {
+      !_startsWithIgnoreCase(trimmed, 'base64:') &&
+      !_startsWithIgnoreCase(trimmed, 'hex:')) {
     return const <DetectionMatch<Object?>>[];
   }
   try {
@@ -2618,26 +2293,29 @@ List<DetectionMatch<Object?>> _detectEnvironmentConfig(
   if (trimmed.isEmpty || (!trimmed.contains('=') && !trimmed.contains(':'))) {
     return const <DetectionMatch<Object?>>[];
   }
+  // Detection only needs the format and entry count, not the redacted
+  // inspection the tool body builds (nothing reads this parserResult).
+  final ConfigDetection? detection;
   try {
-    final ConfigInspection inspection = EnvironmentConfigInspector.parse(input);
-    if (inspection.entries.length < 2) {
-      return const <DetectionMatch<Object?>>[];
-    }
-    return <DetectionMatch<Object?>>[
-      _evidence(
-        provenance: provenance,
-        kind: ArtifactKind.unknown,
-        rawValue: input,
-        parserResult: inspection,
-        confidence: .9,
-        reason:
-            'Parsed ${inspection.entries.length} ${inspection.format.name} configuration entries.',
-        primaryToolId: 'environment_config_inspector',
-      ),
-    ];
+    detection = EnvironmentConfigInspector.detectEntries(input);
   } catch (_) {
     return const <DetectionMatch<Object?>>[];
   }
+  if (detection == null || detection.entryCount < 2) {
+    return const <DetectionMatch<Object?>>[];
+  }
+  return <DetectionMatch<Object?>>[
+    _evidence(
+      provenance: provenance,
+      kind: ArtifactKind.unknown,
+      rawValue: input,
+      parserResult: detection,
+      confidence: .9,
+      reason:
+          'Parsed ${detection.entryCount} ${detection.format.name} configuration entries.',
+      primaryToolId: 'environment_config_inspector',
+    ),
+  ];
 }
 
 List<DetectionMatch<Object?>> _detectHashAndPem(
@@ -2733,6 +2411,9 @@ final RegExp _markdownTableRow = RegExp(
   multiLine: true,
 );
 
+/// Largest input [_detectMarkdown] fully parses to confirm a match.
+const int _markdownDetectionParseLimit = 32 * 1024;
+
 List<DetectionMatch<Object?>> _detectMarkdown(
   String input,
   ArtifactProvenance provenance,
@@ -2761,14 +2442,24 @@ List<DetectionMatch<Object?>> _detectMarkdown(
     return const <DetectionMatch<Object?>>[];
   }
 
-  final MarkdownParseResult result = MarkdownParser.parse(input);
-  if (result is! MarkdownOk) return const <DetectionMatch<Object?>>[];
-  final bool sensitive =
-      SensitiveDataPolicy.protects(
-        utilityId: 'markdown',
-        values: <String>[input],
-      ) ||
-      SensitiveDataPolicy.containsSecretLikeValue(input);
+  // Gating on a full parse costs ~0.7 ms/KB, so above the cap the syntax
+  // signals decide alone (minus what the limit pre-count already rules out);
+  // the Markdown body parses for itself and never reads this parserResult.
+  final MarkdownOk? result;
+  if (input.length <= _markdownDetectionParseLimit) {
+    final MarkdownParseResult parsed = MarkdownParser.parse(input);
+    if (parsed is! MarkdownOk) return const <DetectionMatch<Object?>>[];
+    result = parsed;
+  } else {
+    if (MarkdownParser.checkLimits(input) != null) {
+      return const <DetectionMatch<Object?>>[];
+    }
+    result = null;
+  }
+  // `protects(utilityId: 'markdown')` reduces to the direct artifact scan
+  // that [Artifact.isSensitive] already runs lazily; only the secret-like
+  // value check must be declared up front.
+  final bool sensitive = SensitiveDataPolicy.containsSecretLikeValue(input);
   return <DetectionMatch<Object?>>[
     _evidence(
       provenance: provenance,

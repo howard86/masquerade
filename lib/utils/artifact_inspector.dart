@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import '../models/artifact.dart';
 import '../utility_catalog.dart';
@@ -11,6 +12,34 @@ import 'sensitive_data_policy.dart';
 import 'toml_parser.dart';
 import 'utf8_length.dart';
 import 'yaml_parser.dart';
+
+/// Whether [input] or any detected match must be treated as sensitive.
+///
+/// The direct scan runs once on [input]. A match whose raw value is [input]
+/// itself and whose kind is not decoded (jwt/base64/bytes/url) can only be
+/// sensitive through that same scan (or its declared flag), so only the
+/// other matches pay for [Artifact.isSensitive]. Verdicts equal
+/// `containsSensitiveArtifact(input) || matches.any(isSensitive)`.
+@visibleForTesting
+bool artifactInputIsSensitive(
+  String input,
+  List<DetectionMatch<Object?>> matches,
+) {
+  if (SensitiveDataPolicy.containsSensitiveArtifact(input)) return true;
+  for (final DetectionMatch<Object?> m in matches) {
+    final Artifact<Object?> a = m.artifact;
+    if (a.isDeclaredSensitive) return true;
+    final bool decodes =
+        a.kind == ArtifactKind.jwt ||
+        a.kind == ArtifactKind.base64 ||
+        a.kind == ArtifactKind.bytes ||
+        a.kind == ArtifactKind.url;
+    if ((decodes || !identical(a.rawValue, input)) && a.isSensitive) {
+      return true;
+    }
+  }
+  return false;
+}
 
 enum InspectorLayerType { input, detection, transform }
 
@@ -106,11 +135,7 @@ class _InspectionBuilder {
 
     final List<DetectionMatch<Object?>> matches = _safeDetect(input);
     final bool sensitive =
-        inheritedSensitive ||
-        SensitiveDataPolicy.containsSensitiveArtifact(input) ||
-        matches.any(
-          (DetectionMatch<Object?> match) => match.artifact.isSensitive,
-        );
+        inheritedSensitive || artifactInputIsSensitive(input, matches);
     _seenDigests.add(_digest('input', input));
     _nodes = 1;
     final Artifact<Object?> artifact = Artifact<Object?>(
@@ -215,12 +240,7 @@ class _InspectionBuilder {
           ? const <DetectionMatch<Object?>>[]
           : _safeDetect(value.text);
       final bool sensitive =
-          inheritedSensitive ||
-          SensitiveDataPolicy.containsSensitiveArtifact(value.text) ||
-          matches.any(
-            (DetectionMatch<Object?> candidate) =>
-                candidate.artifact.isSensitive,
-          );
+          inheritedSensitive || artifactInputIsSensitive(value.text, matches);
       final Artifact<Object?> artifact = Artifact<Object?>(
         kind: matches.isEmpty
             ? ArtifactKind.unknown

@@ -232,4 +232,31 @@ void main() {
       throwsA(isA<UnicodeInspectorException>()),
     );
   });
+
+  test('tail past the display cap counts clusters and code points exactly', () {
+    const String family = '👨\u200d👩\u200d👧';
+    final String input = '${'a' * 1000}${family * 50}é${'\u0301' * 3}\u202e';
+    final UnicodeInspection inspection = UnicodeStringInspector.parse(input);
+    expect(inspection.graphemeCount, 1000 + 50 + 1 + 1);
+    expect(inspection.codePointCount, input.runes.length);
+    expect(inspection.truncated, isTrue);
+    expect(
+      inspection.warnings,
+      contains('Bidirectional controls can change visual text ordering.'),
+    );
+    expect(inspection.warnings.first, contains('ZERO WIDTH JOINER'));
+  });
+
+  test('normalized forms are lazy and stable across calls', () {
+    final UnicodeInspection inspection = UnicodeStringInspector.parse(
+      'e\u0301',
+    );
+    final String first = inspection.normalizedAs(UnicodeNormalization.nfc);
+    expect(first, '\u00e9');
+    expect(
+      identical(inspection.normalizedAs(UnicodeNormalization.nfc), first),
+      isTrue,
+    );
+    expect(inspection.normalizedAs(UnicodeNormalization.nfd), 'e\u0301');
+  });
 }

@@ -327,9 +327,4 @@ void _validateIdentifier(String value, String name) {
 }
 
 bool isProtectedWorkflowString(String value) =>
-    <String?>[null, 'base64', 'bytes', 'url'].any(
-      (String? utilityId) => SensitiveDataPolicy.protects(
-        utilityId: utilityId,
-        values: <String>[value],
-      ),
-    );
+    SensitiveDataPolicy.protectsAnyInterpretation(value);

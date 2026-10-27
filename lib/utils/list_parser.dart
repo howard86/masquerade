@@ -90,9 +90,11 @@ class ListParser {
     }
     final List<String> out = result.toList();
     if (sort) {
-      out.sort(
-        (String a, String b) => a.toLowerCase().compareTo(b.toLowerCase()),
-      );
+      // Lowercase each item once rather than twice per comparison.
+      final List<(String, String)> keyed = <(String, String)>[
+        for (final String item in out) (item.toLowerCase(), item),
+      ]..sort(((String, String) a, (String, String) b) => a.$1.compareTo(b.$1));
+      return <String>[for (final (String, String) e in keyed) e.$2];
     }
     return out;
   }

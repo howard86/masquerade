@@ -203,4 +203,326 @@ void main() {
       expect(c.entries.single.input, big);
     });
   });
+
+  group('HistoryController persistence', () {
+    HistoryEntry sized(String id, int chars, {bool pinned = false}) =>
+        HistoryEntry(
+          utilityId: 'json',
+          input: 'in $id',
+          output: 'o' * chars,
+          timestamp: DateTime.now(),
+          pinned: pinned,
+          id: id,
+        );
+
+    Future<List<dynamic>> stored() async =>
+        ((jsonDecode(
+                  (await SharedPreferences.getInstance()).getString(
+                    'mb.history.entries.v2',
+                  )!,
+                )
+                as Map<String, dynamic>)['entries'])
+            as List<dynamic>;
+
+    test('writes are debounced and flush writes immediately', () async {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final HistoryController c = HistoryController(
+        prefs: prefs,
+        retention: const Duration(days: 36500),
+        persistDelay: const Duration(milliseconds: 500),
+      );
+      await c.add(entry('json', '{"a":1}'));
+      await c.add(entry('json', '{"b":2}'));
+      expect(prefs.getString('mb.history.entries.v2'), isNull);
+      await c.flush();
+      expect(await stored(), hasLength(2));
+    });
+
+    test('the debounce timer writes without a flush', () async {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final HistoryController c = HistoryController(
+        prefs: prefs,
+        retention: const Duration(days: 36500),
+        persistDelay: const Duration(milliseconds: 10),
+      );
+      await c.add(entry('json', '{"a":1}'));
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(await stored(), hasLength(1));
+    });
+
+    test('delete and clear write immediately', () async {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final HistoryController c = HistoryController(
+        prefs: prefs,
+        retention: const Duration(days: 36500),
+        persistDelay: const Duration(milliseconds: 500),
+      );
+      final HistoryEntry a = entry('json', '{"a":1}');
+      await c.add(a);
+      await c.add(entry('json', '{"b":2}'));
+      await c.delete(c.entries.last);
+      expect(await stored(), hasLength(1));
+      await c.clear();
+      expect(prefs.getString('mb.history.entries.v2'), isNull);
+    });
+
+    test(
+      'persisted copy stays within the budget, oldest unpinned first',
+      () async {
+        final SharedPreferences prefs = await SharedPreferences.getInstance();
+        final HistoryController c = HistoryController(
+          prefs: prefs,
+          retention: const Duration(days: 36500),
+          maxPersistedChars: 1000,
+        );
+        // Oldest first so the list ends newest-first: n4 n3 n2 n1 old-pinned.
+        await c.add(sized('old-pinned', 200, pinned: true));
+        for (int i = 1; i <= 4; i++) {
+          await c.add(sized('n$i', 200));
+        }
+        await c.flush();
+        final String raw = prefs.getString('mb.history.entries.v2')!;
+        expect(raw.length, lessThanOrEqualTo(1000));
+        final List<String> ids =
+            ((jsonDecode(raw) as Map<String, dynamic>)['entries']
+                    as List<dynamic>)
+                .map((dynamic e) => (e as Map<String, dynamic>)['id'] as String)
+                .toList();
+        expect(ids, <String>['n4', 'n3', 'old-pinned']);
+        // Memory keeps everything; only the persisted copy is trimmed.
+        expect(c.entries, hasLength(5));
+      },
+    );
+
+    test('pinned entries go last when the budget cannot fit them', () async {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final HistoryController c = HistoryController(
+        prefs: prefs,
+        retention: const Duration(days: 36500),
+        maxPersistedChars: 600,
+      );
+      await c.add(sized('p1', 300, pinned: true));
+      await c.add(sized('p2', 300, pinned: true));
+      await c.flush();
+      final List<dynamic> list = await stored();
+      expect(list, hasLength(1));
+      expect((list.single as Map<String, dynamic>)['id'], 'p2');
+    });
+
+    test('a failing write is swallowed and retried smaller', () async {
+      final _QuotaPrefs prefs = _QuotaPrefs(quota: 60000);
+      final HistoryController c = HistoryController(
+        prefs: prefs,
+        retention: const Duration(days: 36500),
+      );
+      for (int i = 0; i < 4; i++) {
+        await c.add(sized('e$i', 30000));
+      }
+      await c.flush();
+      expect(prefs.written, isNotNull);
+      expect(prefs.written!.length, lessThanOrEqualTo(60000));
+
+      final _QuotaPrefs dead = _QuotaPrefs(quota: 0);
+      final HistoryController d = HistoryController(
+        prefs: dead,
+        retention: const Duration(days: 36500),
+      );
+      await d.add(sized('x', 10));
+      await d.flush();
+      expect(dead.written, isNull);
+      expect(d.entries, hasLength(1));
+    });
+
+    String versioned(int v, List<Map<String, dynamic>> entries) =>
+        jsonEncode(<String, dynamic>{'v': v, 'entries': entries});
+
+    Map<String, dynamic> secretEntry() => <String, dynamic>{
+      'utilityId': 'json',
+      'input': '{"password":"hunter2hunter2"}',
+      'output': 'out',
+      'ts': DateTime.now().millisecondsSinceEpoch,
+      'id': 'a',
+    };
+
+    test('load skips the rescan for the current policy version', () async {
+      final Map<String, dynamic> secret = secretEntry();
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'mb.history.entries.v2': versioned(
+          HistoryController.policyVersion,
+          <Map<String, dynamic>>[secret],
+        ),
+      });
+      final HistoryController current = await HistoryController.load();
+      expect(current.entries, hasLength(1));
+      await current.flush();
+      expect(
+        ((await stored()).single as Map<String, dynamic>)['input'],
+        secret['input'],
+      );
+    });
+
+    test(
+      'a bare legacy array is migrated stale, leaving the legacy key alone',
+      () async {
+        final String legacy = jsonEncode(<Map<String, dynamic>>[secretEntry()]);
+        SharedPreferences.setMockInitialValues(<String, Object>{
+          'mb.history.entries': legacy,
+          'mb.history.policy.version': HistoryController.policyVersion,
+        });
+        final HistoryController c = await HistoryController.load();
+        expect(c.entries, isEmpty);
+        await c.flush();
+        final SharedPreferences prefs = await SharedPreferences.getInstance();
+        final Map<String, dynamic> root =
+            jsonDecode(prefs.getString('mb.history.entries.v2')!)
+                as Map<String, dynamic>;
+        expect(root['v'], HistoryController.policyVersion);
+        expect(root['entries'], isEmpty);
+        expect(prefs.getString('mb.history.entries'), legacy);
+      },
+    );
+
+    test('clear removes the v2 and legacy keys', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'mb.history.entries': jsonEncode(<Map<String, dynamic>>[
+          <String, dynamic>{
+            'utilityId': 'json',
+            'input': '{"a":1}',
+            'output': 'out',
+            'ts': DateTime.now().millisecondsSinceEpoch,
+            'id': 'k',
+          },
+        ]),
+        'mb.history.policy.version': 1,
+      });
+      final HistoryController c = await HistoryController.load();
+      await c.flush();
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      expect(prefs.containsKey('mb.history.entries.v2'), isTrue);
+      expect(c.entries, hasLength(1));
+      await c.clear();
+      expect(prefs.containsKey('mb.history.entries.v2'), isFalse);
+      expect(prefs.containsKey('mb.history.entries'), isFalse);
+      expect(prefs.containsKey('mb.history.policy.version'), isFalse);
+    });
+
+    test('a different stored version is rescanned and rewritten', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'mb.history.entries.v2': versioned(
+          HistoryController.policyVersion + 1,
+          <Map<String, dynamic>>[secretEntry()],
+        ),
+      });
+      final HistoryController c = await HistoryController.load();
+      expect(c.entries, isEmpty);
+      await c.flush();
+      expect(await stored(), isEmpty);
+    });
+
+    test(
+      'an old-format writer on the legacy key never affects v2 data',
+      () async {
+        final Map<String, dynamic> kept = <String, dynamic>{
+          'utilityId': 'json',
+          'input': '{"a":1}',
+          'output': 'out',
+          'ts': DateTime.now().millisecondsSinceEpoch,
+          'id': 'kept',
+        };
+        SharedPreferences.setMockInitialValues(<String, Object>{
+          'mb.history.entries.v2': versioned(
+            HistoryController.policyVersion,
+            <Map<String, dynamic>>[kept],
+          ),
+        });
+        final SharedPreferences prefs = await SharedPreferences.getInstance();
+        // An older tab writes its own bare array (with a secret) and wipes
+        // nothing in v2.
+        await prefs.setString(
+          'mb.history.entries',
+          jsonEncode(<Map<String, dynamic>>[secretEntry()]),
+        );
+        final HistoryController c = await HistoryController.load();
+        expect(c.entries.map((HistoryEntry e) => e.id), <String?>['kept']);
+        await c.flush();
+        expect((await stored()).map((dynamic e) => (e as Map)['id']), <Object?>[
+          'kept',
+        ]);
+      },
+    );
+
+    test('load persists migrations without blocking, then flushes', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'mb.history.entries.v2': versioned(
+          HistoryController.policyVersion,
+          <Map<String, dynamic>>[
+            <String, dynamic>{
+              'utilityId': 'json',
+              'input': '{}',
+              'output': '{}',
+              'ts': DateTime.now().millisecondsSinceEpoch,
+            },
+          ],
+        ),
+      });
+      final HistoryController c = await HistoryController.load();
+      await c.flush();
+      expect(
+        ((await stored()).single as Map<String, dynamic>)['id'],
+        isNotNull,
+      );
+    });
+
+    test('entries is a stable view until a mutation', () async {
+      final HistoryController c = HistoryController(
+        retention: const Duration(days: 36500),
+      );
+      expect(identical(c.entries, c.entries), isTrue);
+      final List<HistoryEntry> before = c.entries;
+      await c.add(entry('json', '{"a":1}'));
+      expect(identical(before, c.entries), isFalse);
+      expect(before, isEmpty);
+      final List<HistoryEntry> afterAdd = c.entries;
+      expect(identical(afterAdd, c.entries), isTrue);
+      expect(() => c.entries.add(entry('json', 'x')), throwsUnsupportedError);
+      await c.togglePinned(c.entries.single);
+      expect(identical(afterAdd, c.entries), isFalse);
+    });
+
+    test('search sees updated entries after a mutation', () async {
+      final HistoryController c = HistoryController(
+        retention: const Duration(days: 36500),
+      );
+      await c.add(entry('json', '{"Alpha":1}'));
+      expect(c.search('alpha'), hasLength(1));
+      await c.add(entry('json', '{"Beta":1}'));
+      expect(c.search('beta'), hasLength(1));
+      expect(c.search('alpha'), hasLength(1));
+    });
+  });
+}
+
+/// A SharedPreferences stand-in whose `setString` throws past [quota] chars,
+/// like a full web localStorage.
+class _QuotaPrefs implements SharedPreferences {
+  _QuotaPrefs({required this.quota});
+
+  final int quota;
+  String? written;
+
+  @override
+  int? getInt(String key) => null;
+
+  @override
+  Future<bool> remove(String key) async => true;
+
+  @override
+  Future<bool> setString(String key, String value) async {
+    if (value.length > quota) throw StateError('QuotaExceededError');
+    written = value;
+    return true;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

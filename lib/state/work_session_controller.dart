@@ -11,7 +11,7 @@ import '../utility_catalog.dart';
 import '../utils/sensitive_data_policy.dart';
 
 /// The active mobile workflow. Persistence and editing belong to later phases.
-class WorkSessionController extends ChangeNotifier {
+class WorkSessionController extends ChangeNotifier with WidgetsBindingObserver {
   WorkSessionController({
     Iterable<SavedWorkflow> savedWorkflows = const <SavedWorkflow>[],
     Iterable<WorkSession> recentSessions = const <WorkSession>[],
@@ -31,12 +31,24 @@ class WorkSessionController extends ChangeNotifier {
   static const int _schemaVersion = 1;
   static const int _maxRecent = 10;
 
+  /// Trailing delay before an edit-driven recents write, so typing in a step
+  /// doesn't rewrite the whole snapshot per keystroke. [flush], app pause and
+  /// [dispose] write immediately.
+  @visibleForTesting
+  static const Duration persistDebounce = Duration(milliseconds: 500);
+
   WorkSession? _session;
   WorkSession? _branchOrigin;
   final List<SavedWorkflow> _savedWorkflows;
   final List<WorkSession> _recentSessions;
   final SharedPreferences? _prefs;
   Future<void> _writes = Future<void>.value();
+  Timer? _persistTimer;
+  bool _observing = false;
+
+  /// Number of snapshot writes to prefs (for tests).
+  @visibleForTesting
+  int debugPersistWrites = 0;
   SavedWorkflow? _rerunning;
   String? _workflowError;
 
@@ -414,7 +426,7 @@ class WorkSessionController extends ChangeNotifier {
     }
     final WorkflowStep step = current.steps[stepIndex];
     final Map<String, Object?> safe = sanitizeWorkflowSettings(settings);
-    if (jsonEncode(step.settings) == jsonEncode(safe)) return true;
+    if (_jsonEquals(step.settings, safe)) return true;
     _replace(current, <WorkflowStep>[
       ...current.steps.take(stepIndex),
       WorkflowStep(
@@ -534,17 +546,57 @@ class WorkSessionController extends ChangeNotifier {
     );
     final String json = jsonEncode(encoded);
     if (json.contains('"redacted":true')) return;
+    // `current` already passed [_resumable], and the encoding above only
+    // differs from it by redaction (excluded just now), so the decoded copy is
+    // resumable by construction; it is kept to store an immutable snapshot.
     final WorkSession? safe = WorkSession.tryFromJson(
       jsonDecode(json),
       isKnownTool: (String id) => UtilityCatalog.byIdOrNull(id) != null,
     );
-    if (safe == null || !_resumable(safe)) return;
+    if (safe == null) return;
+    _encodedRecent[safe] = json;
     _recentSessions.removeWhere((WorkSession recent) => recent.id == safe.id);
     _recentSessions.insert(0, safe);
     if (_recentSessions.length > _maxRecent) {
       _recentSessions.removeRange(_maxRecent, _recentSessions.length);
     }
-    unawaited(_persist());
+    _schedulePersist();
+  }
+
+  void _schedulePersist() {
+    if (_prefs == null) return;
+    _persistTimer?.cancel();
+    _persistTimer = Timer(persistDebounce, () {
+      _persistTimer = null;
+      _stopObserving();
+      unawaited(_persist());
+    });
+    if (!_observing) {
+      try {
+        WidgetsBinding.instance.addObserver(this);
+        _observing = true;
+      } catch (_) {
+        // No binding (plain unit test): only the timer, flush and dispose apply.
+      }
+    }
+  }
+
+  void _stopObserving() {
+    if (!_observing) return;
+    _observing = false;
+    WidgetsBinding.instance.removeObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) unawaited(flush());
+  }
+
+  @override
+  void dispose() {
+    unawaited(flush());
+    _stopObserving();
+    super.dispose();
   }
 
   static bool _resumable(WorkSession session) =>
@@ -578,7 +630,12 @@ class WorkSessionController extends ChangeNotifier {
       );
 
   Future<void> _persist() {
+    // An immediate write covers anything a pending debounce would write.
+    _persistTimer?.cancel();
+    _persistTimer = null;
+    _stopObserving();
     if (_prefs == null) return Future<void>.value();
+    debugPersistWrites++;
     // Byte-identical to jsonEncode of the {schemaVersion, savedWorkflows,
     // recentSessions} map, with the recent sessions spliced in pre-encoded.
     final String snapshot =
@@ -595,7 +652,36 @@ class WorkSessionController extends ChangeNotifier {
     return next;
   }
 
-  Future<void> flush() => _writes;
+  /// Writes any debounced snapshot now and waits for in-flight writes.
+  Future<void> flush() {
+    if (_persistTimer != null) unawaited(_persist());
+    return _writes;
+  }
+
+  /// Order-sensitive deep equality, matching a `jsonEncode` comparison of
+  /// JSON-safe values without building either string.
+  static bool _jsonEquals(Object? a, Object? b) {
+    if (a is Map<Object?, Object?> && b is Map<Object?, Object?>) {
+      if (a.length != b.length) return false;
+      final Iterator<MapEntry<Object?, Object?>> other = b.entries.iterator;
+      for (final MapEntry<Object?, Object?> entry in a.entries) {
+        other.moveNext();
+        if (entry.key != other.current.key ||
+            !_jsonEquals(entry.value, other.current.value)) {
+          return false;
+        }
+      }
+      return true;
+    }
+    if (a is List<Object?> && b is List<Object?>) {
+      if (a.length != b.length) return false;
+      for (int i = 0; i < a.length; i++) {
+        if (!_jsonEquals(a[i], b[i])) return false;
+      }
+      return true;
+    }
+    return a == b && a.runtimeType == b.runtimeType;
+  }
 
   void _setError(String message) {
     _workflowError = message;

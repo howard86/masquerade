@@ -1,9 +1,12 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:masquerade/models/content_type.dart';
 import 'package:masquerade/theme/mq_colors.dart';
 import 'package:masquerade/theme/mq_theme.dart';
+import 'package:masquerade/widgets/desktop/pipe.dart';
 import 'package:masquerade/widgets/mq/mq_mono_cell.dart';
 
 Widget _wrap(Widget child) => CupertinoApp(
@@ -182,6 +185,40 @@ void main() {
     await tester.pump();
     expect(clipboard, long);
     await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('pipe drag chip shows a short preview; payload stays whole', (
+    WidgetTester tester,
+  ) async {
+    final String value = 'x' * 500;
+    await tester.pumpWidget(
+      _wrap(
+        PipeScope(
+          cardId: 1,
+          child: MqMonoCell(
+            label: 'Out',
+            value: value,
+            pipeType: ContentType.text,
+          ),
+        ),
+      ),
+    );
+    final LongPressDraggable<PipePayload> draggable = tester
+        .widget<LongPressDraggable<PipePayload>>(
+          find.byType(LongPressDraggable<PipePayload>),
+        );
+    expect(draggable.data!.value, value);
+
+    final TestGesture gesture = await tester.startGesture(
+      tester.getTopLeft(find.byType(LongPressDraggable<PipePayload>)) +
+          const Offset(24, 24),
+    );
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+    await gesture.moveBy(const Offset(20, 20));
+    await tester.pump();
+    expect(find.text('${'x' * 80}…'), findsOneWidget);
+    await gesture.up();
     await tester.pumpAndSettle();
   });
 }

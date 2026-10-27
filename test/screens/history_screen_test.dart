@@ -355,11 +355,12 @@ void main() {
     expect(find.text('PINNED'), findsOneWidget);
     expect(history.entries.first.pinned, isTrue);
     Map<String, dynamic> persisted =
-        (jsonDecode(
-                      (await SharedPreferences.getInstance()).getString(
-                        'mb.history.entries',
-                      )!,
-                    )
+        ((jsonDecode(
+                          (await SharedPreferences.getInstance()).getString(
+                            'mb.history.entries.v2',
+                          )!,
+                        )
+                        as Map<String, dynamic>)['entries']
                     as List<dynamic>)
                 .first
             as Map<String, dynamic>;
@@ -369,11 +370,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(history.entries, hasLength(1));
     persisted =
-        (jsonDecode(
-                      (await SharedPreferences.getInstance()).getString(
-                        'mb.history.entries',
-                      )!,
-                    )
+        ((jsonDecode(
+                          (await SharedPreferences.getInstance()).getString(
+                            'mb.history.entries.v2',
+                          )!,
+                        )
+                        as Map<String, dynamic>)['entries']
                     as List<dynamic>)
                 .single
             as Map<String, dynamic>;
@@ -485,7 +487,8 @@ void main() {
     expect(history.entries, hasLength(2));
     expect(sessions.recentSessions, hasLength(1));
     expect(
-      jsonDecode(prefs.getString('mb.history.entries')!) as List<dynamic>,
+      (jsonDecode(prefs.getString('mb.history.entries.v2')!)
+          as Map<String, dynamic>)['entries'],
       hasLength(2),
     );
     expect((await WorkSessionController.load()).recentSessions, hasLength(1));

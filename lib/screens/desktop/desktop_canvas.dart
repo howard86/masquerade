@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -94,7 +96,10 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
 
   /// The card whose title bar is being dragged (drives the snap preview).
   final ValueNotifier<int?> _draggingCardId = ValueNotifier<int?>(null);
-  final Set<int> _animatingMinimizedIds = <int>{};
+
+  /// Card id -> generation of its latest minimize/restore animation.
+  final Map<int, int> _animatingMinimizedIds = <int, int>{};
+  int _animationGeneration = 0;
   final Map<int, bool> _prevMinimized = <int, bool>{};
 
   /// Built once: the launcher grid depends on no canvas state, so reusing the
@@ -160,19 +165,13 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     setState(() {
       for (final card in currentCards) {
         final bool wasMinimized = _prevMinimized[card.id] ?? false;
-        if (card.minimized && !wasMinimized) {
-          _animatingMinimizedIds.add(card.id);
+        if (card.minimized != wasMinimized) {
+          // A newer minimize/restore of the same card supersedes the pending
+          // removal, so a quick toggle can't clear the flag mid-animation.
+          final int generation = ++_animationGeneration;
+          _animatingMinimizedIds[card.id] = generation;
           Future.delayed(const Duration(milliseconds: 350), () {
-            if (mounted) {
-              setState(() {
-                _animatingMinimizedIds.remove(card.id);
-              });
-            }
-          });
-        } else if (!card.minimized && wasMinimized) {
-          _animatingMinimizedIds.add(card.id);
-          Future.delayed(const Duration(milliseconds: 350), () {
-            if (mounted) {
+            if (mounted && _animatingMinimizedIds[card.id] == generation) {
               setState(() {
                 _animatingMinimizedIds.remove(card.id);
               });
@@ -299,7 +298,8 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
               builder: (BuildContext context, Widget? _) => _snapPreview(c),
             ),
             for (final CanvasCard card in zCards)
-              if (!card.minimized || _animatingMinimizedIds.contains(card.id))
+              if (!card.minimized ||
+                  _animatingMinimizedIds.containsKey(card.id))
                 _buildCardWrapper(
                   card: card,
                   openOrder: openOrder,
@@ -381,7 +381,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
 
   void _onDropOnCanvas(DragTargetDetails<PipePayload> details) {
     final List<DetectionMatch<Object?>> matches =
-        DetectionPreferenceScope.of(context).rank(
+        DetectionPreferenceScope.read(context).rank(
           UtilityCatalog.detectArtifacts(
             details.data.value,
             provenance: ArtifactProvenance.liveLink,
@@ -408,7 +408,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     final int slot = openOrder.indexWhere((c) => c.id == card.id) + 1;
     final int id = card.id;
 
-    if (_animatingMinimizedIds.contains(id)) {
+    if (_animatingMinimizedIds.containsKey(id)) {
       final Widget frame = _cardFrame(card, slot: slot);
       return ValueListenableBuilder<Offset>(
         valueListenable: _pan,
@@ -847,17 +847,41 @@ class _DotGridPainter extends CustomPainter {
 
   static const double _step = 24;
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    final Paint paint = Paint()..color = color;
-    final Offset pan = offset.value;
-    final double startX = pan.dx % _step;
-    final double startY = pan.dy % _step;
-    for (double x = startX; x < size.width; x += _step) {
-      for (double y = startY; y < size.height; y += _step) {
-        canvas.drawCircle(Offset(x, y), 0.75, paint);
+  static const double _radius = 0.75;
+
+  // Dot lattice for the last painted size, one extra step on each axis so a
+  // pan can be applied with a translate instead of rebuilding the points.
+  static Size? _cachedSize;
+  static Float32List? _cachedPoints;
+
+  static Float32List _points(Size size) {
+    if (_cachedSize == size) return _cachedPoints!;
+    final int cols = (size.width / _step).ceil() + 1;
+    final int rows = (size.height / _step).ceil() + 1;
+    final Float32List points = Float32List(cols * rows * 2);
+    int i = 0;
+    for (int cx = 0; cx < cols; cx++) {
+      for (int cy = 0; cy < rows; cy++) {
+        points[i++] = cx * _step;
+        points[i++] = cy * _step;
       }
     }
+    _cachedSize = size;
+    return _cachedPoints = points;
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = color
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = _radius * 2;
+    final Offset pan = offset.value;
+    // Same phase as before: dots at (pan % step) + k * step, kept inside size.
+    canvas.save();
+    canvas.translate(pan.dx % _step, pan.dy % _step);
+    canvas.drawRawPoints(ui.PointMode.points, _points(size), paint);
+    canvas.restore();
   }
 
   @override

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/models/artifact.dart';
 import 'package:masquerade/utils/artifact_inspector.dart';
+import 'package:masquerade/utility_catalog.dart';
 import 'package:masquerade/utils/sensitive_data_policy.dart';
 
 void main() {
@@ -149,6 +150,51 @@ void main() {
           isTrue,
           reason: input,
         );
+      }
+    });
+
+    test('artifactInputIsSensitive matches the full-rescan verdict', () {
+      final String token = _jwt(<String, Object?>{'exp': 1700000000});
+      final List<String> corpus = <String>[
+        '?api_key=raw-secret&x=y',
+        '{"password":"raw-secret"}',
+        'TOKEN=abc123',
+        'export DB_PASS=hunter2',
+        '-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----',
+        token,
+        'https://example.test/?token=${Uri.encodeQueryComponent(token)}',
+        'https://example.test/?q=1',
+        base64Encode(utf8.encode('{"ok":true}')),
+        base64Encode(utf8.encode('{"password":"raw-secret"}')),
+        base64Encode(utf8.encode('password=hunter2')),
+        '%7B%22password%22%3A%22x%22%7D',
+        '72 101 108 108 111',
+        '0x70 0x61 0x73 0x73 0x3d 0x78',
+        'aGVsbG8=',
+        'hello world',
+        '{"a":1,"b":[1,2,3]}',
+        'a: 1\nb: two',
+        '1700000000',
+        '550e8400-e29b-41d4-a716-446655440000',
+        '192.168.0.1',
+        '*/5 * * * *',
+        '#ff8800',
+        '2+2*3',
+        '12 bps',
+        'a,b,c',
+        'd41d8cd98f00b204e9800998ecf8427e',
+        'ghp_abcdefghijklmnopqrstuvwxyz0123456789',
+        'Bearer abcdef0123456789',
+        '',
+        '   ',
+      ];
+      for (final String input in corpus) {
+        final List<DetectionMatch<Object?>> matches =
+            UtilityCatalog.detectArtifacts(input);
+        final bool old =
+            SensitiveDataPolicy.containsSensitiveArtifact(input) ||
+            matches.any((DetectionMatch<Object?> m) => m.artifact.isSensitive);
+        expect(artifactInputIsSensitive(input, matches), old, reason: input);
       }
     });
   });

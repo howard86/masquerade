@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -90,6 +91,9 @@ class ShareInboxController extends ChangeNotifier {
     final ShareInboxController controller = ShareInboxController(
       channel: channel ?? const MethodChannel(channelName),
     );
+    // The native inbox and App Intents are iOS-only; skip the channel round
+    // trips (and their MissingPluginException) before the first frame.
+    if (kIsWeb) return controller;
     await Future.wait(<Future<void>>[
       controller.refresh(),
       controller.refreshIntents(),
@@ -97,9 +101,11 @@ class ShareInboxController extends ChangeNotifier {
     return controller;
   }
 
-  Future<void> refresh() => _refreshing ??= _refresh().whenComplete(() {
-    _refreshing = null;
-  });
+  Future<void> refresh() => kIsWeb
+      ? Future<void>.value()
+      : _refreshing ??= _refresh().whenComplete(() {
+          _refreshing = null;
+        });
 
   Future<Object?> _handleNativeCall(MethodCall call) async {
     if (call.method != 'refreshExternalInputs') return null;
@@ -107,10 +113,11 @@ class ShareInboxController extends ChangeNotifier {
     return null;
   }
 
-  Future<void> refreshIntents() =>
-      _refreshingIntents ??= _refreshIntents().whenComplete(() {
-        _refreshingIntents = null;
-      });
+  Future<void> refreshIntents() => kIsWeb
+      ? Future<void>.value()
+      : _refreshingIntents ??= _refreshIntents().whenComplete(() {
+          _refreshingIntents = null;
+        });
 
   Future<void> _refreshIntents() async {
     try {
@@ -133,17 +140,22 @@ class ShareInboxController extends ChangeNotifier {
           request.id: request,
         for (final AppIntentRequest request in decoded) request.id: request,
       };
-      _intentRequests = List<AppIntentRequest>.unmodifiable(
-        merged.values.toList()..sort(
+      final List<AppIntentRequest> nextRequests = merged.values.toList()
+        ..sort(
           (AppIntentRequest a, AppIntentRequest b) => a.createdAt == b.createdAt
               ? a.id.compareTo(b.id)
               : a.createdAt.compareTo(b.createdAt),
-        ),
+        );
+      final bool changed = !_sameIds(
+        _intentRequests.map((AppIntentRequest r) => r.id),
+        nextRequests.map((AppIntentRequest r) => r.id),
       );
+      _intentRequests = List<AppIntentRequest>.unmodifiable(nextRequests);
+      final String? previousError = _error;
       if (decoded.length != raw.length) {
         _error = 'Some shortcut actions could not be loaded.';
       }
-      notifyListeners();
+      if (changed || _error != previousError) notifyListeners();
     } on MissingPluginException {
       // Keep already-consumed requests until Workbench handles them.
     } on PlatformException {
@@ -153,6 +165,7 @@ class ShareInboxController extends ChangeNotifier {
   }
 
   Future<void> syncWorkflows(Iterable<SavedWorkflow> workflows) async {
+    if (kIsWeb) return;
     try {
       final Set<String> ids = <String>{};
       final List<Map<String, String>> metadata = <Map<String, String>>[];
@@ -198,6 +211,8 @@ class ShareInboxController extends ChangeNotifier {
   }
 
   Future<void> _refresh() async {
+    final String? previousError = _error;
+    bool changed = false;
     try {
       final List<Object?> raw =
           await _channel.invokeListMethod<Object?>('list') ?? <Object?>[];
@@ -223,16 +238,24 @@ class ShareInboxController extends ChangeNotifier {
       )) {
         _externalInputRevision++;
       }
+      changed = !_sameIds(
+        _items.map((ShareInboxItem i) => i.id),
+        next.map((ShareInboxItem i) => i.id),
+      );
       _items = List<ShareInboxItem>.unmodifiable(next);
       _error = rejected ? 'Some shared items could not be loaded.' : null;
     } on MissingPluginException {
+      changed = _items.isNotEmpty;
       _items = const <ShareInboxItem>[];
       _error = null;
     } on PlatformException {
       _error = 'Shared items could not be loaded.';
     }
-    notifyListeners();
+    if (changed || _error != previousError) notifyListeners();
   }
+
+  static bool _sameIds(Iterable<String> a, Iterable<String> b) =>
+      listEquals(a.toList(), b.toList());
 
   Future<bool> remove(String id) async {
     if (!_id.hasMatch(id)) return false;

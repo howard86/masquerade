@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -194,16 +195,21 @@ class ExternalInputImporter {
   }
 
   Future<ExternalInputResult> _readText(XFile file) async {
-    final List<int> bytes = <int>[];
+    final BytesBuilder builder = BytesBuilder(copy: false);
     try {
       await for (final Uint8List chunk in file.openRead()) {
-        final int remaining = maxTextBytes + 1 - bytes.length;
-        bytes.addAll(chunk.length <= remaining ? chunk : chunk.take(remaining));
-        if (bytes.length > maxTextBytes) break;
+        final int remaining = maxTextBytes + 1 - builder.length;
+        builder.add(
+          chunk.length <= remaining
+              ? chunk
+              : Uint8List.sublistView(chunk, 0, remaining),
+        );
+        if (builder.length > maxTextBytes) break;
       }
     } catch (_) {
       return const ExternalInputFailure('The selected file could not be read.');
     }
+    final Uint8List bytes = builder.takeBytes();
     if (bytes.isEmpty) {
       return const ExternalInputFailure('The selected file is empty.');
     }

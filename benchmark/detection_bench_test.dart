@@ -83,6 +83,38 @@ String base64Fixture(int size) {
   return base64Encode(utf8.encode(b.toString().substring(0, raw - raw % 3)));
 }
 
+String markdownFixture(int size) {
+  final StringBuffer b = StringBuffer();
+  for (int i = 0; b.length < size; i++) {
+    b
+      ..writeln('## Section $i')
+      ..writeln()
+      ..writeln('Note: section $i covers **topic $i** and `code_$i` usage.')
+      ..writeln('See [docs $i](https://example.com/docs/$i) for details.')
+      ..writeln()
+      ..writeln('- item one: value $i')
+      ..writeln('- item two: value ${i + 1}')
+      ..writeln()
+      ..writeln('```dart')
+      ..writeln('final int x$i = $i;')
+      ..writeln('```')
+      ..writeln();
+  }
+  return b.toString().substring(0, size).trimRight();
+}
+
+String yamlFixture(int size) {
+  final StringBuffer b = StringBuffer('items:\n');
+  for (int i = 0; b.length < size; i++) {
+    b
+      ..writeln('  - id: $i')
+      ..writeln('    name: item-$i')
+      ..writeln('    active: ${i.isEven}')
+      ..writeln('    tags: [alpha, beta$i]');
+  }
+  return b.toString().trimRight();
+}
+
 final Map<String, String Function(int)> fixtures =
     <String, String Function(int)>{
       'log': logFixture,
@@ -157,6 +189,34 @@ void main() {
       }
       print('${f.key}:');
       rows.forEach(print);
+    }
+  });
+
+  test('detector-heavy sweeps: 245 KB log, 106 KB markdown, 200 KB YAML', () {
+    print('== detector-heavy sweeps (min of 10) ==');
+    final Map<String, String> inputs = <String, String>{
+      'log 245 KB': logFixture(245 * 1024),
+      'markdown 106 KB': markdownFixture(106 * 1024),
+      'yaml 200 KB': yamlFixture(200 * 1024),
+    };
+    for (final MapEntry<String, String> e in inputs.entries) {
+      final double us = _minMicros(
+        () => UtilityCatalog.detectArtifacts(e.value),
+        runs: 10,
+      );
+      final String kinds = UtilityCatalog.detectArtifacts(
+        e.value,
+      ).map((DetectionMatch<Object?> m) => m.primaryToolId).join(',');
+      print('${e.key.padRight(16)} sweep ${_ms(us)}  [$kinds]');
+      for (final UtilityDescriptor tool in UtilityCatalog.all) {
+        final ArtifactDetector? detect = tool.detectArtifact;
+        if (detect == null) continue;
+        final double d = _minMicros(
+          () => detect(e.value, ArtifactProvenance.typed),
+          runs: 5,
+        );
+        if (d >= 200) print('  ${tool.id.padRight(30)} ${_ms(d)}');
+      }
     }
   });
 

@@ -58,7 +58,8 @@ class MqMonoCell extends StatefulWidget {
 
 class _MqMonoCellState extends State<MqMonoCell> {
   // Sensitivity scan memo: four regexes over [value] and [copyValue] (~26 ms
-  // per MB), so rebuilds that keep both strings (drag frames, parent
+  // per MB of flat text, ~150-220 ms per MB of pretty-printed JSON, VM), so
+  // rebuilds that keep both strings (drag frames, parent
   // rebuilds) reuse the last answer.
   String? _scannedValue;
   String? _scannedCopyValue;
@@ -180,7 +181,8 @@ class _MqMonoCellState extends State<MqMonoCell> {
         sourceCardId: scope.cardId,
       ),
       dragAnchorStrategy: pointerDragAnchorStrategy,
-      feedback: _PipeChip(value: value),
+      // Only one ellipsized line shows; don't shape a multi-MB value per drag.
+      feedback: _PipeChip(value: truncateWithEllipsis(value, max: 80)),
       childWhenDragging: Opacity(opacity: 0.4, child: cell),
       child: cell,
     );
@@ -295,13 +297,14 @@ class _CopyButtonState extends State<_CopyButton> {
         child: Center(
           child: Padding(
             padding: const EdgeInsets.all(4),
-            child: AnimatedSwitcher(
+            child: CopyFlipIcon(
               duration: const Duration(milliseconds: 200),
-              child: Icon(
-                _copied ? MqIcons.check : MqIcons.copy,
-                key: ValueKey<bool>(_copied),
+              showSecond: _copied,
+              first: Icon(MqIcons.copy, size: 14, color: widget.color),
+              second: Icon(
+                MqIcons.check,
                 size: 14,
-                color: _copied ? tokens.colors.success : widget.color,
+                color: tokens.colors.success,
               ),
             ),
           ),

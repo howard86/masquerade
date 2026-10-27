@@ -54,20 +54,98 @@ class _AnimatedCopyIconState extends State<AnimatedCopyIcon> {
         borderRadius: BorderRadius.circular(MqRadius.sm),
         onPressed: _handle,
         child: Center(
-          child: AnimatedCrossFade(
+          child: CopyFlipIcon(
             duration: reduceMotion
                 ? Duration.zero
                 : const Duration(milliseconds: 250),
-            crossFadeState: _copied
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
-            firstChild: Icon(MqIcons.copy, size: 16, color: c.textSec),
-            firstCurve: Curves.easeInOut,
-            secondChild: Icon(MqIcons.check, size: 16, color: c.success),
-            secondCurve: Curves.easeInOut,
+            showSecond: _copied,
+            first: Icon(MqIcons.copy, size: 16, color: c.textSec),
+            second: Icon(MqIcons.check, size: 16, color: c.success),
+            curve: Curves.easeInOut,
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Cross-fades [first] ↔ [second] when [showSecond] flips, but only while
+/// flipping: at rest the shown icon is painted directly, so an idle copy
+/// button carries no fade layer/repaint boundary (AnimatedCrossFade and
+/// AnimatedSwitcher keep theirs after the animation ends). Both children are
+/// expected to be the same size.
+class CopyFlipIcon extends StatefulWidget {
+  const CopyFlipIcon({
+    super.key,
+    required this.showSecond,
+    required this.first,
+    required this.second,
+    required this.duration,
+    this.curve = Curves.linear,
+  });
+
+  final bool showSecond;
+  final Widget first;
+  final Widget second;
+  final Duration duration;
+  final Curve curve;
+
+  @override
+  State<CopyFlipIcon> createState() => _CopyFlipIconState();
+}
+
+class _CopyFlipIconState extends State<CopyFlipIcon>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: widget.duration,
+    value: 1,
+  )..addStatusListener(_onStatus);
+  late CurvedAnimation _fadeIn = CurvedAnimation(
+    parent: _controller,
+    curve: widget.curve,
+  );
+
+  void _onStatus(AnimationStatus status) {
+    // Drop back to the plain, layer-free icon once the fade lands.
+    if (status == AnimationStatus.completed && mounted) setState(() {});
+  }
+
+  @override
+  void didUpdateWidget(CopyFlipIcon oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _controller.duration = widget.duration;
+    if (widget.curve != oldWidget.curve) {
+      _fadeIn.dispose();
+      _fadeIn = CurvedAnimation(parent: _controller, curve: widget.curve);
+    }
+    if (widget.showSecond != oldWidget.showSecond) {
+      if (widget.duration == Duration.zero) {
+        _controller.value = 1;
+      } else {
+        _controller.forward(from: 0);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _fadeIn.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget shown = widget.showSecond ? widget.second : widget.first;
+    if (!_controller.isAnimating) return shown;
+    final Widget hidden = widget.showSecond ? widget.first : widget.second;
+    return Stack(
+      alignment: Alignment.center,
+      children: <Widget>[
+        FadeTransition(opacity: ReverseAnimation(_fadeIn), child: hidden),
+        FadeTransition(opacity: _fadeIn, child: shown),
+      ],
     );
   }
 }

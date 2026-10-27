@@ -260,6 +260,7 @@ class CanvasController extends ChangeNotifier {
     _cards.clear();
     _watchers.clear();
     _persistedSeeds.clear();
+    _persistedCanonicals.clear();
     // Notifiers are dropped, not disposed: the cards' bodies remove their
     // listeners during the ensuing rebuild, after which the notifiers are GC'd.
     _groups.clear();
@@ -609,17 +610,39 @@ class CanvasController extends ChangeNotifier {
     };
   }
 
+  /// Sanitized canonical per group id, keyed like [_persistedSeeds]: the
+  /// canonical only changes on an emit, so a snapshot (focus, drag commit)
+  /// reuses the last scan instead of re-running it over a large value.
+  final Map<int, ({String canonical, bool sensitive, String persisted})>
+  _persistedCanonicals =
+      <int, ({String canonical, bool sensitive, String persisted})>{};
+
+  String _persistedCanonical(LinkGroup group, bool sensitive) {
+    final String canonical = group.canonical.value;
+    final ({String canonical, bool sensitive, String persisted})? cached =
+        _persistedCanonicals[group.id];
+    if (cached != null &&
+        identical(cached.canonical, canonical) &&
+        cached.sensitive == sensitive) {
+      return cached.persisted;
+    }
+    final String persisted =
+        SensitiveDataPolicy.persistedValue(canonical, sensitive: sensitive) ??
+        '';
+    _persistedCanonicals[group.id] = (
+      canonical: canonical,
+      sensitive: sensitive,
+      persisted: persisted,
+    );
+    return persisted;
+  }
+
   Map<String, dynamic> _groupToJson(LinkGroup group) {
     final bool hasSensitiveMember = _membersContainSensitiveTool(group.members);
     return <String, dynamic>{
       'id': group.id,
       'type': group.type.name,
-      'canonical':
-          SensitiveDataPolicy.persistedValue(
-            group.canonical.value,
-            sensitive: hasSensitiveMember,
-          ) ??
-          '',
+      'canonical': _persistedCanonical(group, hasSensitiveMember),
       'members': group.members.toList(),
     };
   }
@@ -639,6 +662,7 @@ class CanvasController extends ChangeNotifier {
     _cards.clear();
     _groups.clear();
     _persistedSeeds.clear();
+    _persistedCanonicals.clear();
     int maxId = 0;
     int maxZ = 0;
     for (final dynamic raw
@@ -741,13 +765,15 @@ class CanvasController extends ChangeNotifier {
   }
 
   /// Restores the auto-saved canvas from prefs. No-op without a backend or
-  /// when the stored snapshot is missing or corrupt.
+  /// when the stored snapshot is missing or corrupt. Re-writes the snapshot
+  /// only when restoring changed it (a dropped tool, a scrubbed seed) — a
+  /// clean restore costs no write.
   void restore() {
     final String? raw = _prefs?.getString(currentKey);
     if (raw == null) return;
     try {
       applyJson(jsonDecode(raw) as Map<String, dynamic>);
-      _persist();
+      _persist(unlessEqualTo: raw);
     } catch (_) {
       // Corrupt snapshot — start clean rather than crash.
       final SharedPreferences? prefs = _prefs;
@@ -789,14 +815,18 @@ class CanvasController extends ChangeNotifier {
     _persist();
   }
 
-  void _persist() {
+  /// Writes the snapshot now. With [unlessEqualTo], skips the write when the
+  /// encoded snapshot matches that already-stored string.
+  void _persist({String? unlessEqualTo}) {
     // An immediate write covers anything a pending debounce would write.
     _persistTimer?.cancel();
     _persistTimer = null;
     final SharedPreferences? prefs = _prefs;
     if (prefs == null) return;
+    final String encoded = jsonEncode(toJson());
+    if (encoded == unlessEqualTo) return;
     debugPersistWrites++;
-    unawaited(prefs.setString(currentKey, jsonEncode(toJson())));
+    unawaited(prefs.setString(currentKey, encoded));
   }
 
   /// Clears the auto-restored session and scrubs legacy saved layouts.
@@ -807,6 +837,13 @@ class CanvasController extends ChangeNotifier {
     await _sanitizePersistedLayouts(prefs);
   }
 
+  /// Number of saved-layout rewrites by the startup / clear sanitizer (for
+  /// tests).
+  @visibleForTesting
+  static int debugLayoutSanitizeWrites = 0;
+
+  /// Re-sanitizes every saved layout, writing only when that changed the
+  /// stored string — so a clean launch costs a decode + encode, not a write.
   static Future<void> _sanitizePersistedLayouts(SharedPreferences prefs) async {
     final String? raw = prefs.getString(layoutsKey);
     if (raw == null) return;
@@ -823,7 +860,10 @@ class CanvasController extends ChangeNotifier {
           ..applyJson(entry.value as Map<String, dynamic>);
         safe[entry.key] = controller.toJson();
       }
-      await prefs.setString(layoutsKey, jsonEncode(safe));
+      final String encoded = jsonEncode(safe);
+      if (encoded == raw) return;
+      debugLayoutSanitizeWrites++;
+      await prefs.setString(layoutsKey, encoded);
     } catch (_) {
       await prefs.remove(layoutsKey);
     }
@@ -943,7 +983,10 @@ class CanvasController extends ChangeNotifier {
     final LinkGroup? g = groupForCard(cardId);
     if (g == null) return false;
     g.members.remove(cardId);
-    if (g.members.length < 2) _groups.remove(g);
+    if (g.members.length < 2) {
+      _groups.remove(g);
+      _persistedCanonicals.remove(g.id);
+    }
     return true;
   }
 

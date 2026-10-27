@@ -23,6 +23,7 @@ import '../widgets/mq/mq_icons.dart';
 import '../widgets/mq/mq_surface.dart';
 import '../widgets/mq/mq_status.dart';
 import '../widgets/mq/section_rule.dart';
+import '../utils/text_truncate.dart';
 import 'detail/qr_scanner_route.dart';
 import 'detail/tool_detail_route.dart';
 
@@ -101,7 +102,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _hero.addListener(_onHeroChange);
-    _heroFocus.addListener(_rebuild);
   }
 
   @override
@@ -117,14 +117,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _detectDebounce?.cancel();
     _hero.removeListener(_onHeroChange);
-    _heroFocus.removeListener(_rebuild);
     _hero.dispose();
     _heroFocus.dispose();
     super.dispose();
-  }
-
-  void _rebuild() {
-    if (mounted) setState(() {});
   }
 
   void _onHeroChange() {
@@ -901,6 +896,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  static const int _rawTextCap = 100000;
+
   Future<void> _shareOutput(WorkflowStep step) async {
     if (!WorkSessionController.canExport(step)) return;
     final RenderBox? box = context.findRenderObject() as RenderBox?;
@@ -992,11 +989,12 @@ class _HomeScreenState extends State<HomeScreen> {
             const SectionRule(label: 'Text'),
             Semantics(
               container: true,
-              label: 'Opened text: ${_hero.text}',
+              label:
+                  'Opened text: ${truncateWithEllipsis(_hero.text, max: _rawTextCap)}',
               excludeSemantics: true,
               child: MqSurface(
                 child: Text(
-                  _hero.text,
+                  truncateWithEllipsis(_hero.text, max: _rawTextCap),
                   style: MqTextStyles.monoMd.copyWith(color: c.monoText),
                 ),
               ),

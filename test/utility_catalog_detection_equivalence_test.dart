@@ -105,6 +105,16 @@ List<String> _synthetic() {
     '1' * 5000,
     'f' * 5000,
     'now\n' * 3,
+    // Above the Markdown (32 KB) and YAML/TOML (128 KB) detection parse caps.
+    _lines(
+      40000,
+      (int i) =>
+          '## Section $i\n\nNote: covers **topic $i** and `code_$i`.\n'
+          '- item: $i',
+    ),
+    'items:\n${_lines(140000, (int i) => '  - id: $i\n    name: item-$i')}',
+    _lines(140000, (int i) => '[table_$i]\nkey = "v$i"\n'),
+    'Note: header line\n${_lines(140000, (int i) => 'See [docs $i](https://x.test) now.')}',
   ];
   for (final String name in <String>['x509_leaf.pem', 'x509_root.pem']) {
     final File file = File('test/fixtures/$name');

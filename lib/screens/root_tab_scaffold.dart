@@ -108,7 +108,7 @@ class _RootTabScaffoldState extends State<RootTabScaffold> {
     return CupertinoTabScaffold(
       controller: _tabController,
       tabBar: CupertinoTabBar(
-        backgroundColor: c.surface.withValues(alpha: 0.85),
+        backgroundColor: c.surface,
         activeColor: c.accent,
         inactiveColor: c.textTer,
         height: 68,

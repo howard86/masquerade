@@ -1,5 +1,8 @@
+import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -53,6 +56,25 @@ class HistoryEntry {
     id: id ?? this.id,
   );
 
+  /// The entry's persisted JSON, encoded once. Entries are immutable, so the
+  /// string is reusable by every persist until the entry is replaced
+  /// (copyWith yields a new entry and a new cache slot).
+  String get encoded => _encodedCache[this] ??= jsonEncode(toJson());
+
+  static final Expando<String> _encodedCache = Expando<String>('history.json');
+
+  /// Lowercased searchable text (everything except the tool/date labels,
+  /// which callers supply). Built on first search, then reused per keystroke.
+  String get _haystack => _haystackCache[this] ??= <String>[
+    utilityId,
+    timestamp.toIso8601String(),
+    if (!protected) ...<String>[input, output],
+  ].join('\u0000').toLowerCase();
+
+  static final Expando<String> _haystackCache = Expando<String>(
+    'history.haystack',
+  );
+
   Map<String, dynamic> toJson() {
     final bool redact = protected;
     return <String, dynamic>{
@@ -80,14 +102,46 @@ class HistoryEntry {
 }
 
 /// On-device history of utility usage. 7-day retention by default.
-class HistoryController extends ChangeNotifier {
+///
+/// Writes are debounced ([persistDelay]) and flushed when the app leaves the
+/// foreground or the controller is disposed; destructive actions (delete,
+/// clear, retention change) flush immediately. [flush] writes now.
+class HistoryController extends ChangeNotifier with WidgetsBindingObserver {
   HistoryController({
     Duration retention = const Duration(days: 7),
     int maxEntries = 200,
     SharedPreferences? prefs,
+    this.persistDelay = kIsWeb
+        ? const Duration(milliseconds: 500)
+        : Duration.zero,
+    this.maxPersistedChars = defaultMaxPersistedChars,
   }) : _retention = retention,
        _maxEntries = maxEntries,
        _prefs = prefs;
+
+  /// Debounce for add/pin writes. Defaults to 500 ms on web, where each write
+  /// is a synchronous localStorage encode; native writes go out immediately
+  /// ([Duration.zero]) since they are cheap and survive a process kill.
+  final Duration persistDelay;
+
+  /// Budget for the encoded persisted JSON. The per-entry caps allow ~16M
+  /// chars, but web localStorage holds ~5M chars for the whole origin and
+  /// `setItem` throws past it. Oldest unpinned entries are left out of the
+  /// persisted copy (they stay in memory) until it fits.
+  final int maxPersistedChars;
+  static const int defaultMaxPersistedChars = 1500000;
+
+  /// Bump when [SensitiveDataPolicy] or a tool's history policy changes what
+  /// may be stored: `load` rescans stored entries only on a version mismatch.
+  /// The version is stored in the same prefs value as the entries
+  /// (`{"v":N,"entries":[...]}` under [_prefsKey]), so no writer can change
+  /// one without the other; any other version is stale. The legacy bare-array
+  /// key ([_legacyPrefsKey]) is only read to migrate (always stale, so fully
+  /// rescanned) and is never written, so an older build in another tab keeps
+  /// working on its own copy. The guard test in
+  /// `history_policy_fingerprint_test.dart` fails when the inputs change
+  /// without this being bumped.
+  static const int policyVersion = 1;
 
   /// Largest input/output (UTF-16 code units) a new entry may carry. Rows
   /// reopen a tool seeded with the full stored input and copy the full
@@ -97,7 +151,9 @@ class HistoryController extends ChangeNotifier {
   static const int maxInputLength = 16 * 1024;
   static const int maxOutputLength = 64 * 1024;
 
-  static const String _prefsKey = 'mb.history.entries';
+  static const String _prefsKey = 'mb.history.entries.v2';
+  static const String _legacyPrefsKey = 'mb.history.entries';
+  static const String _legacyPolicyVersionKey = 'mb.history.policy.version';
   static const String _retentionKey = 'mb.history.retention.days';
   static int _nextId = 0;
 
@@ -105,8 +161,17 @@ class HistoryController extends ChangeNotifier {
   final int _maxEntries;
   SharedPreferences? _prefs;
   List<HistoryEntry> _entries = <HistoryEntry>[];
+  List<HistoryEntry>? _view;
+  Timer? _persistTimer;
+  bool _dirty = false;
+  bool _wipe = false;
+  bool _observing = false;
+  Future<void> _writes = Future<void>.value();
 
-  List<HistoryEntry> get entries => List<HistoryEntry>.unmodifiable(_entries);
+  /// Unmodifiable snapshot, rebuilt only after a mutation, so callers may
+  /// compare it by identity.
+  List<HistoryEntry> get entries => _view ??=
+      UnmodifiableListView<HistoryEntry>(List<HistoryEntry>.of(_entries));
   Duration get retention => _retention;
 
   List<HistoryEntry> search(
@@ -118,16 +183,12 @@ class HistoryController extends ChangeNotifier {
     if (q.isEmpty) return entries;
     return _entries
         .where((HistoryEntry entry) {
-          final Iterable<String> searchable = <String>[
-            entry.utilityId,
-            if (toolName != null) toolName(entry),
-            entry.timestamp.toIso8601String(),
-            if (dateLabel != null) dateLabel(entry),
-            if (!entry.protected) ...<String>[entry.input, entry.output],
-          ];
-          return searchable.any(
-            (String value) => value.toLowerCase().contains(q),
-          );
+          if (entry._haystack.contains(q)) return true;
+          if (toolName != null && toolName(entry).toLowerCase().contains(q)) {
+            return true;
+          }
+          return dateLabel != null &&
+              dateLabel(entry).toLowerCase().contains(q);
         })
         .toList(growable: false);
   }
@@ -139,15 +200,33 @@ class HistoryController extends ChangeNotifier {
       retention: Duration(days: days ?? 7),
       prefs: prefs,
     );
-    final String? raw = prefs.getString(_prefsKey);
+    final String? raw =
+        prefs.getString(_prefsKey) ?? prefs.getString(_legacyPrefsKey);
     if (raw != null && raw.isNotEmpty) {
       try {
-        final List<dynamic> arr = jsonDecode(raw) as List<dynamic>;
-        final List<HistoryEntry> decoded = arr
-            .map(
-              (dynamic e) => HistoryEntry.fromJson(e as Map<String, dynamic>),
-            )
-            .toList();
+        final Object? root = jsonDecode(raw);
+        final List<dynamic> arr;
+        final bool current;
+        if (root is Map<String, dynamic>) {
+          arr = root['entries'] as List<dynamic>;
+          current = root['v'] == policyVersion;
+        } else {
+          // Bare array: written before the version moved into the value (or
+          // by an older build), so it was never vetted by this policy.
+          arr = root as List<dynamic>;
+          current = false;
+        }
+        final List<HistoryEntry> decoded = <HistoryEntry>[];
+        for (final dynamic e in arr) {
+          final HistoryEntry entry = HistoryEntry.fromJson(
+            e as Map<String, dynamic>,
+          );
+          // Stored by this policy version: the stored text is already the
+          // persisted form, so reuse it instead of re-encoding (and
+          // rescanning) on the next write.
+          if (current) HistoryEntry._encodedCache[entry] = jsonEncode(e);
+          decoded.add(entry);
+        }
         final bool migratedIds = decoded.any(
           (HistoryEntry entry) => entry.id == null,
         );
@@ -158,14 +237,18 @@ class HistoryController extends ChangeNotifier {
             )
             .toList();
         final int loadedCount = c._entries.length;
-        c._entries.removeWhere((HistoryEntry e) => !c._allows(e));
+        if (!current) {
+          c._entries.removeWhere((HistoryEntry e) => !c._allows(e));
+        }
         c._evictExpired();
-        if (migratedIds || c._entries.length != loadedCount) {
-          await c._persist();
+        if (migratedIds || !current || c._entries.length != loadedCount) {
+          c._dirty = true;
+          unawaited(c.flush());
         }
       } catch (_) {
         c._entries = <HistoryEntry>[];
-        await c._persist();
+        c._dirty = true;
+        unawaited(c.flush());
       }
     }
     return c;
@@ -193,8 +276,9 @@ class HistoryController extends ChangeNotifier {
       _entries = _entries.sublist(0, _maxEntries);
     }
     _evictExpired();
+    _view = null;
     notifyListeners();
-    await _persist();
+    await _persistSoon();
   }
 
   bool _allows(HistoryEntry entry) =>
@@ -203,16 +287,21 @@ class HistoryController extends ChangeNotifier {
 
   Future<void> clear() async {
     _entries = <HistoryEntry>[];
+    _view = null;
     notifyListeners();
-    await _persist();
+    _dirty = true;
+    _wipe = true;
+    await flush();
   }
 
   Future<void> delete(HistoryEntry entry) async {
     final int index = _indexOf(entry);
     if (index == -1) return;
     _entries.removeAt(index);
+    _view = null;
     notifyListeners();
-    await _persist();
+    _dirty = true;
+    await flush();
   }
 
   Future<void> togglePinned(HistoryEntry entry) async {
@@ -220,8 +309,9 @@ class HistoryController extends ChangeNotifier {
     if (index == -1) return;
     final HistoryEntry current = _entries[index];
     _entries[index] = current.copyWith(pinned: !current.pinned);
+    _view = null;
     notifyListeners();
-    await _persist();
+    await _persistSoon();
   }
 
   int _indexOf(HistoryEntry entry) {
@@ -247,12 +337,14 @@ class HistoryController extends ChangeNotifier {
   Future<void> setRetention(Duration retention) async {
     _retention = retention;
     _evictExpired();
+    _view = null;
     notifyListeners();
     final SharedPreferences prefs =
         _prefs ?? await SharedPreferences.getInstance();
     _prefs = prefs;
     await prefs.setInt(_retentionKey, retention.inDays);
-    await _persist();
+    _dirty = true;
+    await flush();
   }
 
   void _evictExpired() {
@@ -261,14 +353,104 @@ class HistoryController extends ChangeNotifier {
     _entries.removeWhere((HistoryEntry e) => e.timestamp.isBefore(cutoff));
   }
 
-  Future<void> _persist() async {
-    final SharedPreferences prefs =
-        _prefs ?? await SharedPreferences.getInstance();
-    _prefs = prefs;
-    final String encoded = jsonEncode(
-      _entries.map((HistoryEntry e) => e.toJson()).toList(),
-    );
-    await prefs.setString(_prefsKey, encoded);
+  Future<void> _persistSoon() {
+    _dirty = true;
+    if (persistDelay == Duration.zero) return flush();
+    if (!_observing) {
+      try {
+        WidgetsBinding.instance.addObserver(this);
+        _observing = true;
+      } catch (_) {
+        // No binding (plain Dart test): the timer and dispose still flush.
+      }
+    }
+    _persistTimer?.cancel();
+    _persistTimer = Timer(persistDelay, () {
+      _persistTimer = null;
+      unawaited(flush());
+    });
+    return Future<void>.value();
+  }
+
+  /// Writes any pending change now.
+  Future<void> flush() {
+    _persistTimer?.cancel();
+    _persistTimer = null;
+    if (_dirty) {
+      _dirty = false;
+      _writes = _writes.then((_) => _write());
+    }
+    return _writes;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) unawaited(flush());
+  }
+
+  @override
+  void dispose() {
+    if (_observing) WidgetsBinding.instance.removeObserver(this);
+    _observing = false;
+    unawaited(flush());
+    super.dispose();
+  }
+
+  /// The newest-first entries that fit [budget] encoded chars: oldest
+  /// unpinned entries are dropped first, pinned ones only as a last resort.
+  List<HistoryEntry> _within(int budget) {
+    int total = 0;
+    for (final HistoryEntry e in _entries) {
+      total += e.encoded.length + 1;
+    }
+    if (total <= budget) return _entries;
+    final Set<HistoryEntry> drop = Set<HistoryEntry>.identity();
+    for (final bool pinnedPass in <bool>[false, true]) {
+      for (int i = _entries.length - 1; i >= 0 && total > budget; i--) {
+        final HistoryEntry e = _entries[i];
+        if (e.pinned != pinnedPass) continue;
+        drop.add(e);
+        total -= e.encoded.length + 1;
+      }
+    }
+    return <HistoryEntry>[
+      for (final HistoryEntry e in _entries)
+        if (!drop.contains(e)) e,
+    ];
+  }
+
+  Future<void> _write() async {
+    try {
+      final SharedPreferences prefs =
+          _prefs ?? await SharedPreferences.getInstance();
+      _prefs = prefs;
+      if (_wipe) {
+        _wipe = false;
+        if (_entries.isEmpty) {
+          // Cleared: leave no copy in storage, including the legacy ones.
+          await prefs.remove(_prefsKey);
+          await prefs.remove(_legacyPrefsKey);
+          await prefs.remove(_legacyPolicyVersionKey);
+          return;
+        }
+      }
+      int budget = maxPersistedChars;
+      while (true) {
+        final String encoded =
+            '{"v":$policyVersion,"entries":[${_within(budget).map((HistoryEntry e) => e.encoded).join(',')}]}';
+        try {
+          await prefs.setString(_prefsKey, encoded);
+          break;
+        } catch (e) {
+          // Quota exceeded (web localStorage): retry smaller before giving up.
+          if (budget < 50000) rethrow;
+          budget ~/= 2;
+          debugPrint('History persist failed, retrying smaller: $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('History persist failed: $e');
+    }
   }
 }
 

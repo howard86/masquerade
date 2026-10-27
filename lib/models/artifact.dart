@@ -83,6 +83,10 @@ class Artifact<T> {
     ArtifactKind.unknown => ContentType.text,
   };
 
+  /// Whether the caller marked this artifact sensitive, without scanning.
+  bool get isDeclaredSensitive =>
+      _declaredSensitivity == ArtifactSensitivity.sensitive;
+
   /// Computed once: [kind], [rawValue] and the declared sensitivity are final.
   late final bool isSensitive =
       _declaredSensitivity == ArtifactSensitivity.sensitive ||
