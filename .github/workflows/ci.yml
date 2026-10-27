@@ -96,6 +96,9 @@ jobs:
       - name: Verify Fastlane version lookup from another working directory
         run: ruby ios/fastlane/test_fastfile_version_path.rb
 
+      - name: Test unsigned iOS artifact validation
+        run: python3 ios/fastlane/test_unsigned_app_validation.py
+
       - name: Run pre-commit hooks
         run: pre-commit run --all-files
         env:

@@ -41,6 +41,9 @@ jobs:
       - name: Verify Fastlane version lookup from another working directory
         run: ruby ios/fastlane/test_fastfile_version_path.rb
 
+      - name: Test unsigned artifact validator
+        run: python3 ios/fastlane/test_unsigned_app_validation.py
+
       - name: Set up Flutter 3.41.8
         uses: subosito/flutter-action@v2
         with:
@@ -56,9 +59,9 @@ jobs:
       - name: Build release app without signing
         run: flutter build ios --release --no-codesign --no-pub
 
-      - name: Validate app, extension, manifests, and all Mach-O deployment targets
+      - name: Package and validate the unsigned app artifact
         run: |
-          app=build/ios/iphoneos/Runner.app
+          app="$GITHUB_WORKSPACE/build/ios/iphoneos/Runner.app"
           extension="$app/PlugIns/ShareExtension.appex"
           # Check only the top-level app and extension; vendored frameworks
           # inside a no-codesign build may carry their own platform signatures.
@@ -66,7 +69,54 @@ jobs:
             echo "::error::The validation artifact must be unsigned."
             exit 1
           fi
-          python3 ios/fastlane/validate_unsigned_app.py build/ios/iphoneos/Runner.app \
+
+          archive="$GITHUB_WORKSPACE/build/ios/Runner-unsigned.tar.gz"
+          roundtrip="$GITHUB_WORKSPACE/build/ios/artifact-roundtrip"
+          mkdir -p "$roundtrip"
+          tar -czf "$archive" -C "$(dirname "$app")" "$(basename "$app")"
+          tar -xzf "$archive" -C "$roundtrip"
+
+          python3 - "$app" "$roundtrip/Runner.app" <<'PY'
+          import hashlib
+          import os
+          import stat
+          import sys
+          from pathlib import Path
+
+          def snapshot(root):
+              entries = {}
+              for path in root.rglob("*"):
+                  relative = path.relative_to(root).as_posix()
+                  mode = stat.S_IMODE(path.lstat().st_mode)
+                  if path.is_symlink():
+                      entries[relative] = ("symlink", mode, os.readlink(path))
+                  elif path.is_dir():
+                      entries[relative] = ("directory", mode)
+                  else:
+                      digest = hashlib.sha256()
+                      with path.open("rb") as stream:
+                          for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                              digest.update(chunk)
+                      entries[relative] = ("file", mode, digest.hexdigest())
+              return entries
+
+          original, extracted = map(Path, sys.argv[1:])
+          before = snapshot(original)
+          after = snapshot(extracted)
+          if before != after:
+              missing = sorted(set(before) - set(after))
+              added = sorted(set(after) - set(before))
+              changed = sorted(path for path in before.keys() & after.keys() if before[path] != after[path])
+              raise SystemExit(f"archive round-trip changed app entries: missing={missing}, added={added}, changed={changed}")
+          print(f"Archive round-trip preserved {len(before)} files/links and their modes.")
+          PY
+
+          extracted_app="$roundtrip/Runner.app"
+          if codesign -dv "$extracted_app" 2>/dev/null || codesign -dv "$extracted_app/PlugIns/ShareExtension.appex" 2>/dev/null; then
+            echo "::error::Extracted validation artifact must remain unsigned."
+            exit 1
+          fi
+          python3 ios/fastlane/validate_unsigned_app.py "$extracted_app" \
             | tee build/ios/unsigned-validation.json \
             | tee -a "$GITHUB_STEP_SUMMARY"
 
@@ -74,8 +124,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ios-unsigned-validation-1.29.0-${{ github.sha }}
+          # The tar preserves executable bits and symlinks; the validation
+          # report is plain JSON. Don't upload Runner.app directly here.
           path: |
-            build/ios/iphoneos/Runner.app
+            build/ios/Runner-unsigned.tar.gz
             build/ios/unsigned-validation.json
           if-no-files-found: error
           retention-days: 3

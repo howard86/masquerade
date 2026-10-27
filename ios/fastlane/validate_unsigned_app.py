@@ -97,31 +97,113 @@ def is_mach_o(path: Path) -> bool:
         return False
 
 
-def macho_minimums(path: Path) -> list[str]:
-    result = subprocess.run(
-        ["xcrun", "vtool", "-show-build", str(path)],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    minimums = re.findall(r"^\s*minos\s+([0-9]+(?:\.[0-9]+){0,2})\s*$", result.stdout, re.MULTILINE)
-    if minimums:
-        return minimums
+def platform_name(value: str) -> str:
+    names = {
+        "2": "IOS",
+        "6": "MACCATALYST",
+        "7": "IOSSIMULATOR",
+        "IOS": "IOS",
+        "IPHONEOS": "IOS",
+    }
+    normalized = value.upper()
+    return names.get(normalized, normalized)
 
+
+def parse_vtool_builds(output: str, architecture: str) -> list[dict[str, str]]:
+    builds = []
+    pending_platform = None
+    for line in output.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("platform "):
+            pending_platform = platform_name(stripped.split()[1])
+        elif stripped.startswith("minos "):
+            if pending_platform is None:
+                raise ValueError(f"vtool reported a minimum OS without a platform for {architecture}")
+            builds.append(
+                {
+                    "architecture": architecture,
+                    "platform": pending_platform,
+                    "minimum_ios": stripped.split()[1],
+                }
+            )
+            pending_platform = None
+    if pending_platform is not None:
+        raise ValueError(f"vtool reported a platform without a minimum OS for {architecture}")
+    return builds
+
+
+def parse_otool_builds(output: str, architecture: str) -> list[dict[str, str]]:
+    builds = []
+    blocks = re.split(r"(?=^Load command [0-9]+\s*$)", output, flags=re.MULTILINE)
+    for block in blocks:
+        command_match = re.search(r"^\s*cmd\s+(\S+)", block, re.MULTILINE)
+        if command_match is None:
+            continue
+        command = command_match.group(1)
+        if command == "LC_VERSION_MIN_IPHONEOS":
+            version_match = re.search(r"^\s*version\s+([0-9]+(?:\.[0-9]+){0,2})\s*$", block, re.MULTILINE)
+            platform = "IOS"
+        elif command == "LC_BUILD_VERSION":
+            version_match = re.search(r"^\s*minos\s+([0-9]+(?:\.[0-9]+){0,2})\s*$", block, re.MULTILINE)
+            platform_match = re.search(r"^\s*platform\s+(\S+)\s*$", block, re.MULTILINE)
+            platform = platform_name(platform_match.group(1)) if platform_match else None
+        else:
+            continue
+        if version_match is None or platform is None:
+            raise ValueError(f"otool returned incomplete deployment data for {architecture}")
+        builds.append(
+            {
+                "architecture": architecture,
+                "platform": platform,
+                "minimum_ios": version_match.group(1),
+            }
+        )
+    return builds
+
+
+def macho_deployment_targets(path: Path) -> list[dict[str, str]]:
     result = subprocess.run(
-        ["xcrun", "otool", "-l", str(path)],
+        ["xcrun", "lipo", "-archs", str(path)],
         check=False,
         capture_output=True,
         text=True,
     )
-    command = None
-    for line in result.stdout.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("cmd "):
-            command = stripped[4:]
-        elif command == "LC_VERSION_MIN_IPHONEOS" and stripped.startswith("version "):
-            return [stripped.split()[1]]
-    raise ValueError(f"could not read an iOS minimum deployment version from Mach-O {path}")
+    architectures = result.stdout.split() if result.returncode == 0 else []
+    if not architectures:
+        raise ValueError(f"could not enumerate Mach-O architectures for {path}")
+
+    builds = []
+    for architecture in architectures:
+        result = subprocess.run(
+            ["xcrun", "vtool", "-arch", architecture, "-show-build", str(path)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        architecture_builds = parse_vtool_builds(result.stdout, architecture)
+        if not architecture_builds:
+            result = subprocess.run(
+                ["xcrun", "otool", "-arch", architecture, "-l", str(path)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            architecture_builds = parse_otool_builds(result.stdout, architecture)
+        if not architecture_builds:
+            raise ValueError(f"could not read platform and minimum OS for {path} ({architecture})")
+        builds.extend(architecture_builds)
+    return builds
+
+
+def validate_macho_builds(path: Path, builds: list[dict[str, str]]) -> None:
+    if not builds:
+        raise ValueError(f"no deployment records were found for Mach-O {path}")
+    for build in builds:
+        if build["platform"] != "IOS":
+            raise ValueError(
+                f"{path} ({build['architecture']}) targets {build['platform']}, not an iOS device"
+            )
+        require_supported_minimum(build["minimum_ios"], path)
 
 
 def main() -> int:
@@ -144,9 +226,17 @@ def main() -> int:
 
     checked_minimums: list[dict[str, str]] = []
     for binary in binaries:
-        for minimum in macho_minimums(binary):
-            require_supported_minimum(minimum, binary)
-            checked_minimums.append({"path": str(binary.relative_to(app)), "minimum_ios": minimum})
+        builds = macho_deployment_targets(binary)
+        validate_macho_builds(binary, builds)
+        checked_minimums.extend(
+            {
+                "path": str(binary.relative_to(app)),
+                "architecture": build["architecture"],
+                "platform": build["platform"],
+                "minimum_ios": build["minimum_ios"],
+            }
+            for build in builds
+        )
 
     print(
         json.dumps(
