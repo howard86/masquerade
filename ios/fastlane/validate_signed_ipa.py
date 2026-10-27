@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Fail-closed validation for Fastlane's exported, signed App Store IPA.
 
-A production run uses macOS ditto, codesign, security, and xcrun. Unit tests
-mock those tools and validate the validator's decision logic only.
+A production run uses macOS ditto, codesign, security, OpenSSL, and xcrun.
+Unit tests mock signing tools and root lookup; a separate OpenSSL fixture tests
+CMS signature and certificate-chain verification with a generated test CA.
 """
 from __future__ import annotations
 
@@ -57,22 +58,39 @@ def _run(
     return result
 
 
-def _profile_data(profile_path: Path, runner: Runner, now: dt.datetime) -> dict:
+def _profile_data(
+    profile_path: Path,
+    decoded_path: Path,
+    trust_roots: Path,
+    runner: Runner,
+    now: dt.datetime,
+) -> dict:
     if not profile_path.is_file() or profile_path.stat().st_size == 0:
         fail(f"missing or empty embedded provisioning profile: {profile_path}")
 
-    result = _run(
+    _run(
         runner,
-        ["security", "cms", "-D", "-i", str(profile_path)],
-        text=False,
+        [
+            "openssl",
+            "cms",
+            "-verify",
+            "-binary",
+            "-inform",
+            "DER",
+            "-in",
+            str(profile_path),
+            "-CAfile",
+            str(trust_roots),
+            "-purpose",
+            "any",
+            "-out",
+            str(decoded_path),
+        ],
     )
-    output = result.stdout
-    if isinstance(output, str):
-        output = output.encode()
     try:
-        profile = plistlib.loads(output)
+        profile = load_plist(decoded_path)
     except (ValueError, plistlib.InvalidFileException, expat.ExpatError) as error:
-        fail(f"{profile_path}: security returned an invalid profile plist: {error}")
+        fail(f"{profile_path}: verified CMS content is not a valid profile plist: {error}")
     if not isinstance(profile, dict):
         fail(f"{profile_path}: expected a provisioning profile dictionary")
 
@@ -123,8 +141,14 @@ def _verify_profile(
         fail(f"{profile_path}: application-identifier prefix is not in the profile")
 
     groups = entitlements.get("com.apple.security.application-groups", [])
-    if app_group not in groups:
+    if not isinstance(groups, list) or app_group not in groups:
         fail(f"{profile_path}: required application group {app_group} is missing")
+    certificates = profile.get("DeveloperCertificates")
+    if not isinstance(certificates, list) or not certificates or any(
+        not isinstance(certificate, bytes) or not certificate
+        for certificate in certificates
+    ):
+        fail(f"{profile_path}: DeveloperCertificates must contain DER certificates")
 
     return {
         "name": profile.get("Name"),
@@ -132,7 +156,30 @@ def _verify_profile(
         "expires": expiration_for_report(profile["ExpirationDate"]),
         "bundle_id": bundle_id,
         "team_id": profile_team,
+        "developer_certificates": len(certificates),
+        "cms_signature": "verified against Apple Root CA",
     }
+
+
+def _apple_root_certificates(path: Path, runner: Runner) -> None:
+    result = _run(
+        runner,
+        [
+            "security",
+            "find-certificate",
+            "-a",
+            "-p",
+            "-c",
+            "Apple Root CA",
+            "/System/Library/Keychains/SystemRootCertificates.keychain",
+        ],
+    )
+    certificates = result.stdout
+    if isinstance(certificates, bytes):
+        certificates = certificates.decode("ascii", "replace")
+    if "-----BEGIN CERTIFICATE-----" not in certificates:
+        fail("no Apple Root CA trust certificates were found in the system keychain")
+    path.write_text(certificates)
 
 
 def expiration_for_report(value: dt.datetime) -> str:
@@ -163,6 +210,7 @@ def _verify_signature(
     team_id: str,
     app_group: str,
     profile: dict,
+    certificate_prefix: Path,
     runner: Runner,
 ) -> None:
     _run(
@@ -174,18 +222,40 @@ def _verify_signature(
         ["codesign", "-dv", "--verbose=4", str(bundle)],
     )
     detail_text = f"{details.stdout}\n{details.stderr}"
+    signature_fields = {}
+    for line in detail_text.splitlines():
+        key, separator, value = line.partition("=")
+        if separator and key in {"Identifier", "TeamIdentifier"}:
+            if key in signature_fields:
+                fail(f"{bundle}: signature reports duplicate {key} fields")
+            signature_fields[key] = value.strip()
     if "Authority=Apple Distribution:" not in detail_text:
         fail(f"{bundle}: signature is not an Apple Distribution signature")
-    if f"Identifier={bundle_id}" not in detail_text:
+    if signature_fields.get("Identifier") != bundle_id:
         fail(f"{bundle}: signature identifier does not match {bundle_id}")
-    if f"TeamIdentifier={team_id}" not in detail_text:
+    if signature_fields.get("TeamIdentifier") != team_id:
         fail(f"{bundle}: signature team does not match {team_id}")
+
+    _run(
+        runner,
+        [
+            "codesign",
+            "--display",
+            f"--extract-certificates={certificate_prefix}",
+            str(bundle),
+        ],
+    )
+    leaf_certificate = Path(f"{certificate_prefix}0")
+    if not leaf_certificate.is_file() or leaf_certificate.stat().st_size == 0:
+        fail(f"{bundle}: codesign did not extract the signature leaf certificate")
+    if leaf_certificate.read_bytes() not in profile.get("DeveloperCertificates", []):
+        fail(f"{bundle}: signing leaf certificate is not authorized by its profile")
 
     signed = _run(
         runner,
-        ["codesign", "-d", "--entitlements", ":-", str(bundle)],
+        ["codesign", "--display", "--entitlements", "-", "--xml", str(bundle)],
     )
-    entitlement_text = f"{signed.stdout}\n{signed.stderr}"
+    entitlement_text = signed.stdout
     if isinstance(entitlement_text, bytes):
         entitlement_text = entitlement_text.decode("utf-8", "replace")
     plist_start = entitlement_text.find("<?xml")
@@ -347,6 +417,8 @@ def validate_signed_ipa(
     with tempfile.TemporaryDirectory(prefix="masquerade-signed-ipa-") as temp:
         extraction = Path(temp)
         _run(runner, ["ditto", "-x", "-k", str(ipa_path), str(extraction)])
+        apple_roots = extraction / "apple-root-certificates.pem"
+        _apple_root_certificates(apple_roots, runner)
         app = extraction / app_root
         extension = extraction / extension_root
         if not app.is_dir() or not extension.is_dir():
@@ -385,8 +457,15 @@ def validate_signed_ipa(
             )
 
         reports = []
-        for bundle, bundle_id in ((app, app_id), (extension, extension_id)):
-            profile = _profile_data(bundle / "embedded.mobileprovision", runner, now)
+        for index, (bundle, bundle_id) in enumerate(((app, app_id), (extension, extension_id))):
+            profile_path = bundle / "embedded.mobileprovision"
+            profile = _profile_data(
+                profile_path,
+                extraction / f"verified-profile-{index}.plist",
+                apple_roots,
+                runner,
+                now,
+            )
             profile_summary = _verify_profile(
                 bundle / "embedded.mobileprovision",
                 profile,
@@ -394,7 +473,16 @@ def validate_signed_ipa(
                 team_id,
                 app_group,
             )
-            _verify_signature(bundle, bundle_id, team_id, app_group, profile, runner)
+            certificate_prefix = extraction / f"signature-certificate-{bundle_id}-"
+            _verify_signature(
+                bundle,
+                bundle_id,
+                team_id,
+                app_group,
+                profile,
+                certificate_prefix,
+                runner,
+            )
             reports.append(
                 {
                     "bundle_id": bundle_id,

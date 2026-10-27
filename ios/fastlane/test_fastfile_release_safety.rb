@@ -88,6 +88,7 @@ class FastfileReleaseSafetyTest < Minitest::Test
     end
 
     @temporary_directory = Dir.mktmpdir("fastlane-release-safety-")
+    @version = Object.new.send(:app_version_from_pubspec)
     ENV["ASC_KEY_ID"] = "test-key-id"
     ENV["ASC_ISSUER_ID"] = "test-issuer-id"
     ENV["ASC_KEY_P8"] = "test-only-placeholder"
@@ -99,7 +100,7 @@ class FastfileReleaseSafetyTest < Minitest::Test
     $fastlane_test_ipa_path = File.join(@temporary_directory, "actual-fastlane-output.ipa")
     $fastlane_validator_failure = false
     $fastlane_missing_ipa = false
-    @previous_output = File.join(@temporary_directory, "1.29.0-83-prior")
+    @previous_output = File.join(@temporary_directory, "#{@version}-83-prior")
     Dir.mkdir(@previous_output)
     File.write(File.join(@previous_output, "sentinel"), "keep")
   end
@@ -126,7 +127,7 @@ class FastfileReleaseSafetyTest < Minitest::Test
 
     build_action = $fastlane_actions.find { |action| action.first == :build_app }
     output_directory = build_action[1][:output_directory]
-    assert_match(/\A1\.29\.0-83-/, File.basename(output_directory))
+    assert_match(/\A#{Regexp.escape(@version)}-83-/, File.basename(output_directory))
     assert_equal @temporary_directory, File.dirname(output_directory)
     assert File.exist?(File.join(@previous_output, "sentinel"))
 
@@ -135,7 +136,7 @@ class FastfileReleaseSafetyTest < Minitest::Test
     assert_operator validation_index, :<, upload_index
     validation = $fastlane_actions[validation_index][1]
     assert_equal $fastlane_test_ipa_path, validation[:ipa_path]
-    assert_equal "1.29.0", validation[:version]
+    assert_equal @version, validation[:version]
     assert_equal "83", validation[:build_number]
 
     upload = $fastlane_actions[upload_index][1]
@@ -163,7 +164,7 @@ class FastfileReleaseSafetyTest < Minitest::Test
     Object.new.send(
       :fastlane_signed_ipa_validator_command,
       ipa_path: $fastlane_test_ipa_path,
-      version: "1.29.0",
+      version: @version,
       build_number: "83",
       built_after: 123.5,
     )
@@ -173,7 +174,7 @@ class FastfileReleaseSafetyTest < Minitest::Test
     assert_equal File.expand_path("validate_signed_ipa.py", __dir__), shell[1]
     assert_includes shell, $fastlane_test_ipa_path
     assert_includes shell, "--expected-version"
-    assert_includes shell, "1.29.0"
+    assert_includes shell, @version
     assert_includes shell, "--expected-build"
     assert_includes shell, "83"
     assert_includes shell, "--built-after"

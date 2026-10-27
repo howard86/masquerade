@@ -33,6 +33,14 @@ jobs:
           echo "iOS SDK $sdk_version"
           test "$sdk_version" = "26.5"
 
+      - name: Check Apple trust roots for profile CMS validation
+        run: |
+          roots="$RUNNER_TEMP/apple-root-ca.pem"
+          security find-certificate -a -p -c "Apple Root CA" \
+            /System/Library/Keychains/SystemRootCertificates.keychain > "$roots"
+          grep -q -- "-----BEGIN CERTIFICATE-----" "$roots"
+          openssl x509 -in "$roots" -noout >/dev/null
+
       - name: Set up Ruby for the Fastfile regression test
         uses: ruby/setup-ruby@v1
         with:
