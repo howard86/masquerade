@@ -1,7 +1,7 @@
 # Launch Metadata — App Store, Web, README, Brand Prompts
 
-Status: locked spec, drafted via /grill-me on 2026-05-11. Refreshed 2026-07-16 for the current app (tool set grew 9 → 18, version now tracks `pubspec.yaml` `1.25.x`); positioning anchors in §1 unchanged.
-Scope this round: App Store (iOS), web PWA + meta tags, GitHub social card / README hero, brand asset prompts. Play Store metadata deliberately deferred (see §7).
+Status: draft — not ready for App Store submission. Refreshed 2026-10-27 against the public repository's `main` at `04241d32dbe074ec0aae119b754173e91e38670b` (`pubspec.yaml` 1.29.0; 28 tools). Screenshot capture is complete; owner decisions and upload/submission checks remain open below.
+Scope: proposed App Store copy and the evidence/checklist needed to finish the listing. Web PWA, social-card, and brand-prompt notes remain separate follow-up work. Play Store metadata is deferred (see §9).
 
 ## 1. Positioning anchors (load-bearing for everything below)
 
@@ -10,25 +10,29 @@ Scope this round: App Store (iOS), web PWA + meta tags, GitHub social card / REA
 | Tagline | `A quiet toolbox for builders.` (29 chars) |
 | Personas | Backend / platform engineers · Frontend / design engineers · Finance / quant |
 | Voice | Editorial restraint — book/journal, not dashboard |
-| Differentiator | Native Cupertino · offline · no telemetry · no ads · no accounts |
+| Differentiator | Native Cupertino · on-device calculations · no analytics · no ads |
 
 These four lines drive every string and every prompt below. Change one → re-derive everything downstream.
 
 ## 2. App Store metadata
 
 ```yaml
-name:                "Masquerade: A Quiet Toolbox"        # 27/30
-subtitle:            "A quiet toolbox for builders."       # 29/30
-primary_category:    Utilities
-secondary_category:  Developer Tools
-age_rating:          4+
-keywords:            "json,base64,cron,hex,timestamp,epoch,uuid,jwt,hash,diff,cidr,color,oklch,wcag,qr,bytes,url,encode"   # 97/100
-support_url:         https://github.com/howard86/masquerade/issues
-marketing_url:       https://github.com/howard86/masquerade
-privacy_policy_url:  https://github.com/howard86/masquerade/blob/main/docs/privacy.md
-privacy_label:       Data Not Collected
-business_model:      Paid (one-time purchase) — no IAP, no subscription, no ads
-eula:                Apple standard Licensed Application EULA (no custom EULA)
+repository_release:   1.29.0 (latest public release; reference only)
+store_version:       TODO — owner verifies the live App Store version and next submitted build
+name:                "Masquerade: A Quiet Toolbox"         # 27/30
+subtitle:            "A quiet toolbox for builders."        # 29/30
+primary_category:    Utilities                            # owner to confirm
+secondary_category:  Developer Tools                      # owner to confirm availability
+age_rating:          TODO — owner completes current age-rating questionnaire
+keywords:            "json,jwt,cron,uuid,regex,epoch,hex,cidr,diff,hash,yaml,csv,x509,base64,color,qr,url,env,unicode,toml" # 100 ASCII bytes
+support_url:         https://github.com/howard86/masquerade/issues # candidate; owner verifies
+marketing_url:       https://github.com/howard86/masquerade          # candidate; owner verifies
+privacy_policy_url:  https://github.com/howard86/masquerade/blob/main/docs/privacy.md # candidate; owner verifies
+support_contact:     TODO — owner supplies and verifies review contact details
+privacy_label:       TODO — owner verifies App Privacy answers against the shipped app, extension, and SDKs
+business_model:      Paid one-time purchase; no IAP, subscription, or ads (repository evidence; owner confirms listing)
+eula:                TODO — owner confirms Apple's standard EULA or supplies a custom EULA
+copyright:           TODO — owner confirms the legal copyright holder and year
 ```
 
 App name on store ≠ home-screen name. `CFBundleDisplayName` stays `Masquerade` so the home-screen label does not truncate.
@@ -50,25 +54,57 @@ The source is published under a source-available license (`LICENSE`, proprietary
 
 **Schedule 2 is the long pole.** Everything else in §8 takes minutes; the Paid Apps Agreement needs bank-account and tax-form verification and takes days. Start it first — until it is active, no price can be set and the app cannot reach *Ready for Sale* no matter how green the build is.
 
-### Promotional text (~150/170, editable post-release without re-review)
+### Promotional text (159/170, editable post-release without re-review)
 
-> A pocket of conversions for the data you carry — timestamps, JSON, JWT, UUID, color, base64, cron, hashes, diffs, QR. Offline. No tracking. No noise.
+> A quiet pocket of 28 developer tools for JSON, JWT, cron, regex, timestamps, diffs, colors, logs, and certs. No ads or analytics. Your history stays on device.
 
 ### Description (lead 250 visible without "more")
 
 > Masquerade is a quiet toolbox for builders.
 >
-> Convert timestamps between epoch and ISO. Reformat JSON, YAML, and TOML. Decode base64 and JWTs. Read cron schedules in plain English. Move between hex, binary, decimal, and bytes. Translate colors across HEX, RGB, HSL, and OKLCH with WCAG contrast. Convert basis points to percent and back. Scan or generate QR.
+> Twenty-eight converters, formatters, and inspectors crafted for the data you carry every day. Fast, copy-friendly, and typeset with editorial restraint in IBM Plex.
 >
-> Then the deeper drawer: generate and inspect UUIDs and ULIDs. Hash with MD5 through SHA-512. Diff two texts. Subnet IPv4/IPv6 and CIDR blocks. Percent-encode URLs and edit query strings. Evaluate math expressions. Split and join lists. Generate passwords and tokens.
+> CORE TRANSFORMATIONS
+> • JSON, YAML & TOML — Pretty-print, minify, browse interactive trees, and convert between structured formats.
+> • Timestamps & Epoch — Convert between Unix seconds/milliseconds and ISO 8601 with relative time breakdowns.
+> • JWT Decoder — Decode headers and payloads, with expiration and not-before indicators. It does not verify signatures.
+> • Number Base & Bytes — Move between Hex, Binary, Octal, Decimal, and UTF-8 byte arrays.
+> • Base64 & Text Case — Encode, decode (standard & URL-safe), and convert identifiers across camel, snake, kebab, and pascal cases.
+> • CSV / TSV — Bidirectional conversion with JSON and bounded table previews.
+> • Color & Contrast — Translate HEX, RGB, HSL, and OKLCH with WCAG 2.1 contrast ratio scoring.
+> • Basis Points & Math — Basis points (bps) ↔ % ↔ decimal, plus mathematical expression evaluation.
 >
-> Everything runs on-device. Nothing is collected, tracked, or sent anywhere. No accounts. No ads. No telemetry.
+> DEEP INSPECTORS & SECURITY
+> • Log & Stack Trace Inspector — Group, search, redact, and parse JSON Lines, raw server logs, and stack traces.
+> • Environment & Config — Normalize, compare, and redact .env files, properties, and configuration headers.
+> • X.509 Certificates — Inspect local PEM/DER certificates, chains, fingerprints, SANs, and public keys without remote requests.
+> • Unicode & Strings — Reveal grapheme clusters, code points, UTF-8 bytes, invisible bidi controls, and line endings.
+> • Artifact Inspector — Recursively trace nested encodings with bounded previews.
+> • HTTP Inspector — Inspect, format, and redact curl commands and raw HTTP request snippets.
 >
-> Built with Cupertino. Typeset in IBM Plex.
+> GENERATION & VALIDATION
+> • UUID & ULID — Generate v4/v7 UUIDs, validate versions/variants, and parse ULIDs.
+> • IP & CIDR — IPv4/IPv6 subnetting, host ranges, broadcast addresses, and network scope flags.
+> • Regular Expressions — Test Dart regex patterns with real-time match highlighting and capture group inspection.
+> • Text Diff — Side-by-side and unified diffs with line- and word-level granularity.
+> • Hashes & Checksums — MD5, SHA-1, SHA-256, and SHA-512 with verification mode.
+> • QR Codes — Scan with the camera or generate codes locally.
+> • Password & Token Generator — Generate cryptographically secure passwords, base64url tokens, and random strings.
+> • Markdown — Safe, inert local preview of markdown headings, tables, and lists.
+>
+> PRIVACY & CRAFTSMANSHIP
+> • On-Device Processing — Tool calculations run locally. The current app has no analytics or app backend receiving inputs; optional history and saved drafts remain on the device and are user-controlled.
+> • No Ads — The current app has no advertising.
+> • Native Cupertino — Built with native iOS design principles and fluid dark mode support.
 
-### What's New (draft for first public release, version from `pubspec.yaml`)
+### What's New (owner decision required)
 
-> First public release. Eighteen tools, one quiet desk.
+> TODO: Confirm whether the next submission is the first public listing or an update, and use the version/build that will actually be submitted. Do not publish “First public release” until the owner confirms it.
+
+### App Review Notes (draft; complete the owner checks in §8 before pasting into App Store Connect)
+
+> • On-device processing: tool calculations run on-device; the current app has no analytics or app backend receiving user inputs.
+> • Camera: the camera permission is used by the QR scanner. Open “QR Code” and tap “Scan QR Code” to test.
 
 ## 3. Web PWA — `web/manifest.json`
 
@@ -87,7 +123,7 @@ Refines the existing file with `id`, `scope`, `lang`, `categories`, richer descr
     "theme_color": "#8B2635",
     "lang": "en",
     "categories": ["utilities", "productivity", "developer"],
-    "description": "A quiet toolbox for builders. Convert timestamps, JSON, base64, hex, color, cron, basis points, bytes and QR — on-device, offline, untracked.",
+    "description": "A quiet toolbox for builders. Convert timestamps, JSON, base64, hex, color, cron, basis points, bytes and QR on-device, with local history under your control.",
     "prefer_related_applications": false,
     "icons": [
         { "src": "icons/Icon-192.png",          "sizes": "192x192", "type": "image/png" },
@@ -103,18 +139,18 @@ Refines the existing file with `id`, `scope`, `lang`, `categories`, richer descr
 Insert between the existing `<meta name="description">` and `<meta name="mobile-web-app-capable">`. Replaces the current `<meta name="description">` with the refined string.
 
 ```html
-<meta name="description" content="A quiet toolbox for builders. Convert timestamps, JSON, base64, hex, color, cron, basis points, bytes and QR — on-device, offline, untracked.">
+<meta name="description" content="A quiet toolbox for builders. Convert timestamps, JSON, base64, hex, color, cron, basis points, bytes and QR on-device, with local history under your control.">
 
 <meta property="og:type"        content="website">
 <meta property="og:title"       content="Masquerade: A Quiet Toolbox">
-<meta property="og:description" content="A quiet toolbox for builders. On-device, offline, untracked.">
+<meta property="og:description" content="A quiet toolbox for builders. On-device, with local history under your control.">
 <meta property="og:image"       content="og-banner.png">
 <meta property="og:image:width"  content="1200">
 <meta property="og:image:height" content="630">
 
 <meta name="twitter:card"        content="summary_large_image">
 <meta name="twitter:title"       content="Masquerade: A Quiet Toolbox">
-<meta name="twitter:description" content="A quiet toolbox for builders. On-device, offline, untracked.">
+<meta name="twitter:description" content="A quiet toolbox for builders. On-device, with local history under your control.">
 <meta name="twitter:image"       content="og-banner.png">
 
 <meta name="theme-color" content="#8B2635" media="(prefers-color-scheme: light)">
@@ -202,14 +238,14 @@ Iteration notes:
 > A quiet toolbox for builders.
 
 Convert timestamps, JSON, base64, hex, color, cron, basis points, bytes,
-and QR — on-device, offline, untracked. Cupertino. IBM Plex.
+and QR on-device, with local history under your control. Cupertino. IBM Plex.
 
 [App Store badge] [Web app link]
 ```
 
 ## 8. Open issues / pre-submission checklist
 
-Statuses verified 2026-07-16; licensing + paid-app rows added 2026-07-17.
+Repository notes last recorded 2026-07-17. The checked archive and UI details below are historical and must be revalidated for the submitted 1.29.0-or-later build.
 
 Repo state:
 
@@ -223,29 +259,35 @@ Repo state:
 - [x] Bundle ID `dev.howardism.Masquerade` (fixed 2026-07-16 — Runner shipped the template's `com.example.howardism` until then; App Store rejects `com.example`); home-screen `CFBundleDisplayName` stays `Masquerade`.
 - [x] `pubspec.yaml` `flutter_launcher_icons.android` left disabled — Android shipping deferred. Re-open with Play Store metadata + adaptive icon source when revisited.
 - [x] ~~Blocker: stray Xcode-generated "Masquerade" SwiftUI target + broken `Debug.xcconfig` include~~ — resolved 2026-07-16: template target removed, `Debug.xcconfig` and `project.pbxproj` restored, bundle-ID fix re-applied surgically.
-- [x] Release archive verified 2026-07-16: `flutter build ipa --release` exports an App Store IPA signed `Apple Distribution` (team `9KRJ83FMAF`) with an App Store provisioning profile (`get-task-allow` false); Flutter app-settings validation green (1.25.2 build 3, Masquerade, `dev.howardism.Masquerade`).
+- [x] Historical release archive verified 2026-07-16: `flutter build ipa --release` exported an App Store IPA signed `Apple Distribution` with an App Store provisioning profile (`get-task-allow` false); this was build 3 of version 1.25.2 and is not evidence for the current 1.29.0 release. Revalidate the actual submitted archive.
 - [x] iPhone-only: `TARGETED_DEVICE_FAMILY = 1` in all three build configs (2026-07-16). iPad was the Flutter template default and was never designed for — see `docs/adr/0003`. Keeps the 13″ iPad screenshot set off the submission.
 - [ ] `web/og-banner.png` (1200×630 center crop of generated banner) committed.
-- [ ] **Privacy policy reachable inside the app.** Guideline 5.1.1(i) wants the link in the ASC metadata field *and* "within the app in an easily accessible manner" — unconditional, including for `Data Not Collected` apps. Settings has a Privacy section (posture blurb, retention, clear-history) but nothing that opens the policy. Needs either `url_launcher` + a row linking `privacy_policy_url`, or the policy text rendered as a page (no dep, works offline, but duplicates `docs/privacy.md` unless it reads it from an asset).
-- [ ] **Acknowledgements screen.** Nothing in the app surfaces third-party licenses. Bundling `OFL.txt` satisfies OFL's letter (the text ships in the IPA); a Settings → Acknowledgements page is what makes it discoverable, and is table stakes for a paid app. `LicenseRegistry.addLicense` for the fonts + a Cupertino page over `LicenseRegistry.licenses` — Flutter's `showLicensePage` is Material-only, so it cannot be used here (`uses-material-design: false`).
+- [x] **Privacy policy reachable inside the app.** Satisfies Guideline 5.1.1(i) via `SettingsScreen` → `PrivacyPolicyScreen` reading `docs/privacy.md` on-device without remote calls.
+- [x] **Acknowledgements screen.** Satisfies open-source and font licensing via `SettingsScreen` → `AcknowledgementsScreen` rendering licenses registered with Flutter's `LicenseRegistry` (including bundled `assets/fonts/OFL.txt`).
 
-Privacy manifests: no app-level `PrivacyInfo.xcprivacy` is needed — the Dart app code uses no required-reason APIs directly; the Flutter engine and plugin pods (`shared_preferences` etc.) ship their own manifests, and the app collects nothing (`Data Not Collected`).
+Privacy manifests and declarations are unverified. The iOS `ShareInboxStore` reads file size and content-modification metadata. Review required-reason API use in the app and Share Extension, inspect the manifests bundled by the selected SDKs, and validate the final app and extension archives. Do not claim that no app-level `PrivacyInfo.xcprivacy` is needed or choose “Data Not Collected” until that review is complete.
 
 Submission (App Store Connect):
 
 - [ ] **Paid Apps Agreement (Schedule 2) active** — ASC → Business. Requires a bank account and tax forms (W-9 / W-8BEN as applicable). **Start this first:** it is the only item here measured in days rather than minutes, and until it is active no price can be set and the app cannot go *Ready for Sale*.
 - [ ] Price point + territory availability set (ASC → Pricing and Availability). See §2.
-- [ ] Create the app record; enter §2 name/subtitle/keywords/categories/URLs there (not in `Info.plist`).
-- [ ] Privacy label: Data Not Collected.
-- [ ] Screenshots — 6.9″ and 6.5″ iPhone sets minimum; static only. No iPad set required (iPhone-only target, §8 gotchas).
-- [ ] Copyright field (ASC → App Information) — required, blocks "Add for Review" with no obvious pointer to it.
-- [ ] App Privacy section completed (Data Not Collected) — Admin-only, also blocks "Add for Review".
+- [ ] Create the app record; enter §2 name/subtitle/keywords/categories/URLs/copyright there (not in `Info.plist`).
+- [ ] Complete App Privacy and age-rating questionnaires from the actual shipped app, Share Extension, SDKs, and owner attestations.
+- [x] Screenshots — Apple's [current screenshot specifications](https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications/) were checked on 2026-10-27. The required 6.3-inch Dynamic Island set uses seven native 1206×2622 captures and matching JPEG candidates under `assets/marketing/screenshots/6.3-inch/`; all are validated as PNG/JPEG without alpha. The 6.9-inch and 6.5-inch candidates were skipped because the native source does not have enough pixels to produce them without upscaling. Select the matching 6.3-inch slot in App Store Connect and recheck its current rules before upload.
+- [x] Captured seven scenes from the v1.29.0 release source at `04241d32dbe074ec0aae119b754173e91e38670b` on an iPhone 17 Pro / iOS 26.4 simulator with synthetic sample data. The old v1.28.0 images were retained under `assets/marketing/screenshots/historical/v1.28.0/`. Build-only compatibility changes and capture details are recorded in `assets/marketing/screenshots/capture-manifest.md`; the simulator build is not claimed to be byte-identical to the published release binary.
+- [ ] Upload the validated screenshots to the selected App Store Connect slot after the owner confirms the correct device set. `scripts/capture-store-screenshots.sh` only prepares candidates from genuine captures; it does not operate App Store Connect.
+- [ ] iPhone only: `TARGETED_DEVICE_FAMILY = 1` is present in the current `main` project settings. No iPad screenshots are needed for this target.
+- [ ] Copyright field (ASC → App Information) — owner confirms the legal holder and year before entry.
+- [ ] Confirm account/sign-in claims against the submitted build before including them in App Store copy or reviewer notes.
+- [ ] Complete App Privacy and age-rating questionnaires from verified app/extension/SDK behavior and owner attestations; do not preselect "Data Not Collected" without that review.
+- [ ] Review the existing in-app `docs/privacy.md` with the owner. The code stores local recent inputs and saved drafts and the Share Extension can retain chosen shared content; confirm the policy's personal-data, retention, deletion, and SDK statements before changing or publishing it.
+- [ ] Supply an active App Review contact and any required access instructions.
 - [x] Export compliance: `ITSAppUsesNonExemptEncryption = false` set in `Info.plist` (2026-07-17). The app only hashes (`crypto` — MD5/SHA), which is exempt. Pre-empting this in the plist is now load-bearing rather than cosmetic: with TestFlight uploads automated on every green `main`, a missing key parks each build in *Missing Compliance* until someone answers the questionnaire by hand, which defeats the point of the pipeline.
 - [ ] Upload the verified IPA (`build/ios/ipa/masquerade.ipa`) via Transporter, or `xcrun altool --upload-app --type ios -f build/ios/ipa/masquerade.ipa --apiKey … --apiIssuer …` — no ASC API key is stored on this machine.
 - [ ] TestFlight pass on a physical device (camera/QR path needs real hardware).
-- [ ] Submit for review with the §2 description + promotional text and the What's New line.
+- [ ] Confirm whether the listing is a first release or an update, then submit the approved description, promotional text, version-specific What's New text, and verified reviewer notes.
 
-### Gotchas (learned the hard way, 2026-07-16 submission)
+### Existing release and submission notes
 
 Every one of these cost a round-trip. Read before the next release.
 
@@ -253,7 +295,7 @@ Every one of these cost a round-trip. Read before the next release.
 - **A stale IPA is the real hazard of that.** When export fails, the *previous* IPA sits at the canonical path looking valid, and Transporter will happily upload it. That is how a build-1, iPad-enabled binary nearly shipped after the iPhone-only fix. Delete or rename the old IPA *before* rebuilding, not after.
 - **Xcode's "Manage Version and Build Number" silently bumps `CFBundleVersion` on export.** The uploaded build was 3 while `pubspec.yaml` said 1. ASC then rejects the next upload with *"build must be higher than previously uploaded version '3'"*. After any Xcode-driven export, read the built `Info.plist` and sync `pubspec.yaml` to whatever actually shipped.
 - **Verify the device family in the archive, not the diff.** `TARGETED_DEVICE_FAMILY` lives in three separate configs in `project.pbxproj` (Debug/Release/Profile) and it is easy to change one. Ground truth is `UIDeviceFamily` in `Runner.xcarchive/Products/Applications/Runner.app/Info.plist` — `Array { 1 }` means iPhone-only landed.
-- **Simulator screenshots are not App Store dimensions.** The iPhone 17 Pro Max simulator captures 1320×2868; ASC's 6.5″ slot accepts 1284×2778. Resample width, then center-crop height (`sips -z` then `sips -c`). Check the accepted list per slot before capturing a whole set.
+- **Screenshots must match the selected current slot.** Seven native 6.3-inch candidates are prepared, but the owner must select the matching slot and upload them in App Store Connect. Larger sets need new captures at accepted native dimensions; do not upscale these files.
 - **"Add for Review" blockers are metadata, not binary.** Copyright and App Privacy are both required and neither is surfaced on the build page. Fill them before uploading, or the green build sits unsubmittable.
 
 ## 9. Decisions deferred / out of scope
