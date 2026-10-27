@@ -1,5 +1,6 @@
 require "fileutils"
 require "tmpdir"
+require "digest"
 
 default_platform(:ios)
 
@@ -19,7 +20,28 @@ def asc_api_key
   )
 end
 
-def validate_signed_ipa(ipa_path:, version:, build_number:, built_after:)
+def profile_snapshot(path:, uuid:, label:)
+  UI.user_error!("Fastlane did not return the #{label} profile path") if path.to_s.empty?
+  UI.user_error!("Fastlane did not return the #{label} profile UUID") if uuid.to_s.empty?
+
+  profile_path = File.expand_path(path)
+  unless File.file?(profile_path) && File.size(profile_path).positive?
+    UI.user_error!("Fastlane #{label} profile is missing or empty: #{profile_path}")
+  end
+
+  Digest::SHA256.file(profile_path).hexdigest
+end
+
+def validate_signed_ipa(
+  ipa_path:,
+  version:,
+  build_number:,
+  built_after:,
+  app_profile_uuid:,
+  app_profile_sha256:,
+  extension_profile_uuid:,
+  extension_profile_sha256:
+)
   validator = File.expand_path("validate_signed_ipa.py", __dir__)
   sh(
     "python3",
@@ -39,6 +61,14 @@ def validate_signed_ipa(ipa_path:, version:, build_number:, built_after:)
     "group.dev.howardism.Masquerade",
     "--built-after",
     built_after.to_s,
+    "--app-profile-uuid",
+    app_profile_uuid,
+    "--app-profile-sha256",
+    app_profile_sha256,
+    "--extension-profile-uuid",
+    extension_profile_uuid,
+    "--extension-profile-sha256",
+    extension_profile_sha256,
   )
 end
 
@@ -76,6 +106,8 @@ platform :ios do
       readonly: true,
     )
     runner_profile = lane_context[SharedValues::SIGH_NAME]
+    runner_profile_path = lane_context[SharedValues::SIGH_PROFILE_PATH]
+    runner_profile_uuid = lane_context[SharedValues::SIGH_UUID]
 
     get_provisioning_profile(
       api_key: api_key,
@@ -83,6 +115,8 @@ platform :ios do
       readonly: true,
     )
     share_extension_profile = lane_context[SharedValues::SIGH_NAME]
+    share_extension_profile_path = lane_context[SharedValues::SIGH_PROFILE_PATH]
+    share_extension_profile_uuid = lane_context[SharedValues::SIGH_UUID]
 
     # The checked-in project uses automatic signing, which needs a signed-in Xcode
     # and so cannot work on a CI runner. Flip to manual for this build only --
@@ -112,6 +146,16 @@ platform :ios do
     unless build_number.match?(/\A[0-9]+\z/)
       UI.user_error!("Invalid FLUTTER_BUILD_NUMBER: #{build_number.inspect}")
     end
+    runner_profile_sha256 = profile_snapshot(
+      path: runner_profile_path,
+      uuid: runner_profile_uuid,
+      label: "Runner",
+    )
+    share_extension_profile_sha256 = profile_snapshot(
+      path: share_extension_profile_path,
+      uuid: share_extension_profile_uuid,
+      label: "ShareExtension",
+    )
 
     # Isolate each version/build output in a fresh directory. Fastlane's
     # IPA_OUTPUT_PATH is the sole artifact passed onward.
@@ -146,6 +190,10 @@ platform :ios do
       version: version,
       build_number: build_number,
       built_after: build_started_at,
+      app_profile_uuid: runner_profile_uuid,
+      app_profile_sha256: runner_profile_sha256,
+      extension_profile_uuid: share_extension_profile_uuid,
+      extension_profile_sha256: share_extension_profile_sha256,
     )
 
     upload_to_testflight(

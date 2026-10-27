@@ -2,6 +2,7 @@
 
 require "minitest/autorun"
 require "tmpdir"
+require "digest"
 
 $fastlane_lanes = {}
 $fastlane_actions = []
@@ -9,9 +10,13 @@ $fastlane_lane_context = {}
 $fastlane_test_ipa_path = nil
 $fastlane_validator_failure = false
 $fastlane_missing_ipa = false
+$fastlane_mutate_profiles_during_build = false
+$fastlane_missing_profile_path = false
 
 module SharedValues
   SIGH_NAME = :sigh_name
+  SIGH_PROFILE_PATH = :sigh_profile_path
+  SIGH_UUID = :sigh_uuid
   IPA_OUTPUT_PATH = :ipa_output_path
 end
 
@@ -47,6 +52,11 @@ def get_provisioning_profile(**options)
   $fastlane_actions << [:profile, options]
   profile_number = $fastlane_actions.count { |action| action.first == :profile }
   lane_context[SharedValues::SIGH_NAME] = "profile-#{profile_number}"
+  profile_path = File.join(ENV.fetch("FASTLANE_OUTPUT_DIR"), "profile-#{profile_number}.mobileprovision")
+  File.write(profile_path, "mock downloaded profile #{profile_number}")
+  lane_context[SharedValues::SIGH_PROFILE_PATH] =
+    $fastlane_missing_profile_path && profile_number == 1 ? nil : profile_path
+  lane_context[SharedValues::SIGH_UUID] = "profile-uuid-#{profile_number}"
 end
 
 def update_code_signing_settings(**options)
@@ -55,6 +65,11 @@ end
 
 def build_app(**options)
   $fastlane_actions << [:build_app, options]
+  if $fastlane_mutate_profiles_during_build
+    Dir.glob(File.join(ENV.fetch("FASTLANE_OUTPUT_DIR"), "profile-*.mobileprovision")).each do |path|
+      File.write(path, "modified after profile snapshot")
+    end
+  end
   lane_context[SharedValues::IPA_OUTPUT_PATH] =
     $fastlane_missing_ipa ? nil : $fastlane_test_ipa_path
 end
@@ -100,6 +115,8 @@ class FastfileReleaseSafetyTest < Minitest::Test
     $fastlane_test_ipa_path = File.join(@temporary_directory, "actual-fastlane-output.ipa")
     $fastlane_validator_failure = false
     $fastlane_missing_ipa = false
+    $fastlane_mutate_profiles_during_build = false
+    $fastlane_missing_profile_path = false
     @previous_output = File.join(@temporary_directory, "#{@version}-83-prior")
     Dir.mkdir(@previous_output)
     File.write(File.join(@previous_output, "sentinel"), "keep")
@@ -138,6 +155,16 @@ class FastfileReleaseSafetyTest < Minitest::Test
     assert_equal $fastlane_test_ipa_path, validation[:ipa_path]
     assert_equal @version, validation[:version]
     assert_equal "83", validation[:build_number]
+    assert_equal "profile-uuid-1", validation[:app_profile_uuid]
+    assert_equal "profile-uuid-2", validation[:extension_profile_uuid]
+    assert_equal(
+      Digest::SHA256.file(File.join(@temporary_directory, "profile-1.mobileprovision")).hexdigest,
+      validation[:app_profile_sha256],
+    )
+    assert_equal(
+      Digest::SHA256.file(File.join(@temporary_directory, "profile-2.mobileprovision")).hexdigest,
+      validation[:extension_profile_sha256],
+    )
 
     upload = $fastlane_actions[upload_index][1]
     assert_equal $fastlane_test_ipa_path, upload[:ipa]
@@ -160,6 +187,31 @@ class FastfileReleaseSafetyTest < Minitest::Test
     refute $fastlane_actions.any? { |action| action.first == :upload }
   end
 
+  def test_profile_hashes_are_snapshotted_before_build
+    $fastlane_mutate_profiles_during_build = true
+    beta_lane
+
+    validation = $fastlane_actions.find { |action| action.first == :validate }[1]
+    app_path = File.join(@temporary_directory, "profile-1.mobileprovision")
+    extension_path = File.join(@temporary_directory, "profile-2.mobileprovision")
+    assert_equal Digest::SHA256.hexdigest("mock downloaded profile 1"),
+                 validation[:app_profile_sha256]
+    assert_equal Digest::SHA256.hexdigest("mock downloaded profile 2"),
+                 validation[:extension_profile_sha256]
+    refute_equal Digest::SHA256.file(app_path).hexdigest, validation[:app_profile_sha256]
+    refute_equal Digest::SHA256.file(extension_path).hexdigest,
+                  validation[:extension_profile_sha256]
+  end
+
+  def test_missing_readonly_profile_path_fails_before_build
+    $fastlane_missing_profile_path = true
+
+    error = assert_raises(RuntimeError) { beta_lane }
+    assert_equal "Fastlane did not return the Runner profile path", error.message
+    refute $fastlane_actions.any? { |action| action.first == :build_app }
+    refute $fastlane_actions.any? { |action| action.first == :upload }
+  end
+
   def test_validator_command_uses_the_expected_ids_and_build_number
     Object.new.send(
       :fastlane_signed_ipa_validator_command,
@@ -167,6 +219,10 @@ class FastfileReleaseSafetyTest < Minitest::Test
       version: @version,
       build_number: "83",
       built_after: 123.5,
+      app_profile_uuid: "app-profile-uuid",
+      app_profile_sha256: "a" * 64,
+      extension_profile_uuid: "extension-profile-uuid",
+      extension_profile_sha256: "b" * 64,
     )
 
     shell = $fastlane_actions.find { |action| action.first == :shell }[1]
@@ -179,5 +235,13 @@ class FastfileReleaseSafetyTest < Minitest::Test
     assert_includes shell, "83"
     assert_includes shell, "--built-after"
     assert_includes shell, "123.5"
+    assert_includes shell, "--app-profile-uuid"
+    assert_includes shell, "app-profile-uuid"
+    assert_includes shell, "--app-profile-sha256"
+    assert_includes shell, "a" * 64
+    assert_includes shell, "--extension-profile-uuid"
+    assert_includes shell, "extension-profile-uuid"
+    assert_includes shell, "--extension-profile-sha256"
+    assert_includes shell, "b" * 64
   end
 end

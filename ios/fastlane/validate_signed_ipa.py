@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Fail-closed validation for Fastlane's exported, signed App Store IPA.
 
-A production run uses macOS ditto, codesign, security, OpenSSL, and xcrun.
-Unit tests mock signing tools and root lookup; a separate OpenSSL fixture tests
-CMS signature and certificate-chain verification with a generated test CA.
+Fastlane's authenticated read-only profile retrieval supplies UUID and SHA-256
+snapshots. This validator requires those exact profiles in the IPA before
+decoding their metadata and checking the signed bundles. `security cms -D` is
+used only to decode content; CMS signer trust is inherited from the Fastlane
+profile retrieval and Xcode export, not independently checked here.
 """
 from __future__ import annotations
 
@@ -60,39 +62,38 @@ def _run(
 
 def _profile_data(
     profile_path: Path,
-    decoded_path: Path,
-    trust_roots: Path,
+    expected_uuid: str,
+    expected_sha256: str,
     runner: Runner,
     now: dt.datetime,
 ) -> dict:
     if not profile_path.is_file() or profile_path.stat().st_size == 0:
         fail(f"missing or empty embedded provisioning profile: {profile_path}")
+    if not re.fullmatch(r"[0-9a-fA-F]{64}", expected_sha256):
+        fail(f"invalid expected profile SHA-256 for {profile_path}")
+    actual_sha256 = _sha256(profile_path)
+    if actual_sha256.lower() != expected_sha256.lower():
+        fail(f"{profile_path}: embedded profile differs from Fastlane's read-only profile")
 
-    _run(
+    result = _run(
         runner,
-        [
-            "openssl",
-            "cms",
-            "-verify",
-            "-binary",
-            "-inform",
-            "DER",
-            "-in",
-            str(profile_path),
-            "-CAfile",
-            str(trust_roots),
-            "-purpose",
-            "any",
-            "-out",
-            str(decoded_path),
-        ],
+        ["security", "cms", "-D", "-i", str(profile_path)],
+        text=False,
     )
+    output = result.stdout
+    if isinstance(output, str):
+        output = output.encode()
     try:
-        profile = load_plist(decoded_path)
+        profile = plistlib.loads(output)
     except (ValueError, plistlib.InvalidFileException, expat.ExpatError) as error:
-        fail(f"{profile_path}: verified CMS content is not a valid profile plist: {error}")
+        fail(f"{profile_path}: profile content is not a valid plist: {error}")
     if not isinstance(profile, dict):
         fail(f"{profile_path}: expected a provisioning profile dictionary")
+    if profile.get("UUID") != expected_uuid:
+        fail(
+            f"{profile_path}: embedded profile UUID {profile.get('UUID')!r} does not match "
+            f"Fastlane's read-only profile {expected_uuid!r}"
+        )
 
     expiration = profile.get("ExpirationDate")
     if not isinstance(expiration, dt.datetime):
@@ -105,6 +106,7 @@ def _profile_data(
     if profile.get("ProvisionsAllDevices") is True or profile.get("ProvisionedDevices"):
         fail(f"{profile_path}: expected an App Store profile, not an ad hoc/development profile")
 
+    profile["_source_sha256"] = actual_sha256.lower()
     return profile
 
 
@@ -157,29 +159,11 @@ def _verify_profile(
         "bundle_id": bundle_id,
         "team_id": profile_team,
         "developer_certificates": len(certificates),
-        "cms_signature": "verified against Apple Root CA",
+        "source_sha256": profile["_source_sha256"],
+        "source_match": True,
+        "source": "Fastlane read-only profile retrieval",
+        "cms_signature_validated_independently": False,
     }
-
-
-def _apple_root_certificates(path: Path, runner: Runner) -> None:
-    result = _run(
-        runner,
-        [
-            "security",
-            "find-certificate",
-            "-a",
-            "-p",
-            "-c",
-            "Apple Root CA",
-            "/System/Library/Keychains/SystemRootCertificates.keychain",
-        ],
-    )
-    certificates = result.stdout
-    if isinstance(certificates, bytes):
-        certificates = certificates.decode("ascii", "replace")
-    if "-----BEGIN CERTIFICATE-----" not in certificates:
-        fail("no Apple Root CA trust certificates were found in the system keychain")
-    path.write_text(certificates)
 
 
 def expiration_for_report(value: dt.datetime) -> str:
@@ -402,6 +386,10 @@ def validate_signed_ipa(
     team_id: str,
     app_group: str,
     built_after: float,
+    app_profile_uuid: str,
+    app_profile_sha256: str,
+    extension_profile_uuid: str,
+    extension_profile_sha256: str,
     runner: Runner = subprocess.run,
     now: dt.datetime | None = None,
 ) -> dict:
@@ -417,8 +405,6 @@ def validate_signed_ipa(
     with tempfile.TemporaryDirectory(prefix="masquerade-signed-ipa-") as temp:
         extraction = Path(temp)
         _run(runner, ["ditto", "-x", "-k", str(ipa_path), str(extraction)])
-        apple_roots = extraction / "apple-root-certificates.pem"
-        _apple_root_certificates(apple_roots, runner)
         app = extraction / app_root
         extension = extraction / extension_root
         if not app.is_dir() or not extension.is_dir():
@@ -457,12 +443,21 @@ def validate_signed_ipa(
             )
 
         reports = []
-        for index, (bundle, bundle_id) in enumerate(((app, app_id), (extension, extension_id))):
+        profile_inputs = (
+            (app, app_id, app_profile_uuid, app_profile_sha256),
+            (
+                extension,
+                extension_id,
+                extension_profile_uuid,
+                extension_profile_sha256,
+            ),
+        )
+        for bundle, bundle_id, expected_uuid, expected_sha256 in profile_inputs:
             profile_path = bundle / "embedded.mobileprovision"
             profile = _profile_data(
                 profile_path,
-                extraction / f"verified-profile-{index}.plist",
-                apple_roots,
+                expected_uuid,
+                expected_sha256,
                 runner,
                 now,
             )
@@ -517,6 +512,10 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--team-id", required=True)
     parser.add_argument("--app-group", required=True)
     parser.add_argument("--built-after", required=True, type=float)
+    parser.add_argument("--app-profile-uuid", required=True)
+    parser.add_argument("--app-profile-sha256", required=True)
+    parser.add_argument("--extension-profile-uuid", required=True)
+    parser.add_argument("--extension-profile-sha256", required=True)
     return parser
 
 
@@ -531,6 +530,10 @@ def main() -> int:
         team_id=args.team_id,
         app_group=args.app_group,
         built_after=args.built_after,
+        app_profile_uuid=args.app_profile_uuid,
+        app_profile_sha256=args.app_profile_sha256,
+        extension_profile_uuid=args.extension_profile_uuid,
+        extension_profile_sha256=args.extension_profile_sha256,
     )
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0
