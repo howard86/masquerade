@@ -39,10 +39,12 @@ class CompactPasteBar extends StatelessWidget {
         MqInput(
           controller: controller,
           focusNode: focusNode,
-          placeholder: 'Paste timestamp, JSON, hex, base64, color…',
-          multiline: active,
-          minLines: active ? 2 : 1,
-          maxLines: active ? 5 : 1,
+          placeholder: 'Paste or type anything…',
+          // Keep the platform editable type stable while focus and content
+          // change; Flutter web replaces the DOM input when this changes.
+          multiline: true,
+          minLines: 1,
+          maxLines: 5,
           mono: false,
           trailing: Row(
             mainAxisSize: MainAxisSize.min,

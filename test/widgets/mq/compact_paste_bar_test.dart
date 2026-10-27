@@ -85,6 +85,37 @@ void main() {
     expect(find.text('Clear'), findsOneWidget);
   });
 
+  testWidgets('editable type stays stable across focus and content changes', (
+    WidgetTester tester,
+  ) async {
+    final TextEditingController c = TextEditingController();
+    final FocusNode f = FocusNode();
+    addTearDown(() {
+      c.dispose();
+      f.dispose();
+    });
+    await tester.pumpWidget(
+      _harness(controller: c, focusNode: f, hooks: _Hooks()),
+    );
+
+    EditableText editable() =>
+        tester.widget<EditableText>(find.byType(EditableText));
+    final TextInputType initialType = editable().keyboardType;
+    final int? initialMaxLines = editable().maxLines;
+    expect(initialType, TextInputType.multiline);
+    expect(initialMaxLines, 5);
+
+    f.requestFocus();
+    await tester.pump();
+    expect(editable().keyboardType, initialType);
+    expect(editable().maxLines, initialMaxLines);
+
+    c.text = 'hello';
+    await tester.pump();
+    expect(editable().keyboardType, initialType);
+    expect(editable().maxLines, initialMaxLines);
+  });
+
   testWidgets('tap inline scan icon fires onScan', (WidgetTester tester) async {
     final TextEditingController c = TextEditingController();
     final FocusNode f = FocusNode();

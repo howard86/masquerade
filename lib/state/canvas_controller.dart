@@ -120,6 +120,7 @@ class CanvasController extends ChangeNotifier {
   int _nextId = 1;
   int _nextZ = 1;
   int? _focusedId;
+  final Set<int> _pendingInitialFocus = <int>{};
 
   final List<LinkGroup> _groups = <LinkGroup>[];
   int _nextGroupId = 1;
@@ -188,6 +189,9 @@ class CanvasController extends ChangeNotifier {
   /// Returns the new card's id and gives it focus. An empty seed is treated as
   /// no seed.
   int openTool(UtilityDescriptor descriptor, {String? seed}) {
+    // A newer open supersedes any body that is still waiting to receive its
+    // initial focus; late deferred loads must not steal focus from it.
+    _pendingInitialFocus.clear();
     final int step = _cards.length % 5;
     final CanvasCard card = CanvasCard(
       id: _nextId++,
@@ -199,11 +203,16 @@ class CanvasController extends ChangeNotifier {
       z: _nextZ++,
     );
     _cards.add(card);
+    _pendingInitialFocus.add(card.id);
     _focusedId = card.id;
     notifyListeners();
     _persist();
     return card.id;
   }
+
+  /// Returns whether [id] was opened during this session and should receive
+  /// its first body focus. Restored and merely raised cards never qualify.
+  bool consumeInitialFocus(int id) => _pendingInitialFocus.remove(id);
 
   /// Opens a system window (History / Settings). Deduplicates: if already open,
   /// restores (if minimized) and focuses it. Returns the card id.
@@ -245,6 +254,7 @@ class CanvasController extends ChangeNotifier {
     _cards.removeWhere((CanvasCard c) => c.id == id);
     if (_cards.length == before) return;
     _watchers.remove(id);
+    _pendingInitialFocus.remove(id);
     _persistedSeeds.remove(id);
     _detachFromGroup(id);
     if (_focusedId == id) {
@@ -273,6 +283,7 @@ class CanvasController extends ChangeNotifier {
   /// Also raises the card to the front (highest z).
   void focus(int id) {
     if (!_cards.any((CanvasCard c) => c.id == id)) return;
+    if (_focusedId != id) _pendingInitialFocus.clear();
     final int i = _cards.indexWhere((CanvasCard c) => c.id == id);
     if (_focusedId != id || _cards[i].z != _nextZ - 1) {
       _replace(i, _cards[i].copyWith(z: _nextZ++));

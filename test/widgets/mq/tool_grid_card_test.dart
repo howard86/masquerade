@@ -76,6 +76,34 @@ void main() {
     expect(find.text('hello-world'), findsOneWidget);
     expect(find.text(sample.description), findsOneWidget);
     expect(find.text(sample.metadataSummary), findsNothing);
+    expect(
+      tester
+          .widget<Text>(
+            find.descendant(
+              of: find.byType(ToolGridCard),
+              matching: find.text(sample.name),
+            ),
+          )
+          .maxLines,
+      2,
+    );
+  });
+
+  testWidgets('Library style cards clamp the name to one line', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(_harness(descriptor: sample, matched: false));
+    expect(
+      tester
+          .widget<Text>(
+            find.descendant(
+              of: find.byType(ToolGridCard),
+              matching: find.text(sample.name),
+            ),
+          )
+          .maxLines,
+      1,
+    );
   });
 
   testWidgets('preview truncates over 24 chars', (WidgetTester tester) async {
