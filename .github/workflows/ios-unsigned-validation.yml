@@ -55,6 +55,19 @@ jobs:
         run: |
           test "$(flutter --version --machine | python3 -c 'import json, sys; print(json.load(sys.stdin)["frameworkVersion"])')" = "3.41.8"
           flutter pub get --enforce-lockfile
+          git diff --exit-code -- pubspec.yaml pubspec.lock
+
+      - name: Verify Dart formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze Flutter project
+        run: flutter analyze --no-pub
+
+      - name: Run full Flutter test suite
+        run: flutter test --no-pub --coverage --concurrency=4
+
+      - name: Build release web app
+        run: flutter build web --release --no-pub
 
       - name: Build release app without signing
         run: flutter build ios --release --no-codesign --no-pub
