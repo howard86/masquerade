@@ -15,7 +15,7 @@ concurrency:
 jobs:
   build-unsigned:
     name: Build and validate unsigned iOS app
-    runs-on: macos-26-arm64
+    runs-on: macos-26
     timeout-minutes: 45
     defaults:
       run:
