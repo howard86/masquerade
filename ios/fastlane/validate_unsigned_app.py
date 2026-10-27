@@ -40,15 +40,17 @@ def require_supported_minimum(value: str, source: Path) -> None:
         raise ValueError(f"{source} requires iOS {value}; supported minimum must remain 13.0 or lower")
 
 
-def validate_bundle(bundle: Path, identifier: str) -> dict:
+def validate_bundle(
+    bundle: Path, identifier: str, expected_version: str = EXPECTED_VERSION
+) -> dict:
     info_path = bundle / "Info.plist"
     info = plist(info_path)
     actual_identifier = info.get("CFBundleIdentifier")
     if actual_identifier != identifier:
         raise ValueError(f"{info_path}: expected bundle ID {identifier}, got {actual_identifier!r}")
     version = info.get("CFBundleShortVersionString")
-    if version != EXPECTED_VERSION:
-        raise ValueError(f"{info_path}: expected version {EXPECTED_VERSION}, got {version!r}")
+    if version != expected_version:
+        raise ValueError(f"{info_path}: expected version {expected_version}, got {version!r}")
     build = str(info.get("CFBundleVersion", ""))
     if not re.fullmatch(r"[0-9]+(?:\.[0-9]+){0,2}", build):
         raise ValueError(f"{info_path}: invalid CFBundleVersion {build!r}")

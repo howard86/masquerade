@@ -96,8 +96,14 @@ jobs:
       - name: Verify Fastlane version lookup from another working directory
         run: ruby ios/fastlane/test_fastfile_version_path.rb
 
+      - name: Test Fastlane release safety wiring
+        run: ruby ios/fastlane/test_fastfile_release_safety.rb
+
       - name: Test unsigned iOS artifact validation
         run: python3 ios/fastlane/test_unsigned_app_validation.py
+
+      - name: Test signed IPA validator decision logic
+        run: python3 ios/fastlane/test_signed_ipa_validation.py
 
       - name: Run pre-commit hooks
         run: pre-commit run --all-files
@@ -362,8 +368,7 @@ jobs:
   # (see release.yml), so a green main means a new version just landed -- ship it.
   # Skipped entirely on develop and on PRs.
   #
-  # Requires these repository secrets (none are set yet -- the job fails at the
-  # signing step until they are):
+  # Requires these repository secrets:
   #   ASC_KEY_ID, ASC_ISSUER_ID  -- App Store Connect API key identifiers
   #   ASC_KEY_P8                 -- the .p8 private key, base64-encoded
   #   IOS_DIST_CERT_P12          -- Apple Distribution cert + key, base64-encoded
@@ -429,3 +434,4 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          FLUTTER_BUILD_NUMBER: ${{ steps.build_number.outputs.value }}

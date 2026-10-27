@@ -41,8 +41,14 @@ jobs:
       - name: Verify Fastlane version lookup from another working directory
         run: ruby ios/fastlane/test_fastfile_version_path.rb
 
+      - name: Test Fastlane release safety wiring
+        run: ruby ios/fastlane/test_fastfile_release_safety.rb
+
       - name: Test unsigned artifact validator
         run: python3 ios/fastlane/test_unsigned_app_validation.py
+
+      - name: Test signed IPA validator decision logic
+        run: python3 ios/fastlane/test_signed_ipa_validation.py
 
       - name: Set up Flutter 3.41.8
         uses: subosito/flutter-action@v2
