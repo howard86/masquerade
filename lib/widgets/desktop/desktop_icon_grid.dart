@@ -43,7 +43,20 @@ class DesktopIconGrid extends StatelessWidget {
   final void Function(SystemApp app) onOpenSystem;
 
   static const double _columnWidth = 84;
-  static const double _tileStride = 78 + MqSpacing.sm;
+  static const double _tileWidth = 78;
+
+  static double _tileHeight(BuildContext context) {
+    final TextStyle labelStyle = MqTextStyles.caption2;
+    final double fontSize = labelStyle.fontSize ?? 11;
+    final double scaledLineHeight =
+        MediaQuery.textScalerOf(context).scale(fontSize) *
+        (labelStyle.height ?? 1);
+    // Reserve two label lines, the icon, their gap and the tile border. Keep
+    // the original footprint at ordinary text sizes and grow it with dynamic
+    // type so labels and their hit targets never overlap the next row.
+    final double contentHeight = 24 + MqSpacing.xs + 2 * scaledLineHeight + 2;
+    return contentHeight > 78 ? contentHeight : 78;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,6 +69,8 @@ class DesktopIconGrid extends StatelessWidget {
       ),
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
+          final double tileHeight = _tileHeight(context);
+          final double tileStride = tileHeight + MqSpacing.sm;
           final List<UtilityDescriptor> tools = UtilityCatalog.all.toList()
             ..sort(
               (UtilityDescriptor a, UtilityDescriptor b) =>
@@ -67,6 +82,7 @@ class DesktopIconGrid extends StatelessWidget {
                 icon: d.icon,
                 tint: d.tint,
                 label: d.name,
+                height: tileHeight,
                 onOpen: () => onOpen(d),
               ),
             for (final SystemApp app in SystemApp.values)
@@ -74,10 +90,11 @@ class DesktopIconGrid extends StatelessWidget {
                 icon: SystemWindow(app).icon,
                 tint: SystemWindow(app).tint,
                 label: SystemWindow(app).title,
+                height: tileHeight,
                 onOpen: () => onOpenSystem(app),
               ),
           ];
-          final int availableRows = (constraints.maxHeight / _tileStride)
+          final int availableRows = (constraints.maxHeight / tileStride)
               .floor();
           final int rowCount = availableRows.clamp(1, tiles.length);
           final int columnCount = (tiles.length + rowCount - 1) ~/ rowCount;
@@ -134,21 +151,23 @@ class DesktopIconGrid extends StatelessWidget {
   }
 }
 
-/// A single 78×78 launcher tile: icon + label with hover scale, spring click,
-/// and keyboard operability. Focusable via Tab; Enter/Space activate it through
-/// the same [onOpen] path as a click, and it is announced as a button labelled
-/// with the tool name to screen readers.
+/// A launcher tile: icon + label with hover scale, spring click, and keyboard
+/// operability. Focusable via Tab; Enter/Space activate it through the same
+/// [onOpen] path as a click, and it is announced as a button labelled with the
+/// tool name to screen readers.
 class _LauncherTile extends StatefulWidget {
   const _LauncherTile({
     required this.icon,
     required this.tint,
     required this.label,
+    required this.height,
     required this.onOpen,
   });
 
   final IconData icon;
   final Color tint;
   final String label;
+  final double height;
   final VoidCallback onOpen;
 
   @override
@@ -220,8 +239,8 @@ class _LauncherTileState extends State<_LauncherTile>
               child: RepaintBoundary(
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
-                  width: 78,
-                  height: 78,
+                  width: DesktopIconGrid._tileWidth,
+                  height: widget.height,
                   decoration: BoxDecoration(
                     color: highlighted
                         ? labelColor.withValues(alpha: 0.15)

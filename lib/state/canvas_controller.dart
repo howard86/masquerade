@@ -189,6 +189,9 @@ class CanvasController extends ChangeNotifier {
   /// Returns the new card's id and gives it focus. An empty seed is treated as
   /// no seed.
   int openTool(UtilityDescriptor descriptor, {String? seed}) {
+    // A newer open supersedes any body that is still waiting to receive its
+    // initial focus; late deferred loads must not steal focus from it.
+    _pendingInitialFocus.clear();
     final int step = _cards.length % 5;
     final CanvasCard card = CanvasCard(
       id: _nextId++,
@@ -280,6 +283,7 @@ class CanvasController extends ChangeNotifier {
   /// Also raises the card to the front (highest z).
   void focus(int id) {
     if (!_cards.any((CanvasCard c) => c.id == id)) return;
+    if (_focusedId != id) _pendingInitialFocus.clear();
     final int i = _cards.indexWhere((CanvasCard c) => c.id == id);
     if (_focusedId != id || _cards[i].z != _nextZ - 1) {
       _replace(i, _cards[i].copyWith(z: _nextZ++));

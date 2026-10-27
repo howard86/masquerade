@@ -18,6 +18,7 @@ import '../../widgets/desktop/command_palette.dart';
 import '../../widgets/desktop/desktop_icon_grid.dart';
 import '../../widgets/desktop/pipe.dart';
 import '../../widgets/desktop/tool_card_frame.dart';
+import '../../widgets/tool_bodies/deferred_tool_body.dart';
 import '../../widgets/tool_bodies/seed_source.dart';
 import '../history_screen.dart';
 import '../settings_screen.dart';
@@ -871,27 +872,59 @@ class _FocusOpenedToolBody extends StatefulWidget {
 }
 
 class _FocusOpenedToolBodyState extends State<_FocusOpenedToolBody> {
-  final FocusScopeNode _scope = FocusScopeNode(debugLabel: 'tool body');
+  final FocusScopeNode _scope = FocusScopeNode(
+    debugLabel: 'tool body',
+    traversalEdgeBehavior: TraversalEdgeBehavior.parentScope,
+  );
+  FocusNode? _openingFocus;
+  bool _focusGuardArmed = false;
+  bool _focusAbandoned = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && widget.controller.consumeInitialFocus(widget.cardId)) {
-        _scope.nextFocus();
-      }
+      if (!mounted) return;
+      _openingFocus = FocusManager.instance.primaryFocus;
+      FocusManager.instance.addListener(_onFocusChanged);
+      _focusGuardArmed = true;
     });
+  }
+
+  void _onFocusChanged() {
+    if (_focusGuardArmed &&
+        FocusManager.instance.primaryFocus != _openingFocus) {
+      _focusAbandoned = true;
+    }
+  }
+
+  void _onBodyReady() {
+    if (!mounted) return;
+    final bool shouldFocus = widget.controller.consumeInitialFocus(
+      widget.cardId,
+    );
+    FocusManager.instance.removeListener(_onFocusChanged);
+    _focusGuardArmed = false;
+    if (shouldFocus &&
+        !_focusAbandoned &&
+        widget.controller.focusedId == widget.cardId &&
+        FocusManager.instance.primaryFocus == _openingFocus) {
+      _scope.nextFocus();
+    }
   }
 
   @override
   void dispose() {
+    FocusManager.instance.removeListener(_onFocusChanged);
     _scope.dispose();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) =>
-      FocusScope(node: _scope, child: widget.child);
+  Widget build(BuildContext context) => FocusScope(
+    node: _scope,
+    child: ToolBodyReadinessScope(onReady: _onBodyReady, child: widget.child),
+  );
 }
 
 /// Subtle dot grid that scrolls with the canvas pan, echoing the design mock.

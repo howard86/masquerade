@@ -35,21 +35,29 @@ Future<void> _pumpGrid(
   List<UtilityDescriptor> opened, {
   MqWallpaperType wallpaper = MqWallpaperType.auroraEspresso,
   Brightness brightness = Brightness.light,
+  double textScale = 1,
 }) async {
   await tester.binding.setSurfaceSize(_desktop);
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
     CupertinoApp(
-      home: MqTheme(
-        tokens: MqTokens(
-          colors: brightness == Brightness.light
-              ? MqColors.light()
-              : MqColors.dark(),
-          brightness: brightness,
-        ),
-        child: WallpaperScope(
-          controller: WallpaperController(initial: wallpaper),
-          child: DesktopIconGrid(onOpen: opened.add, onOpenSystem: (_) {}),
+      home: Builder(
+        builder: (BuildContext context) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.linear(textScale)),
+          child: MqTheme(
+            tokens: MqTokens(
+              colors: brightness == Brightness.light
+                  ? MqColors.light()
+                  : MqColors.dark(),
+              brightness: brightness,
+            ),
+            child: WallpaperScope(
+              controller: WallpaperController(initial: wallpaper),
+              child: DesktopIconGrid(onOpen: opened.add, onOpenSystem: (_) {}),
+            ),
+          ),
         ),
       ),
     ),
@@ -129,6 +137,37 @@ void main() {
 
       expect(columns.length, greaterThan(1));
       handle.dispose();
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('large text grows tiles and keeps grid rows separated', (
+      WidgetTester tester,
+    ) async {
+      final List<UtilityDescriptor> opened = <UtilityDescriptor>[];
+      await _pumpGrid(tester, opened, textScale: 2);
+
+      final List<Rect> tileRects = <Rect>[];
+      for (final UtilityDescriptor descriptor in _sortedTools()) {
+        final Finder label = find.text(descriptor.name);
+        final Finder tile = find
+            .ancestor(of: label, matching: find.byType(AnimatedContainer))
+            .first;
+        final Rect rect = tester.getRect(tile);
+        tileRects.add(rect);
+        expect(rect.height, greaterThanOrEqualTo(86));
+        expect(tester.getRect(label).bottom, lessThanOrEqualTo(rect.bottom));
+      }
+
+      final Map<double, List<Rect>> byColumn = <double, List<Rect>>{};
+      for (final Rect rect in tileRects) {
+        byColumn.putIfAbsent(rect.center.dx, () => <Rect>[]).add(rect);
+      }
+      for (final List<Rect> column in byColumn.values) {
+        column.sort((Rect a, Rect b) => a.top.compareTo(b.top));
+        for (int i = 1; i < column.length; i++) {
+          expect(column[i].top - column[i - 1].bottom, greaterThanOrEqualTo(8));
+        }
+      }
       expect(tester.takeException(), isNull);
     });
 
