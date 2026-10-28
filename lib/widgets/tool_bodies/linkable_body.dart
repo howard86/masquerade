@@ -60,9 +60,10 @@ mixin LinkableToolBody<T extends StatefulWidget> on State<T> {
     // notifier is stable per group — compare that, not the wrapper, to avoid
     // re-subscribing on every unrelated canvas change.
     if (linkChannel?.inbound == _subscribed?.inbound) return;
-    final bool wasLinked = _subscribed != null;
+    _inboundTimer?.cancel();
+    _inboundTimer = null;
     _resubscribe();
-    if (!wasLinked && linkChannel != null) _scheduleAttach();
+    if (linkChannel != null) _scheduleAttach();
   }
 
   @override
@@ -92,13 +93,14 @@ mixin LinkableToolBody<T extends StatefulWidget> on State<T> {
     _subscribed?.inbound.addListener(_onInbound);
   }
 
-  /// On first attach a body that already holds a value seeds the group; an
-  /// empty body instead pulls the existing canonical. So linking a fresh
-  /// sibling onto a populated card shows the source's value in the sibling.
+  /// On first attach only the selected source of a new group seeds from its
+  /// current value. Joined cards pull the group's canonical value, so linking
+  /// two already-open windows has a predictable source and cannot race based
+  /// on paint order.
   void _onAttach() {
     final LinkChannel? link = linkChannel;
     if (link == null) return;
-    if (currentCanonical().isNotEmpty) {
+    if (link.seedOnAttach && currentCanonical().isNotEmpty) {
       link.emit(currentCanonical());
     } else {
       _applyInbound();

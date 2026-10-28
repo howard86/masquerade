@@ -127,8 +127,8 @@ class _ColorBodyState extends State<ColorBody>
     });
     if (parsed != null) {
       recordOutput(input, parsed.hex);
+      emitToLink();
     }
-    emitToLink();
   }
 
   @override

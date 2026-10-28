@@ -11,8 +11,12 @@ export '../models/content_type.dart';
 /// update cycles are impossible: an emit that doesn't change [canonical] is a
 /// no-op, so re-projection always terminates.
 class LinkGroup {
-  LinkGroup({required this.id, required this.type, String canonical = ''})
-    : canonical = ValueNotifier<String>(canonical);
+  LinkGroup({
+    required this.id,
+    required this.type,
+    String canonical = '',
+    this.seedOwnerCardId,
+  }) : canonical = ValueNotifier<String>(canonical);
 
   final int id;
   final ContentType type;
@@ -22,6 +26,10 @@ class LinkGroup {
 
   /// Card ids in this group.
   final Set<int> members = <int>{};
+
+  /// The card whose current value should seed a newly-created group when its
+  /// body attaches. Null means the canonical value is already authoritative.
+  int? seedOwnerCardId;
 }
 
 /// The per-card view of its [LinkGroup], handed to a tool body via the builder.
@@ -32,11 +40,16 @@ class LinkChannel {
   const LinkChannel({
     required this.canonicalType,
     required this.inbound,
+    this.seedOnAttach = true,
     required void Function(String canonical) onEmit,
   }) : _onEmit = onEmit;
 
   final ContentType canonicalType;
   final ValueListenable<String> inbound;
+
+  /// Whether this card is the selected source for a brand-new group's first
+  /// attach handshake. Joined cards pull the existing canonical value.
+  final bool seedOnAttach;
   final void Function(String canonical) _onEmit;
 
   /// Pushes a canonical value derived from this body's current state into the

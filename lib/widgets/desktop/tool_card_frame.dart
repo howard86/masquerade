@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/gestures.dart' show DragStartBehavior;
+import 'package:flutter/material.dart' show Tooltip;
 
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
@@ -31,6 +32,8 @@ class ToolCardFrame extends StatelessWidget {
     this.height,
     this.linked = false,
     this.linkTooltip,
+    this.linkHint,
+    this.linkStatus,
     this.onLink,
     this.scrollBody = true,
     this.onSecondaryTapDown,
@@ -58,6 +61,10 @@ class ToolCardFrame extends StatelessWidget {
   /// it gold (active) and [linkTooltip] is its accessibility label.
   final bool linked;
   final String? linkTooltip;
+  final String? linkHint;
+
+  /// Short visible connection state, such as `LIVE · TEXT`.
+  final String? linkStatus;
   final VoidCallback? onLink;
 
   /// Called with the drag delta while the title bar is dragged.
@@ -147,6 +154,8 @@ class ToolCardFrame extends StatelessWidget {
                   onMoveEnd: onMoveEnd,
                   linked: linked,
                   linkTooltip: linkTooltip,
+                  linkHint: linkHint,
+                  linkStatus: linkStatus,
                   onLink: onLink,
                   onSecondaryTapDown: onSecondaryTapDown,
                 ),
@@ -398,6 +407,8 @@ class _Header extends StatefulWidget {
     required this.onMoveEnd,
     required this.linked,
     required this.linkTooltip,
+    required this.linkHint,
+    required this.linkStatus,
     required this.onLink,
     this.onSecondaryTapDown,
   });
@@ -414,6 +425,8 @@ class _Header extends StatefulWidget {
   final VoidCallback onMoveEnd;
   final bool linked;
   final String? linkTooltip;
+  final String? linkHint;
+  final String? linkStatus;
   final VoidCallback? onLink;
   final GestureTapDownCallback? onSecondaryTapDown;
 
@@ -521,10 +534,26 @@ class _HeaderState extends State<_Header> {
                 ),
                 const SizedBox(width: MqSpacing.sm),
               ],
+              if (widget.linkStatus != null) ...<Widget>[
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 112),
+                  child: Text(
+                    widget.linkStatus!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MqTextStyles.monoSm.copyWith(
+                      color: c.warning,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: MqSpacing.xs),
+              ],
               if (widget.onLink != null)
                 _IconButton(
                   icon: MqIcons.link,
                   tooltip: widget.linkTooltip ?? 'Link',
+                  hint: widget.linkHint,
                   onTap: widget.onLink!,
                   color: widget.linked ? c.warning : null,
                 ),
@@ -613,12 +642,14 @@ class _IconButton extends StatelessWidget {
   const _IconButton({
     required this.icon,
     required this.tooltip,
+    this.hint,
     required this.onTap,
     this.color,
   });
 
   final IconData icon;
   final String tooltip;
+  final String? hint;
   final VoidCallback onTap;
 
   /// Icon tint; defaults to the tertiary text color when null.
@@ -630,15 +661,26 @@ class _IconButton extends StatelessWidget {
     return Semantics(
       button: true,
       label: tooltip,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: MqSpacing.xs),
-            child: Icon(icon, size: 15, color: color ?? c.textTer),
-          ),
+      hint: hint,
+      child: Tooltip(
+        message: tooltip,
+        excludeFromSemantics: true,
+        preferBelow: false,
+        decoration: BoxDecoration(
+          color: c.surface,
+          borderRadius: BorderRadius.circular(MqRadius.sm),
+          border: Border.all(color: c.border),
+        ),
+        textStyle: MqTextStyles.caption1.copyWith(color: c.textPri),
+        child: CupertinoButton(
+          onPressed: onTap,
+          minimumSize: const Size(32, 32),
+          padding: const EdgeInsets.symmetric(horizontal: MqSpacing.xs),
+          pressedOpacity: 0.75,
+          focusColor: c.accentBg,
+          borderRadius: BorderRadius.circular(MqRadius.sm),
+          mouseCursor: SystemMouseCursors.click,
+          child: Icon(icon, size: 15, color: color ?? c.textTer),
         ),
       ),
     );

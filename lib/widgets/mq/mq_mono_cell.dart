@@ -184,7 +184,11 @@ class _MqMonoCellState extends State<MqMonoCell> {
       // Only one ellipsized line shows; don't shape a multi-MB value per drag.
       feedback: _PipeChip(value: truncateWithEllipsis(value, max: 80)),
       childWhenDragging: Opacity(opacity: 0.4, child: cell),
-      child: cell,
+      child: Semantics(
+        hint:
+            'Long-press and drag this output onto a compatible window to create a live link.',
+        child: cell,
+      ),
     );
   }
 }

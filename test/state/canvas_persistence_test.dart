@@ -15,6 +15,9 @@ void main() {
   final UtilityDescriptor timestamp = UtilityCatalog.byId('timestamp');
   final UtilityDescriptor generator = UtilityCatalog.byId('generator');
   final UtilityDescriptor base64Tool = UtilityCatalog.byId('base64');
+  final UtilityDescriptor sensitiveLinkableTool = _sensitiveLinkableTool(
+    base64Tool,
+  );
   const String encodedCredential =
       'eyJwYXNzd29yZCI6InJhdy1jcmVkZW50aWFsLWZpeHR1cmUifQ==';
 
@@ -75,7 +78,7 @@ void main() {
 
     test('omits canonical values linked to a sensitive tool', () {
       final CanvasController c = CanvasController();
-      final int source = c.openTool(generator);
+      final int source = c.openTool(sensitiveLinkableTool);
       final int target = c.openTool(json);
       c.linkCards(
         source,
@@ -92,6 +95,44 @@ void main() {
       expect(serialized, isNot(contains('opaque-generated-fixture')));
       expect(group['canonical'], isEmpty);
     });
+
+    test(
+      'does not serialize canonical values from invalid sensitive groups',
+      () {
+        final CanvasController c = CanvasController();
+        c.applyJson(<String, dynamic>{
+          'cards': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'id': 1,
+              'tool': 'generator',
+              'x': 0,
+              'y': 0,
+              'w': 380,
+            },
+            <String, dynamic>{
+              'id': 2,
+              'tool': 'json',
+              'x': 0,
+              'y': 0,
+              'w': 380,
+            },
+          ],
+          'groups': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'id': 1,
+              'type': 'text',
+              'canonical': 'opaque-generated-fixture',
+              'members': <int>[1, 2],
+            },
+          ],
+        });
+
+        final String serialized = jsonEncode(c.toJson());
+
+        expect(serialized, isNot(contains('opaque-generated-fixture')));
+        expect(c.groups, isEmpty);
+      },
+    );
 
     test('sanitizes legacy sensitive seeds and group state on apply', () {
       final CanvasController c = CanvasController()
@@ -124,7 +165,7 @@ void main() {
         });
 
       expect(c.cards.first.seed, isNull);
-      expect(c.groups.single.canonical.value, isEmpty);
+      expect(c.groups, isEmpty);
       expect(
         jsonEncode(c.toJson()),
         isNot(contains('opaque-generated-fixture')),
@@ -525,26 +566,29 @@ void main() {
   });
 
   group('sanitized canonical cache', () {
-    test('a snapshot follows canonical edits and sensitivity changes', () {
-      final CanvasController c = CanvasController();
-      final int a = c.openTool(json);
-      final int b = c.openTool(timestamp);
-      c.linkCards(a, b, type: ContentType.text, seedCanonical: 'first-value');
-      String canonical() =>
-          ((c.toJson()['groups'] as List<dynamic>).single
-                  as Map<String, dynamic>)['canonical']
-              as String;
+    test(
+      'a snapshot follows canonical edits and rejects unsupported members',
+      () {
+        final CanvasController c = CanvasController();
+        final int a = c.openTool(json);
+        final int b = c.openTool(base64Tool);
+        c.linkCards(a, b, type: ContentType.text, seedCanonical: 'first-value');
+        String canonical() =>
+            ((c.toJson()['groups'] as List<dynamic>).single
+                    as Map<String, dynamic>)['canonical']
+                as String;
 
-      expect(canonical(), 'first-value');
-      expect(canonical(), 'first-value'); // cached path, same answer
-      c.channelForCard(a)!.emit('second-value');
-      expect(canonical(), 'second-value');
+        expect(canonical(), 'first-value');
+        expect(canonical(), 'first-value'); // cached path, same answer
+        c.channelForCard(a)!.emit('second-value');
+        expect(canonical(), 'second-value');
 
-      // A sensitive member joining the group must drop the cached value.
-      final int gen = c.openTool(generator);
-      c.linkCards(b, gen, type: ContentType.text);
-      expect(canonical(), isEmpty);
-    });
+        // The sensitive generator cannot accept live text, so joining is rejected.
+        final int gen = c.openTool(generator);
+        expect(c.linkCards(b, gen, type: ContentType.text), isNull);
+        expect(canonical(), 'second-value');
+      },
+    );
   });
 
   group('sanitized seed cache', () {
@@ -581,3 +625,25 @@ void main() {
     });
   });
 }
+
+UtilityDescriptor _sensitiveLinkableTool(UtilityDescriptor template) =>
+    UtilityDescriptor(
+      id: 'generator',
+      name: 'Sensitive test tool',
+      description: template.description,
+      icon: template.icon,
+      tint: template.tint,
+      synonyms: template.synonyms,
+      categories: template.categories,
+      acceptedTypes: template.acceptedTypes,
+      producedTypes: template.producedTypes,
+      sensitivity: UtilitySensitivity.sensitive,
+      inputSources: template.inputSources,
+      liveLinkTypes: template.liveLinkTypes,
+      quickActions: template.quickActions,
+      batchCapable: template.batchCapable,
+      historyPolicy: HistoryPolicy.disabled,
+      builder: template.builder,
+      defaultCardWidth: template.defaultCardWidth,
+      detectArtifact: template.detectArtifact,
+    );
