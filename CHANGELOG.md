@@ -4,6 +4,15 @@
 
 - **deps**: pin flutter_native_splash to ^2.4.7 for SDK compatibility
 
+## [1.29.2](https://github.com/howard86/masquerade/compare/v1.29.1...v1.29.2) (2026-10-28)
+
+
+### Bug Fixes
+
+* narrow Fastlane path repair ([8deb21b](https://github.com/howard86/masquerade/commit/8deb21b5c52d835dec545e67d79eec69982708b8))
+* resolve Fastlane pubspec path independently of working directory ([489191a](https://github.com/howard86/masquerade/commit/489191a303964c9abbe24c21abbe435492d5b772))
+* validate signed iOS artifacts before upload ([79eb435](https://github.com/howard86/masquerade/commit/79eb435c0df217a27eda420f6cb410cec0895aa7))
+
 ## [1.29.1](https://github.com/howard86/masquerade/compare/v1.29.0...v1.29.1) (2026-10-27)
 
 
