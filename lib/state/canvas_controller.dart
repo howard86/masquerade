@@ -764,6 +764,9 @@ class CanvasController extends ChangeNotifier {
           .where((int cid) => _cards.any((CanvasCard c) => c.id == cid))
           .toSet();
       if (members.length < 2) continue; // a link needs at least two live cards
+      // Preserve privacy provenance from the original group even when an
+      // unsupported sensitive member is removed by compatibility sanitation.
+      final bool hadSensitiveMember = _membersContainSensitiveTool(members);
       final int gid = (m['id'] as num).toInt();
       maxGid = gid > maxGid ? gid : maxGid;
       final Set<int> validMembers = members.where((int cid) {
@@ -785,7 +788,7 @@ class CanvasController extends ChangeNotifier {
           canonical:
               SensitiveDataPolicy.persistedValue(
                 m['canonical'] as String?,
-                sensitive: _membersContainSensitiveTool(validMembers),
+                sensitive: hadSensitiveMember,
               ) ??
               '',
         )..members.addAll(validMembers),

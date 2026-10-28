@@ -1,6 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/gestures.dart' show DragStartBehavior;
-import 'package:flutter/material.dart' show Tooltip;
+import 'package:flutter/gestures.dart'
+    show DragStartBehavior, PointerEnterEvent, PointerExitEvent;
 
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
@@ -638,7 +640,7 @@ class _TrafficLightState extends State<_TrafficLight> {
   }
 }
 
-class _IconButton extends StatelessWidget {
+class _IconButton extends StatefulWidget {
   const _IconButton({
     required this.icon,
     required this.tooltip,
@@ -656,31 +658,111 @@ class _IconButton extends StatelessWidget {
   final Color? color;
 
   @override
+  State<_IconButton> createState() => _IconButtonState();
+}
+
+class _IconButtonState extends State<_IconButton> {
+  final LayerLink _layerLink = LayerLink();
+  Timer? _hoverTimer;
+  OverlayEntry? _hintEntry;
+
+  @override
+  void didUpdateWidget(_IconButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.tooltip != oldWidget.tooltip) _hideHint();
+  }
+
+  void _showHint() {
+    _hoverTimer?.cancel();
+    _hoverTimer = Timer(const Duration(milliseconds: 450), () {
+      if (!mounted || _hintEntry != null) return;
+      final OverlayState? overlay = Overlay.maybeOf(context);
+      if (overlay == null) return;
+      final c = context.mq.colors;
+      final OverlayEntry entry = OverlayEntry(
+        builder: (BuildContext context) => Positioned.fill(
+          child: IgnorePointer(
+            child: UnconstrainedBox(
+              alignment: Alignment.topLeft,
+              child: ExcludeSemantics(
+                child: CompositedTransformFollower(
+                  link: _layerLink,
+                  showWhenUnlinked: false,
+                  targetAnchor: Alignment.topCenter,
+                  followerAnchor: Alignment.bottomCenter,
+                  offset: const Offset(0, -4),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: c.surface,
+                      borderRadius: BorderRadius.circular(MqRadius.sm),
+                      border: Border.all(color: c.border),
+                      boxShadow: c.shadow,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: MqSpacing.sm,
+                        vertical: MqSpacing.xs,
+                      ),
+                      child: Text(
+                        widget.tooltip,
+                        style: MqTextStyles.caption1.copyWith(color: c.textPri),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      _hintEntry = entry;
+      overlay.insert(entry);
+    });
+  }
+
+  void _hideHint() {
+    _hoverTimer?.cancel();
+    _hoverTimer = null;
+    _hintEntry?.remove();
+    _hintEntry = null;
+  }
+
+  @override
+  void dispose() {
+    _hideHint();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
     return Semantics(
       button: true,
-      label: tooltip,
-      hint: hint,
-      child: Tooltip(
-        message: tooltip,
-        excludeFromSemantics: true,
-        preferBelow: false,
-        decoration: BoxDecoration(
-          color: c.surface,
-          borderRadius: BorderRadius.circular(MqRadius.sm),
-          border: Border.all(color: c.border),
-        ),
-        textStyle: MqTextStyles.caption1.copyWith(color: c.textPri),
-        child: CupertinoButton(
-          onPressed: onTap,
-          minimumSize: const Size(32, 32),
-          padding: const EdgeInsets.symmetric(horizontal: MqSpacing.xs),
-          pressedOpacity: 0.75,
-          focusColor: c.accentBg,
-          borderRadius: BorderRadius.circular(MqRadius.sm),
-          mouseCursor: SystemMouseCursors.click,
-          child: Icon(icon, size: 15, color: color ?? c.textTer),
+      label: widget.tooltip,
+      hint: widget.hint,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (PointerEnterEvent _) => _showHint(),
+        onExit: (PointerExitEvent _) => _hideHint(),
+        child: CompositedTransformTarget(
+          link: _layerLink,
+          child: CupertinoButton(
+            onPressed: () {
+              _hideHint();
+              widget.onTap();
+            },
+            minimumSize: const Size(32, 32),
+            padding: const EdgeInsets.symmetric(horizontal: MqSpacing.xs),
+            pressedOpacity: 0.75,
+            focusColor: c.accentBg,
+            borderRadius: BorderRadius.circular(MqRadius.sm),
+            mouseCursor: SystemMouseCursors.click,
+            child: Icon(
+              widget.icon,
+              size: 15,
+              color: widget.color ?? c.textTer,
+            ),
+          ),
         ),
       ),
     );

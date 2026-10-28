@@ -134,6 +134,55 @@ void main() {
       },
     );
 
+    test(
+      'keeps canonical private when an incompatible sensitive member is scrubbed',
+      () {
+        final CanvasController c = CanvasController()
+          ..applyJson(<String, dynamic>{
+            'cards': <Map<String, dynamic>>[
+              <String, dynamic>{
+                'id': 1,
+                'tool': 'generator',
+                'x': 0,
+                'y': 0,
+                'w': 380,
+              },
+              <String, dynamic>{
+                'id': 2,
+                'tool': 'json',
+                'x': 0,
+                'y': 0,
+                'w': 380,
+              },
+              <String, dynamic>{
+                'id': 3,
+                'tool': 'base64',
+                'x': 0,
+                'y': 0,
+                'w': 380,
+              },
+            ],
+            'groups': <Map<String, dynamic>>[
+              <String, dynamic>{
+                'id': 1,
+                'type': 'text',
+                'canonical': 'opaque-generated-fixture',
+                'members': <int>[1, 2, 3],
+              },
+            ],
+          });
+
+        expect(c.cards, hasLength(3));
+        expect(c.groups, hasLength(1));
+        expect(c.groups.single.members, <int>{2, 3});
+        expect(c.groups.single.canonical.value, isEmpty);
+        expect(
+          jsonEncode(c.toJson()),
+          isNot(contains('opaque-generated-fixture')),
+        );
+      },
+    );
+
     test('sanitizes legacy sensitive seeds and group state on apply', () {
       final CanvasController c = CanvasController()
         ..applyJson(<String, dynamic>{

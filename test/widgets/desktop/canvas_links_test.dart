@@ -1,10 +1,15 @@
 import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
+import 'package:masquerade/state/canvas_controller.dart';
+import 'package:masquerade/state/link_group.dart';
 import 'package:masquerade/state/view_mode_controller.dart';
+import 'package:masquerade/utility_catalog.dart';
+import 'package:masquerade/widgets/desktop/desktop_menubar.dart';
 import 'package:masquerade/widgets/desktop/tool_card_frame.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -148,8 +153,20 @@ void main() {
 
     final Finder linkButton = find.bySemanticsLabel('Choose live link target');
     expect(linkButton, findsOneWidget);
-    expect(find.byTooltip('Choose live link target'), findsOneWidget);
+    final TestGesture mouse = await tester.createGesture(
+      kind: PointerDeviceKind.mouse,
+    );
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(tester.getCenter(linkButton));
+    await tester.pump(const Duration(milliseconds: 500));
+    final Finder hoverHint = find.text('Choose live link target');
+    expect(hoverHint, findsOneWidget);
+    final Rect hintRect = tester.getRect(hoverHint);
+    final Rect buttonRect = tester.getRect(linkButton);
+    expect(hintRect.bottom, lessThan(buttonRect.top));
+    expect(hintRect.width, lessThan(320));
     await tester.tap(linkButton);
+    await mouse.removePointer();
     await tester.pumpAndSettle();
 
     expect(find.text('Link Timestamp'), findsOneWidget);
@@ -199,5 +216,40 @@ void main() {
     expect(find.byType(ToolCardFrame), findsNWidgets(2));
     expect(find.text('LIVE · EPOCH'), findsNWidgets(2));
     expect(find.bySemanticsLabel('Unlink'), findsNWidgets(2));
+  });
+
+  testWidgets('linked member hints update after joins and a peer closes', (
+    WidgetTester tester,
+  ) async {
+    await _pumpDesktop(tester);
+    await _openJson(tester);
+    await tester.tap(find.bySemanticsLabel('Open linked Base64'));
+    await tester.pumpAndSettle(_settle);
+
+    final CanvasController canvas = tester
+        .widget<DesktopMenubar>(find.byType(DesktopMenubar))
+        .controller;
+    final int jsonCard = canvas.cards.first.id;
+    final int base64Card = canvas.cards.last.id;
+    final Finder jsonUnlink = find.descendant(
+      of: find.byType(ToolCardFrame).first,
+      matching: find.bySemanticsLabel('Unlink'),
+    );
+
+    String linkHint() =>
+        tester.getSemantics(jsonUnlink).getSemanticsData().hint;
+
+    expect(linkHint(), contains('Connected to Base64 using Text'));
+
+    final int listCard = canvas.openTool(UtilityCatalog.byId('list'));
+    canvas.linkCards(jsonCard, listCard, type: ContentType.text);
+    await tester.pumpAndSettle(_settle);
+    expect(linkHint(), contains('Base64'));
+    expect(linkHint(), contains('List'));
+
+    canvas.close(base64Card);
+    await tester.pumpAndSettle(_settle);
+    expect(linkHint(), contains('Connected to List using Text'));
+    expect(linkHint(), isNot(contains('Base64')));
   });
 }

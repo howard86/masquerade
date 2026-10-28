@@ -45,11 +45,14 @@ mixin LinkableToolBody<T extends StatefulWidget> on State<T> {
 
   LinkChannel? _subscribed;
   Timer? _inboundTimer;
+  bool _awaitingAuthoritativeAttach = false;
 
   @override
   void initState() {
     super.initState();
     _resubscribe();
+    final LinkChannel? link = linkChannel;
+    _awaitingAuthoritativeAttach = link != null && !link.seedOnAttach;
     _scheduleAttach();
   }
 
@@ -63,7 +66,9 @@ mixin LinkableToolBody<T extends StatefulWidget> on State<T> {
     _inboundTimer?.cancel();
     _inboundTimer = null;
     _resubscribe();
-    if (linkChannel != null) _scheduleAttach();
+    final LinkChannel? link = linkChannel;
+    _awaitingAuthoritativeAttach = link != null && !link.seedOnAttach;
+    if (link != null) _scheduleAttach();
   }
 
   @override
@@ -85,7 +90,13 @@ mixin LinkableToolBody<T extends StatefulWidget> on State<T> {
 
   /// Pushes this body's canonical into the group. A no-op when unlinked or when
   /// the value already matches the group's canonical.
-  void emitToLink() => linkChannel?.emit(currentCanonical());
+  void emitToLink() {
+    final LinkChannel? link = linkChannel;
+    if (link == null || (_awaitingAuthoritativeAttach && !link.seedOnAttach)) {
+      return;
+    }
+    link.emit(currentCanonical());
+  }
 
   void _resubscribe() {
     _subscribed?.inbound.removeListener(_onInbound);
@@ -99,6 +110,7 @@ mixin LinkableToolBody<T extends StatefulWidget> on State<T> {
   /// on paint order.
   void _onAttach() {
     final LinkChannel? link = linkChannel;
+    _awaitingAuthoritativeAttach = false;
     if (link == null) return;
     if (link.seedOnAttach && currentCanonical().isNotEmpty) {
       link.emit(currentCanonical());
