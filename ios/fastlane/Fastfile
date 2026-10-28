@@ -2,6 +2,11 @@ default_platform(:ios)
 
 APP_IDENTIFIER = "dev.howardism.Masquerade"
 
+def app_version_from_pubspec
+  pubspec = File.expand_path("../../pubspec.yaml", __dir__)
+  File.read(pubspec)[/^version:\s*([0-9]+\.[0-9]+\.[0-9]+)/, 1]
+end
+
 def asc_api_key
   app_store_connect_api_key(
     key_id: ENV.fetch("ASC_KEY_ID"),
@@ -18,7 +23,7 @@ platform :ios do
   # same version is uploaded twice. Nothing in the repo tracks it.
   desc "Resolve the next TestFlight build number for the version in pubspec.yaml"
   lane :next_build_number do
-    version = File.read("../pubspec.yaml")[/^version:\s*([0-9]+\.[0-9]+\.[0-9]+)/, 1]
+    version = app_version_from_pubspec
     UI.user_error!("No version: line in pubspec.yaml") if version.nil?
 
     build = latest_testflight_build_number(
