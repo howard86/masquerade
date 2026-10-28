@@ -40,17 +40,31 @@ class LinkChannel {
   const LinkChannel({
     required this.canonicalType,
     required this.inbound,
-    this.seedOnAttach = true,
+    bool seedOnAttach = true,
+    bool Function()? isSeedOwner,
+    void Function()? onSeedConsumed,
     required void Function(String canonical) onEmit,
-  }) : _onEmit = onEmit;
+  }) : _seedOnAttach = seedOnAttach,
+       _isSeedOwner = isSeedOwner,
+       _onSeedConsumed = onSeedConsumed,
+       _onEmit = onEmit;
 
   final ContentType canonicalType;
   final ValueListenable<String> inbound;
 
   /// Whether this card is the selected source for a brand-new group's first
-  /// attach handshake. Joined cards pull the existing canonical value.
-  final bool seedOnAttach;
+  /// attach handshake. Controllers may provide a live check so cached channel
+  /// wrappers observe when the one-shot seed authority has been consumed.
+  final bool _seedOnAttach;
+  final bool Function()? _isSeedOwner;
+  final void Function()? _onSeedConsumed;
   final void Function(String canonical) _onEmit;
+
+  bool get seedOnAttach => _isSeedOwner?.call() ?? _seedOnAttach;
+
+  /// Consumes the source-only initialization authority after the first attach
+  /// handshake, including when the source's canonical is empty.
+  void consumeSeedOwnership() => _onSeedConsumed?.call();
 
   /// Pushes a canonical value derived from this body's current state into the
   /// group. A value equal to the current canonical is ignored by the group.
