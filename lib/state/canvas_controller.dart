@@ -999,8 +999,21 @@ class CanvasController extends ChangeNotifier {
       canonicalType: g.type,
       inbound: g.canonical,
       seedOnAttach: g.seedOwnerCardId == cardId,
+      isSeedOwner: () =>
+          _groups.contains(g) &&
+          g.members.contains(cardId) &&
+          g.seedOwnerCardId == cardId,
+      onSeedConsumed: () => _consumeSeedOwner(g, cardId),
       onEmit: (String value) => _emit(g, value),
     );
+  }
+
+  void _consumeSeedOwner(LinkGroup group, int cardId) {
+    if (_groups.contains(group) &&
+        group.members.contains(cardId) &&
+        group.seedOwnerCardId == cardId) {
+      group.seedOwnerCardId = null;
+    }
   }
 
   /// Returns the reason the proposed link is invalid, or null when it can be

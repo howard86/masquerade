@@ -59,6 +59,21 @@ Finder get _base64Input => find.byType(EditableText).last;
 String _editableText(WidgetTester tester, Finder f) =>
     tester.widget<EditableText>(f).controller.text;
 
+CanvasController _canvasController(WidgetTester tester) =>
+    tester.widget<DesktopMenubar>(find.byType(DesktopMenubar)).controller;
+
+Future<void> _minimizeAndRestore(
+  WidgetTester tester,
+  CanvasController canvas,
+  int cardId,
+) async {
+  canvas.minimize(cardId);
+  await tester.pump(const Duration(milliseconds: 400));
+  await tester.pumpAndSettle();
+  canvas.restoreWindow(cardId);
+  await tester.pumpAndSettle(_settle);
+}
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues(<String, Object>{}));
 
@@ -117,6 +132,69 @@ void main() {
     await tester.pumpAndSettle(_settle);
 
     expect(_editableText(tester, _jsonInput), '{"c":3}');
+  });
+
+  testWidgets(
+    'new link seeding authority is consumed before either body remounts',
+    (WidgetTester tester) async {
+      await _pumpDesktop(tester);
+      await _openJson(tester);
+      await tester.enterText(_jsonInput, '{"value":"A"}');
+      await tester.pumpAndSettle(_settle);
+      await tester.tap(find.bySemanticsLabel('Open linked Base64'));
+      await tester.pumpAndSettle(_settle);
+
+      final CanvasController canvas = _canvasController(tester);
+      final int jsonCard = canvas.cards.first.id;
+      final int base64Card = canvas.cards.last.id;
+      const String updated = '{"value":"B"}';
+
+      expect(canvas.groups.single.canonical.value, '{"value":"A"}');
+      expect(canvas.groups.single.seedOwnerCardId, isNull);
+      await tester.enterText(_jsonInput, updated);
+      await tester.pumpAndSettle(_settle);
+      expect(canvas.groups.single.canonical.value, updated);
+      expect(_editableText(tester, _base64Input), updated);
+
+      await _minimizeAndRestore(tester, canvas, jsonCard);
+      expect(canvas.groups.single.canonical.value, updated);
+      expect(_editableText(tester, _jsonInput), updated);
+      expect(_editableText(tester, _base64Input), updated);
+
+      await _minimizeAndRestore(tester, canvas, base64Card);
+      expect(canvas.groups.single.canonical.value, updated);
+      expect(_editableText(tester, _jsonInput), updated);
+      expect(_editableText(tester, _base64Input), updated);
+    },
+  );
+
+  testWidgets('an empty new-group source consumes authority before remount', (
+    WidgetTester tester,
+  ) async {
+    await _pumpDesktop(tester);
+    await _openJson(tester);
+    await tester.tap(find.bySemanticsLabel('Open linked Base64'));
+    await tester.pumpAndSettle(_settle);
+
+    final CanvasController canvas = _canvasController(tester);
+    final int jsonCard = canvas.cards.first.id;
+    final int base64Card = canvas.cards.last.id;
+    const String targetValue = '{"target":true}';
+
+    expect(canvas.groups.single.canonical.value, isEmpty);
+    expect(canvas.groups.single.seedOwnerCardId, isNull);
+    await tester.enterText(_base64Input, targetValue);
+    await tester.pumpAndSettle(_settle);
+    expect(canvas.groups.single.canonical.value, targetValue);
+    expect(_editableText(tester, _jsonInput), targetValue);
+
+    await _minimizeAndRestore(tester, canvas, jsonCard);
+    expect(canvas.groups.single.canonical.value, targetValue);
+    expect(_editableText(tester, _jsonInput), targetValue);
+
+    await _minimizeAndRestore(tester, canvas, base64Card);
+    expect(canvas.groups.single.canonical.value, targetValue);
+    expect(_editableText(tester, _base64Input), targetValue);
   });
 
   testWidgets(

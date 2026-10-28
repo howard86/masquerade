@@ -51,6 +51,21 @@ void main() {
       expect(c.channelForCard(target)!.seedOnAttach, isFalse);
     });
 
+    test('seed authority is consumed through cached channel wrappers', () {
+      final CanvasController c = CanvasController();
+      final int source = c.openTool(base64);
+      final int target = c.openTool(json);
+      c.linkCards(source, target, type: ContentType.text);
+      final LinkChannel cachedSourceChannel = c.channelForCard(source)!;
+
+      expect(cachedSourceChannel.seedOnAttach, isTrue);
+      cachedSourceChannel.consumeSeedOwnership();
+
+      expect(cachedSourceChannel.seedOnAttach, isFalse);
+      expect(c.channelForCard(source)!.seedOnAttach, isFalse);
+      expect(c.channelForCard(target)!.seedOnAttach, isFalse);
+    });
+
     test('repeated links are idempotent', () {
       final CanvasController c = CanvasController();
       final int a = c.openTool(base64);

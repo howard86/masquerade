@@ -112,8 +112,12 @@ mixin LinkableToolBody<T extends StatefulWidget> on State<T> {
     final LinkChannel? link = linkChannel;
     _awaitingAuthoritativeAttach = false;
     if (link == null) return;
-    if (link.seedOnAttach && currentCanonical().isNotEmpty) {
+    if (link.seedOnAttach) {
+      // A new group's selected source seeds it once, even when that value is
+      // empty. Channel wrappers can outlive this State in the canvas body cache,
+      // so consume authority in the shared group rather than in this State.
       link.emit(currentCanonical());
+      link.consumeSeedOwnership();
     } else {
       _applyInbound();
     }
