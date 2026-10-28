@@ -1,11 +1,16 @@
+import 'dart:convert';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
+import 'package:masquerade/state/canvas_controller.dart';
 import 'package:masquerade/state/view_mode_controller.dart';
+import 'package:masquerade/widgets/desktop/desktop_menubar.dart';
 import 'package:masquerade/widgets/desktop/pipe.dart';
 import 'package:masquerade/widgets/desktop/tool_card_frame.dart';
+import 'package:masquerade/widgets/mq/mq_input.dart';
 import 'package:masquerade/widgets/mq/mq_mono_cell.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -32,7 +37,7 @@ Future<void> _pumpDesktop(WidgetTester tester) async {
 
 /// Opens the first card from the desktop icon grid by its catalog name.
 Future<void> _openFirst(WidgetTester tester, String name) async {
-  final Finder tile = find.text(name);
+  final Finder tile = find.text(name).first;
   await tester.ensureVisible(tile);
   await tester.tap(tile);
   await tester.pumpAndSettle();
@@ -64,6 +69,13 @@ Future<void> _openViaPalette(
 Finder get _firstInput => find.byType(EditableText).first;
 Finder get _lastInput => find.byType(EditableText).last;
 
+Finder _inputByLabel(String label) => find.descendant(
+  of: find.byWidgetPredicate(
+    (Widget widget) => widget is MqInput && widget.label == label,
+  ),
+  matching: find.byType(EditableText),
+);
+
 String _editableText(WidgetTester tester, Finder f) =>
     tester.widget<EditableText>(f).controller.text;
 
@@ -71,6 +83,16 @@ String _editableText(WidgetTester tester, Finder f) =>
 /// long-press timeout to arm the drag, move in steps (so the avatar hit-tests
 /// each drop target en route), then release.
 Future<void> _pipeDrag(WidgetTester tester, Offset from, Offset to) async {
+  final TestGesture gesture = await _startPipeDrag(tester, from, to);
+  await gesture.up();
+  await tester.pumpAndSettle(_settle);
+}
+
+Future<TestGesture> _startPipeDrag(
+  WidgetTester tester,
+  Offset from,
+  Offset to,
+) async {
   final TestGesture gesture = await tester.startGesture(from);
   await tester.pump(kLongPressTimeout + const Duration(milliseconds: 100));
   const int steps = 12;
@@ -78,8 +100,7 @@ Future<void> _pipeDrag(WidgetTester tester, Offset from, Offset to) async {
     await gesture.moveTo(Offset.lerp(from, to, i / steps)!);
     await tester.pump();
   }
-  await gesture.up();
-  await tester.pumpAndSettle(_settle);
+  return gesture;
 }
 
 void main() {
@@ -120,6 +141,29 @@ void main() {
       find.descendant(of: find.byType(MqMonoCell), matching: find.text('10')),
       findsWidgets,
     );
+
+    // A temporary parse error leaves the last good canonical value in peers.
+    await tester.enterText(_lastInput, 'unknown(1)');
+    await tester.pumpAndSettle(_settle);
+    expect(_editableText(tester, _inputByLabel('Input')), '10');
+
+    await tester.enterText(_lastInput, '');
+    await tester.pumpAndSettle(_settle);
+    expect(_editableText(tester, _inputByLabel('Input')), isEmpty);
+
+    // Invalid Number Base edits retain the last good value; an intentional
+    // clear still propagates to the linked Math card.
+    await tester.enterText(_firstInput, '0x2A');
+    await tester.pumpAndSettle(_settle);
+    expect(_editableText(tester, _lastInput), '42');
+
+    await tester.enterText(_firstInput, 'not a number');
+    await tester.pumpAndSettle(_settle);
+    expect(_editableText(tester, _lastInput), '42');
+
+    await tester.enterText(_firstInput, '');
+    await tester.pumpAndSettle(_settle);
+    expect(_editableText(tester, _lastInput), isEmpty);
   });
 
   testWidgets('List ↔ Diff links and re-projects both ways', (
@@ -196,7 +240,7 @@ void main() {
     );
 
     // Edit Math → Timestamp re-parses the new epoch (round-trips to seconds).
-    final Finder mathInput = find.byType(EditableText).last;
+    final Finder mathInput = _inputByLabel('Expression');
     await tester.enterText(mathInput, '1800000000');
     await tester.pumpAndSettle(_settle);
     expect(
@@ -206,7 +250,130 @@ void main() {
       ),
       findsWidgets,
     );
+
+    final Finder timestampInput = _inputByLabel('Input');
+    await tester.enterText(timestampInput, 'not a timestamp');
+    await tester.pumpAndSettle(_settle);
+    expect(_editableText(tester, mathInput), '1800000000');
+
+    await tester.enterText(timestampInput, '');
+    await tester.pumpAndSettle(_settle);
+    expect(_editableText(tester, mathInput), isEmpty);
   });
+
+  testWidgets('choosing an existing target keeps the selected source value', (
+    WidgetTester tester,
+  ) async {
+    await _pumpDesktop(tester);
+    await _openFirst(tester, 'Timestamp');
+    await tester.enterText(_firstInput, '1700000000');
+    await tester.pumpAndSettle(_settle);
+    await _openViaPalette(tester, 'calc', 'Math');
+    await tester.enterText(_lastInput, '2+3');
+    await tester.pumpAndSettle(_settle);
+
+    await tester.tap(find.bySemanticsLabel('Choose live link target'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Link to Math · Epoch'));
+    await tester.pumpAndSettle(_settle);
+
+    expect(find.bySemanticsLabel('Unlink'), findsNWidgets(2));
+    expect(_editableText(tester, _lastInput), '1700000000');
+    expect(find.text('LIVE · EPOCH'), findsNWidgets(2));
+  });
+
+  testWidgets('source value wins when the populated target opened first', (
+    WidgetTester tester,
+  ) async {
+    await _pumpDesktop(tester);
+    await _openFirst(tester, 'Math');
+    await tester.enterText(_inputByLabel('Expression'), '2+3');
+    await tester.pumpAndSettle(_settle);
+
+    await _openViaPalette(tester, 'timestamp', 'Timestamp');
+    await tester.enterText(_inputByLabel('Input'), '1700000000');
+    await tester.pumpAndSettle(_settle);
+    await tester.tap(find.bySemanticsLabel('Choose live link target'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Link to Math · Epoch'));
+    await tester.pumpAndSettle(_settle);
+
+    expect(_editableText(tester, _inputByLabel('Expression')), '1700000000');
+    expect(_editableText(tester, _inputByLabel('Input')), '1700000000');
+    expect(find.text('LIVE · EPOCH'), findsNWidgets(2));
+  });
+
+  testWidgets(
+    'restored canonical beats JSON and Base64 seeds on attach and remount',
+    (WidgetTester tester) async {
+      const String stale = '{"value":"A"}';
+      const String saved = '{"value":"B"}';
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        CanvasController.currentKey: jsonEncode(<String, dynamic>{
+          'nextId': 3,
+          'nextGroupId': 2,
+          'nextZ': 3,
+          'focused': 1,
+          'cards': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'id': 1,
+              'tool': 'json',
+              'x': 60.0,
+              'y': 80.0,
+              'w': 380.0,
+              'seed': stale,
+            },
+            <String, dynamic>{
+              'id': 2,
+              'tool': 'base64',
+              'x': 480.0,
+              'y': 80.0,
+              'w': 380.0,
+              'seed': base64Encode(utf8.encode(stale)),
+            },
+          ],
+          'groups': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'id': 1,
+              'type': 'text',
+              'canonical': saved,
+              'members': <int>[1, 2],
+            },
+          ],
+        }),
+      });
+
+      await _pumpDesktop(tester);
+      final CanvasController canvas = tester
+          .widget<DesktopMenubar>(find.byType(DesktopMenubar))
+          .controller;
+
+      void expectRestoredValue() {
+        expect(canvas.groups.single.canonical.value, saved);
+        expect(_editableText(tester, _inputByLabel('Input').first), saved);
+        expect(
+          _editableText(tester, _inputByLabel('Input').last),
+          base64Encode(utf8.encode(saved)),
+        );
+      }
+
+      await tester.pumpAndSettle(_settle);
+      expectRestoredValue();
+
+      // Minimizing removes the body State; restoring remounts it from the
+      // persisted stale seed while the group canonical remains authoritative.
+      canvas.minimize(2);
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(find.byType(ToolCardFrame), findsOneWidget);
+      expect(find.byType(MqInput), findsOneWidget);
+
+      canvas.restoreWindow(2);
+      await tester.pumpAndSettle(_settle);
+      expect(find.byType(MqInput), findsNWidgets(2));
+      expectRestoredValue();
+    },
+  );
 
   testWidgets('Color ↔ text links via drop and re-projects both ways', (
     WidgetTester tester,
@@ -254,9 +421,56 @@ void main() {
     );
 
     // Edit Color → List input re-projects (List's canonical is its raw text).
-    final Finder colorInput = find.byType(EditableText).last;
+    final Finder colorInput = _inputByLabel('Color');
+    final Finder listInput = _inputByLabel('Input');
     await tester.enterText(colorInput, '#778899');
     await tester.pumpAndSettle(_settle);
-    expect(_editableText(tester, _firstInput), '#778899');
+    expect(_editableText(tester, listInput), '#778899');
+
+    await tester.enterText(colorInput, 'not a color');
+    await tester.pumpAndSettle(_settle);
+    expect(_editableText(tester, listInput), '#778899');
+
+    await tester.enterText(colorInput, '');
+    await tester.pumpAndSettle(_settle);
+    expect(_editableText(tester, listInput), isEmpty);
+  });
+
+  testWidgets('a rejected drop explains the incompatible value type', (
+    WidgetTester tester,
+  ) async {
+    await _pumpDesktop(tester);
+    await _openFirst(tester, 'Number Base');
+    await tester.enterText(_firstInput, '255');
+    await tester.pumpAndSettle(_settle);
+    await _openFirst(tester, 'Color');
+    await tester.dragFrom(
+      tester.getTopLeft(find.byType(ToolCardFrame).last) +
+          const Offset(120, 14),
+      const Offset(520, 20),
+    );
+    await tester.pumpAndSettle();
+
+    final Finder numberOutput = find
+        .byType(LongPressDraggable<PipePayload>)
+        .first;
+    final TestGesture gesture = await _startPipeDrag(
+      tester,
+      tester.getCenter(numberOutput),
+      tester.getCenter(find.byType(ToolCardFrame).last),
+    );
+
+    expect(
+      find.text('This target cannot receive a live number value.'),
+      findsOneWidget,
+    );
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(find.bySemanticsLabel('Unlink'), findsNothing);
+    expect(
+      find.text('This target cannot receive a live number value.'),
+      findsNothing,
+    );
   });
 }

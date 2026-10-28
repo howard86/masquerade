@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/gestures.dart' show DragStartBehavior;
+import 'package:flutter/gestures.dart'
+    show DragStartBehavior, PointerEnterEvent, PointerExitEvent;
 
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
@@ -31,6 +34,8 @@ class ToolCardFrame extends StatelessWidget {
     this.height,
     this.linked = false,
     this.linkTooltip,
+    this.linkHint,
+    this.linkStatus,
     this.onLink,
     this.scrollBody = true,
     this.onSecondaryTapDown,
@@ -58,6 +63,10 @@ class ToolCardFrame extends StatelessWidget {
   /// it gold (active) and [linkTooltip] is its accessibility label.
   final bool linked;
   final String? linkTooltip;
+  final String? linkHint;
+
+  /// Short visible connection state, such as `LIVE · TEXT`.
+  final String? linkStatus;
   final VoidCallback? onLink;
 
   /// Called with the drag delta while the title bar is dragged.
@@ -147,6 +156,8 @@ class ToolCardFrame extends StatelessWidget {
                   onMoveEnd: onMoveEnd,
                   linked: linked,
                   linkTooltip: linkTooltip,
+                  linkHint: linkHint,
+                  linkStatus: linkStatus,
                   onLink: onLink,
                   onSecondaryTapDown: onSecondaryTapDown,
                 ),
@@ -398,6 +409,8 @@ class _Header extends StatefulWidget {
     required this.onMoveEnd,
     required this.linked,
     required this.linkTooltip,
+    required this.linkHint,
+    required this.linkStatus,
     required this.onLink,
     this.onSecondaryTapDown,
   });
@@ -414,6 +427,8 @@ class _Header extends StatefulWidget {
   final VoidCallback onMoveEnd;
   final bool linked;
   final String? linkTooltip;
+  final String? linkHint;
+  final String? linkStatus;
   final VoidCallback? onLink;
   final GestureTapDownCallback? onSecondaryTapDown;
 
@@ -521,10 +536,26 @@ class _HeaderState extends State<_Header> {
                 ),
                 const SizedBox(width: MqSpacing.sm),
               ],
+              if (widget.linkStatus != null) ...<Widget>[
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 112),
+                  child: Text(
+                    widget.linkStatus!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MqTextStyles.monoSm.copyWith(
+                      color: c.warning,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: MqSpacing.xs),
+              ],
               if (widget.onLink != null)
                 _IconButton(
                   icon: MqIcons.link,
                   tooltip: widget.linkTooltip ?? 'Link',
+                  hint: widget.linkHint,
                   onTap: widget.onLink!,
                   color: widget.linked ? c.warning : null,
                 ),
@@ -609,35 +640,128 @@ class _TrafficLightState extends State<_TrafficLight> {
   }
 }
 
-class _IconButton extends StatelessWidget {
+class _IconButton extends StatefulWidget {
   const _IconButton({
     required this.icon,
     required this.tooltip,
+    this.hint,
     required this.onTap,
     this.color,
   });
 
   final IconData icon;
   final String tooltip;
+  final String? hint;
   final VoidCallback onTap;
 
   /// Icon tint; defaults to the tertiary text color when null.
   final Color? color;
 
   @override
+  State<_IconButton> createState() => _IconButtonState();
+}
+
+class _IconButtonState extends State<_IconButton> {
+  final LayerLink _layerLink = LayerLink();
+  Timer? _hoverTimer;
+  OverlayEntry? _hintEntry;
+
+  @override
+  void didUpdateWidget(_IconButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.tooltip != oldWidget.tooltip) _hideHint();
+  }
+
+  void _showHint() {
+    _hoverTimer?.cancel();
+    _hoverTimer = Timer(const Duration(milliseconds: 450), () {
+      if (!mounted || _hintEntry != null) return;
+      final OverlayState? overlay = Overlay.maybeOf(context);
+      if (overlay == null) return;
+      final c = context.mq.colors;
+      final OverlayEntry entry = OverlayEntry(
+        builder: (BuildContext context) => Positioned.fill(
+          child: IgnorePointer(
+            child: UnconstrainedBox(
+              alignment: Alignment.topLeft,
+              child: ExcludeSemantics(
+                child: CompositedTransformFollower(
+                  link: _layerLink,
+                  showWhenUnlinked: false,
+                  targetAnchor: Alignment.topCenter,
+                  followerAnchor: Alignment.bottomCenter,
+                  offset: const Offset(0, -4),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: c.surface,
+                      borderRadius: BorderRadius.circular(MqRadius.sm),
+                      border: Border.all(color: c.border),
+                      boxShadow: c.shadow,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: MqSpacing.sm,
+                        vertical: MqSpacing.xs,
+                      ),
+                      child: Text(
+                        widget.tooltip,
+                        style: MqTextStyles.caption1.copyWith(color: c.textPri),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      _hintEntry = entry;
+      overlay.insert(entry);
+    });
+  }
+
+  void _hideHint() {
+    _hoverTimer?.cancel();
+    _hoverTimer = null;
+    _hintEntry?.remove();
+    _hintEntry = null;
+  }
+
+  @override
+  void dispose() {
+    _hideHint();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
     return Semantics(
       button: true,
-      label: tooltip,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: Padding(
+      label: widget.tooltip,
+      hint: widget.hint,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (PointerEnterEvent _) => _showHint(),
+        onExit: (PointerExitEvent _) => _hideHint(),
+        child: CompositedTransformTarget(
+          link: _layerLink,
+          child: CupertinoButton(
+            onPressed: () {
+              _hideHint();
+              widget.onTap();
+            },
+            minimumSize: const Size(32, 32),
             padding: const EdgeInsets.symmetric(horizontal: MqSpacing.xs),
-            child: Icon(icon, size: 15, color: color ?? c.textTer),
+            pressedOpacity: 0.75,
+            focusColor: c.accentBg,
+            borderRadius: BorderRadius.circular(MqRadius.sm),
+            mouseCursor: SystemMouseCursors.click,
+            child: Icon(
+              widget.icon,
+              size: 15,
+              color: widget.color ?? c.textTer,
+            ),
           ),
         ),
       ),

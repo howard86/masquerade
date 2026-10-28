@@ -89,8 +89,8 @@ class _NumberBaseBodyState extends State<NumberBaseBody>
     });
     if (parsed is NumberBaseOk) {
       recordOutput(input, parsed.result.decimal);
+      emitToLink();
     }
-    emitToLink();
   }
 
   @override

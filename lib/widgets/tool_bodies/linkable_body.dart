@@ -45,11 +45,14 @@ mixin LinkableToolBody<T extends StatefulWidget> on State<T> {
 
   LinkChannel? _subscribed;
   Timer? _inboundTimer;
+  bool _awaitingAuthoritativeAttach = false;
 
   @override
   void initState() {
     super.initState();
     _resubscribe();
+    final LinkChannel? link = linkChannel;
+    _awaitingAuthoritativeAttach = link != null && !link.seedOnAttach;
     _scheduleAttach();
   }
 
@@ -60,9 +63,12 @@ mixin LinkableToolBody<T extends StatefulWidget> on State<T> {
     // notifier is stable per group — compare that, not the wrapper, to avoid
     // re-subscribing on every unrelated canvas change.
     if (linkChannel?.inbound == _subscribed?.inbound) return;
-    final bool wasLinked = _subscribed != null;
+    _inboundTimer?.cancel();
+    _inboundTimer = null;
     _resubscribe();
-    if (!wasLinked && linkChannel != null) _scheduleAttach();
+    final LinkChannel? link = linkChannel;
+    _awaitingAuthoritativeAttach = link != null && !link.seedOnAttach;
+    if (link != null) _scheduleAttach();
   }
 
   @override
@@ -84,7 +90,13 @@ mixin LinkableToolBody<T extends StatefulWidget> on State<T> {
 
   /// Pushes this body's canonical into the group. A no-op when unlinked or when
   /// the value already matches the group's canonical.
-  void emitToLink() => linkChannel?.emit(currentCanonical());
+  void emitToLink() {
+    final LinkChannel? link = linkChannel;
+    if (link == null || (_awaitingAuthoritativeAttach && !link.seedOnAttach)) {
+      return;
+    }
+    link.emit(currentCanonical());
+  }
 
   void _resubscribe() {
     _subscribed?.inbound.removeListener(_onInbound);
@@ -92,14 +104,20 @@ mixin LinkableToolBody<T extends StatefulWidget> on State<T> {
     _subscribed?.inbound.addListener(_onInbound);
   }
 
-  /// On first attach a body that already holds a value seeds the group; an
-  /// empty body instead pulls the existing canonical. So linking a fresh
-  /// sibling onto a populated card shows the source's value in the sibling.
+  /// On first attach only the selected source of a new group seeds from its
+  /// current value. Joined cards pull the group's canonical value, so linking
+  /// two already-open windows has a predictable source and cannot race based
+  /// on paint order.
   void _onAttach() {
     final LinkChannel? link = linkChannel;
+    _awaitingAuthoritativeAttach = false;
     if (link == null) return;
-    if (currentCanonical().isNotEmpty) {
+    if (link.seedOnAttach) {
+      // A new group's selected source seeds it once, even when that value is
+      // empty. Channel wrappers can outlive this State in the canvas body cache,
+      // so consume authority in the shared group rather than in this State.
       link.emit(currentCanonical());
+      link.consumeSeedOwnership();
     } else {
       _applyInbound();
     }
