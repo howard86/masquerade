@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
@@ -12,6 +13,7 @@ import '../../state/window_content.dart';
 import '../../theme/mq_colors.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_metrics.dart';
+import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
 import '../../widgets/desktop/command_palette.dart';
 import '../../widgets/desktop/desktop_icon_grid.dart';
@@ -24,12 +26,11 @@ import '../../widgets/desktop/desktop_context_menu.dart';
 import '../../widgets/mq/mq_icons.dart';
 import '../../widgets/desktop/shortcuts_hud.dart';
 
-/// Header-toggle link pairings (see docs/adr/0001): a card's link button opens
+/// Header-toggle shortcuts (see docs/adr/0001): a card's link button opens
 /// this fixed partner tool and links the two on one canonical type. Keyed by
-/// tool id → its partner tool + the shared canonical type. Only *unambiguous*
-/// pairs live here; tools reachable on several types (or with no clean tool
-/// partner) link via phase-4 drop-to-link instead. The canvas owns this; the
-/// bodies stay shell-agnostic.
+/// tool id → its partner tool + the shared canonical type. Other linkable
+/// tools open a target picker, while output-cell dragging remains available.
+/// The canvas owns this; the bodies stay shell-agnostic.
 ///
 /// Math sits in two pairs (number ↔ math, epoch ↔ math); its toggle defaults
 /// to Number Base, and the Timestamp pairing is reachable via drop-to-link.
@@ -50,6 +51,22 @@ typedef _ToolBodyCacheEntry = ({
   Widget body,
 });
 
+typedef _LinkTargetChoice = ({
+  UtilityDescriptor descriptor,
+  ContentType type,
+  int? cardId,
+});
+
+String _contentTypeLabel(ContentType type) => switch (type) {
+  ContentType.text => 'Text',
+  ContentType.bytes => 'Bytes',
+  ContentType.number => 'Number',
+  ContentType.epoch => 'Epoch',
+  ContentType.json => 'JSON',
+  ContentType.color => 'Color',
+  ContentType.lines => 'Lines',
+};
+
 /// The desktop work surface: a pannable canvas hosting the fixed
 /// [DesktopIconGrid] (single-click an icon to open a tool) with draggable tool
 /// cards floating above it. Menubar items cover ⌘K / paste / close-all, so the
@@ -69,6 +86,7 @@ class DesktopCanvas extends StatefulWidget {
 
 class _DesktopCanvasState extends State<DesktopCanvas> {
   final FocusNode _focusNode = FocusNode(debugLabel: 'canvas');
+  bool _linkPickerOpen = false;
   final Map<int, _ToolBodyCacheEntry> _toolBodies =
       <int, _ToolBodyCacheEntry>{};
 
@@ -199,6 +217,14 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     final LogicalKeyboardKey k = event.logicalKey;
     final HardwareKeyboard hw = HardwareKeyboard.instance;
 
+    if (k == LogicalKeyboardKey.escape && _linkPickerOpen) {
+      final NavigatorState navigator = Navigator.of(
+        context,
+        rootNavigator: true,
+      );
+      if (navigator.canPop()) navigator.pop();
+      return KeyEventResult.handled;
+    }
     if (k == LogicalKeyboardKey.escape && _c.focusedId != null) {
       _c.close(_c.focusedId!);
       return KeyEventResult.handled;
@@ -252,30 +278,89 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
           children: <Widget>[
             Positioned.fill(
               child: DragTarget<PipePayload>(
+                onWillAcceptWithDetails: (DragTargetDetails<PipePayload> d) =>
+                    _cardById(d.data.sourceCardId) != null,
                 onAcceptWithDetails: _onDropOnCanvas,
                 builder:
                     (
                       BuildContext context,
                       List<PipePayload?> candidate,
                       List<dynamic> rejected,
-                    ) => GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onPanUpdate: (DragUpdateDetails d) =>
-                          _pan.value += d.delta,
-                      onSecondaryTapDown: (TapDownDetails details) =>
-                          _showWallpaperContextMenu(
-                            context,
-                            details.globalPosition,
-                          ),
-                      child: RepaintBoundary(
-                        child: CustomPaint(
-                          painter: _DotGridPainter(
-                            color: c.border,
-                            offset: _pan,
+                    ) {
+                      final bool canOpen = candidate.any(
+                        (PipePayload? payload) => payload != null,
+                      );
+                      final bool rejectedStaleSource = rejected.any(
+                        (dynamic payload) =>
+                            payload is PipePayload &&
+                            _cardById(payload.sourceCardId) == null,
+                      );
+                      final Widget wallpaper = GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onPanUpdate: (DragUpdateDetails d) =>
+                            _pan.value += d.delta,
+                        onSecondaryTapDown: (TapDownDetails details) =>
+                            _showWallpaperContextMenu(
+                              context,
+                              details.globalPosition,
+                            ),
+                        child: RepaintBoundary(
+                          child: CustomPaint(
+                            painter: _DotGridPainter(
+                              color: c.border,
+                              offset: _pan,
+                            ),
                           ),
                         ),
-                      ),
-                    ),
+                      );
+                      if (!canOpen && !rejectedStaleSource) return wallpaper;
+                      final String feedback = canOpen
+                          ? 'Release to open an unlinked tool. Drop on a window to create a live link.'
+                          : 'Source window closed. Cancel this drag and try again.';
+                      return Stack(
+                        fit: StackFit.expand,
+                        children: <Widget>[
+                          wallpaper,
+                          Center(
+                            child: IgnorePointer(
+                              child: Semantics(
+                                liveRegion: true,
+                                label: feedback,
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    color: context.mq.colors.surface,
+                                    borderRadius: BorderRadius.circular(
+                                      MqRadius.sm,
+                                    ),
+                                    border: Border.all(
+                                      color: rejectedStaleSource
+                                          ? context.mq.colors.danger
+                                          : context.mq.colors.accent,
+                                    ),
+                                    boxShadow: context.mq.colors.shadow,
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: MqSpacing.md,
+                                      vertical: MqSpacing.sm,
+                                    ),
+                                    child: Text(
+                                      feedback,
+                                      textAlign: TextAlign.center,
+                                      style: MqTextStyles.caption1.copyWith(
+                                        color: rejectedStaleSource
+                                            ? context.mq.colors.danger
+                                            : context.mq.colors.accent,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
               ),
             ),
             Positioned.fill(child: _iconGrid),
@@ -380,6 +465,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
   }
 
   void _onDropOnCanvas(DragTargetDetails<PipePayload> details) {
+    if (_cardById(details.data.sourceCardId) == null) return;
     final List<DetectionMatch<Object?>> matches =
         DetectionPreferenceScope.read(context).rank(
           UtilityCatalog.detectArtifacts(
@@ -387,7 +473,10 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
             provenance: ArtifactProvenance.liveLink,
           ),
         );
-    if (matches.isEmpty) return;
+    if (matches.isEmpty) {
+      unawaited(_showNoToolDrop());
+      return;
+    }
     final RenderBox? box =
         _surfaceKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null) return;
@@ -586,6 +675,10 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     final ({String partnerId, ContentType type})? partner =
         _linkPartners[descriptor.id];
     final bool linked = group != null;
+    final bool linkable = _isLinkable(descriptor);
+    final String? linkedNames = group == null
+        ? null
+        : _linkedMemberNames(card, group);
     final ToolCardFrame frame = ToolCardFrame(
       title: tw.title,
       slot: slot <= 9 ? slot : null,
@@ -624,33 +717,152 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
       linked: linked,
       linkTooltip: linked
           ? 'Unlink'
-          : partner == null
-          ? null
-          : 'Open linked ${UtilityCatalog.byId(partner.partnerId).name}',
-      onLink: (linked || partner != null)
-          ? () => _toggleLink(card, partner)
+          : partner != null
+          ? 'Open linked ${UtilityCatalog.byId(partner.partnerId).name}'
+          : 'Choose live link target',
+      linkHint: linked
+          ? 'Connected to ${linkedNames ?? 'other windows'} using ${_contentTypeLabel(group.type)}. Tap to unlink this window.'
+          : partner != null
+          ? 'Opens ${UtilityCatalog.byId(partner.partnerId).name} as a two-way live link.'
+          : 'Choose an open target or a new compatible tool. Drag an output cell onto another window to choose its value directly.',
+      linkStatus: linked
+          ? 'LIVE · ${_contentTypeLabel(group.type).toUpperCase()}'
           : null,
+      onLink: linked
+          ? () => _c.unlinkCard(card.id)
+          : !linkable
+          ? null
+          : partner != null
+          ? () => _toggleLink(card, partner)
+          : () => _showLinkPicker(card),
       onSecondaryTapDown: (TapDownDetails details) =>
           _showWindowContextMenuFor(details.globalPosition, card.id),
       child: _toolBody(card, descriptor),
     );
     return DragTarget<PipePayload>(
       onWillAcceptWithDetails: (DragTargetDetails<PipePayload> d) =>
-          d.data.sourceCardId != card.id &&
-          descriptor.inputSources.contains(UtilityInputSource.liveLink) &&
-          descriptor.liveLinkTypes.contains(d.data.type),
-      onAcceptWithDetails: (DragTargetDetails<PipePayload> d) => _c.linkCards(
-        d.data.sourceCardId,
-        card.id,
-        type: d.data.type,
-        seedCanonical: d.data.value,
-      ),
+          _c.linkIssueFor(d.data.sourceCardId, card.id, type: d.data.type) ==
+          null,
+      onAcceptWithDetails: (DragTargetDetails<PipePayload> d) {
+        final int? result = _c.linkCards(
+          d.data.sourceCardId,
+          card.id,
+          type: d.data.type,
+          seedCanonical: d.data.value,
+        );
+        if (result == null) {
+          final LinkIssue issue =
+              _c.linkIssueFor(
+                d.data.sourceCardId,
+                card.id,
+                type: d.data.type,
+              ) ??
+              LinkIssue.targetMissing;
+          unawaited(_showLinkIssue(issue, d.data.type));
+        }
+      },
       builder:
           (
             BuildContext context,
             List<PipePayload?> candidate,
             List<dynamic> rejected,
-          ) => frame,
+          ) {
+            PipePayload? acceptedPayload;
+            for (final PipePayload? payload in candidate) {
+              if (payload != null) {
+                acceptedPayload = payload;
+                break;
+              }
+            }
+            PipePayload? rejectedPayload;
+            for (final dynamic payload in rejected) {
+              if (payload is PipePayload) {
+                rejectedPayload = payload;
+                break;
+              }
+            }
+            final bool canLink = acceptedPayload != null;
+            final PipePayload? payload = acceptedPayload ?? rejectedPayload;
+            final String? feedback = payload == null
+                ? null
+                : canLink
+                ? 'Release to link · ${_contentTypeLabel(payload.type)}'
+                : (_c.linkIssueFor(
+                            payload.sourceCardId,
+                            card.id,
+                            type: payload.type,
+                          ) ??
+                          LinkIssue.targetUnsupported)
+                      .message(payload.type);
+            if (feedback == null) return frame;
+            final Color feedbackColor = canLink
+                ? context.mq.colors.accent
+                : context.mq.colors.danger;
+            return Stack(
+              clipBehavior: Clip.none,
+              children: <Widget>[
+                frame,
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Semantics(
+                      container: true,
+                      liveRegion: true,
+                      label: feedback,
+                      child: Stack(
+                        children: <Widget>[
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 100),
+                            decoration: BoxDecoration(
+                              color: feedbackColor.withValues(alpha: 0.05),
+                              border: Border.all(
+                                color: feedbackColor,
+                                width: 2,
+                              ),
+                              borderRadius: BorderRadius.circular(MqRadius.md),
+                            ),
+                          ),
+                          Positioned(
+                            top: 42,
+                            left: 8,
+                            right: 8,
+                            child: Center(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: context.mq.colors.surface,
+                                  borderRadius: BorderRadius.circular(
+                                    MqRadius.sm,
+                                  ),
+                                  border: Border.all(
+                                    color: feedbackColor,
+                                    width: 0.75,
+                                  ),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: MqSpacing.sm,
+                                    vertical: MqSpacing.xs,
+                                  ),
+                                  child: Text(
+                                    feedback,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
+                                    style: MqTextStyles.caption1.copyWith(
+                                      color: feedbackColor,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
     );
   }
 
@@ -727,7 +939,181 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     }
     if (partner == null) return;
     final int siblingId = _c.openTool(UtilityCatalog.byId(partner.partnerId));
-    _c.linkCards(card.id, siblingId, type: partner.type);
+    if (_c.linkCards(card.id, siblingId, type: partner.type) == null) {
+      final LinkIssue issue =
+          _c.linkIssueFor(card.id, siblingId, type: partner.type) ??
+          LinkIssue.sourceMissing;
+      _c.close(siblingId);
+      unawaited(_showLinkIssue(issue, partner.type));
+    }
+  }
+
+  bool _isLinkable(UtilityDescriptor descriptor) =>
+      descriptor.inputSources.contains(UtilityInputSource.liveLink) &&
+      descriptor.liveLinkTypes.isNotEmpty;
+
+  String? _linkedMemberNames(CanvasCard card, LinkGroup group) {
+    final Set<String> names = group.members
+        .where((int id) => id != card.id)
+        .map((int id) => _cardById(id)?.toolDescriptor?.name)
+        .whereType<String>()
+        .toSet();
+    return names.isEmpty ? null : names.join(', ');
+  }
+
+  Future<void> _showLinkPicker(CanvasCard source) async {
+    final UtilityDescriptor? sourceDescriptor = source.toolDescriptor;
+    if (sourceDescriptor == null || !_isLinkable(sourceDescriptor)) return;
+
+    final List<_LinkTargetChoice> choices = <_LinkTargetChoice>[];
+    final Set<String> blockedTargets = <String>{};
+    final LinkGroup? sourceGroup = _c.groupForCard(source.id);
+    for (final CanvasCard target in _c.cards) {
+      if (target.id == source.id) continue;
+      final UtilityDescriptor? targetDescriptor = target.toolDescriptor;
+      if (targetDescriptor == null) continue;
+      for (final ContentType type in ContentType.values) {
+        if (!sourceDescriptor.liveLinkTypes.contains(type) ||
+            !targetDescriptor.liveLinkTypes.contains(type)) {
+          continue;
+        }
+        final LinkIssue? issue = _c.linkIssueFor(
+          source.id,
+          target.id,
+          type: type,
+        );
+        if (issue == null) {
+          choices.add((
+            descriptor: targetDescriptor,
+            type: type,
+            cardId: target.id,
+          ));
+        } else if (issue == LinkIssue.groupTypeConflict) {
+          final LinkGroup? group = _c.groupForCard(target.id);
+          if (group != null) {
+            blockedTargets.add(
+              '${targetDescriptor.name} (${_contentTypeLabel(group.type)})',
+            );
+          }
+        }
+      }
+    }
+    for (final UtilityDescriptor target in UtilityCatalog.all) {
+      if (!_isLinkable(target)) continue;
+      for (final ContentType type in ContentType.values) {
+        if (sourceDescriptor.liveLinkTypes.contains(type) &&
+            target.liveLinkTypes.contains(type) &&
+            (sourceGroup == null || sourceGroup.type == type)) {
+          choices.add((descriptor: target, type: type, cardId: null));
+        }
+      }
+    }
+
+    final String explanation = choices.isEmpty
+        ? 'No compatible target is available. Try dragging an output onto a window that supports the same value type.'
+        : 'Live links update both windows. A new link starts with this window’s value. Existing links keep their shared value; if two groups merge, this source’s group stays in control.';
+    final String sourceBlockedNote = sourceGroup == null
+        ? ''
+        : '\n\nThis window is already linked as ${_contentTypeLabel(sourceGroup.type)}. Unlink it before choosing another type.';
+    final String targetBlockedNote = blockedTargets.isEmpty
+        ? ''
+        : '\n\n${blockedTargets.join(', ')} already use another link type. Unlink them before joining.';
+
+    _linkPickerOpen = true;
+    _LinkTargetChoice? choice;
+    try {
+      choice = await showCupertinoModalPopup<_LinkTargetChoice>(
+        context: context,
+        builder: (BuildContext sheetContext) => CupertinoActionSheet(
+          title: Text('Link ${sourceDescriptor.name}'),
+          message: Text('$explanation$sourceBlockedNote$targetBlockedNote'),
+          actions: <Widget>[
+            for (final _LinkTargetChoice target in choices)
+              CupertinoActionSheetAction(
+                onPressed: () => Navigator.of(sheetContext).pop(target),
+                child: Text(
+                  target.cardId == null
+                      ? 'Open ${target.descriptor.name} · ${_contentTypeLabel(target.type)}'
+                      : 'Link to ${target.descriptor.name} · ${_contentTypeLabel(target.type)}',
+                ),
+              ),
+          ],
+          cancelButton: CupertinoActionSheetAction(
+            onPressed: () => Navigator.of(sheetContext).pop(),
+            child: const Text('Cancel'),
+          ),
+        ),
+      );
+    } finally {
+      _linkPickerOpen = false;
+    }
+    if (choice == null || !mounted) return;
+    await _applyLinkChoice(source, choice);
+  }
+
+  Future<void> _applyLinkChoice(
+    CanvasCard source,
+    _LinkTargetChoice choice,
+  ) async {
+    if (_cardById(source.id) == null) {
+      await _showLinkIssue(LinkIssue.sourceMissing, choice.type);
+      return;
+    }
+    final bool openedTarget = choice.cardId == null;
+    final int targetId = choice.cardId ?? _c.openTool(choice.descriptor);
+    final LinkIssue? issue = _c.linkIssueFor(
+      source.id,
+      targetId,
+      type: choice.type,
+    );
+    if (issue != null) {
+      if (openedTarget) _c.close(targetId);
+      await _showLinkIssue(issue, choice.type);
+      return;
+    }
+    if (_c.linkCards(source.id, targetId, type: choice.type) == null) {
+      if (openedTarget) _c.close(targetId);
+      final LinkIssue issue =
+          _c.linkIssueFor(source.id, targetId, type: choice.type) ??
+          LinkIssue.alreadyLinked;
+      await _showLinkIssue(issue, choice.type);
+    }
+  }
+
+  Future<void> _showLinkIssue(LinkIssue issue, ContentType type) async {
+    if (!mounted) return;
+    await showCupertinoDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) => CupertinoAlertDialog(
+        title: const Text('Couldn’t link windows'),
+        content: Text(issue.message(type)),
+        actions: <Widget>[
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showNoToolDrop() async {
+    if (!mounted) return;
+    await showCupertinoDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) => CupertinoAlertDialog(
+        title: const Text('No tool found for this value'),
+        content: const Text(
+          'Keep it in the source window, or drop the output onto a compatible window to create a live link.',
+        ),
+        actions: <Widget>[
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// One gold segment per linked pair, anchored at each card's title bar (in
@@ -820,12 +1206,20 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
             icon: MqIcons.link,
             action: () => _c.unlinkCard(card.id),
           )
-        else if (partner != null)
+        else if (_isLinkable(descriptor)) ...<ContextMenuItem>[
+          if (partner != null)
+            ContextMenuItem(
+              label:
+                  'Open Linked ${UtilityCatalog.byId(partner.partnerId).name}',
+              icon: MqIcons.link,
+              action: () => _toggleLink(card, partner),
+            ),
           ContextMenuItem(
-            label: 'Open Linked ${UtilityCatalog.byId(partner.partnerId).name}',
+            label: 'Choose Link Target…',
             icon: MqIcons.link,
-            action: () => _toggleLink(card, partner),
+            action: () => _showLinkPicker(card),
           ),
+        ],
       ],
       ContextMenuItem(
         label: 'Close Window  Esc',

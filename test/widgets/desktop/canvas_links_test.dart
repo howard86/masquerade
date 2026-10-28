@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
 import 'package:masquerade/state/view_mode_controller.dart';
@@ -26,6 +27,20 @@ Future<void> _pumpDesktop(WidgetTester tester) async {
 /// Opens a JSON card from the desktop icon grid.
 Future<void> _openJson(WidgetTester tester) async {
   final Finder tile = find.text('JSON / YAML / TOML');
+  await tester.ensureVisible(tile);
+  await tester.tap(tile);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _openTimestamp(WidgetTester tester) async {
+  final Finder tile = find.text('Timestamp');
+  await tester.ensureVisible(tile);
+  await tester.tap(tile);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _openMath(WidgetTester tester) async {
+  final Finder tile = find.text('Math');
   await tester.ensureVisible(tile);
   await tester.tap(tile);
   await tester.pumpAndSettle();
@@ -61,6 +76,7 @@ void main() {
         find.text(base64Encode(utf8.encode('{"a":1}'))), // eyJhIjoxfQ==
         findsOneWidget,
       );
+      expect(find.text('LIVE · TEXT'), findsNWidgets(2));
     },
   );
 
@@ -121,4 +137,67 @@ void main() {
       );
     },
   );
+
+  testWidgets('the link picker opens an unpaired tool and shows its status', (
+    WidgetTester tester,
+  ) async {
+    await _pumpDesktop(tester);
+    await _openTimestamp(tester);
+    await tester.enterText(_jsonInput, '1700000000');
+    await tester.pumpAndSettle(_settle);
+
+    final Finder linkButton = find.bySemanticsLabel('Choose live link target');
+    expect(linkButton, findsOneWidget);
+    expect(find.byTooltip('Choose live link target'), findsOneWidget);
+    await tester.tap(linkButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Link Timestamp'), findsOneWidget);
+    expect(
+      find.textContaining('Live links update both windows.'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Open Math · Epoch'));
+    await tester.pumpAndSettle(_settle);
+
+    expect(find.byType(ToolCardFrame), findsNWidgets(2));
+    expect(find.bySemanticsLabel('Unlink'), findsNWidgets(2));
+    expect(find.text('LIVE · EPOCH'), findsNWidgets(2));
+    expect(find.text('1700000000'), findsWidgets);
+  });
+
+  testWidgets('Escape cancels the link picker without closing its source', (
+    WidgetTester tester,
+  ) async {
+    await _pumpDesktop(tester);
+    await _openTimestamp(tester);
+    await tester.tap(find.bySemanticsLabel('Choose live link target'));
+    await tester.pumpAndSettle();
+    expect(find.text('Link Timestamp'), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Link Timestamp'), findsNothing);
+    expect(find.byType(ToolCardFrame), findsOneWidget);
+    expect(find.bySemanticsLabel('Unlink'), findsNothing);
+  });
+
+  testWidgets('the link picker connects to a compatible open window', (
+    WidgetTester tester,
+  ) async {
+    await _pumpDesktop(tester);
+    await _openTimestamp(tester);
+    await _openMath(tester);
+
+    await tester.tap(find.bySemanticsLabel('Choose live link target'));
+    await tester.pumpAndSettle();
+    expect(find.text('Link to Math · Epoch'), findsOneWidget);
+    await tester.tap(find.text('Link to Math · Epoch'));
+    await tester.pumpAndSettle(_settle);
+
+    expect(find.byType(ToolCardFrame), findsNWidgets(2));
+    expect(find.text('LIVE · EPOCH'), findsNWidgets(2));
+    expect(find.bySemanticsLabel('Unlink'), findsNWidgets(2));
+  });
 }

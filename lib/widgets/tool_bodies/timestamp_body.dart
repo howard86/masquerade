@@ -135,8 +135,8 @@ class _TimestampBodyState extends State<TimestampBody>
     });
     if (result.isSuccess) {
       recordOutput(text, result.timestamp!.toIso8601String());
+      emitToLink();
     }
-    emitToLink();
   }
 
   @override

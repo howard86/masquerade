@@ -12,6 +12,34 @@ import 'window_content.dart';
 /// Saved geometry before a maximize/snap so the window can restore.
 typedef RestoreBounds = ({double x, double y, double width, double? height});
 
+/// Why two canvas cards cannot share a live-link group.
+enum LinkIssue {
+  sourceMissing,
+  targetMissing,
+  sameWindow,
+  alreadyLinked,
+  notToolWindow,
+  sourceUnsupported,
+  targetUnsupported,
+  groupTypeConflict,
+}
+
+extension LinkIssueMessage on LinkIssue {
+  String message(ContentType type) => switch (this) {
+    LinkIssue.sourceMissing => 'The source window is no longer open.',
+    LinkIssue.targetMissing => 'The target window is no longer open.',
+    LinkIssue.sameWindow => 'Choose a different window.',
+    LinkIssue.alreadyLinked => 'These windows are already linked.',
+    LinkIssue.notToolWindow => 'Live links work between tool windows.',
+    LinkIssue.sourceUnsupported =>
+      'This source cannot share a live ${type.name} value.',
+    LinkIssue.targetUnsupported =>
+      'This target cannot receive a live ${type.name} value.',
+    LinkIssue.groupTypeConflict =>
+      'A linked window already uses a different value type. Unlink it first.',
+  };
+}
+
 /// One open tool instance on the desktop canvas: which tool, where it sits, how
 /// wide it is, and the value it was seeded with. Identity is a stable [id] so a
 /// card can be moved / resized / duplicated without remounting its tool body.
@@ -661,6 +689,7 @@ class CanvasController extends ChangeNotifier {
   void applyJson(Map<String, dynamic> json) {
     _cards.clear();
     _groups.clear();
+    _claimedLinkMembers.clear();
     _persistedSeeds.clear();
     _persistedCanonicals.clear();
     int maxId = 0;
@@ -737,6 +766,18 @@ class CanvasController extends ChangeNotifier {
       if (members.length < 2) continue; // a link needs at least two live cards
       final int gid = (m['id'] as num).toInt();
       maxGid = gid > maxGid ? gid : maxGid;
+      final Set<int> validMembers = members.where((int cid) {
+        if (_claimedLinkMembers.contains(cid)) return false;
+        final CanvasCard card = _cards.firstWhere(
+          (CanvasCard c) => c.id == cid,
+        );
+        return _supportsLiveLink(card, type);
+      }).toSet();
+      if (validMembers.length < 2 ||
+          _groups.any((LinkGroup g) => g.id == gid)) {
+        continue;
+      }
+      _claimedLinkMembers.addAll(validMembers);
       _groups.add(
         LinkGroup(
           id: gid,
@@ -744,10 +785,10 @@ class CanvasController extends ChangeNotifier {
           canonical:
               SensitiveDataPolicy.persistedValue(
                 m['canonical'] as String?,
-                sensitive: _membersContainSensitiveTool(members),
+                sensitive: _membersContainSensitiveTool(validMembers),
               ) ??
               '',
-        )..members.addAll(members),
+        )..members.addAll(validMembers),
       );
     }
     _nextGroupId = (json['nextGroupId'] as num?)?.toInt() ?? (maxGid + 1);
@@ -762,6 +803,17 @@ class CanvasController extends ChangeNotifier {
       if (t.name == name) return t;
     }
     return null;
+  }
+
+  /// Used while restoring to remove duplicate, stale, or incompatible saved
+  /// membership before any tool body can subscribe to the groups.
+  final Set<int> _claimedLinkMembers = <int>{};
+
+  bool _supportsLiveLink(CanvasCard card, ContentType type) {
+    final UtilityDescriptor? descriptor = card.toolDescriptor;
+    return descriptor != null &&
+        descriptor.inputSources.contains(UtilityInputSource.liveLink) &&
+        descriptor.liveLinkTypes.contains(type);
   }
 
   /// Restores the auto-saved canvas from prefs. No-op without a backend or
@@ -943,31 +995,101 @@ class CanvasController extends ChangeNotifier {
     return LinkChannel(
       canonicalType: g.type,
       inbound: g.canonical,
+      seedOnAttach: g.seedOwnerCardId == cardId,
       onEmit: (String value) => _emit(g, value),
     );
   }
 
-  /// Links [a] and [b] into a shared group of [type]. If either is already in a
-  /// group, the other joins it; otherwise a new group is created seeded with
-  /// [seedCanonical]. Returns the group id. A card lives in at most one group.
-  int linkCards(
+  /// Returns the reason the proposed link is invalid, or null when it can be
+  /// made. [a] is the source and [b] the target.
+  LinkIssue? linkIssueFor(int a, int b, {required ContentType type}) {
+    if (a == b) return LinkIssue.sameWindow;
+    final CanvasCard? source = _cardById(a);
+    if (source == null) return LinkIssue.sourceMissing;
+    final CanvasCard? target = _cardById(b);
+    if (target == null) return LinkIssue.targetMissing;
+    if (source.toolDescriptor == null || target.toolDescriptor == null) {
+      return LinkIssue.notToolWindow;
+    }
+    if (!_supportsLiveLink(source, type)) return LinkIssue.sourceUnsupported;
+    if (!_supportsLiveLink(target, type)) return LinkIssue.targetUnsupported;
+    final LinkGroup? sourceGroup = groupForCard(a);
+    final LinkGroup? targetGroup = groupForCard(b);
+    if ((sourceGroup != null && sourceGroup.type != type) ||
+        (targetGroup != null && targetGroup.type != type)) {
+      return LinkIssue.groupTypeConflict;
+    }
+    if (sourceGroup != null && identical(sourceGroup, targetGroup)) {
+      return LinkIssue.alreadyLinked;
+    }
+    return null;
+  }
+
+  CanvasCard? _cardById(int id) {
+    for (final CanvasCard card in _cards) {
+      if (card.id == id) return card;
+    }
+    return null;
+  }
+
+  /// Links [a] and [b] into a shared group of [type]. A new group uses
+  /// [seedCanonical] when supplied, otherwise the source card seeds it when
+  /// its body attaches. Existing groups retain their canonical value; joining
+  /// two groups merges them using the source group's canonical value. Invalid
+  /// or stale operations are rejected without changing state. Returns the
+  /// group id, or null if the link could not be made. A card lives in at most
+  /// one group.
+  int? linkCards(
     int a,
     int b, {
     required ContentType type,
-    String seedCanonical = '',
+    String? seedCanonical,
   }) {
-    LinkGroup g =
-        groupForCard(a) ??
-        groupForCard(b) ??
-        (LinkGroup(id: _nextGroupId++, type: type, canonical: seedCanonical)
-          ..canonical.value = seedCanonical);
-    if (!_groups.contains(g)) _groups.add(g);
-    g.members
+    final LinkGroup? sourceGroup = groupForCard(a);
+    final LinkGroup? targetGroup = groupForCard(b);
+    if (_cardById(a) != null &&
+        _cardById(b) != null &&
+        sourceGroup != null &&
+        identical(sourceGroup, targetGroup) &&
+        sourceGroup.type == type &&
+        sourceGroup.members.contains(a) &&
+        sourceGroup.members.contains(b)) {
+      return sourceGroup.id;
+    }
+    if (linkIssueFor(a, b, type: type) != null) return null;
+
+    final LinkGroup group;
+    if (sourceGroup != null) {
+      group = sourceGroup;
+    } else if (targetGroup != null) {
+      group = targetGroup;
+    } else {
+      group = LinkGroup(
+        id: _nextGroupId++,
+        type: type,
+        canonical: seedCanonical ?? '',
+        seedOwnerCardId: seedCanonical == null ? a : null,
+      );
+      _groups.add(group);
+    }
+
+    if (sourceGroup != null &&
+        targetGroup != null &&
+        !identical(sourceGroup, targetGroup)) {
+      // The source group's canonical wins, matching the direction of the
+      // explicit source → target action. Membership is moved atomically so no
+      // card is visible in two groups during or after the merge.
+      group.members.addAll(targetGroup.members);
+      _groups.remove(targetGroup);
+      _persistedCanonicals.remove(targetGroup.id);
+    }
+
+    group.members
       ..add(a)
       ..add(b);
     notifyListeners();
     _persist();
-    return g.id;
+    return group.id;
   }
 
   /// Removes [cardId] from its group, dissolving the group when fewer than two
@@ -983,6 +1105,7 @@ class CanvasController extends ChangeNotifier {
     final LinkGroup? g = groupForCard(cardId);
     if (g == null) return false;
     g.members.remove(cardId);
+    if (g.seedOwnerCardId == cardId) g.seedOwnerCardId = null;
     if (g.members.length < 2) {
       _groups.remove(g);
       _persistedCanonicals.remove(g.id);

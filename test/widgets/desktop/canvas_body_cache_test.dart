@@ -33,7 +33,7 @@ void main() {
         .controller;
     int bodyBuilds = 0;
     final UtilityDescriptor descriptor = _counted(
-      UtilityCatalog.byId('uuid'),
+      UtilityCatalog.byId('base64'),
       () => bodyBuilds++,
     );
     final int first = canvas.openTool(descriptor);
