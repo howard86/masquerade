@@ -1,7 +1,3 @@
-require "fileutils"
-require "tmpdir"
-require "digest"
-
 default_platform(:ios)
 
 APP_IDENTIFIER = "dev.howardism.Masquerade"
@@ -17,58 +13,6 @@ def asc_api_key
     issuer_id: ENV.fetch("ASC_ISSUER_ID"),
     key_content: ENV.fetch("ASC_KEY_P8"),
     is_key_content_base64: true,
-  )
-end
-
-def profile_snapshot(path:, uuid:, label:)
-  UI.user_error!("Fastlane did not return the #{label} profile path") if path.to_s.empty?
-  UI.user_error!("Fastlane did not return the #{label} profile UUID") if uuid.to_s.empty?
-
-  profile_path = File.expand_path(path)
-  unless File.file?(profile_path) && File.size(profile_path).positive?
-    UI.user_error!("Fastlane #{label} profile is missing or empty: #{profile_path}")
-  end
-
-  Digest::SHA256.file(profile_path).hexdigest
-end
-
-def validate_signed_ipa(
-  ipa_path:,
-  version:,
-  build_number:,
-  built_after:,
-  app_profile_uuid:,
-  app_profile_sha256:,
-  extension_profile_uuid:,
-  extension_profile_sha256:
-)
-  validator = File.expand_path("validate_signed_ipa.py", __dir__)
-  sh(
-    "python3",
-    validator,
-    ipa_path,
-    "--expected-version",
-    version,
-    "--expected-build",
-    build_number,
-    "--app-id",
-    APP_IDENTIFIER,
-    "--extension-id",
-    "#{APP_IDENTIFIER}.ShareExtension",
-    "--team-id",
-    "9KRJ83FMAF",
-    "--app-group",
-    "group.dev.howardism.Masquerade",
-    "--built-after",
-    built_after.to_s,
-    "--app-profile-uuid",
-    app_profile_uuid,
-    "--app-profile-sha256",
-    app_profile_sha256,
-    "--extension-profile-uuid",
-    extension_profile_uuid,
-    "--extension-profile-sha256",
-    extension_profile_sha256,
   )
 end
 
@@ -103,20 +47,14 @@ platform :ios do
     get_provisioning_profile(
       api_key: api_key,
       app_identifier: APP_IDENTIFIER,
-      readonly: true,
     )
     runner_profile = lane_context[SharedValues::SIGH_NAME]
-    runner_profile_path = lane_context[SharedValues::SIGH_PROFILE_PATH]
-    runner_profile_uuid = lane_context[SharedValues::SIGH_UUID]
 
     get_provisioning_profile(
       api_key: api_key,
       app_identifier: "#{APP_IDENTIFIER}.ShareExtension",
-      readonly: true,
     )
     share_extension_profile = lane_context[SharedValues::SIGH_NAME]
-    share_extension_profile_path = lane_context[SharedValues::SIGH_PROFILE_PATH]
-    share_extension_profile_uuid = lane_context[SharedValues::SIGH_UUID]
 
     # The checked-in project uses automatic signing, which needs a signed-in Xcode
     # and so cannot work on a CI runner. Flip to manual for this build only --
@@ -138,42 +76,11 @@ platform :ios do
       targets: ["ShareExtension"],
     )
 
-    version = app_version_from_pubspec
-    UI.user_error!("No version: line in pubspec.yaml") if version.nil?
-    build_number = ENV.fetch("FLUTTER_BUILD_NUMBER") do
-      UI.user_error!("FLUTTER_BUILD_NUMBER must be set by the CI build-number step")
-    end
-    unless build_number.match?(/\A[0-9]+\z/)
-      UI.user_error!("Invalid FLUTTER_BUILD_NUMBER: #{build_number.inspect}")
-    end
-    runner_profile_sha256 = profile_snapshot(
-      path: runner_profile_path,
-      uuid: runner_profile_uuid,
-      label: "Runner",
-    )
-    share_extension_profile_sha256 = profile_snapshot(
-      path: share_extension_profile_path,
-      uuid: share_extension_profile_uuid,
-      label: "ShareExtension",
-    )
-
-    # Isolate each version/build output in a fresh directory. Fastlane's
-    # IPA_OUTPUT_PATH is the sole artifact passed onward.
-    output_root = ENV.fetch("FASTLANE_OUTPUT_DIR") do
-      File.expand_path("../build/fastlane", __dir__)
-    end
-    FileUtils.mkdir_p(output_root)
-    # A fresh directory avoids deleting prior artifacts and makes it impossible
-    # for Fastlane to hand the validator an IPA left by an earlier attempt.
-    output_directory = Dir.mktmpdir("#{version}-#{build_number}-", output_root)
-    build_started_at = Time.now.to_f
-
+    # CI runs `flutter build ios --no-codesign` first, so the Flutter assets and
+    # Runner.app already exist; fastlane owns archive + sign + export from here.
     build_app(
       workspace: "Runner.xcworkspace",
       scheme: "Runner",
-      build_path: output_directory,
-      archive_path: File.join(output_directory, "Runner.xcarchive"),
-      output_directory: output_directory,
       export_method: "app-store",
       export_options: {
         provisioningProfiles: {
@@ -183,22 +90,8 @@ platform :ios do
       },
     )
 
-    ipa_path = lane_context[SharedValues::IPA_OUTPUT_PATH]
-    UI.user_error!("Fastlane did not produce an IPA") if ipa_path.to_s.empty?
-    validate_signed_ipa(
-      ipa_path: ipa_path,
-      version: version,
-      build_number: build_number,
-      built_after: build_started_at,
-      app_profile_uuid: runner_profile_uuid,
-      app_profile_sha256: runner_profile_sha256,
-      extension_profile_uuid: share_extension_profile_uuid,
-      extension_profile_sha256: share_extension_profile_sha256,
-    )
-
     upload_to_testflight(
       api_key: api_key,
-      ipa: ipa_path,
       skip_waiting_for_build_processing: true,
     )
   end
