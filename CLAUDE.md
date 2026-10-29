@@ -27,6 +27,7 @@ Masquerade is a Flutter utility-toolbox app. iOS-first (`CupertinoApp`). Tab sca
 - Math (expression evaluator)
 - bps (basis points ↔ % ↔ decimal)
 - Bytes (byte array ↔ text, UTF-8)
+- Mojibake Repair (fix UTF-8 mis-decoded as Mac Roman / Windows-1252 / Latin-1)
 - List (split ↔ join)
 - Regex (test patterns, numbered/named captures)
 - Diff (compare two texts, line/word)
