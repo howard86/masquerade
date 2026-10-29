@@ -4,6 +4,15 @@
 
 - **deps**: pin flutter_native_splash to ^2.4.7 for SDK compatibility
 
+## [1.30.0](https://github.com/howard86/masquerade/compare/v1.29.2...v1.30.0) (2026-10-29)
+
+
+### Features
+
+* **mojibake:** add Mojibake Repair tool ([6bab167](https://github.com/howard86/masquerade/commit/6bab16718d6ea318ba4aaca5abee5967a57d7d24))
+* **mojibake:** add Mojibake Repair tool ([be237d4](https://github.com/howard86/masquerade/commit/be237d4636a25878977de37dec5a53d7f005fa05))
+* **mojibake:** add MojibakeParser for UTF-8 mis-decode repair ([46093bf](https://github.com/howard86/masquerade/commit/46093bf9257851ff26c2a9b8a67b3d4e4c3af359))
+
 ## [1.29.2](https://github.com/howard86/masquerade/compare/v1.29.1...v1.29.2) (2026-10-28)
 
 
