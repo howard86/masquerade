@@ -26,6 +26,7 @@ import 'list_body.dart';
 import 'log_stack_inspector_body.dart';
 import 'math_body.dart';
 import 'markdown_body.dart';
+import 'mojibake_body.dart';
 import 'number_base_body.dart';
 import 'qr_code_body.dart';
 import 'regex_body.dart';
@@ -224,6 +225,12 @@ Widget buildToolBody(ToolBodyKind kind, ToolBodyArgs a) => switch (kind) {
     initialInput: a.initialInput,
     initialArtifact: a.initialArtifact,
     seedSource: a.seedSource,
+    actionBar: a.actionBar,
+  ),
+  ToolBodyKind.mojibake => MojibakeBody(
+    initialInput: a.initialInput,
+    seedSource: a.seedSource,
+    onSwitchTool: a.onSwitchTool,
     actionBar: a.actionBar,
   ),
 };

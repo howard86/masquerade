@@ -32,6 +32,7 @@ class MqIcons {
   static const IconData uuid = LucideIcons.barcode;
   static const IconData textCase = LucideIcons.case_sensitive;
   static const IconData bytes = LucideIcons.layers;
+  static const IconData wrench = LucideIcons.wrench;
   static const IconData trash = LucideIcons.trash;
   static const IconData plus = LucideIcons.plus;
   static const IconData history = LucideIcons.rotate_ccw_clock;
