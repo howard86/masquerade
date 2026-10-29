@@ -12,7 +12,7 @@ import 'package:masquerade/utils/sensitive_data_policy.dart';
 /// whitespace stripped), `isSensitiveTool` per catalog id, and the catalog's
 /// id -> historyPolicy map. Recorded for [HistoryController.policyVersion].
 const String _recordedFingerprint =
-    '5fad3a87a6abe4571b0388b48a7ca481e54966dbc28d0d9a55a2415f77201516';
+    '3cd777a9f6378a5adb6dcbec5fa2556a26c484ab4228713a20386e18bd9d9bcf';
 const int _recordedPolicyVersion = 1;
 
 String _fingerprint() {
