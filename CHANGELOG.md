@@ -4,6 +4,33 @@
 
 - **deps**: pin flutter_native_splash to ^2.4.7 for SDK compatibility
 
+## [1.31.0](https://github.com/howard86/masquerade/compare/v1.30.0...v1.31.0) (2026-11-06)
+
+
+### Features
+
+* **canvas:** improve window linking UX and integrity ([ce8a7f1](https://github.com/howard86/masquerade/commit/ce8a7f1844b603ebeea512d38b8417dd7ac71f1a))
+* clarify window linking and preserve linked values ([285ac57](https://github.com/howard86/masquerade/commit/285ac57be53c36dc3ab03fe5ff88ad77f9249c42))
+* **desktop:** add an Auto wallpaper that follows the theme ([f959124](https://github.com/howard86/masquerade/commit/f95912463720fc90d01a6b5e751c8fe9a041c380))
+* **desktop:** extend live links across the catalog ([2c44ed1](https://github.com/howard86/masquerade/commit/2c44ed1843df5e470833404391b3994a72be3784))
+* **desktop:** let windows follow a live link ([7eeea86](https://github.com/howard86/masquerade/commit/7eeea86fe68c37829b88a7b61acb71e9e72aa369))
+* **desktop:** open the link picker as an anchored popover ([fb41ed1](https://github.com/howard86/masquerade/commit/fb41ed1b110c7bddab91800ae278c9fb8797fead))
+* **desktop:** show live-link groups as a hub graph ([041acd8](https://github.com/howard86/masquerade/commit/041acd8bbd16150875623aa82cc056f2f12c8340))
+* **tools:** drag embedded times out as epoch seconds ([5916164](https://github.com/howard86/masquerade/commit/5916164faa86ea1fd3e5c676e6d63f56a883ef21))
+* **tools:** let inspector tools follow live links ([00393a7](https://github.com/howard86/masquerade/commit/00393a7ad96ed1ae5dd2376d41b07ddf52689e4f))
+* **tools:** link bps, IP, and Generator on shared values ([6ff6fa8](https://github.com/howard86/masquerade/commit/6ff6fa8efea5608792079cf19af4db6ebc982e67))
+* **tools:** link bytes as hex and JSON as compact text ([7c24020](https://github.com/howard86/masquerade/commit/7c2402048d68558a8f9a5ec4063e44164ffd4dfa))
+
+
+### Bug Fixes
+
+* **canvas:** consume link seed authority once ([0e398c2](https://github.com/howard86/masquerade/commit/0e398c2c44ec10b7ef36354f0c780540aeb9f643))
+* **canvas:** keep window state while a pipe drag hovers ([4625a89](https://github.com/howard86/masquerade/commit/4625a894990dc8fda2e886e46b7701cd3abd95da))
+* **canvas:** preserve linked state across restore ([0469def](https://github.com/howard86/masquerade/commit/0469def6296c1bbc7f98593740347d6f41db4a24))
+* **desktop:** raise windows on any click via a z-order store ([71f0759](https://github.com/howard86/masquerade/commit/71f0759705af962ca2020db2b9c31f2b491af57e))
+* **desktop:** theme desktop icons from the wallpaper, not the app ([38b30c8](https://github.com/howard86/masquerade/commit/38b30c8c13a1c8e91c4e785d14faa2c6d945d337))
+* **desktop:** wallpaper-aware desktop contrast ([b0b3243](https://github.com/howard86/masquerade/commit/b0b3243b0e5963332fb360fd8a31ec7666ac566c))
+
 ## [1.30.0](https://github.com/howard86/masquerade/compare/v1.29.2...v1.30.0) (2026-10-29)
 
 
