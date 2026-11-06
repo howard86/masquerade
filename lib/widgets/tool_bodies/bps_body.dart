@@ -1,10 +1,12 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
+import '../../utils/bps_canonical.dart';
 import '../../utils/bps_parser.dart';
 import '../mq/mq_button.dart';
 import '../mq/mq_empty_hint.dart';
@@ -14,6 +16,7 @@ import '../mq/mq_section_header.dart';
 import '../mq/mq_status.dart';
 import '../mq/tool_action_bar.dart';
 import 'copy_all_button.dart';
+import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 import 'tool_body_scaffold.dart';
@@ -26,6 +29,7 @@ class BpsBody extends StatefulWidget implements ToolBodyWidget {
     this.seedSource = SeedSource.none,
     this.onSwitchTool,
     this.actionBar,
+    this.link,
   });
 
   @override
@@ -36,12 +40,33 @@ class BpsBody extends StatefulWidget implements ToolBodyWidget {
   @override
   final ToolActionBarController? actionBar;
 
+  /// Non-null when this card is in a canvas Link group. The canonical value is
+  /// the exact decimal fraction (25 bps -> 0.0025).
+  final LinkChannel? link;
+
   @override
   State<BpsBody> createState() => _BpsBodyState();
 }
 
-class _BpsBodyState extends State<BpsBody> with ToolBodyScaffold<BpsBody> {
+class _BpsBodyState extends State<BpsBody>
+    with ToolBodyScaffold<BpsBody>, LinkableToolBody<BpsBody> {
   BpsResult? _result;
+  String _canonical = '';
+
+  @override
+  LinkChannel? get linkChannel => widget.link;
+
+  @override
+  String currentCanonical() => _canonical;
+
+  /// Shows the inbound decimal as exact bps text, which the parser reads back
+  /// to the same decimal regardless of its magnitude heuristics.
+  @override
+  void applyInbound(String canonical) {
+    final String? bps = BpsCanonical.decimalToBpsText(canonical);
+    if (bps != null) setInput(bps, asPaste: false);
+  }
+
   String? _error;
 
   /// Canvas-only: the value pinned as a baseline; the Δ readout compares the
@@ -70,12 +95,14 @@ class _BpsBodyState extends State<BpsBody> with ToolBodyScaffold<BpsBody> {
   @override
   void parse(String input) {
     final BpsResult? parsed = BpsParser.parse(input);
+    _canonical = parsed == null ? '' : BpsCanonical.decimalOf(input) ?? '';
     setState(() {
       _result = parsed;
       _error = parsed == null ? 'Could not parse as bps, % or decimal.' : null;
     });
     if (parsed != null) {
       recordOutput(input, '${parsed.bps.toStringAsFixed(2)} bps');
+      emitToLink();
     }
   }
 
