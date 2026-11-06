@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../utility_catalog.dart';
 import '../../utils/mojibake_parser.dart';
@@ -12,6 +13,7 @@ import '../mq/mq_section_header.dart';
 import '../mq/mq_status.dart';
 import '../mq/tool_action_bar.dart';
 import 'open_in_footer.dart';
+import 'linkable_body.dart';
 import 'seed_source.dart';
 import 'tool_body_scaffold.dart';
 
@@ -22,6 +24,7 @@ class MojibakeBody extends StatefulWidget implements ToolBodyWidget {
     this.seedSource = SeedSource.none,
     this.onSwitchTool,
     this.actionBar,
+    this.link,
   });
 
   @override
@@ -32,12 +35,25 @@ class MojibakeBody extends StatefulWidget implements ToolBodyWidget {
   @override
   final ToolActionBarController? actionBar;
 
+  /// Non-null when this card follows a canvas Link group (text canonical).
+  /// Follow-only: the group's text becomes this body's input; it never sends.
+  final LinkChannel? link;
+
   @override
   State<MojibakeBody> createState() => _MojibakeBodyState();
 }
 
 class _MojibakeBodyState extends State<MojibakeBody>
-    with ToolBodyScaffold<MojibakeBody> {
+    with ToolBodyScaffold<MojibakeBody>, LinkableToolBody<MojibakeBody> {
+  @override
+  LinkChannel? get linkChannel => widget.link;
+
+  @override
+  String currentCanonical() => controller.text;
+
+  @override
+  void applyInbound(String canonical) => setInput(canonical, asPaste: false);
+
   /// Null means Auto.
   MojibakeCodec? _codec;
   MojibakeOk? _result;
