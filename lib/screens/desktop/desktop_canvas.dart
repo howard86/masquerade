@@ -306,7 +306,14 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
                           ),
                         ),
                       );
-                      if (!canOpen && !rejectedStaleSource) return wallpaper;
+                      // Same Stack slot either way so the wallpaper subtree is
+                      // not remounted when drag feedback appears.
+                      if (!canOpen && !rejectedStaleSource) {
+                        return Stack(
+                          fit: StackFit.expand,
+                          children: <Widget>[wallpaper],
+                        );
+                      }
                       final String feedback = canOpen
                           ? 'Release to open an unlinked tool. Drop on a window to create a live link.'
                           : 'Source window closed. Cancel this drag and try again.';
@@ -791,7 +798,12 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
                           ) ??
                           LinkIssue.targetUnsupported)
                       .message(payload.type);
-            if (feedback == null) return frame;
+            // Always return the frame inside the same Stack slot: swapping
+            // between a bare frame and a wrapped one changes the tree shape and
+            // remounts the window's body, wiping its local state mid-drag.
+            if (feedback == null) {
+              return Stack(clipBehavior: Clip.none, children: <Widget>[frame]);
+            }
             final Color feedbackColor = canLink
                 ? context.mq.colors.accent
                 : context.mq.colors.danger;

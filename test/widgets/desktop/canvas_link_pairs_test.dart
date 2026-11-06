@@ -166,6 +166,50 @@ void main() {
     expect(_editableText(tester, _lastInput), isEmpty);
   });
 
+  testWidgets('dragging a linked output keeps the source window state', (
+    WidgetTester tester,
+  ) async {
+    await _pumpDesktop(tester);
+    await _openFirst(tester, 'Number Base');
+    await tester.enterText(_firstInput, '0xFF');
+    await tester.pumpAndSettle(_settle);
+    await tester.tap(find.bySemanticsLabel('Open linked Math'));
+    await tester.pumpAndSettle(_settle);
+
+    await tester.enterText(_lastInput, '2*5');
+    await tester.pumpAndSettle(_settle);
+
+    // Hover the drag over its own window (rejected) and the linked peer: drop
+    // feedback must not remount either body and reset Math's expression.
+    final Offset from = tester.getCenter(
+      find
+          .descendant(of: find.byType(MqMonoCell), matching: find.text('10'))
+          .last,
+    );
+    final TestGesture gesture = await _startPipeDrag(
+      tester,
+      from,
+      from + const Offset(0, -40),
+    );
+    expect(_editableText(tester, _lastInput), '2*5');
+    for (int i = 1; i <= 12; i++) {
+      await gesture.moveTo(
+        Offset.lerp(
+          from,
+          tester.getCenter(find.byType(ToolCardFrame).first),
+          i / 12,
+        )!,
+      );
+      await tester.pump();
+    }
+    expect(_editableText(tester, _lastInput), '2*5');
+    await gesture.moveTo(from);
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle(_settle);
+    expect(_editableText(tester, _lastInput), '2*5');
+  });
+
   testWidgets('List ↔ Diff links and re-projects both ways', (
     WidgetTester tester,
   ) async {
