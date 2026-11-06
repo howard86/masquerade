@@ -670,6 +670,11 @@ class CanvasController extends ChangeNotifier {
       'type': group.type.name,
       'canonical': _persistedCanonical(group, hasSensitiveMember),
       'members': group.members.toList(),
+      if (group.roles.isNotEmpty)
+        'roles': <String, String>{
+          for (final MapEntry<int, LinkRole> e in group.roles.entries)
+            '${e.key}': e.value.name,
+        },
     };
   }
 
@@ -796,6 +801,17 @@ class CanvasController extends ChangeNotifier {
               '',
         )..members.addAll(validMembers),
       );
+      final Object? rawRoles = m['roles'];
+      if (rawRoles is Map) {
+        for (final MapEntry<dynamic, dynamic> e in rawRoles.entries) {
+          final int? cid = int.tryParse('${e.key}');
+          if (cid == null || !validMembers.contains(cid)) continue;
+          if (e.value == LinkRole.receive.name) {
+            _groups.last.roles[cid] = LinkRole.receive;
+          }
+        }
+      }
+      _ensureSender(_groups.last);
     }
     _nextGroupId = (json['nextGroupId'] as num?)?.toInt() ?? (maxGid + 1);
     if (_nextGroupId <= maxGid) _nextGroupId = maxGid + 1;
@@ -1008,8 +1024,85 @@ class CanvasController extends ChangeNotifier {
           g.members.contains(cardId) &&
           g.seedOwnerCardId == cardId,
       onSeedConsumed: () => _consumeSeedOwner(g, cardId),
+      role: () => g.roleOf(cardId),
       onEmit: (String value) => _emit(g, value),
     );
+  }
+
+  /// Whether [cardId] is linked as follow-only.
+  bool isFollower(int cardId) =>
+      groupForCard(cardId)?.roleOf(cardId) == LinkRole.receive;
+
+  /// Whether [cardId] may become a follower: linked, and at least one other
+  /// member is not a follower (a group always keeps a sender).
+  bool canFollow(int cardId) {
+    final LinkGroup? g = groupForCard(cardId);
+    if (g == null) return false;
+    return g.members.any((int id) => id != cardId && g.roleOf(id).sends);
+  }
+
+  /// Sets [cardId] follow-only or two-way. Returns false (no change) when
+  /// unlinked or when it would leave the group without a sender.
+  bool setFollower(int cardId, bool follows) {
+    final LinkGroup? g = groupForCard(cardId);
+    if (g == null) return false;
+    if (follows && !canFollow(cardId)) return false;
+    final LinkRole role = follows ? LinkRole.receive : LinkRole.both;
+    if (g.roleOf(cardId) == role) return true;
+    _storeRole(g, cardId, role);
+    notifyListeners();
+    _persist();
+    return true;
+  }
+
+  /// The link type a source → target link should use: the downstream
+  /// (target) window's default input type. With a group on either side, that
+  /// group's type if both tools support it and the groups agree.
+  ContentType? defaultLinkType(
+    UtilityDescriptor source,
+    UtilityDescriptor target, {
+    LinkGroup? sourceGroup,
+    LinkGroup? targetGroup,
+  }) {
+    if (!source.inputSources.contains(UtilityInputSource.liveLink) ||
+        !target.inputSources.contains(UtilityInputSource.liveLink)) {
+      return null;
+    }
+    if (sourceGroup != null || targetGroup != null) {
+      final ContentType? t = sourceGroup?.type ?? targetGroup?.type;
+      if (t == null) return null;
+      if (sourceGroup != null && sourceGroup.type != t) return null;
+      if (targetGroup != null && targetGroup.type != t) return null;
+      return source.liveLinkTypes.contains(t) &&
+              target.liveLinkTypes.contains(t)
+          ? t
+          : null;
+    }
+    for (final ContentType t in target.liveLinkTypes) {
+      if (source.liveLinkTypes.contains(t)) return t;
+    }
+    return null;
+  }
+
+  void _storeRole(LinkGroup g, int cardId, LinkRole role) {
+    if (role == LinkRole.both) {
+      g.roles.remove(cardId);
+    } else {
+      g.roles[cardId] = role;
+    }
+  }
+
+  /// Enforces the invariant that a group has at least one non-follower: when
+  /// every member follows, [preferred] (or every member) becomes two-way.
+  void _ensureSender(LinkGroup g, {int? preferred}) {
+    if (g.members.isEmpty || g.members.any((int id) => g.roleOf(id).sends)) {
+      return;
+    }
+    if (preferred != null && g.members.contains(preferred)) {
+      g.roles.remove(preferred);
+    } else {
+      g.roles.clear();
+    }
   }
 
   void _consumeSeedOwner(LinkGroup group, int cardId) {
@@ -1064,6 +1157,7 @@ class CanvasController extends ChangeNotifier {
     int b, {
     required ContentType type,
     String? seedCanonical,
+    bool targetFollows = false,
   }) {
     final LinkGroup? sourceGroup = groupForCard(a);
     final LinkGroup? targetGroup = groupForCard(b);
@@ -1074,6 +1168,14 @@ class CanvasController extends ChangeNotifier {
         sourceGroup.type == type &&
         sourceGroup.members.contains(a) &&
         sourceGroup.members.contains(b)) {
+      // Re-linking an existing pair applies the requested follow state.
+      final LinkRole before = sourceGroup.roleOf(b);
+      if (targetFollows && before.sends) {
+        _storeRole(sourceGroup, b, LinkRole.receive);
+        _ensureSender(sourceGroup, preferred: a);
+        notifyListeners();
+        _persist();
+      }
       return sourceGroup.id;
     }
     if (linkIssueFor(a, b, type: type) != null) return null;
@@ -1088,7 +1190,7 @@ class CanvasController extends ChangeNotifier {
         id: _nextGroupId++,
         type: type,
         canonical: seedCanonical ?? '',
-        seedOwnerCardId: seedCanonical == null ? a : null,
+        seedOwnerCardId: seedCanonical != null ? null : a,
       );
       _groups.add(group);
     }
@@ -1100,6 +1202,7 @@ class CanvasController extends ChangeNotifier {
       // explicit source → target action. Membership is moved atomically so no
       // card is visible in two groups during or after the merge.
       group.members.addAll(targetGroup.members);
+      group.roles.addAll(targetGroup.roles);
       _groups.remove(targetGroup);
       _persistedCanonicals.remove(targetGroup.id);
     }
@@ -1107,6 +1210,8 @@ class CanvasController extends ChangeNotifier {
     group.members
       ..add(a)
       ..add(b);
+    if (targetFollows) _storeRole(group, b, LinkRole.receive);
+    _ensureSender(group, preferred: a);
     notifyListeners();
     _persist();
     return group.id;
@@ -1125,10 +1230,13 @@ class CanvasController extends ChangeNotifier {
     final LinkGroup? g = groupForCard(cardId);
     if (g == null) return false;
     g.members.remove(cardId);
+    g.roles.remove(cardId);
     if (g.seedOwnerCardId == cardId) g.seedOwnerCardId = null;
     if (g.members.length < 2) {
       _groups.remove(g);
       _persistedCanonicals.remove(g.id);
+    } else {
+      _ensureSender(g);
     }
     return true;
   }

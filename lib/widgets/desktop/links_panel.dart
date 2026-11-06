@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 
 import '../../state/canvas_controller.dart';
 import '../../state/link_group.dart';
@@ -101,10 +102,15 @@ class _GroupGraph extends StatelessWidget {
     ];
     final double height =
         members.length * _rowHeight + (members.length - 1) * _rowGap;
+    final List<bool> followers = <bool>[
+      for (final CanvasCard m in members) controller.isFollower(m.id),
+    ];
+    final int following = followers.where((bool f) => f).length;
     final String summary =
         'Link group ${identity.letter}, ${contentTypeLabel(group.type)}, '
-        '${members.length} windows: '
-        '${members.map((CanvasCard m) => m.content.title).join(', ')}';
+        '${members.map((CanvasCard m) => m.content.title).join(', ')}. '
+        '${members.length} windows'
+        '${following > 0 ? ', $following following' : ''}';
     return Semantics(
       container: true,
       label: summary,
@@ -115,49 +121,54 @@ class _GroupGraph extends StatelessWidget {
           border: Border.all(color: c.border, width: 0.5),
           borderRadius: BorderRadius.circular(MqRadius.md),
         ),
-        child: SizedBox(
-          height: height < _rowHeight ? _rowHeight : height,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              SizedBox(
-                width: 112,
-                child: Center(
-                  child: _HubNode(
-                    group: group,
-                    identity: identity,
-                    sensitive: controller.groupIsSensitive(group),
-                  ),
-                ),
-              ),
-              SizedBox(
-                width: _spokeWidth,
-                child: CustomPaint(
-                  painter: _SpokePainter(
-                    count: members.length,
-                    color: identity.color,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Column(
-                  children: <Widget>[
-                    for (int i = 0; i < members.length; i++) ...<Widget>[
-                      if (i > 0) const SizedBox(height: _rowGap),
-                      SizedBox(
-                        height: _rowHeight,
-                        child: _MemberNode(
-                          controller: controller,
-                          card: members[i],
-                          identity: identity,
-                        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            SizedBox(
+              height: height < _rowHeight ? _rowHeight : height,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  SizedBox(
+                    width: 112,
+                    child: Center(
+                      child: _HubNode(
+                        group: group,
+                        identity: identity,
+                        sensitive: controller.groupIsSensitive(group),
                       ),
-                    ],
-                  ],
-                ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: _spokeWidth,
+                    child: CustomPaint(
+                      painter: _SpokePainter(
+                        followers: followers,
+                        color: identity.color,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      children: <Widget>[
+                        for (int i = 0; i < members.length; i++) ...<Widget>[
+                          if (i > 0) const SizedBox(height: _rowGap),
+                          SizedBox(
+                            height: _rowHeight,
+                            child: _MemberNode(
+                              controller: controller,
+                              card: members[i],
+                              identity: identity,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -288,6 +299,14 @@ class _MemberNode extends StatelessWidget {
             ),
           ),
         ),
+        _FollowToggle(
+          name: name,
+          follows: controller.isFollower(card.id),
+          enabled:
+              controller.canFollow(card.id) || controller.isFollower(card.id),
+          color: identity.color,
+          onChanged: (bool v) => controller.setFollower(card.id, v),
+        ),
         Semantics(
           button: true,
           label: 'Unlink $name from group ${identity.letter}',
@@ -305,11 +324,85 @@ class _MemberNode extends StatelessWidget {
   }
 }
 
-class _SpokePainter extends CustomPainter {
-  const _SpokePainter({required this.count, required this.color});
+class _FollowToggle extends StatelessWidget {
+  const _FollowToggle({
+    required this.name,
+    required this.follows,
+    required this.enabled,
+    required this.color,
+    required this.onChanged,
+  });
 
-  final int count;
+  final String name;
+  final bool follows;
+  final bool enabled;
   final Color color;
+  final ValueChanged<bool> onChanged;
+
+  void _toggle() => onChanged(!follows);
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mq.colors;
+    final Color fg = follows ? color : c.textSec;
+    return Semantics(
+      button: true,
+      toggled: follows,
+      enabled: enabled,
+      label: '$name follow only',
+      hint: enabled ? null : 'At least one window must send',
+      excludeSemantics: true,
+      onTap: enabled ? _toggle : null,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: enabled ? _toggle : null,
+        child: Opacity(
+          opacity: enabled ? 1 : 0.4,
+          child: Container(
+            margin: const EdgeInsets.only(left: MqSpacing.xs),
+            padding: const EdgeInsets.symmetric(
+              horizontal: MqSpacing.xs,
+              vertical: 3,
+            ),
+            decoration: BoxDecoration(
+              color: follows ? color.withValues(alpha: 0.14) : null,
+              border: Border.all(color: follows ? color : c.border, width: 0.5),
+              borderRadius: BorderRadius.circular(MqRadius.sm),
+            ),
+            child: Text(
+              'Follow only',
+              style: MqTextStyles.caption2.copyWith(color: fg),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SpokePainter extends CustomPainter {
+  const _SpokePainter({required this.followers, required this.color});
+
+  final List<bool> followers;
+  final Color color;
+
+  void _arrowhead(Canvas canvas, Paint paint, Offset tip, Offset from) {
+    final Offset d = (from - tip) / (from - tip).distance;
+    final Offset n = Offset(-d.dy, d.dx);
+    const double len = 7;
+    const double half = 3.5;
+    final Offset base = tip + d * len;
+    canvas.drawPath(
+      Path()
+        ..moveTo(tip.dx, tip.dy)
+        ..lineTo(base.dx + n.dx * half, base.dy + n.dy * half)
+        ..lineTo(base.dx - n.dx * half, base.dy - n.dy * half)
+        ..close(),
+      Paint()
+        ..color = paint.color
+        ..style = PaintingStyle.fill,
+    );
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -318,16 +411,17 @@ class _SpokePainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
     final Offset hub = Offset(0, size.height / 2);
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < followers.length; i++) {
       final Offset end = Offset(
         size.width,
         i * (_rowHeight + _rowGap) + _rowHeight / 2,
       );
       canvas.drawLine(hub, end, paint);
+      if (followers[i]) _arrowhead(canvas, paint, end, hub);
     }
   }
 
   @override
   bool shouldRepaint(_SpokePainter old) =>
-      old.count != count || old.color != color;
+      !listEquals(old.followers, followers) || old.color != color;
 }

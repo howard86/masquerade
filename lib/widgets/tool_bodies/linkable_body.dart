@@ -62,7 +62,11 @@ mixin LinkableToolBody<T extends StatefulWidget> on State<T> {
     // The canvas hands a fresh LinkChannel each rebuild, but its [inbound]
     // notifier is stable per group — compare that, not the wrapper, to avoid
     // re-subscribing on every unrelated canvas change.
-    if (linkChannel?.inbound == _subscribed?.inbound) return;
+    if (linkChannel?.inbound == _subscribed?.inbound) {
+      // A role change needs no resync: becoming two-way keeps the group value
+      // authoritative, and a follower just stops emitting via [emitToLink].
+      return;
+    }
     _inboundTimer?.cancel();
     _inboundTimer = null;
     _resubscribe();
@@ -92,7 +96,9 @@ mixin LinkableToolBody<T extends StatefulWidget> on State<T> {
   /// the value already matches the group's canonical.
   void emitToLink() {
     final LinkChannel? link = linkChannel;
-    if (link == null || (_awaitingAuthoritativeAttach && !link.seedOnAttach)) {
+    if (link == null ||
+        !link.role.sends ||
+        (_awaitingAuthoritativeAttach && !link.seedOnAttach)) {
       return;
     }
     link.emit(currentCanonical());
@@ -128,7 +134,9 @@ mixin LinkableToolBody<T extends StatefulWidget> on State<T> {
   void _onInbound() {
     if (_inboundTimer != null) return; // already scheduled; latest value wins
     final LinkChannel? link = linkChannel;
-    if (link == null || link.inbound.value == currentCanonical()) return;
+    if (link == null || link.inbound.value == currentCanonical()) {
+      return;
+    }
     _inboundTimer = Timer(Duration.zero, () {
       _inboundTimer = null;
       if (mounted) _applyInbound();

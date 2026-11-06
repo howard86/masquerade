@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/state/canvas_controller.dart';
 import 'package:masquerade/state/link_group.dart';
@@ -337,6 +339,214 @@ void main() {
       expect(c.groups.single.members, <int>{1, 3});
       expect(c.groupForCard(2), isNull);
       expect(c.groupForCard(4), isNull);
+    });
+  });
+
+  group('link roles', () {
+    test('extension flags and labels', () {
+      expect(LinkRole.both.sends && LinkRole.both.receives, isTrue);
+      expect(LinkRole.receive.sends, isFalse);
+      expect(LinkRole.receive.receives, isTrue);
+      expect(LinkRole.both.label, 'Two-way');
+      expect(LinkRole.receive.label, 'Follow only');
+    });
+
+    test('source always owns the seed; targetFollows makes b a follower', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(base64);
+      final int b = c.openTool(json);
+      c.linkCards(a, b, type: ContentType.text, targetFollows: true);
+      final LinkGroup g = c.groupForCard(a)!;
+      expect(g.seedOwnerCardId, a);
+      expect(c.isFollower(b), isTrue);
+      expect(c.isFollower(a), isFalse);
+      expect(c.channelForCard(b)!.role, LinkRole.receive);
+
+      final CanvasController d = CanvasController();
+      final int x = d.openTool(base64);
+      final int y = d.openTool(json);
+      d.linkCards(x, y, type: ContentType.text);
+      expect(d.isFollower(y), isFalse);
+      expect(d.isFollower(999), isFalse);
+    });
+
+    test('a follower never changes canonical via the group', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(base64);
+      final int b = c.openTool(json);
+      c.linkCards(a, b, type: ContentType.text, seedCanonical: 'v');
+      c.setFollower(b, true);
+      expect(c.groupForCard(a)!.canonical.value, 'v');
+      c.channelForCard(a)!.emit('w');
+      expect(c.groupForCard(a)!.canonical.value, 'w');
+      expect(c.channelForCard(b)!.role.sends, isFalse);
+    });
+
+    test('canFollow and setFollower refuse the last sender', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(base64);
+      final int b = c.openTool(json);
+      final int lone = c.openTool(diff);
+      expect(c.canFollow(lone), isFalse);
+      int notified = 0;
+      c.addListener(() => notified++);
+      expect(c.setFollower(lone, true), isFalse);
+      expect(notified, 0);
+
+      c.linkCards(a, b, type: ContentType.text);
+      notified = 0;
+      expect(c.canFollow(a), isTrue);
+      expect(c.setFollower(a, true), isTrue);
+      expect(notified, 1);
+      expect(c.canFollow(b), isFalse);
+      expect(c.setFollower(b, true), isFalse);
+      expect(c.isFollower(b), isFalse);
+      expect(c.setFollower(a, false), isTrue);
+      expect(c.groupForCard(a)!.roles, isEmpty);
+    });
+
+    test('source that was a follower becomes two-way if no other sender', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(base64);
+      final int b = c.openTool(json);
+      c.linkCards(a, b, type: ContentType.text);
+      c.setFollower(a, true);
+      c.linkCards(a, b, type: ContentType.text, targetFollows: true);
+      expect(c.isFollower(b), isTrue);
+      expect(c.isFollower(a), isFalse);
+
+      // Stays a follower while another sender remains.
+      final int d = c.openTool(UtilityCatalog.byId('list'));
+      c.linkCards(b, d, type: ContentType.text);
+      expect(c.setFollower(a, true), isTrue);
+      c.linkCards(a, d, type: ContentType.text);
+      expect(c.isFollower(a), isTrue);
+    });
+
+    test('invariant holds after unlink, close and merge', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(base64);
+      final int b = c.openTool(json);
+      final int d = c.openTool(UtilityCatalog.byId('list'));
+      c.linkCards(a, b, type: ContentType.text);
+      c.linkCards(a, d, type: ContentType.text, targetFollows: true);
+      c.setFollower(b, true);
+      expect(c.isFollower(b) && c.isFollower(d), isTrue);
+      c.unlinkCard(a); // remaining b, d all followers
+      expect(c.isFollower(b), isFalse);
+      expect(c.isFollower(d), isFalse);
+
+      final CanvasController m = CanvasController();
+      final int p = m.openTool(base64);
+      final int q = m.openTool(json);
+      final int r = m.openTool(UtilityCatalog.byId('list'));
+      m.linkCards(p, q, type: ContentType.text);
+      m.linkCards(p, r, type: ContentType.text, targetFollows: true);
+      m.setFollower(q, true);
+      m.close(p);
+      expect(m.isFollower(q), isFalse);
+      expect(m.isFollower(r), isFalse);
+
+      final CanvasController g = CanvasController();
+      final int a1 = g.openTool(base64);
+      final int b1 = g.openTool(json);
+      final int c1 = g.openTool(UtilityCatalog.byId('list'));
+      final int d1 = g.openTool(UtilityCatalog.byId('color'));
+      g.linkCards(a1, b1, type: ContentType.text, targetFollows: true);
+      g.linkCards(c1, d1, type: ContentType.text, targetFollows: true);
+      g.linkCards(a1, c1, type: ContentType.text);
+      final LinkGroup merged = g.groupForCard(a1)!;
+      expect(merged.members, <int>{a1, b1, c1, d1});
+      expect(g.isFollower(b1), isTrue);
+      expect(g.isFollower(d1), isTrue);
+      expect(merged.members.any((int i) => merged.roleOf(i).sends), isTrue);
+    });
+
+    test('merge with a follower source keeps a sender', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(base64);
+      final int b = c.openTool(json);
+      c.linkCards(a, b, type: ContentType.text);
+      c.setFollower(a, true);
+      final int d = c.openTool(UtilityCatalog.byId('list'));
+      final int e = c.openTool(UtilityCatalog.byId('color'));
+      c.linkCards(d, e, type: ContentType.text, targetFollows: true);
+      c.linkCards(a, d, type: ContentType.text);
+      final LinkGroup g = c.groupForCard(a)!;
+      expect(g.members.any((int i) => g.roleOf(i).sends), isTrue);
+    });
+
+    test('roles persist; send loads two-way, receive loads follower', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(base64);
+      final int b = c.openTool(json);
+      c.linkCards(a, b, type: ContentType.text, targetFollows: true);
+      final Map<String, dynamic> snap =
+          jsonDecode(jsonEncode(c.toJson())) as Map<String, dynamic>;
+      final Map<String, dynamic> group =
+          (snap['groups'] as List<dynamic>).single as Map<String, dynamic>;
+      expect(group['roles'], <String, dynamic>{'$b': 'receive'});
+      final CanvasController r = CanvasController()..applyJson(snap);
+      expect(r.isFollower(b), isTrue);
+      expect(r.isFollower(a), isFalse);
+
+      group['roles'] = <String, dynamic>{
+        '$a': 'send',
+        '999': 'receive',
+        'x': 'receive',
+        '$b': 'both',
+      };
+      final CanvasController j = CanvasController()..applyJson(snap);
+      expect(j.groups.single.roles, isEmpty);
+
+      group['roles'] = <String, dynamic>{'$a': 'receive', '$b': 'receive'};
+      final CanvasController all = CanvasController()..applyJson(snap);
+      final LinkGroup g = all.groups.single;
+      expect(g.members.any((int i) => g.roleOf(i).sends), isTrue);
+
+      group.remove('roles');
+      expect(
+        (CanvasController()..applyJson(snap)).groups.single.roles,
+        isEmpty,
+      );
+      expect(CanvasController().toJson()['groups'], isEmpty);
+    });
+  });
+
+  group('defaultLinkType', () {
+    final CanvasController c = CanvasController();
+    final UtilityDescriptor math = UtilityCatalog.byId('math');
+
+    test('uses the target default type', () {
+      expect(c.defaultLinkType(math, timestamp), ContentType.epoch);
+      expect(c.defaultLinkType(timestamp, math), ContentType.number);
+    });
+
+    test('null without a shared type or live-link support', () {
+      for (final UtilityDescriptor d in UtilityCatalog.all) {
+        if (!d.inputSources.contains(UtilityInputSource.liveLink)) {
+          expect(c.defaultLinkType(d, timestamp), isNull);
+          expect(c.defaultLinkType(timestamp, d), isNull);
+        }
+      }
+    });
+
+    test('a group fixes the type when both tools support it', () {
+      final LinkGroup num = LinkGroup(id: 1, type: ContentType.number);
+      final LinkGroup txt = LinkGroup(id: 2, type: ContentType.text);
+      expect(
+        c.defaultLinkType(math, timestamp, sourceGroup: num),
+        ContentType.number,
+      );
+      expect(
+        c.defaultLinkType(math, timestamp, targetGroup: num),
+        ContentType.number,
+      );
+      expect(
+        c.defaultLinkType(math, timestamp, sourceGroup: num, targetGroup: txt),
+        isNull,
+      );
+      expect(c.defaultLinkType(math, timestamp, sourceGroup: txt), isNull);
     });
   });
 }

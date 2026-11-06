@@ -4,6 +4,20 @@ import '../models/content_type.dart';
 
 export '../models/content_type.dart';
 
+/// How one member participates in its [LinkGroup]. The group is still a single
+/// canonical hub. [both] members send and receive; [receive] members only
+/// follow the shared value and never change it.
+enum LinkRole { both, receive }
+
+extension LinkRoleX on LinkRole {
+  bool get sends => this == LinkRole.both;
+  bool get receives => true;
+  String get label => switch (this) {
+    LinkRole.both => 'Two-way',
+    LinkRole.receive => 'Follow only',
+  };
+}
+
 /// A set of cards sharing one canonical value — the unit a live link operates
 /// on (see docs/adr/0001). The group owns the single source of truth
 /// ([canonical]); each member tool body projects it to its own display and
@@ -30,6 +44,11 @@ class LinkGroup {
   /// The card whose current value should seed a newly-created group when its
   /// body attaches. Null means the canonical value is already authoritative.
   int? seedOwnerCardId;
+
+  /// Non-default member roles; a missing entry means [LinkRole.both].
+  final Map<int, LinkRole> roles = <int, LinkRole>{};
+
+  LinkRole roleOf(int cardId) => roles[cardId] ?? LinkRole.both;
 }
 
 /// The per-card view of its [LinkGroup], handed to a tool body via the builder.
@@ -43,10 +62,12 @@ class LinkChannel {
     bool seedOnAttach = true,
     bool Function()? isSeedOwner,
     void Function()? onSeedConsumed,
+    LinkRole Function()? role,
     required void Function(String canonical) onEmit,
   }) : _seedOnAttach = seedOnAttach,
        _isSeedOwner = isSeedOwner,
        _onSeedConsumed = onSeedConsumed,
+       _role = role,
        _onEmit = onEmit;
 
   final ContentType canonicalType;
@@ -58,7 +79,11 @@ class LinkChannel {
   final bool _seedOnAttach;
   final bool Function()? _isSeedOwner;
   final void Function()? _onSeedConsumed;
+  final LinkRole Function()? _role;
   final void Function(String canonical) _onEmit;
+
+  /// This member's live role in the group (defaults to [LinkRole.both]).
+  LinkRole get role => _role?.call() ?? LinkRole.both;
 
   bool get seedOnAttach => _isSeedOwner?.call() ?? _seedOnAttach;
 

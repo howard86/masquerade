@@ -74,6 +74,22 @@ Future<void> _minimizeAndRestore(
   await tester.pumpAndSettle(_settle);
 }
 
+/// Links the focused paired tool to its suggested partner via the picker.
+Future<void> _linkPartner(WidgetTester tester, String partner) async {
+  await tester.tap(find.bySemanticsLabel('Choose live link target').first);
+  await tester.pumpAndSettle();
+  await tester.tap(find.bySemanticsLabel(RegExp('^Open $partner, Suggested')));
+  await tester.pumpAndSettle();
+}
+
+/// The link button of the first window that has no suggested partner.
+Finder _plainLinkButton() => find.byWidgetPredicate(
+  (Widget w) =>
+      w is Semantics &&
+      w.properties.label == 'Choose live link target' &&
+      !(w.properties.hint ?? '').contains('suggested'),
+);
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues(<String, Object>{}));
 
@@ -87,7 +103,7 @@ void main() {
       await tester.enterText(_jsonInput, '{"a":1}');
       await tester.pumpAndSettle(_settle);
 
-      await tester.tap(find.bySemanticsLabel('Open linked Base64'));
+      await _linkPartner(tester, 'Base64');
       await tester.pumpAndSettle(_settle);
 
       // A second card appeared and shows the Base64 of the JSON text.
@@ -96,7 +112,7 @@ void main() {
         find.text(base64Encode(utf8.encode('{"a":1}'))), // eyJhIjoxfQ==
         findsOneWidget,
       );
-      expect(find.text('A · TEXT'), findsNWidgets(2));
+      expect(find.text('A'), findsNWidgets(2));
     },
   );
 
@@ -107,7 +123,7 @@ void main() {
     await _openJson(tester);
     await tester.enterText(_jsonInput, '{"a":1}');
     await tester.pumpAndSettle(_settle);
-    await tester.tap(find.bySemanticsLabel('Open linked Base64'));
+    await _linkPartner(tester, 'Base64');
     await tester.pumpAndSettle(_settle);
 
     await tester.enterText(_jsonInput, '{"b":2}');
@@ -123,7 +139,7 @@ void main() {
     await _openJson(tester);
     await tester.enterText(_jsonInput, '{"a":1}');
     await tester.pumpAndSettle(_settle);
-    await tester.tap(find.bySemanticsLabel('Open linked Base64'));
+    await _linkPartner(tester, 'Base64');
     await tester.pumpAndSettle(_settle);
 
     // The fresh Base64 sibling is in Encode mode, so its input holds the plain
@@ -141,7 +157,7 @@ void main() {
       await _openJson(tester);
       await tester.enterText(_jsonInput, '{"value":"A"}');
       await tester.pumpAndSettle(_settle);
-      await tester.tap(find.bySemanticsLabel('Open linked Base64'));
+      await _linkPartner(tester, 'Base64');
       await tester.pumpAndSettle(_settle);
 
       final CanvasController canvas = _canvasController(tester);
@@ -173,7 +189,7 @@ void main() {
   ) async {
     await _pumpDesktop(tester);
     await _openJson(tester);
-    await tester.tap(find.bySemanticsLabel('Open linked Base64'));
+    await _linkPartner(tester, 'Base64');
     await tester.pumpAndSettle(_settle);
 
     final CanvasController canvas = _canvasController(tester);
@@ -202,7 +218,7 @@ void main() {
     (WidgetTester tester) async {
       await _pumpDesktop(tester);
       await _openJson(tester);
-      await tester.tap(find.bySemanticsLabel('Open linked Base64'));
+      await _linkPartner(tester, 'Base64');
       await tester.pumpAndSettle(_settle);
 
       // Both linked cards expose an Unlink toggle.
@@ -213,10 +229,9 @@ void main() {
 
       // Group gone (it needs ≥2 members) → neither card is linked anymore.
       expect(find.bySemanticsLabel('Unlink'), findsNothing);
-      expect(find.bySemanticsLabel('Open linked Base64'), findsOneWidget);
       expect(
-        find.bySemanticsLabel('Open linked JSON / YAML / TOML'),
-        findsOneWidget,
+        find.bySemanticsLabel('Choose live link target'),
+        findsNWidgets(2),
       );
     },
   );
@@ -249,15 +264,15 @@ void main() {
 
     expect(find.text('Link Timestamp'), findsOneWidget);
     expect(
-      find.textContaining('Live links update both windows.'),
+      find.textContaining('Linked windows share one value'),
       findsOneWidget,
     );
-    await tester.tap(find.text('Open Math · Epoch'));
+    await tester.tap(find.bySemanticsLabel(RegExp(r'^Open Math')));
     await tester.pumpAndSettle(_settle);
 
     expect(find.byType(ToolCardFrame), findsNWidgets(2));
     expect(find.bySemanticsLabel('Unlink'), findsNWidgets(2));
-    expect(find.text('A · EPOCH'), findsNWidgets(2));
+    expect(find.text('A'), findsNWidgets(2));
     expect(find.text('1700000000'), findsWidgets);
   });
 
@@ -285,14 +300,14 @@ void main() {
     await _openTimestamp(tester);
     await _openMath(tester);
 
-    await tester.tap(find.bySemanticsLabel('Choose live link target'));
+    await tester.tap(_plainLinkButton());
     await tester.pumpAndSettle();
-    expect(find.text('Link to Math · Epoch'), findsOneWidget);
-    await tester.tap(find.text('Link to Math · Epoch'));
+    expect(find.bySemanticsLabel(RegExp(r'^Link to Math')), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel(RegExp(r'^Link to Math')));
     await tester.pumpAndSettle(_settle);
 
     expect(find.byType(ToolCardFrame), findsNWidgets(2));
-    expect(find.text('A · EPOCH'), findsNWidgets(2));
+    expect(find.text('A'), findsNWidgets(2));
     expect(find.bySemanticsLabel('Unlink'), findsNWidgets(2));
   });
 
@@ -301,7 +316,7 @@ void main() {
   ) async {
     await _pumpDesktop(tester);
     await _openJson(tester);
-    await tester.tap(find.bySemanticsLabel('Open linked Base64'));
+    await _linkPartner(tester, 'Base64');
     await tester.pumpAndSettle(_settle);
 
     final CanvasController canvas = tester
@@ -317,7 +332,7 @@ void main() {
     String linkHint() =>
         tester.getSemantics(jsonUnlink).getSemanticsData().hint;
 
-    expect(linkHint(), contains('connected to Base64 using Text'));
+    expect(linkHint(), contains('two-way with Base64'));
 
     final int listCard = canvas.openTool(UtilityCatalog.byId('list'));
     canvas.linkCards(jsonCard, listCard, type: ContentType.text);
@@ -327,7 +342,7 @@ void main() {
 
     canvas.close(base64Card);
     await tester.pumpAndSettle(_settle);
-    expect(linkHint(), contains('connected to List using Text'));
+    expect(linkHint(), contains('two-way with List'));
     expect(linkHint(), isNot(contains('Base64')));
   });
 }

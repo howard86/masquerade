@@ -127,4 +127,80 @@ void main() {
     expect(c.groups, isEmpty);
     expect(find.text('No live links yet'), findsOneWidget);
   });
+
+  testWidgets('follow toggle sets follower via the controller', (tester) async {
+    final CanvasController c = CanvasController();
+    final int a = c.openTool(base64);
+    final int b = c.openTool(json);
+    c.linkCards(a, b, type: ContentType.text, seedCanonical: 'x');
+    await _pump(tester, c);
+
+    await tester.tap(find.bySemanticsLabel('${base64.name} follow only'));
+    await tester.pump();
+    expect(c.isFollower(a), isTrue);
+    await tester.tap(find.bySemanticsLabel('${base64.name} follow only'));
+    await tester.pump();
+    expect(c.isFollower(a), isFalse);
+  });
+
+  testWidgets('toggle is disabled for the last non-follower', (tester) async {
+    final CanvasController c = CanvasController();
+    final int a = c.openTool(base64);
+    final int b = c.openTool(json);
+    c.linkCards(a, b, type: ContentType.text, seedCanonical: 'x');
+    c.setFollower(a, true);
+    await _pump(tester, c);
+
+    await tester.tap(find.bySemanticsLabel('${json.name} follow only'));
+    await tester.pump();
+    expect(c.isFollower(b), isFalse);
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('${json.name} follow only')),
+      matchesSemantics(
+        label: '${json.name} follow only',
+        hint: 'At least one window must send',
+        isButton: true,
+        hasToggledState: true,
+        hasEnabledState: true,
+        isEnabled: false,
+      ),
+    );
+    // The existing follower can still be switched off.
+    await tester.tap(find.bySemanticsLabel('${base64.name} follow only'));
+    await tester.pump();
+    expect(c.isFollower(a), isFalse);
+  });
+
+  testWidgets('spokes reflect followers and hub summary counts them', (
+    tester,
+  ) async {
+    final CanvasController c = CanvasController();
+    final int a = c.openTool(base64);
+    final int b = c.openTool(json);
+    c.linkCards(a, b, type: ContentType.text, seedCanonical: 'x');
+    await _pump(tester, c);
+    expect(find.bySemanticsLabel(RegExp(r'2 windows')), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp(r'following')), findsNothing);
+
+    c.setFollower(b, true);
+    await tester.pump();
+    final CustomPaint paint = tester
+        .widgetList<CustomPaint>(find.byType(CustomPaint))
+        .firstWhere((CustomPaint p) => p.painter.toString().contains('Spoke'));
+    expect((paint.painter! as dynamic).followers, <bool>[false, true]);
+    expect(
+      find.bySemanticsLabel(RegExp(r'2 windows, 1 following')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('shows no sender warning', (tester) async {
+    final CanvasController c = CanvasController();
+    final int a = c.openTool(base64);
+    final int b = c.openTool(json);
+    c.linkCards(a, b, type: ContentType.text, seedCanonical: 'x');
+    c.setFollower(a, true);
+    await _pump(tester, c);
+    expect(find.textContaining('No window sends'), findsNothing);
+  });
 }

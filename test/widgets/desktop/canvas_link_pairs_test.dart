@@ -103,6 +103,22 @@ Future<TestGesture> _startPipeDrag(
   return gesture;
 }
 
+/// Links the focused paired tool to its suggested partner via the picker.
+Future<void> _linkPartner(WidgetTester tester, String partner) async {
+  await tester.tap(find.bySemanticsLabel('Choose live link target').first);
+  await tester.pumpAndSettle();
+  await tester.tap(find.bySemanticsLabel(RegExp('^Open $partner, Suggested')));
+  await tester.pumpAndSettle();
+}
+
+/// The link button of the first window that has no suggested partner.
+Finder _plainLinkButton() => find.byWidgetPredicate(
+  (Widget w) =>
+      w is Semantics &&
+      w.properties.label == 'Choose live link target' &&
+      !(w.properties.hint ?? '').contains('suggested'),
+);
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues(<String, Object>{}));
 
@@ -115,7 +131,7 @@ void main() {
     await tester.pumpAndSettle(_settle);
 
     // Header toggle opens a linked Math sibling, seeded with 255 (0xFF).
-    await tester.tap(find.bySemanticsLabel('Open linked Math'));
+    await _linkPartner(tester, 'Math');
     await tester.pumpAndSettle(_settle);
     expect(find.byType(ToolCardFrame), findsNWidgets(2));
     expect(find.bySemanticsLabel('Unlink'), findsNWidgets(2));
@@ -173,7 +189,7 @@ void main() {
     await _openFirst(tester, 'Number Base');
     await tester.enterText(_firstInput, '0xFF');
     await tester.pumpAndSettle(_settle);
-    await tester.tap(find.bySemanticsLabel('Open linked Math'));
+    await _linkPartner(tester, 'Math');
     await tester.pumpAndSettle(_settle);
 
     await tester.enterText(_lastInput, '2*5');
@@ -219,7 +235,7 @@ void main() {
     await tester.pumpAndSettle(_settle);
 
     // Header toggle opens a linked Diff sibling; List's raw text seeds side A.
-    await tester.tap(find.bySemanticsLabel('Open linked Diff'));
+    await _linkPartner(tester, 'Diff');
     await tester.pumpAndSettle(_settle);
     expect(find.byType(ToolCardFrame), findsNWidgets(2));
     expect(find.bySemanticsLabel('Unlink'), findsNWidgets(2));
@@ -316,14 +332,14 @@ void main() {
     await tester.enterText(_lastInput, '2+3');
     await tester.pumpAndSettle(_settle);
 
-    await tester.tap(find.bySemanticsLabel('Choose live link target'));
+    await tester.tap(_plainLinkButton());
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Link to Math · Epoch'));
+    await tester.tap(find.bySemanticsLabel(RegExp(r'^Link to Math')));
     await tester.pumpAndSettle(_settle);
 
     expect(find.bySemanticsLabel('Unlink'), findsNWidgets(2));
     expect(_editableText(tester, _lastInput), '1700000000');
-    expect(find.text('A · EPOCH'), findsNWidgets(2));
+    expect(find.text('A'), findsNWidgets(2));
   });
 
   testWidgets('source value wins when the populated target opened first', (
@@ -337,14 +353,14 @@ void main() {
     await _openViaPalette(tester, 'timestamp', 'Timestamp');
     await tester.enterText(_inputByLabel('Input'), '1700000000');
     await tester.pumpAndSettle(_settle);
-    await tester.tap(find.bySemanticsLabel('Choose live link target'));
+    await tester.tap(_plainLinkButton());
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Link to Math · Epoch'));
+    await tester.tap(find.bySemanticsLabel(RegExp(r'^Link to Math')));
     await tester.pumpAndSettle(_settle);
 
     expect(_editableText(tester, _inputByLabel('Expression')), '1700000000');
     expect(_editableText(tester, _inputByLabel('Input')), '1700000000');
-    expect(find.text('A · EPOCH'), findsNWidgets(2));
+    expect(find.text('A'), findsNWidgets(2));
   });
 
   testWidgets(
@@ -464,20 +480,17 @@ void main() {
       findsWidgets,
     );
 
-    // Edit Color → List input re-projects (List's canonical is its raw text).
+    // A dropped target follows: editing Color does not write back to List,
+    // while editing List re-projects into Color.
     final Finder colorInput = _inputByLabel('Color');
     final Finder listInput = _inputByLabel('Input');
     await tester.enterText(colorInput, '#778899');
     await tester.pumpAndSettle(_settle);
-    expect(_editableText(tester, listInput), '#778899');
+    expect(_editableText(tester, listInput), '#445566');
 
-    await tester.enterText(colorInput, 'not a color');
+    await tester.enterText(listInput, '#778899');
     await tester.pumpAndSettle(_settle);
-    expect(_editableText(tester, listInput), '#778899');
-
-    await tester.enterText(colorInput, '');
-    await tester.pumpAndSettle(_settle);
-    expect(_editableText(tester, listInput), isEmpty);
+    expect(_editableText(tester, colorInput), '#778899');
   });
 
   testWidgets('a rejected drop explains the incompatible value type', (

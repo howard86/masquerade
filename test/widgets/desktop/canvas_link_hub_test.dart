@@ -46,8 +46,8 @@ void main() {
     expect(c.linkCards(b1, b2, type: ContentType.text), isNotNull);
     await tester.pumpAndSettle(const Duration(milliseconds: 300));
 
-    expect(find.text('A · TEXT'), findsNWidgets(2));
-    expect(find.text('B · TEXT'), findsNWidgets(2));
+    expect(find.text('A'), findsNWidgets(2));
+    expect(find.text('B'), findsNWidgets(2));
     final Map<int, LinkIdentity> ids = linkIdentities(
       c.groups,
       MqTheme.of(tester.element(find.byType(DesktopMenubar))).colors,

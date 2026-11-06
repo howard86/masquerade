@@ -197,4 +197,80 @@ void main() {
     expect(find.text('linked value'), findsOneWidget);
     expect(applied, <String>['linked value']);
   });
+
+  group('roles', () {
+    LinkChannel ch(
+      ValueNotifier<String> inbound,
+      LinkRole Function() role,
+      List<String> emitted, {
+      bool seed = false,
+    }) => LinkChannel(
+      canonicalType: ContentType.text,
+      inbound: inbound,
+      seedOnAttach: seed,
+      role: role,
+      onEmit: emitted.add,
+    );
+
+    testWidgets('receive-only never emits', (WidgetTester tester) async {
+      final ValueNotifier<String> inbound = ValueNotifier<String>('');
+      final List<String> emitted = <String>[];
+      await tester.pumpWidget(
+        _Peer(
+          link: ch(inbound, () => LinkRole.receive, emitted),
+          applied: <String>[],
+          initialValue: 'mine',
+        ),
+      );
+      await tester.pump(Duration.zero);
+      final State s = tester.state(find.byType(_Peer));
+      (s as LinkableToolBody).emitToLink();
+      expect(emitted, isEmpty);
+    });
+
+    testWidgets('follower still receives inbound updates', (
+      WidgetTester tester,
+    ) async {
+      final ValueNotifier<String> inbound = ValueNotifier<String>('group');
+      final List<String> applied = <String>[];
+      await tester.pumpWidget(
+        _Peer(
+          link: ch(inbound, () => LinkRole.receive, <String>[]),
+          applied: applied,
+          initialValue: 'mine',
+        ),
+      );
+      await tester.pump(Duration.zero);
+      expect(applied, <String>['group']);
+      inbound.value = 'next';
+      await tester.pump(Duration.zero);
+      await tester.pump(Duration.zero);
+      expect(applied, <String>['group', 'next']);
+    });
+
+    testWidgets('role changes never emit; follower stops emitting', (
+      WidgetTester tester,
+    ) async {
+      final ValueNotifier<String> inbound = ValueNotifier<String>('group');
+      final List<String> emitted = <String>[];
+      LinkRole role = LinkRole.receive;
+      Widget build() => _Peer(
+        link: ch(inbound, () => role, emitted),
+        applied: <String>[],
+        initialValue: 'mine',
+      );
+      await tester.pumpWidget(build());
+      await tester.pump(Duration.zero);
+
+      role = LinkRole.both; // two-way again: group value stays authoritative
+      await tester.pumpWidget(build());
+      await tester.pump(Duration.zero);
+      expect(emitted, isEmpty);
+
+      role = LinkRole.receive;
+      await tester.pumpWidget(build());
+      (tester.state(find.byType(_Peer)) as LinkableToolBody).emitToLink();
+      expect(emitted, isEmpty);
+    });
+  });
 }
