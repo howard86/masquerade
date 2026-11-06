@@ -1,9 +1,13 @@
+import 'dart:convert';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
+import 'package:masquerade/state/canvas_controller.dart';
 import 'package:masquerade/state/view_mode_controller.dart';
+import 'package:masquerade/widgets/desktop/desktop_menubar.dart';
 import 'package:masquerade/widgets/desktop/pipe.dart';
 import 'package:masquerade/widgets/desktop/tool_card_frame.dart';
 import 'package:masquerade/widgets/mq/mq_input.dart';
@@ -146,6 +150,20 @@ void main() {
     await tester.enterText(_lastInput, '');
     await tester.pumpAndSettle(_settle);
     expect(_editableText(tester, _inputByLabel('Input')), isEmpty);
+
+    // Invalid Number Base edits retain the last good value; an intentional
+    // clear still propagates to the linked Math card.
+    await tester.enterText(_firstInput, '0x2A');
+    await tester.pumpAndSettle(_settle);
+    expect(_editableText(tester, _lastInput), '42');
+
+    await tester.enterText(_firstInput, 'not a number');
+    await tester.pumpAndSettle(_settle);
+    expect(_editableText(tester, _lastInput), '42');
+
+    await tester.enterText(_firstInput, '');
+    await tester.pumpAndSettle(_settle);
+    expect(_editableText(tester, _lastInput), isEmpty);
   });
 
   testWidgets('List ↔ Diff links and re-projects both ways', (
@@ -284,6 +302,78 @@ void main() {
     expect(_editableText(tester, _inputByLabel('Input')), '1700000000');
     expect(find.text('LIVE · EPOCH'), findsNWidgets(2));
   });
+
+  testWidgets(
+    'restored canonical beats JSON and Base64 seeds on attach and remount',
+    (WidgetTester tester) async {
+      const String stale = '{"value":"A"}';
+      const String saved = '{"value":"B"}';
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        CanvasController.currentKey: jsonEncode(<String, dynamic>{
+          'nextId': 3,
+          'nextGroupId': 2,
+          'nextZ': 3,
+          'focused': 1,
+          'cards': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'id': 1,
+              'tool': 'json',
+              'x': 60.0,
+              'y': 80.0,
+              'w': 380.0,
+              'seed': stale,
+            },
+            <String, dynamic>{
+              'id': 2,
+              'tool': 'base64',
+              'x': 480.0,
+              'y': 80.0,
+              'w': 380.0,
+              'seed': base64Encode(utf8.encode(stale)),
+            },
+          ],
+          'groups': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'id': 1,
+              'type': 'text',
+              'canonical': saved,
+              'members': <int>[1, 2],
+            },
+          ],
+        }),
+      });
+
+      await _pumpDesktop(tester);
+      final CanvasController canvas = tester
+          .widget<DesktopMenubar>(find.byType(DesktopMenubar))
+          .controller;
+
+      void expectRestoredValue() {
+        expect(canvas.groups.single.canonical.value, saved);
+        expect(_editableText(tester, _inputByLabel('Input').first), saved);
+        expect(
+          _editableText(tester, _inputByLabel('Input').last),
+          base64Encode(utf8.encode(saved)),
+        );
+      }
+
+      await tester.pumpAndSettle(_settle);
+      expectRestoredValue();
+
+      // Minimizing removes the body State; restoring remounts it from the
+      // persisted stale seed while the group canonical remains authoritative.
+      canvas.minimize(2);
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(find.byType(ToolCardFrame), findsOneWidget);
+      expect(find.byType(MqInput), findsOneWidget);
+
+      canvas.restoreWindow(2);
+      await tester.pumpAndSettle(_settle);
+      expect(find.byType(MqInput), findsNWidgets(2));
+      expectRestoredValue();
+    },
+  );
 
   testWidgets('Color ↔ text links via drop and re-projects both ways', (
     WidgetTester tester,

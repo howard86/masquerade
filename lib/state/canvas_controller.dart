@@ -689,7 +689,9 @@ class CanvasController extends ChangeNotifier {
   void applyJson(Map<String, dynamic> json) {
     _cards.clear();
     _groups.clear();
-    _claimedLinkMembers.clear();
+    // Drops duplicate, stale, or incompatible saved membership before any tool
+    // body can subscribe to the groups.
+    final Set<int> claimedLinkMembers = <int>{};
     _persistedSeeds.clear();
     _persistedCanonicals.clear();
     int maxId = 0;
@@ -764,10 +766,13 @@ class CanvasController extends ChangeNotifier {
           .where((int cid) => _cards.any((CanvasCard c) => c.id == cid))
           .toSet();
       if (members.length < 2) continue; // a link needs at least two live cards
+      // Preserve privacy provenance from the original group even when an
+      // unsupported sensitive member is removed by compatibility sanitation.
+      final bool hadSensitiveMember = _membersContainSensitiveTool(members);
       final int gid = (m['id'] as num).toInt();
       maxGid = gid > maxGid ? gid : maxGid;
       final Set<int> validMembers = members.where((int cid) {
-        if (_claimedLinkMembers.contains(cid)) return false;
+        if (claimedLinkMembers.contains(cid)) return false;
         final CanvasCard card = _cards.firstWhere(
           (CanvasCard c) => c.id == cid,
         );
@@ -777,7 +782,7 @@ class CanvasController extends ChangeNotifier {
           _groups.any((LinkGroup g) => g.id == gid)) {
         continue;
       }
-      _claimedLinkMembers.addAll(validMembers);
+      claimedLinkMembers.addAll(validMembers);
       _groups.add(
         LinkGroup(
           id: gid,
@@ -785,7 +790,7 @@ class CanvasController extends ChangeNotifier {
           canonical:
               SensitiveDataPolicy.persistedValue(
                 m['canonical'] as String?,
-                sensitive: _membersContainSensitiveTool(validMembers),
+                sensitive: hadSensitiveMember,
               ) ??
               '',
         )..members.addAll(validMembers),
@@ -804,10 +809,6 @@ class CanvasController extends ChangeNotifier {
     }
     return null;
   }
-
-  /// Used while restoring to remove duplicate, stale, or incompatible saved
-  /// membership before any tool body can subscribe to the groups.
-  final Set<int> _claimedLinkMembers = <int>{};
 
   bool _supportsLiveLink(CanvasCard card, ContentType type) {
     final UtilityDescriptor? descriptor = card.toolDescriptor;

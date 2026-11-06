@@ -550,6 +550,9 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
   /// position / width changes.
   Widget _cardFrame(CanvasCard card, {required int slot}) {
     final LinkGroup? group = _c.groupForCard(card.id);
+    final String? linkedMemberKey = group == null
+        ? null
+        : (group.members.toList()..sort()).join(',');
     final Object key = (
       card.content,
       slot,
@@ -558,6 +561,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
       card.height,
       card.seed,
       group,
+      linkedMemberKey,
     );
     final ({Object key, Widget frame})? cached = _frames[card.id];
     if (cached != null && cached.key == key) return cached.frame;
