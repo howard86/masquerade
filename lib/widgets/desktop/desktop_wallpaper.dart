@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../../state/wallpaper_controller.dart';
+import '../../theme/mq_theme.dart';
 
 /// Theme-aware premium generative wallpaper background for the desktop shell.
 /// Supports Aurora Espresso, Parchment Minimalist, Cyber Glass, and Slate Solid.
@@ -9,7 +10,9 @@ class DesktopWallpaper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final MqWallpaperType type = WallpaperScope.of(context).type;
+    final MqWallpaperType type = WallpaperScope.of(
+      context,
+    ).type.resolve(context.mq.brightness);
 
     // Static: its own layer keeps it from being re-recorded with the canvas.
     return RepaintBoundary(child: _layers(type));
@@ -20,16 +23,7 @@ class DesktopWallpaper extends StatelessWidget {
       children: <Widget>[
         // Base Color
         Positioned.fill(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: switch (type) {
-                MqWallpaperType.auroraEspresso => const Color(0xFF100E0C),
-                MqWallpaperType.parchmentMinimalist => const Color(0xFFFBF9F6),
-                MqWallpaperType.cyberGlass => const Color(0xFF090710),
-                MqWallpaperType.slateSolid => const Color(0xFF1E222B),
-              },
-            ),
-          ),
+          child: DecoratedBox(decoration: BoxDecoration(color: type.baseColor)),
         ),
         // Glowing Aurora / Geometric elements
         if (type == MqWallpaperType.auroraEspresso) ...<Widget>[
