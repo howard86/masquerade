@@ -96,7 +96,7 @@ void main() {
         find.text(base64Encode(utf8.encode('{"a":1}'))), // eyJhIjoxfQ==
         findsOneWidget,
       );
-      expect(find.text('LIVE · TEXT'), findsNWidgets(2));
+      expect(find.text('A · TEXT'), findsNWidgets(2));
     },
   );
 
@@ -257,7 +257,7 @@ void main() {
 
     expect(find.byType(ToolCardFrame), findsNWidgets(2));
     expect(find.bySemanticsLabel('Unlink'), findsNWidgets(2));
-    expect(find.text('LIVE · EPOCH'), findsNWidgets(2));
+    expect(find.text('A · EPOCH'), findsNWidgets(2));
     expect(find.text('1700000000'), findsWidgets);
   });
 
@@ -292,7 +292,7 @@ void main() {
     await tester.pumpAndSettle(_settle);
 
     expect(find.byType(ToolCardFrame), findsNWidgets(2));
-    expect(find.text('LIVE · EPOCH'), findsNWidgets(2));
+    expect(find.text('A · EPOCH'), findsNWidgets(2));
     expect(find.bySemanticsLabel('Unlink'), findsNWidgets(2));
   });
 
@@ -317,7 +317,7 @@ void main() {
     String linkHint() =>
         tester.getSemantics(jsonUnlink).getSemanticsData().hint;
 
-    expect(linkHint(), contains('Connected to Base64 using Text'));
+    expect(linkHint(), contains('connected to Base64 using Text'));
 
     final int listCard = canvas.openTool(UtilityCatalog.byId('list'));
     canvas.linkCards(jsonCard, listCard, type: ContentType.text);
@@ -327,7 +327,7 @@ void main() {
 
     canvas.close(base64Card);
     await tester.pumpAndSettle(_settle);
-    expect(linkHint(), contains('Connected to List using Text'));
+    expect(linkHint(), contains('connected to List using Text'));
     expect(linkHint(), isNot(contains('Base64')));
   });
 }

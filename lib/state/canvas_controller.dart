@@ -980,6 +980,11 @@ class CanvasController extends ChangeNotifier {
 
   bool get hasLinks => _groups.isNotEmpty;
 
+  /// Whether [group] holds a sensitive tool, so its canonical value must only
+  /// be shown through [SensitiveDataPolicy.safePreview] with `sensitive: true`.
+  bool groupIsSensitive(LinkGroup group) =>
+      _membersContainSensitiveTool(group.members);
+
   /// The link group [cardId] belongs to, or null if it isn't linked.
   LinkGroup? groupForCard(int cardId) {
     for (final LinkGroup g in _groups) {

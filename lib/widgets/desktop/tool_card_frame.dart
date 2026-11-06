@@ -36,6 +36,7 @@ class ToolCardFrame extends StatelessWidget {
     this.linkTooltip,
     this.linkHint,
     this.linkStatus,
+    this.linkColor,
     this.onLink,
     this.scrollBody = true,
     this.onSecondaryTapDown,
@@ -65,8 +66,12 @@ class ToolCardFrame extends StatelessWidget {
   final String? linkTooltip;
   final String? linkHint;
 
-  /// Short visible connection state, such as `LIVE · TEXT`.
+  /// Short visible connection state, such as `A · TEXT` (group letter · type).
   final String? linkStatus;
+
+  /// Tint of this window's link group (badge, link icon, outline); null falls
+  /// back to the warning color.
+  final Color? linkColor;
   final VoidCallback? onLink;
 
   /// Called with the drag delta while the title bar is dragged.
@@ -130,8 +135,12 @@ class ToolCardFrame extends StatelessWidget {
             color: c.surface,
             borderRadius: BorderRadius.circular(MqRadius.md),
             border: Border.all(
-              color: focused ? c.accent : c.border,
-              width: focused ? 1 : 0.5,
+              color: linked && linkColor != null
+                  ? linkColor!.withValues(alpha: focused ? 0.9 : 0.55)
+                  : focused
+                  ? c.accent
+                  : c.border,
+              width: focused || (linked && linkColor != null) ? 1 : 0.5,
             ),
             boxShadow: c.shadowLg,
           ),
@@ -158,6 +167,7 @@ class ToolCardFrame extends StatelessWidget {
                   linkTooltip: linkTooltip,
                   linkHint: linkHint,
                   linkStatus: linkStatus,
+                  linkColor: linkColor,
                   onLink: onLink,
                   onSecondaryTapDown: onSecondaryTapDown,
                 ),
@@ -411,6 +421,7 @@ class _Header extends StatefulWidget {
     required this.linkTooltip,
     required this.linkHint,
     required this.linkStatus,
+    required this.linkColor,
     required this.onLink,
     this.onSecondaryTapDown,
   });
@@ -429,6 +440,7 @@ class _Header extends StatefulWidget {
   final String? linkTooltip;
   final String? linkHint;
   final String? linkStatus;
+  final Color? linkColor;
   final VoidCallback? onLink;
   final GestureTapDownCallback? onSecondaryTapDown;
 
@@ -538,13 +550,13 @@ class _HeaderState extends State<_Header> {
               ],
               if (widget.linkStatus != null) ...<Widget>[
                 ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 112),
+                  constraints: const BoxConstraints(maxWidth: 150),
                   child: Text(
                     widget.linkStatus!,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: MqTextStyles.monoSm.copyWith(
-                      color: c.warning,
+                      color: widget.linkColor ?? c.warning,
                       letterSpacing: 0.4,
                     ),
                   ),
@@ -557,7 +569,7 @@ class _HeaderState extends State<_Header> {
                   tooltip: widget.linkTooltip ?? 'Link',
                   hint: widget.linkHint,
                   onTap: widget.onLink!,
-                  color: widget.linked ? c.warning : null,
+                  color: widget.linked ? (widget.linkColor ?? c.warning) : null,
                 ),
               if (widget.onDuplicate != null)
                 _IconButton(

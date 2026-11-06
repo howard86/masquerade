@@ -15,8 +15,11 @@ import '../../theme/mq_theme.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
+import '../../utils/sensitive_data_policy.dart';
 import '../../widgets/desktop/command_palette.dart';
 import '../../widgets/desktop/desktop_icon_grid.dart';
+import '../../widgets/desktop/link_identity.dart';
+import '../../widgets/desktop/links_panel.dart';
 import '../../widgets/desktop/pipe.dart';
 import '../../widgets/desktop/tool_card_frame.dart';
 import '../../widgets/tool_bodies/seed_source.dart';
@@ -56,16 +59,6 @@ typedef _LinkTargetChoice = ({
   ContentType type,
   int? cardId,
 });
-
-String _contentTypeLabel(ContentType type) => switch (type) {
-  ContentType.text => 'Text',
-  ContentType.bytes => 'Bytes',
-  ContentType.number => 'Number',
-  ContentType.epoch => 'Epoch',
-  ContentType.json => 'JSON',
-  ContentType.color => 'Color',
-  ContentType.lines => 'Lines',
-};
 
 /// The desktop work surface: a pannable canvas hosting the fixed
 /// [DesktopIconGrid] (single-click an icon to open a tool) with draggable tool
@@ -364,20 +357,6 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
               ),
             ),
             Positioned.fill(child: _iconGrid),
-            if (_c.hasLinks)
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: ListenableBuilder(
-                    listenable: _overlayListenable,
-                    builder: (BuildContext context, Widget? _) => CustomPaint(
-                      painter: _LinkLinePainter(
-                        segments: _linkSegments(_c.cards, _pan.value),
-                        color: c.warning,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
             ListenableBuilder(
               listenable: _overlayListenable,
               builder: (BuildContext context, Widget? _) => _snapPreview(c),
@@ -390,6 +369,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
                   openOrder: openOrder,
                   canvasSize: canvasSize ?? const Size(1200, 800),
                 ),
+            if (_c.hasLinks) ..._linkOverlay(context),
           ],
         ),
       ),
@@ -553,6 +533,9 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     final String? linkedMemberKey = group == null
         ? null
         : (group.members.toList()..sort()).join(',');
+    final LinkIdentity? identity = group == null
+        ? null
+        : linkIdentities(_c.groups, context.mq.colors)[group.id];
     final Object key = (
       card.content,
       slot,
@@ -562,6 +545,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
       card.seed,
       group,
       linkedMemberKey,
+      identity,
     );
     final ({Object key, Widget frame})? cached = _frames[card.id];
     if (cached != null && cached.key == key) return cached.frame;
@@ -570,7 +554,13 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     // re-recording its content, shadow and clip.
     final Widget frame = RepaintBoundary(
       child: switch (content) {
-        ToolWindow tw => _toolCardFrame(card, tw, slot: slot, group: group),
+        ToolWindow tw => _toolCardFrame(
+          card,
+          tw,
+          slot: slot,
+          group: group,
+          identity: identity,
+        ),
         SystemWindow sw => _systemCardFrame(card, sw, slot: slot),
       },
     );
@@ -627,6 +617,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     final Widget body = switch (sw.app) {
       SystemApp.history => const HistoryBody(),
       SystemApp.settings => const SettingsBody(desktopShellOverride: true),
+      SystemApp.links => LinksPanel(controller: _c),
     };
     return ToolCardFrame(
       title: sw.title,
@@ -674,6 +665,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     ToolWindow tw, {
     required int slot,
     required LinkGroup? group,
+    required LinkIdentity? identity,
   }) {
     final UtilityDescriptor descriptor = tw.descriptor;
     final ({String partnerId, ContentType type})? partner =
@@ -725,13 +717,14 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
           ? 'Open linked ${UtilityCatalog.byId(partner.partnerId).name}'
           : 'Choose live link target',
       linkHint: linked
-          ? 'Connected to ${linkedNames ?? 'other windows'} using ${_contentTypeLabel(group.type)}. Tap to unlink this window.'
+          ? 'Link group ${identity?.letter ?? ''}: connected to ${linkedNames ?? 'other windows'} using ${contentTypeLabel(group.type)}. Tap to unlink this window.'
           : partner != null
           ? 'Opens ${UtilityCatalog.byId(partner.partnerId).name} as a two-way live link.'
           : 'Choose an open target or a new compatible tool. Drag an output cell onto another window to choose its value directly.',
       linkStatus: linked
-          ? 'LIVE · ${_contentTypeLabel(group.type).toUpperCase()}'
+          ? '${identity == null ? '' : '${identity.letter} · '}${contentTypeLabel(group.type).toUpperCase()}'
           : null,
+      linkColor: identity?.color,
       onLink: linked
           ? () => _c.unlinkCard(card.id)
           : !linkable
@@ -790,7 +783,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
             final String? feedback = payload == null
                 ? null
                 : canLink
-                ? 'Release to link · ${_contentTypeLabel(payload.type)}'
+                ? 'Release to link · ${contentTypeLabel(payload.type)}'
                 : (_c.linkIssueFor(
                             payload.sourceCardId,
                             card.id,
@@ -996,7 +989,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
           final LinkGroup? group = _c.groupForCard(target.id);
           if (group != null) {
             blockedTargets.add(
-              '${targetDescriptor.name} (${_contentTypeLabel(group.type)})',
+              '${targetDescriptor.name} (${contentTypeLabel(group.type)})',
             );
           }
         }
@@ -1018,7 +1011,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
         : 'Live links update both windows. A new link starts with this window’s value. Existing links keep their shared value; if two groups merge, this source’s group stays in control.';
     final String sourceBlockedNote = sourceGroup == null
         ? ''
-        : '\n\nThis window is already linked as ${_contentTypeLabel(sourceGroup.type)}. Unlink it before choosing another type.';
+        : '\n\nThis window is already linked as ${contentTypeLabel(sourceGroup.type)}. Unlink it before choosing another type.';
     final String targetBlockedNote = blockedTargets.isEmpty
         ? ''
         : '\n\n${blockedTargets.join(', ')} already use another link type. Unlink them before joining.';
@@ -1037,8 +1030,8 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
                 onPressed: () => Navigator.of(sheetContext).pop(target),
                 child: Text(
                   target.cardId == null
-                      ? 'Open ${target.descriptor.name} · ${_contentTypeLabel(target.type)}'
-                      : 'Link to ${target.descriptor.name} · ${_contentTypeLabel(target.type)}',
+                      ? 'Open ${target.descriptor.name} · ${contentTypeLabel(target.type)}'
+                      : 'Link to ${target.descriptor.name} · ${contentTypeLabel(target.type)}',
                 ),
               ),
           ],
@@ -1120,33 +1113,121 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     );
   }
 
-  /// One gold segment per linked pair, anchored at each card's title bar (in
-  /// the same panned coordinates as the cards).
-  List<({Offset a, Offset b})> _linkSegments(
+  /// Hub star per group: every member's title-bar anchor, plus the centroid
+  /// they all tether to (canonical-hub model, docs/adr/0001). Pan coordinates,
+  /// like the cards.
+  List<_LinkHub> _linkHubs(
     List<CanvasCard> cards,
     Offset pan,
+    Map<int, LinkIdentity> identities,
   ) {
     final Map<int, CanvasCard> byId = <int, CanvasCard>{
       for (final CanvasCard card in cards) card.id: card,
     };
-    final List<({Offset a, Offset b})> segments = <({Offset a, Offset b})>[];
+    final List<_LinkHub> hubs = <_LinkHub>[];
     for (final LinkGroup g in _c.groups) {
+      final LinkIdentity? identity = identities[g.id];
+      if (identity == null) continue;
       final List<CanvasCard> members = g.members
           .map((int id) => byId[id])
           .whereType<CanvasCard>()
+          .where((CanvasCard card) => !card.minimized)
           .toList();
-      for (int i = 0; i + 1 < members.length; i++) {
-        segments.add((
-          a: _anchor(members[i], pan),
-          b: _anchor(members[i + 1], pan),
-        ));
+      if (members.isEmpty) continue;
+      final List<Offset> anchors = <Offset>[
+        for (final CanvasCard m in members) _anchor(m, pan),
+      ];
+      // The hub sits on a row just above the highest member, so tethers rise
+      // from each window's top edge and meet over the windows, never across a
+      // title bar.
+      double sumX = 0;
+      double top = double.infinity;
+      for (final Offset a in anchors) {
+        sumX += a.dx;
+        if (a.dy < top) top = a.dy;
       }
+      hubs.add(
+        _LinkHub(
+          group: g,
+          identity: identity,
+          anchors: anchors,
+          hub: Offset(
+            sumX / anchors.length,
+            (top - _hubRise).clamp(_hubMinY, double.infinity),
+          ),
+        ),
+      );
     }
-    return segments;
+    return hubs;
   }
 
+  /// Tethers and hub chips, painted above the windows. The tethers never take
+  /// hits; each chip is tappable and focuses its group's top-most member.
+  List<Widget> _linkOverlay(BuildContext context) {
+    final Map<int, LinkIdentity> identities = linkIdentities(
+      _c.groups,
+      context.mq.colors,
+    );
+    return <Widget>[
+      Positioned.fill(
+        child: IgnorePointer(
+          child: ListenableBuilder(
+            listenable: _overlayListenable,
+            builder: (BuildContext context, Widget? _) => CustomPaint(
+              painter: _LinkLinePainter(
+                hubs: _linkHubs(_c.cards, _pan.value, identities),
+              ),
+            ),
+          ),
+        ),
+      ),
+      Positioned.fill(
+        child: ListenableBuilder(
+          listenable: _overlayListenable,
+          builder: (BuildContext context, Widget? _) => Stack(
+            clipBehavior: Clip.none,
+            children: <Widget>[
+              for (final _LinkHub h in _linkHubs(
+                _c.cards,
+                _pan.value,
+                identities,
+              ))
+                Positioned(
+                  key: ValueKey<int>(h.group.id),
+                  left: h.hub.dx,
+                  top: h.hub.dy,
+                  child: FractionalTranslation(
+                    translation: const Offset(-0.5, -0.5),
+                    child: _LinkHubChip(
+                      group: h.group,
+                      identity: h.identity,
+                      sensitive: _c.groupIsSensitive(h.group),
+                      onTap: () => _focusTopMember(h.group),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    ];
+  }
+
+  void _focusTopMember(LinkGroup group) {
+    for (final CanvasCard card in _c.cardsByZ.reversed) {
+      if (group.members.contains(card.id) && !card.minimized) {
+        _c.focus(card.id);
+        return;
+      }
+    }
+  }
+
+  static const double _hubRise = 22;
+  static const double _hubMinY = 14;
+
+  /// Top-edge midpoint of [card], in panned coordinates.
   Offset _anchor(CanvasCard card, Offset pan) =>
-      Offset(card.x + pan.dx + card.width / 2, card.y + pan.dy + 18);
+      Offset(card.x + pan.dx + card.width / 2, card.y + pan.dy);
 
   void _showWallpaperContextMenu(BuildContext context, Offset position) {
     showDesktopContextMenu(context, position, <ContextMenuItem>[
@@ -1209,6 +1290,12 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
             label: 'Unlink Sibling',
             icon: MqIcons.link,
             action: () => _c.unlinkCard(card.id),
+          ),
+        if (linked)
+          ContextMenuItem(
+            label: 'Show Links',
+            icon: MqIcons.link,
+            action: () => _c.openSystem(SystemApp.links),
           )
         else if (_isLinkable(descriptor)) ...<ContextMenuItem>[
           if (partner != null)
@@ -1287,33 +1374,124 @@ class _DotGridPainter extends CustomPainter {
       old.offset != offset || old.color != color;
 }
 
-/// Draws the gold tether between linked cards using orthogonal routing (at most 1 turnaround).
-class _LinkLinePainter extends CustomPainter {
-  _LinkLinePainter({required this.segments, required this.color});
+class _LinkHub {
+  const _LinkHub({
+    required this.group,
+    required this.identity,
+    required this.anchors,
+    required this.hub,
+  });
 
-  final List<({Offset a, Offset b})> segments;
-  final Color color;
+  final LinkGroup group;
+  final LinkIdentity identity;
+  final List<Offset> anchors;
+  final Offset hub;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _LinkHub &&
+      other.group == group &&
+      other.identity == identity &&
+      other.hub == hub &&
+      listEquals(other.anchors, anchors);
+
+  @override
+  int get hashCode => Object.hash(group, identity, hub, anchors.length);
+}
+
+/// Draws each group's hub star: one orthogonal (at most one turn) tether per
+/// member rising from its top-edge anchor to the hub row, then across to the
+/// hub, in the group color.
+class _LinkLinePainter extends CustomPainter {
+  _LinkLinePainter({required this.hubs});
+
+  final List<_LinkHub> hubs;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final Paint paint = Paint()
-      ..color = color
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke
-      ..strokeJoin = StrokeJoin.round
-      ..strokeCap = StrokeCap.round;
-    for (final ({Offset a, Offset b}) s in segments) {
-      final Path path = Path()
-        ..moveTo(s.a.dx, s.a.dy)
-        ..lineTo(s.b.dx, s.a.dy)
-        ..lineTo(s.b.dx, s.b.dy);
-      canvas.drawPath(path, paint);
+    for (final _LinkHub h in hubs) {
+      final Paint paint = Paint()
+        ..color = h.identity.color
+        ..strokeWidth = 2
+        ..style = PaintingStyle.stroke
+        ..strokeJoin = StrokeJoin.round
+        ..strokeCap = StrokeCap.round;
+      for (final Offset a in h.anchors) {
+        final Path path = Path()
+          ..moveTo(a.dx, a.dy)
+          ..lineTo(a.dx, h.hub.dy)
+          ..lineTo(h.hub.dx, h.hub.dy);
+        canvas.drawPath(path, paint);
+        canvas.drawCircle(a, 3, Paint()..color = h.identity.color);
+      }
     }
   }
 
   @override
-  bool shouldRepaint(_LinkLinePainter old) =>
-      old.color != color || !listEquals(old.segments, segments);
+  bool shouldRepaint(_LinkLinePainter old) => !listEquals(old.hubs, hubs);
+}
+
+/// Hub label: group letter, content type, and the live canonical value
+/// (masked for sensitive groups). Listens to the group's canonical so only
+/// the chip rebuilds on an emit.
+class _LinkHubChip extends StatelessWidget {
+  const _LinkHubChip({
+    required this.group,
+    required this.identity,
+    required this.sensitive,
+    required this.onTap,
+  });
+
+  final LinkGroup group;
+  final LinkIdentity identity;
+  final bool sensitive;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final MqColors c = context.mq.colors;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 220),
+        padding: const EdgeInsets.symmetric(
+          horizontal: MqSpacing.sm,
+          vertical: MqSpacing.xs,
+        ),
+        decoration: BoxDecoration(
+          color: c.surface,
+          borderRadius: BorderRadius.circular(MqRadius.md),
+          border: Border.all(color: identity.color, width: 1),
+          boxShadow: c.shadow,
+        ),
+        child: ValueListenableBuilder<String>(
+          valueListenable: group.canonical,
+          builder: (BuildContext context, String canonical, Widget? _) {
+            final String preview = SensitiveDataPolicy.safePreview(
+              canonical,
+              max: 24,
+              sensitive: sensitive,
+            );
+            final String label =
+                '${identity.letter} · ${contentTypeLabel(group.type)}';
+            return Semantics(
+              label:
+                  'Link group ${identity.letter}, ${contentTypeLabel(group.type)}',
+              value: preview,
+              excludeSemantics: true,
+              child: Text(
+                preview.isEmpty ? label : '$label · $preview',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: MqTextStyles.monoSm.copyWith(color: identity.color),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
 }
 
 class _AnimatedWindow extends StatelessWidget {

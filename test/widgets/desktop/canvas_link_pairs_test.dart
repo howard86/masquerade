@@ -279,7 +279,7 @@ void main() {
 
     expect(find.bySemanticsLabel('Unlink'), findsNWidgets(2));
     expect(_editableText(tester, _lastInput), '1700000000');
-    expect(find.text('LIVE · EPOCH'), findsNWidgets(2));
+    expect(find.text('A · EPOCH'), findsNWidgets(2));
   });
 
   testWidgets('source value wins when the populated target opened first', (
@@ -300,7 +300,7 @@ void main() {
 
     expect(_editableText(tester, _inputByLabel('Expression')), '1700000000');
     expect(_editableText(tester, _inputByLabel('Input')), '1700000000');
-    expect(find.text('LIVE · EPOCH'), findsNWidgets(2));
+    expect(find.text('A · EPOCH'), findsNWidgets(2));
   });
 
   testWidgets(
