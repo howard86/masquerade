@@ -26,6 +26,7 @@ class MqMonoCell extends StatefulWidget {
     this.large = false,
     this.semanticsLabel,
     this.pipeType,
+    this.pipeValue,
     this.sensitive = false,
   });
 
@@ -45,6 +46,10 @@ class MqMonoCell extends StatefulWidget {
   /// becomes a long-press drag source emitting a [PipePayload] of this canonical
   /// type. Null (or no [PipeScope]) leaves the cell exactly as on mobile/Home.
   final ContentType? pipeType;
+
+  /// Drag payload when it differs from the displayed [value] (e.g. epoch
+  /// seconds behind a formatted date). Defaults to [value].
+  final String? pipeValue;
 
   /// Longest [value] rendered in full. A longer value renders its first
   /// [maxDisplayChars] characters plus a truncation marker, so a multi-MB
@@ -174,15 +179,16 @@ class _MqMonoCellState extends State<MqMonoCell> {
         : PipeScope.maybeOf(context);
     if (scope == null) return cell;
 
+    final String dragValue = widget.pipeValue ?? value;
     return LongPressDraggable<PipePayload>(
       data: PipePayload(
         type: pipeType!,
-        value: value,
+        value: dragValue,
         sourceCardId: scope.cardId,
       ),
       dragAnchorStrategy: pointerDragAnchorStrategy,
       // Only one ellipsized line shows; don't shape a multi-MB value per drag.
-      feedback: _PipeChip(value: truncateWithEllipsis(value, max: 80)),
+      feedback: _PipeChip(value: truncateWithEllipsis(dragValue, max: 80)),
       childWhenDragging: Opacity(opacity: 0.4, child: cell),
       child: Semantics(
         hint:

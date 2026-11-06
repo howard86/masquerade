@@ -235,7 +235,12 @@ class _UuidBodyState extends State<UuidBody> {
       MqMonoCell(label: 'Variant', value: ok.variant.toString()),
       if (ok.timestamp != null) ...<Widget>[
         const SizedBox(height: MqSpacing.sm),
-        MqMonoCell(label: 'Timestamp', value: ok.timestamp!.toIso8601String()),
+        MqMonoCell(
+          label: 'Timestamp',
+          value: ok.timestamp!.toIso8601String(),
+          pipeType: ContentType.epoch,
+          pipeValue: (ok.timestamp!.millisecondsSinceEpoch ~/ 1000).toString(),
+        ),
       ],
       if (ok.timestamp != null)
         OpenInFooter(
@@ -250,7 +255,12 @@ class _UuidBodyState extends State<UuidBody> {
     return <Widget>[
       MqMonoCell(label: 'Canonical', value: ok.canonical),
       const SizedBox(height: MqSpacing.sm),
-      MqMonoCell(label: 'Timestamp', value: ok.timestamp.toIso8601String()),
+      MqMonoCell(
+        label: 'Timestamp',
+        value: ok.timestamp.toIso8601String(),
+        pipeType: ContentType.epoch,
+        pipeValue: (ok.timestamp.millisecondsSinceEpoch ~/ 1000).toString(),
+      ),
       OpenInFooter(
         output: ok.timestamp.toIso8601String(),
         excludeUtilityId: 'uuid',
