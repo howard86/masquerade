@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
 import '../../models/artifact.dart';
+import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
@@ -19,6 +22,7 @@ import '../mq/mq_segmented.dart';
 import '../mq/mq_status.dart';
 import '../mq/mq_surface.dart';
 import '../mq/tool_action_bar.dart';
+import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 import 'tool_body_scaffold.dart';
@@ -33,6 +37,7 @@ class CsvBody extends StatefulWidget implements ToolBodyWidget {
     this.seedSource = SeedSource.none,
     this.onSwitchTool,
     this.actionBar,
+    this.link,
   });
 
   @override
@@ -44,11 +49,16 @@ class CsvBody extends StatefulWidget implements ToolBodyWidget {
   @override
   final ToolActionBarController? actionBar;
 
+  /// Non-null when this card is in a canvas Link group. The canonical is the
+  /// compact JSON table (`json` group); see docs/adr/0001.
+  final LinkChannel? link;
+
   @override
   State<CsvBody> createState() => _CsvBodyState();
 }
 
-class _CsvBodyState extends State<CsvBody> with ToolBodyScaffold<CsvBody> {
+class _CsvBodyState extends State<CsvBody>
+    with ToolBodyScaffold<CsvBody>, LinkableToolBody<CsvBody> {
   final ScrollController _tableScroll = ScrollController();
   CsvMode _mode = CsvMode.csvToJson;
   CsvOk? _parsed;
@@ -70,6 +80,36 @@ class _CsvBodyState extends State<CsvBody> with ToolBodyScaffold<CsvBody> {
   void dispose() {
     _tableScroll.dispose();
     super.dispose();
+  }
+
+  // ─── Canonical-hub link (compact JSON table) ─────────────────────────────
+  @override
+  LinkChannel? get linkChannel => widget.link;
+
+  @override
+  String currentCanonical() {
+    if (_error != null) return '';
+    try {
+      final String? json = _mode == CsvMode.jsonToCsv
+          ? (_output == null ? null : controller.text)
+          : (_parsed == null ? null : CsvParser.toJson(_parsed!));
+      return json == null ? '' : jsonEncode(jsonDecode(json));
+    } on FormatException {
+      return '';
+    }
+  }
+
+  @override
+  void applyInbound(String canonical) {
+    try {
+      // JSON → CSV mode edits the JSON itself; the other modes edit CSV text.
+      setInput(
+        _mode == CsvMode.jsonToCsv ? canonical : CsvParser.fromJson(canonical),
+        asPaste: false,
+      );
+    } on FormatException {
+      // Not a table-shaped JSON value: keep the current input.
+    }
   }
 
   @override
@@ -118,18 +158,22 @@ class _CsvBodyState extends State<CsvBody> with ToolBodyScaffold<CsvBody> {
         widget.initialArtifact?.isSensitive != true) {
       recordOutput(input, output);
     }
+    emitToLink();
   }
 
   @override
-  void reset() => setState(() {
-    _parsed = null;
-    _output = null;
-    _outputPreview = null;
-    _outputSensitive = null;
-    _error = null;
-    _scalarTypesLost = false;
-    _formulaLike = false;
-  });
+  void reset() {
+    setState(() {
+      _parsed = null;
+      _output = null;
+      _outputPreview = null;
+      _outputSensitive = null;
+      _error = null;
+      _scalarTypesLost = false;
+      _formulaLike = false;
+    });
+    emitToLink();
+  }
 
   void _setMode(CsvMode mode) {
     if (_mode == mode) return;

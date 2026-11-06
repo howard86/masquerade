@@ -15,6 +15,9 @@ void main() {
   final UtilityDescriptor timestamp = UtilityCatalog.byId('timestamp');
   final UtilityDescriptor generator = UtilityCatalog.byId('generator');
   final UtilityDescriptor base64Tool = UtilityCatalog.byId('base64');
+  final UtilityDescriptor sensitiveLinkableTool = _sensitiveLinkableTool(
+    base64Tool,
+  );
   const String encodedCredential =
       'eyJwYXNzd29yZCI6InJhdy1jcmVkZW50aWFsLWZpeHR1cmUifQ==';
 
@@ -75,7 +78,7 @@ void main() {
 
     test('omits canonical values linked to a sensitive tool', () {
       final CanvasController c = CanvasController();
-      final int source = c.openTool(generator);
+      final int source = c.openTool(sensitiveLinkableTool);
       final int target = c.openTool(json);
       c.linkCards(
         source,
@@ -93,13 +96,94 @@ void main() {
       expect(group['canonical'], isEmpty);
     });
 
+    test(
+      'does not serialize canonical values from invalid sensitive groups',
+      () {
+        final CanvasController c = CanvasController();
+        c.applyJson(<String, dynamic>{
+          'cards': <Map<String, dynamic>>[
+            <String, dynamic>{'id': 1, 'tool': 'jwt', 'x': 0, 'y': 0, 'w': 380},
+            <String, dynamic>{
+              'id': 2,
+              'tool': 'json',
+              'x': 0,
+              'y': 0,
+              'w': 380,
+            },
+          ],
+          'groups': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'id': 1,
+              'type': 'text',
+              'canonical': 'opaque-generated-fixture',
+              'members': <int>[1, 2],
+            },
+          ],
+        });
+
+        final String serialized = jsonEncode(c.toJson());
+
+        expect(serialized, isNot(contains('opaque-generated-fixture')));
+        expect(c.groups, isEmpty);
+      },
+    );
+
+    test(
+      'keeps canonical private when an incompatible sensitive member is scrubbed',
+      () {
+        final CanvasController c = CanvasController()
+          ..applyJson(<String, dynamic>{
+            'cards': <Map<String, dynamic>>[
+              <String, dynamic>{
+                'id': 1,
+                'tool': 'jwt',
+                'x': 0,
+                'y': 0,
+                'w': 380,
+              },
+              <String, dynamic>{
+                'id': 2,
+                'tool': 'json',
+                'x': 0,
+                'y': 0,
+                'w': 380,
+              },
+              <String, dynamic>{
+                'id': 3,
+                'tool': 'base64',
+                'x': 0,
+                'y': 0,
+                'w': 380,
+              },
+            ],
+            'groups': <Map<String, dynamic>>[
+              <String, dynamic>{
+                'id': 1,
+                'type': 'text',
+                'canonical': 'opaque-generated-fixture',
+                'members': <int>[1, 2, 3],
+              },
+            ],
+          });
+
+        expect(c.cards, hasLength(3));
+        expect(c.groups, hasLength(1));
+        expect(c.groups.single.members, <int>{2, 3});
+        expect(c.groups.single.canonical.value, isEmpty);
+        expect(
+          jsonEncode(c.toJson()),
+          isNot(contains('opaque-generated-fixture')),
+        );
+      },
+    );
+
     test('sanitizes legacy sensitive seeds and group state on apply', () {
       final CanvasController c = CanvasController()
         ..applyJson(<String, dynamic>{
           'cards': <Map<String, dynamic>>[
             <String, dynamic>{
               'id': 1,
-              'tool': 'generator',
+              'tool': 'jwt',
               'x': 0,
               'y': 0,
               'w': 380,
@@ -124,7 +208,7 @@ void main() {
         });
 
       expect(c.cards.first.seed, isNull);
-      expect(c.groups.single.canonical.value, isEmpty);
+      expect(c.groups, isEmpty);
       expect(
         jsonEncode(c.toJson()),
         isNot(contains('opaque-generated-fixture')),
@@ -183,8 +267,7 @@ void main() {
       c.applyJson(oldJson);
 
       expect(c.length, 2);
-      expect(c.cards[0].z, 1); // defaults to id
-      expect(c.cards[1].z, 2);
+      expect(c.cardsByZ.map((CanvasCard x) => x.id), <int>[1, 2]); // by id
       expect(c.cards[0].minimized, isFalse);
       expect(c.cards[0].maximized, isFalse);
       expect(c.cards[0].height, isNull);
@@ -205,6 +288,48 @@ void main() {
       expect(restored.cards[0].height, 800);
       expect(restored.cards[0].restoreBounds, isNotNull);
       expect(restored.cards[1].minimized, isTrue);
+    });
+  });
+
+  group('z-order persistence', () {
+    Map<String, dynamic> card(int id, {int? z}) => <String, dynamic>{
+      'id': id,
+      'tool': 'json',
+      'x': 0,
+      'y': 0,
+      'w': 380.0,
+      'z': ?z,
+    };
+
+    test('sparse saved z values restore in that order', () {
+      final CanvasController c = CanvasController()
+        ..applyJson(<String, dynamic>{
+          'cards': <dynamic>[card(1, z: 3), card(2, z: 17), card(3, z: 9)],
+        });
+      expect(c.cardsByZ.map((CanvasCard x) => x.id), <int>[1, 3, 2]);
+    });
+
+    test('round trip keeps order and writes dense ranks', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(json);
+      final int b = c.openTool(timestamp);
+      final int d = c.openTool(json);
+      c.focus(a);
+      final Map<String, dynamic> snap = c.toJson();
+      expect(
+        (snap['cards'] as List<dynamic>).map((dynamic m) => (m as Map)['z']),
+        <int>[3, 1, 2],
+      );
+      final CanvasController r = CanvasController()..applyJson(snap);
+      expect(r.cardsByZ.map((CanvasCard x) => x.id), <int>[b, d, a]);
+    });
+
+    test('snapshot without z falls back to id order', () {
+      final CanvasController c = CanvasController()
+        ..applyJson(<String, dynamic>{
+          'cards': <dynamic>[card(5), card(2), card(9)],
+        });
+      expect(c.cardsByZ.map((CanvasCard x) => x.id), <int>[2, 5, 9]);
     });
   });
 
@@ -525,26 +650,29 @@ void main() {
   });
 
   group('sanitized canonical cache', () {
-    test('a snapshot follows canonical edits and sensitivity changes', () {
-      final CanvasController c = CanvasController();
-      final int a = c.openTool(json);
-      final int b = c.openTool(timestamp);
-      c.linkCards(a, b, type: ContentType.text, seedCanonical: 'first-value');
-      String canonical() =>
-          ((c.toJson()['groups'] as List<dynamic>).single
-                  as Map<String, dynamic>)['canonical']
-              as String;
+    test(
+      'a snapshot follows canonical edits and rejects unsupported members',
+      () {
+        final CanvasController c = CanvasController();
+        final int a = c.openTool(json);
+        final int b = c.openTool(base64Tool);
+        c.linkCards(a, b, type: ContentType.text, seedCanonical: 'first-value');
+        String canonical() =>
+            ((c.toJson()['groups'] as List<dynamic>).single
+                    as Map<String, dynamic>)['canonical']
+                as String;
 
-      expect(canonical(), 'first-value');
-      expect(canonical(), 'first-value'); // cached path, same answer
-      c.channelForCard(a)!.emit('second-value');
-      expect(canonical(), 'second-value');
+        expect(canonical(), 'first-value');
+        expect(canonical(), 'first-value'); // cached path, same answer
+        c.channelForCard(a)!.emit('second-value');
+        expect(canonical(), 'second-value');
 
-      // A sensitive member joining the group must drop the cached value.
-      final int gen = c.openTool(generator);
-      c.linkCards(b, gen, type: ContentType.text);
-      expect(canonical(), isEmpty);
-    });
+        // The sensitive JWT tool cannot accept live text, so joining is rejected.
+        final int gen = c.openTool(UtilityCatalog.byId('jwt'));
+        expect(c.linkCards(b, gen, type: ContentType.text), isNull);
+        expect(canonical(), 'second-value');
+      },
+    );
   });
 
   group('sanitized seed cache', () {
@@ -581,3 +709,25 @@ void main() {
     });
   });
 }
+
+UtilityDescriptor _sensitiveLinkableTool(UtilityDescriptor template) =>
+    UtilityDescriptor(
+      id: 'generator',
+      name: 'Sensitive test tool',
+      description: template.description,
+      icon: template.icon,
+      tint: template.tint,
+      synonyms: template.synonyms,
+      categories: template.categories,
+      acceptedTypes: template.acceptedTypes,
+      producedTypes: template.producedTypes,
+      sensitivity: UtilitySensitivity.sensitive,
+      inputSources: template.inputSources,
+      liveLinkTypes: template.liveLinkTypes,
+      quickActions: template.quickActions,
+      batchCapable: template.batchCapable,
+      historyPolicy: HistoryPolicy.disabled,
+      builder: template.builder,
+      defaultCardWidth: template.defaultCardWidth,
+      detectArtifact: template.detectArtifact,
+    );

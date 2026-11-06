@@ -182,7 +182,6 @@ class _MathBodyState extends State<MathBody>
           _result = null;
           _showingStale = false;
         });
-        emitToLink();
     }
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 
 import '../../models/artifact.dart';
+import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../utility_catalog.dart';
 import '../../utils/unicode_string_inspector.dart';
@@ -11,6 +12,7 @@ import '../mq/mq_section_header.dart';
 import '../mq/mq_status.dart';
 import '../mq/mq_surface.dart';
 import '../mq/tool_action_bar.dart';
+import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 import 'tool_body_scaffold.dart';
@@ -24,6 +26,7 @@ class UnicodeStringInspectorBody extends StatefulWidget
     this.seedSource = SeedSource.none,
     this.onSwitchTool,
     this.actionBar,
+    this.link,
   });
 
   @override
@@ -35,13 +38,19 @@ class UnicodeStringInspectorBody extends StatefulWidget
   @override
   final ToolActionBarController? actionBar;
 
+  /// Non-null when this card is in a desktop Link group. Follow-only: the
+  /// group's text is shown here and this body never sends.
+  final LinkChannel? link;
+
   @override
   State<UnicodeStringInspectorBody> createState() =>
       _UnicodeStringInspectorBodyState();
 }
 
 class _UnicodeStringInspectorBodyState extends State<UnicodeStringInspectorBody>
-    with ToolBodyScaffold<UnicodeStringInspectorBody> {
+    with
+        ToolBodyScaffold<UnicodeStringInspectorBody>,
+        LinkableToolBody<UnicodeStringInspectorBody> {
   UnicodeInspection? _inspection;
   String? _error;
   int _visibleLimit = 50;
@@ -54,6 +63,15 @@ class _UnicodeStringInspectorBodyState extends State<UnicodeStringInspectorBody>
 
   @override
   bool isBlank(String input) => input.isEmpty;
+
+  @override
+  LinkChannel? get linkChannel => widget.link;
+
+  @override
+  String currentCanonical() => controller.text;
+
+  @override
+  void applyInbound(String canonical) => setInput(canonical, asPaste: false);
 
   @override
   void parse(String input) {

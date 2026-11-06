@@ -8,9 +8,42 @@ import '../utility_catalog.dart';
 import '../utils/sensitive_data_policy.dart';
 import 'link_group.dart';
 import 'window_content.dart';
+import 'z_order_store.dart';
 
 /// Saved geometry before a maximize/snap so the window can restore.
 typedef RestoreBounds = ({double x, double y, double width, double? height});
+
+/// Why two canvas cards cannot share a live-link group.
+enum LinkIssue {
+  sourceMissing,
+  targetMissing,
+  sameWindow,
+  alreadyLinked,
+  notToolWindow,
+  sourceUnsupported,
+  targetUnsupported,
+  groupTypeConflict,
+  shapeMismatch,
+  noSender,
+}
+
+extension LinkIssueMessage on LinkIssue {
+  String message(ContentType type) => switch (this) {
+    LinkIssue.sourceMissing => 'The source window is no longer open.',
+    LinkIssue.targetMissing => 'The target window is no longer open.',
+    LinkIssue.sameWindow => 'Choose a different window.',
+    LinkIssue.alreadyLinked => 'These windows are already linked.',
+    LinkIssue.notToolWindow => 'Live links work between tool windows.',
+    LinkIssue.sourceUnsupported =>
+      'Drop on the desktop to open it in a new window.',
+    LinkIssue.targetUnsupported =>
+      'This target cannot receive a live ${type.name} value.',
+    LinkIssue.groupTypeConflict =>
+      'A linked window already uses a different value type. Unlink it first.',
+    LinkIssue.shapeMismatch => 'These windows read different kinds of text.',
+    LinkIssue.noSender => 'One of these windows must be able to send.',
+  };
+}
 
 /// One open tool instance on the desktop canvas: which tool, where it sits, how
 /// wide it is, and the value it was seeded with. Identity is a stable [id] so a
@@ -24,7 +57,6 @@ class CanvasCard {
     required this.y,
     required this.width,
     this.seed,
-    this.z = 0,
     this.minimized = false,
     this.maximized = false,
     this.height,
@@ -36,9 +68,6 @@ class CanvasCard {
   final double x;
   final double y;
   final double width;
-
-  /// Paint order — higher = front.
-  final int z;
 
   /// Whether the card is minimized (hidden from canvas, shown in dock).
   final bool minimized;
@@ -66,7 +95,6 @@ class CanvasCard {
     double? x,
     double? y,
     double? width,
-    int? z,
     bool? minimized,
     bool? maximized,
     double? Function()? height,
@@ -78,7 +106,6 @@ class CanvasCard {
     y: y ?? this.y,
     width: width ?? this.width,
     seed: seed,
-    z: z ?? this.z,
     minimized: minimized ?? this.minimized,
     maximized: maximized ?? this.maximized,
     height: height != null ? height() : this.height,
@@ -118,7 +145,7 @@ class CanvasController extends ChangeNotifier {
 
   final List<CanvasCard> _cards = <CanvasCard>[];
   int _nextId = 1;
-  int _nextZ = 1;
+  final ZOrderStore _z = ZOrderStore();
   int? _focusedId;
 
   final List<LinkGroup> _groups = <LinkGroup>[];
@@ -172,9 +199,12 @@ class CanvasController extends ChangeNotifier {
 
   /// Cards sorted by z-order (paint order: lowest first). The canvas paints
   /// in this order so higher-z cards appear on top.
-  List<CanvasCard> get cardsByZ =>
-      List<CanvasCard>.of(_cards)
-        ..sort((CanvasCard a, CanvasCard b) => a.z.compareTo(b.z));
+  List<CanvasCard> get cardsByZ {
+    final Map<int, CanvasCard> byId = <int, CanvasCard>{
+      for (final CanvasCard c in _cards) c.id: c,
+    };
+    return <CanvasCard>[for (final int id in _z.order) byId[id]!];
+  }
 
   bool get isEmpty => _cards.isEmpty;
   int get length => _cards.length;
@@ -196,9 +226,9 @@ class CanvasController extends ChangeNotifier {
       y: 24 + step * _cascadeStep,
       width: descriptor.defaultCardWidth.px,
       seed: (seed == null || seed.isEmpty) ? null : seed,
-      z: _nextZ++,
     );
     _cards.add(card);
+    _z.add(card.id);
     _focusedId = card.id;
     notifyListeners();
     _persist();
@@ -230,9 +260,9 @@ class CanvasController extends ChangeNotifier {
       y: 24 + step * _cascadeStep,
       width: 440,
       height: 600,
-      z: _nextZ++,
     );
     _cards.add(card);
+    _z.add(card.id);
     _focusedId = card.id;
     notifyListeners();
     _persist();
@@ -244,6 +274,7 @@ class CanvasController extends ChangeNotifier {
     final int before = _cards.length;
     _cards.removeWhere((CanvasCard c) => c.id == id);
     if (_cards.length == before) return;
+    _z.remove(id);
     _watchers.remove(id);
     _persistedSeeds.remove(id);
     _detachFromGroup(id);
@@ -258,6 +289,7 @@ class CanvasController extends ChangeNotifier {
   void closeAll() {
     if (_cards.isEmpty) return;
     _cards.clear();
+    _z.clear();
     _watchers.clear();
     _persistedSeeds.clear();
     _persistedCanonicals.clear();
@@ -273,11 +305,8 @@ class CanvasController extends ChangeNotifier {
   /// Also raises the card to the front (highest z).
   void focus(int id) {
     if (!_cards.any((CanvasCard c) => c.id == id)) return;
-    final int i = _cards.indexWhere((CanvasCard c) => c.id == id);
-    if (_focusedId != id || _cards[i].z != _nextZ - 1) {
-      _replace(i, _cards[i].copyWith(z: _nextZ++));
-    }
-    if (_focusedId == id) return;
+    final bool raised = _z.raise(id);
+    if (_focusedId == id && !raised) return;
     _focusedId = id;
     notifyListeners();
     // Focus clicks are frequent and only change focus / z: coalesce them.
@@ -416,7 +445,8 @@ class CanvasController extends ChangeNotifier {
   void restoreWindow(int id) {
     final int i = _cards.indexWhere((CanvasCard c) => c.id == id);
     if (i < 0 || !_cards[i].minimized) return;
-    _replace(i, _cards[i].copyWith(minimized: false, z: _nextZ++));
+    _replace(i, _cards[i].copyWith(minimized: false));
+    _z.raise(id);
     _focusedId = id;
     notifyListeners();
     _persist();
@@ -445,9 +475,9 @@ class CanvasController extends ChangeNotifier {
         maximized: true,
         height: () => height,
         restoreBounds: () => rb,
-        z: _nextZ++,
       ),
     );
+    _z.raise(id);
     _focusedId = id;
     notifyListeners();
     _persist();
@@ -515,9 +545,9 @@ class CanvasController extends ChangeNotifier {
         maximized: false,
         height: () => height,
         restoreBounds: () => rb,
-        z: _nextZ++,
       ),
     );
+    _z.raise(id);
     _focusedId = id;
     notifyListeners();
     _persist();
@@ -548,7 +578,7 @@ class CanvasController extends ChangeNotifier {
   Map<String, dynamic> toJson() => <String, dynamic>{
     'nextId': _nextId,
     'nextGroupId': _nextGroupId,
-    'nextZ': _nextZ,
+    'nextZ': _z.length + 1,
     'focused': _focusedId,
     'cards': _cards.map(_cardToJson).toList(),
     'groups': _groups.map(_groupToJson).toList(),
@@ -595,7 +625,7 @@ class CanvasController extends ChangeNotifier {
       'x': c.x,
       'y': c.y,
       'w': c.width,
-      'z': c.z,
+      'z': _z.rankOf(c.id) + 1,
       'seed': ?seed,
       if (c.minimized) 'minimized': true,
       if (c.maximized) 'maximized': true,
@@ -644,6 +674,11 @@ class CanvasController extends ChangeNotifier {
       'type': group.type.name,
       'canonical': _persistedCanonical(group, hasSensitiveMember),
       'members': group.members.toList(),
+      if (group.roles.isNotEmpty)
+        'roles': <String, String>{
+          for (final MapEntry<int, LinkRole> e in group.roles.entries)
+            '${e.key}': e.value.name,
+        },
     };
   }
 
@@ -661,10 +696,13 @@ class CanvasController extends ChangeNotifier {
   void applyJson(Map<String, dynamic> json) {
     _cards.clear();
     _groups.clear();
+    // Drops duplicate, stale, or incompatible saved membership before any tool
+    // body can subscribe to the groups.
+    final Set<int> claimedLinkMembers = <int>{};
     _persistedSeeds.clear();
     _persistedCanonicals.clear();
     int maxId = 0;
-    int maxZ = 0;
+    final Map<int, int> savedZ = <int, int>{};
     for (final dynamic raw
         in (json['cards'] as List<dynamic>? ?? const <dynamic>[])) {
       final Map<String, dynamic> m = raw as Map<String, dynamic>;
@@ -687,7 +725,7 @@ class CanvasController extends ChangeNotifier {
       final int id = (m['id'] as num).toInt();
       final int z = (m['z'] as num?)?.toInt() ?? id;
       maxId = id > maxId ? id : maxId;
-      maxZ = z > maxZ ? z : maxZ;
+      savedZ[id] = z;
       RestoreBounds? rb;
       if (m['rb'] is Map<String, dynamic>) {
         final Map<String, dynamic> rbm = m['rb'] as Map<String, dynamic>;
@@ -709,7 +747,6 @@ class CanvasController extends ChangeNotifier {
             m['seed'] as String?,
             utilityId: content is ToolWindow ? content.descriptor.id : null,
           ),
-          z: z,
           minimized: m['minimized'] as bool? ?? false,
           maximized: m['maximized'] as bool? ?? false,
           height: (m['h'] as num?)?.toDouble(),
@@ -719,8 +756,12 @@ class CanvasController extends ChangeNotifier {
     }
     _nextId = (json['nextId'] as num?)?.toInt() ?? (maxId + 1);
     if (_nextId <= maxId) _nextId = maxId + 1;
-    _nextZ = (json['nextZ'] as num?)?.toInt() ?? (maxZ + 1);
-    if (_nextZ <= maxZ) _nextZ = maxZ + 1;
+    _z.restore(
+      (_cards.map((CanvasCard c) => c.id).toList()..sort((int a, int b) {
+        final int byZ = savedZ[a]!.compareTo(savedZ[b]!);
+        return byZ != 0 ? byZ : a.compareTo(b);
+      })),
+    );
     final int? focused = (json['focused'] as num?)?.toInt();
     _focusedId = _cards.any((CanvasCard c) => c.id == focused) ? focused : null;
 
@@ -735,8 +776,24 @@ class CanvasController extends ChangeNotifier {
           .where((int cid) => _cards.any((CanvasCard c) => c.id == cid))
           .toSet();
       if (members.length < 2) continue; // a link needs at least two live cards
+      // Preserve privacy provenance from the original group even when an
+      // unsupported sensitive member is removed by compatibility sanitation.
+      final bool hadSensitiveMember = _membersContainSensitiveTool(members);
       final int gid = (m['id'] as num).toInt();
       maxGid = gid > maxGid ? gid : maxGid;
+      final Set<int> validMembers = members.where((int cid) {
+        if (claimedLinkMembers.contains(cid)) return false;
+        final CanvasCard card = _cards.firstWhere(
+          (CanvasCard c) => c.id == cid,
+        );
+        return _supportsLiveLink(card, type);
+      }).toSet();
+      if (type == ContentType.text) _dropShapeConflicts(validMembers);
+      if (validMembers.length < 2 ||
+          _groups.any((LinkGroup g) => g.id == gid)) {
+        continue;
+      }
+      claimedLinkMembers.addAll(validMembers);
       _groups.add(
         LinkGroup(
           id: gid,
@@ -744,11 +801,37 @@ class CanvasController extends ChangeNotifier {
           canonical:
               SensitiveDataPolicy.persistedValue(
                 m['canonical'] as String?,
-                sensitive: _membersContainSensitiveTool(members),
+                sensitive: hadSensitiveMember,
               ) ??
               '',
-        )..members.addAll(members),
+        )..members.addAll(validMembers),
       );
+      final Object? rawRoles = m['roles'];
+      if (rawRoles is Map) {
+        for (final MapEntry<dynamic, dynamic> e in rawRoles.entries) {
+          final int? cid = int.tryParse('${e.key}');
+          if (cid == null || !validMembers.contains(cid)) continue;
+          if (e.value == LinkRole.receive.name) {
+            _groups.last.roles[cid] = LinkRole.receive;
+          }
+        }
+      }
+      for (final int cid in validMembers) {
+        final LinkCapability? cap = _capability(cid);
+        if (cap == LinkCapability.followOnly) {
+          _groups.last.roles[cid] = LinkRole.receive;
+        } else if (cap == LinkCapability.sourceOnly) {
+          _groups.last.roles.remove(cid);
+        }
+      }
+      _ensureSender(_groups.last);
+      if (!_hasSender(_groups.last)) {
+        for (final int cid in _groups.last.members) {
+          claimedLinkMembers.remove(cid);
+        }
+        _persistedCanonicals.remove(_groups.last.id);
+        _groups.removeLast();
+      }
     }
     _nextGroupId = (json['nextGroupId'] as num?)?.toInt() ?? (maxGid + 1);
     if (_nextGroupId <= maxGid) _nextGroupId = maxGid + 1;
@@ -762,6 +845,59 @@ class CanvasController extends ChangeNotifier {
       if (t.name == name) return t;
     }
     return null;
+  }
+
+  bool _supportsLiveLink(CanvasCard card, ContentType type) {
+    final UtilityDescriptor? descriptor = card.toolDescriptor;
+    return descriptor != null &&
+        descriptor.supportsLiveLink &&
+        descriptor.liveLinkTypes.contains(type);
+  }
+
+  LinkCapability? _capability(int cardId) =>
+      _cardById(cardId)?.toolDescriptor?.linkCapability;
+
+  /// Whether [g] has a member able to send (non-follower, not follow-only).
+  bool _hasSender(LinkGroup g) => g.members.any(
+    (int id) =>
+        g.roleOf(id).sends && _capability(id) != LinkCapability.followOnly,
+  );
+
+  /// Whether a sender with [s] can feed text to [r].
+  static bool _shapeOk(UtilityDescriptor s, UtilityDescriptor r) =>
+      r.linkAcceptsTextShapes.contains(s.linkTextShape);
+
+  /// Restore sanitation: removes members from [ids] until every
+  /// sender -> receiver text pair is compatible (sender = not follow-only;
+  /// receiver = not source-only).
+  void _dropShapeConflicts(Set<int> ids) {
+    bool conflict(int s, int r) {
+      final UtilityDescriptor? sd = _cardById(s)?.toolDescriptor;
+      final UtilityDescriptor? rd = _cardById(r)?.toolDescriptor;
+      return s != r &&
+          sd != null &&
+          rd != null &&
+          sd.linkCapability != LinkCapability.followOnly &&
+          rd.linkCapability != LinkCapability.sourceOnly &&
+          !_shapeOk(sd, rd);
+    }
+
+    while (true) {
+      int? worst;
+      int worstCount = 0;
+      for (final int id in ids) {
+        int n = 0;
+        for (final int o in ids) {
+          if (conflict(id, o) || conflict(o, id)) n++;
+        }
+        if (n > worstCount) {
+          worstCount = n;
+          worst = id;
+        }
+      }
+      if (worst == null) return;
+      ids.remove(worst);
+    }
   }
 
   /// Restores the auto-saved canvas from prefs. No-op without a backend or
@@ -927,6 +1063,11 @@ class CanvasController extends ChangeNotifier {
 
   bool get hasLinks => _groups.isNotEmpty;
 
+  /// Whether [group] holds a sensitive tool, so its canonical value must only
+  /// be shown through [SensitiveDataPolicy.safePreview] with `sensitive: true`.
+  bool groupIsSensitive(LinkGroup group) =>
+      _membersContainSensitiveTool(group.members);
+
   /// The link group [cardId] belongs to, or null if it isn't linked.
   LinkGroup? groupForCard(int cardId) {
     for (final LinkGroup g in _groups) {
@@ -943,31 +1084,335 @@ class CanvasController extends ChangeNotifier {
     return LinkChannel(
       canonicalType: g.type,
       inbound: g.canonical,
+      seedOnAttach: g.seedOwnerCardId == cardId,
+      isSeedOwner: () =>
+          _groups.contains(g) &&
+          g.members.contains(cardId) &&
+          g.seedOwnerCardId == cardId,
+      onSeedConsumed: () => _consumeSeedOwner(g, cardId),
+      role: () => g.roleOf(cardId),
       onEmit: (String value) => _emit(g, value),
     );
   }
 
-  /// Links [a] and [b] into a shared group of [type]. If either is already in a
-  /// group, the other joins it; otherwise a new group is created seeded with
-  /// [seedCanonical]. Returns the group id. A card lives in at most one group.
-  int linkCards(
+  /// Whether [cardId] is linked as follow-only.
+  bool isFollower(int cardId) =>
+      groupForCard(cardId)?.roleOf(cardId) == LinkRole.receive;
+
+  /// Whether [cardId] may become a follower: linked, and at least one other
+  /// member is not a follower (a group always keeps a sender).
+  bool canFollow(int cardId) {
+    final LinkGroup? g = groupForCard(cardId);
+    if (g == null || _capability(cardId) == LinkCapability.sourceOnly) {
+      return false;
+    }
+    return g.members.any(
+      (int id) =>
+          id != cardId &&
+          g.roleOf(id).sends &&
+          _capability(id) != LinkCapability.followOnly,
+    );
+  }
+
+  /// Whether [cardId]'s follow state is fixed by its tool (follow-only tools
+  /// always follow; source-only tools never do).
+  bool followFixed(int cardId) {
+    final LinkCapability? c = _capability(cardId);
+    return c == LinkCapability.followOnly || c == LinkCapability.sourceOnly;
+  }
+
+  /// Sets [cardId] follow-only or two-way. Returns false (no change) when
+  /// unlinked or when it would leave the group without a sender.
+  bool setFollower(int cardId, bool follows) {
+    final LinkGroup? g = groupForCard(cardId);
+    if (g == null || followFixed(cardId)) return false;
+    if (follows && !canFollow(cardId)) return false;
+    final LinkRole role = follows ? LinkRole.receive : LinkRole.both;
+    if (g.roleOf(cardId) == role) return true;
+    _storeRole(g, cardId, role);
+    notifyListeners();
+    _persist();
+    return true;
+  }
+
+  /// The link type a source → target link should use: the downstream
+  /// (target) window's default input type. With a group on either side, that
+  /// group's type if both tools support it and the groups agree.
+  ContentType? defaultLinkType(
+    UtilityDescriptor source,
+    UtilityDescriptor target, {
+    LinkGroup? sourceGroup,
+    LinkGroup? targetGroup,
+  }) {
+    if (!source.supportsLiveLink || !target.supportsLiveLink) {
+      return null;
+    }
+    if (sourceGroup != null || targetGroup != null) {
+      final ContentType? t = sourceGroup?.type ?? targetGroup?.type;
+      if (t == null) return null;
+      if (sourceGroup != null && sourceGroup.type != t) return null;
+      if (targetGroup != null && targetGroup.type != t) return null;
+      return source.liveLinkTypes.contains(t) &&
+              target.liveLinkTypes.contains(t)
+          ? t
+          : null;
+    }
+    for (final ContentType t in target.liveLinkTypes) {
+      if (source.liveLinkTypes.contains(t)) return t;
+    }
+    return null;
+  }
+
+  void _storeRole(LinkGroup g, int cardId, LinkRole role) {
+    if (role == LinkRole.both) {
+      g.roles.remove(cardId);
+    } else {
+      g.roles[cardId] = role;
+    }
+  }
+
+  /// Enforces the invariant that a group has at least one non-follower: when
+  /// every member follows, [preferred] (or every member) becomes two-way.
+  void _ensureSender(LinkGroup g, {int? preferred}) {
+    if (g.members.isEmpty || _hasSender(g)) return;
+    bool canSend(int id) => _capability(id) != LinkCapability.followOnly;
+    if (preferred != null &&
+        g.members.contains(preferred) &&
+        canSend(preferred)) {
+      g.roles.remove(preferred);
+    } else {
+      for (final int id in g.members.where(canSend)) {
+        g.roles.remove(id);
+      }
+    }
+  }
+
+  void _consumeSeedOwner(LinkGroup group, int cardId) {
+    if (_groups.contains(group) &&
+        group.members.contains(cardId) &&
+        group.seedOwnerCardId == cardId) {
+      group.seedOwnerCardId = null;
+    }
+  }
+
+  /// Returns the reason the proposed link is invalid, or null when it can be
+  /// made. [a] is the source and [b] the target; [targetFollows] matches the
+  /// [linkCards] argument (a following target is not checked as a sender).
+  LinkIssue? linkIssueFor(
     int a,
     int b, {
     required ContentType type,
-    String seedCanonical = '',
+    bool targetFollows = false,
   }) {
-    LinkGroup g =
-        groupForCard(a) ??
-        groupForCard(b) ??
-        (LinkGroup(id: _nextGroupId++, type: type, canonical: seedCanonical)
-          ..canonical.value = seedCanonical);
-    if (!_groups.contains(g)) _groups.add(g);
-    g.members
+    if (a == b) return LinkIssue.sameWindow;
+    final CanvasCard? source = _cardById(a);
+    if (source == null) return LinkIssue.sourceMissing;
+    final CanvasCard? target = _cardById(b);
+    if (target == null) return LinkIssue.targetMissing;
+    final UtilityDescriptor? targetDescriptor = target.toolDescriptor;
+    if (source.toolDescriptor == null || targetDescriptor == null) {
+      return LinkIssue.notToolWindow;
+    }
+    return _issueWith(
+      a,
+      targetId: b,
+      target: targetDescriptor,
+      targetGroup: groupForCard(b),
+      type: type,
+      targetFollows: targetFollows,
+    );
+  }
+
+  /// [linkIssueFor] for a [target] tool that is not open yet (the picker's
+  /// "New window" rows), so only links that can be made are offered.
+  LinkIssue? linkIssueForTool(
+    int a,
+    UtilityDescriptor target, {
+    required ContentType type,
+    bool targetFollows = false,
+  }) {
+    final CanvasCard? source = _cardById(a);
+    if (source == null) return LinkIssue.sourceMissing;
+    if (source.toolDescriptor == null) return LinkIssue.notToolWindow;
+    return _issueWith(
+      a,
+      targetId: null,
+      target: target,
+      targetGroup: null,
+      type: type,
+      targetFollows: targetFollows,
+    );
+  }
+
+  LinkIssue? _issueWith(
+    int a, {
+    required int? targetId,
+    required UtilityDescriptor target,
+    required LinkGroup? targetGroup,
+    required ContentType type,
+    required bool targetFollows,
+  }) {
+    if (!_supportsLiveLink(_cardById(a)!, type)) {
+      return LinkIssue.sourceUnsupported;
+    }
+    if (!target.supportsLiveLink || !target.liveLinkTypes.contains(type)) {
+      return LinkIssue.targetUnsupported;
+    }
+    final LinkGroup? sourceGroup = groupForCard(a);
+    if ((sourceGroup != null && sourceGroup.type != type) ||
+        (targetGroup != null && targetGroup.type != type)) {
+      return LinkIssue.groupTypeConflict;
+    }
+    if (sourceGroup != null && identical(sourceGroup, targetGroup)) {
+      return LinkIssue.alreadyLinked;
+    }
+    bool follows(int id) => _capability(id) == LinkCapability.followOnly;
+    final bool targetFollowOnly =
+        target.linkCapability == LinkCapability.followOnly;
+    final bool otherSender = _otherSender(sourceGroup, targetGroup);
+    if (follows(a) && targetFollowOnly && !otherSender) {
+      return LinkIssue.noSender;
+    }
+    if (type == ContentType.text) {
+      // The target sends unless it follows; a follow-only source with no
+      // other sender promotes the target to sender regardless.
+      final bool targetSends =
+          !targetFollowOnly &&
+          (!targetFollows ||
+              target.linkCapability == LinkCapability.sourceOnly ||
+              (follows(a) && !otherSender)) &&
+          (targetId == null ||
+              (targetGroup?.roleOf(targetId) ?? LinkRole.both).sends);
+      final Set<int> ids = <int>{
+        ...?sourceGroup?.members,
+        ...?targetGroup?.members,
+        a,
+        ?targetId,
+      };
+      UtilityDescriptor describe(int id) =>
+          id == targetId ? target : _cardById(id)!.toolDescriptor!;
+      bool sends(int id) => id == targetId
+          ? targetSends
+          : !follows(id) &&
+                (groupForCard(id)?.roleOf(id) ?? LinkRole.both).sends;
+      final List<UtilityDescriptor> senders = <UtilityDescriptor>[
+        for (final int id in ids)
+          if (sends(id)) describe(id),
+        if (targetId == null && targetSends) target,
+      ];
+      final List<UtilityDescriptor> receivers = <UtilityDescriptor>[
+        for (final int id in ids) describe(id),
+        if (targetId == null) target,
+      ];
+      for (final UtilityDescriptor sd in senders) {
+        for (final UtilityDescriptor rd in receivers) {
+          if (identical(rd, sd)) continue;
+          if (rd.linkCapability == LinkCapability.sourceOnly) continue;
+          if (!_shapeOk(sd, rd)) return LinkIssue.shapeMismatch;
+        }
+      }
+    }
+    return null;
+  }
+
+  /// Whether the group(s) already hold a member that can send.
+  bool _otherSender(LinkGroup? x, LinkGroup? y) =>
+      (x != null && _hasSender(x)) || (y != null && _hasSender(y));
+
+  CanvasCard? _cardById(int id) {
+    for (final CanvasCard card in _cards) {
+      if (card.id == id) return card;
+    }
+    return null;
+  }
+
+  /// Links [a] and [b] into a shared group of [type]. A new group uses
+  /// [seedCanonical] when supplied, otherwise the source card seeds it when
+  /// its body attaches. Existing groups retain their canonical value; joining
+  /// two groups merges them using the source group's canonical value. Invalid
+  /// or stale operations are rejected without changing state. Returns the
+  /// group id, or null if the link could not be made. A card lives in at most
+  /// one group.
+  int? linkCards(
+    int a,
+    int b, {
+    required ContentType type,
+    String? seedCanonical,
+    bool targetFollows = false,
+  }) {
+    final LinkGroup? sourceGroup = groupForCard(a);
+    final LinkGroup? targetGroup = groupForCard(b);
+    if (_cardById(a) != null &&
+        _cardById(b) != null &&
+        sourceGroup != null &&
+        identical(sourceGroup, targetGroup) &&
+        sourceGroup.type == type &&
+        sourceGroup.members.contains(a) &&
+        sourceGroup.members.contains(b)) {
+      // Re-linking an existing pair applies the requested follow state.
+      final LinkRole before = sourceGroup.roleOf(b);
+      if (targetFollows &&
+          before.sends &&
+          _capability(b) != LinkCapability.sourceOnly) {
+        _storeRole(sourceGroup, b, LinkRole.receive);
+        _ensureSender(sourceGroup, preferred: a);
+        notifyListeners();
+        _persist();
+      }
+      return sourceGroup.id;
+    }
+    if (linkIssueFor(a, b, type: type, targetFollows: targetFollows) != null) {
+      return null;
+    }
+
+    final LinkGroup group;
+    if (sourceGroup != null) {
+      group = sourceGroup;
+    } else if (targetGroup != null) {
+      group = targetGroup;
+    } else {
+      group = LinkGroup(
+        id: _nextGroupId++,
+        type: type,
+        canonical: seedCanonical ?? '',
+        seedOwnerCardId: seedCanonical != null
+            ? null
+            : (_capability(a) == LinkCapability.followOnly ? b : a),
+      );
+      _groups.add(group);
+    }
+
+    if (sourceGroup != null &&
+        targetGroup != null &&
+        !identical(sourceGroup, targetGroup)) {
+      // The source group's canonical wins, matching the direction of the
+      // explicit source → target action. Membership is moved atomically so no
+      // card is visible in two groups during or after the merge.
+      group.members.addAll(targetGroup.members);
+      group.roles.addAll(targetGroup.roles);
+      _groups.remove(targetGroup);
+      _persistedCanonicals.remove(targetGroup.id);
+    }
+
+    group.members
       ..add(a)
       ..add(b);
+    // Follow-only tools always follow; a source-only target never does
+    // (targetFollows is ignored for it).
+    if (_capability(a) == LinkCapability.followOnly) {
+      _storeRole(group, a, LinkRole.receive);
+    }
+    if (_capability(b) == LinkCapability.followOnly ||
+        (targetFollows && _capability(b) != LinkCapability.sourceOnly)) {
+      _storeRole(group, b, LinkRole.receive);
+    }
+    _ensureSender(
+      group,
+      preferred: _capability(a) == LinkCapability.followOnly ? b : a,
+    );
     notifyListeners();
     _persist();
-    return g.id;
+    return group.id;
   }
 
   /// Removes [cardId] from its group, dissolving the group when fewer than two
@@ -983,7 +1428,10 @@ class CanvasController extends ChangeNotifier {
     final LinkGroup? g = groupForCard(cardId);
     if (g == null) return false;
     g.members.remove(cardId);
-    if (g.members.length < 2) {
+    g.roles.remove(cardId);
+    if (g.seedOwnerCardId == cardId) g.seedOwnerCardId = null;
+    if (g.members.length >= 2) _ensureSender(g);
+    if (g.members.length < 2 || !_hasSender(g)) {
       _groups.remove(g);
       _persistedCanonicals.remove(g.id);
     }

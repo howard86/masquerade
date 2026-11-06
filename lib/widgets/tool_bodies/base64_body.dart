@@ -8,6 +8,7 @@ import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
+import '../../utils/hex_codec.dart';
 import '../../utils/sensitive_data_policy.dart';
 import '../../utils/utf8_length.dart';
 import '../mq/mq_button.dart';
@@ -101,11 +102,29 @@ class _Base64BodyState extends State<Base64Body>
   /// The canonical (plain text) is the input in Encode mode and the decoded
   /// output in Decode mode.
   @override
-  String currentCanonical() =>
-      _mode == Base64Mode.encode ? controller.text : (_output ?? '');
+  String currentCanonical() {
+    if (widget.link?.canonicalType == ContentType.bytes) {
+      // Hex of the bytes this card holds: the decoded bytes in Decode mode, the
+      // input's UTF-8 bytes in Encode mode.
+      return HexCodec.encode(
+        _mode == Base64Mode.encode
+            ? utf8.encode(controller.text)
+            : (_decodedBytes ?? const <int>[]),
+      );
+    }
+    return _mode == Base64Mode.encode ? controller.text : (_output ?? '');
+  }
 
   @override
   void applyInbound(String canonical) {
+    if (widget.link?.canonicalType == ContentType.bytes) {
+      final Uint8List? bytes = HexCodec.decode(canonical);
+      if (bytes == null) return;
+      // Show the base64 of the bytes in Decode mode so it round-trips.
+      setState(() => _mode = Base64Mode.decode);
+      setInput(_encodeBytesForDisplay(bytes), asPaste: false);
+      return;
+    }
     // Drive the editable field so a re-[parse] reproduces [canonical]: Encode
     // mode edits plain text directly; Decode mode edits base64.
     setInput(
@@ -116,8 +135,10 @@ class _Base64BodyState extends State<Base64Body>
 
   /// Encodes [text] the way the current chips dictate, so the value shown in
   /// the Decode input round-trips back to [text] through [parse].
-  String _encodeForDisplay(String text) {
-    final List<int> bytes = utf8.encode(text);
+  String _encodeForDisplay(String text) =>
+      _encodeBytesForDisplay(utf8.encode(text));
+
+  String _encodeBytesForDisplay(List<int> bytes) {
     String s = _urlSafe ? base64UrlEncode(bytes) : base64Encode(bytes);
     if (_stripPadding) s = s.replaceAll('=', '');
     return s;

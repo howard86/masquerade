@@ -65,8 +65,21 @@ void main() {
 
     test('desktop live-link capability is catalog metadata', () {
       const Map<String, Set<ContentType>> expected = <String, Set<ContentType>>{
-        'base64': <ContentType>{ContentType.text},
-        'json': <ContentType>{ContentType.text},
+        'url': <ContentType>{ContentType.text},
+        'hash': <ContentType>{ContentType.text},
+        'case': <ContentType>{ContentType.text},
+        'unicode_string_inspector': <ContentType>{ContentType.text},
+        'mojibake': <ContentType>{ContentType.text},
+        'regex': <ContentType>{ContentType.text},
+        'markdown': <ContentType>{ContentType.text},
+        'qr_code': <ContentType>{ContentType.text},
+        'bps': <ContentType>{ContentType.number},
+        'ip': <ContentType>{ContentType.number},
+        'generator': <ContentType>{ContentType.text},
+        'base64': <ContentType>{ContentType.text, ContentType.bytes},
+        'bytes': <ContentType>{ContentType.bytes, ContentType.text},
+        'json': <ContentType>{ContentType.text, ContentType.json},
+        'csv': <ContentType>{ContentType.json},
         'number_base': <ContentType>{ContentType.number},
         'math': <ContentType>{ContentType.number, ContentType.epoch},
         'timestamp': <ContentType>{ContentType.epoch, ContentType.number},
@@ -80,12 +93,47 @@ void main() {
       }, expected);
       for (final UtilityDescriptor tool in UtilityCatalog.all) {
         expect(
+          tool.supportsLiveLink,
+          tool.liveLinkTypes.isNotEmpty,
+          reason: tool.id,
+        );
+        // A send-only tool has no input, so it neither lists the live-link
+        // input source nor accepts its link types.
+        if (tool.linkCapability == LinkCapability.sourceOnly) {
+          expect(
+            tool.inputSources,
+            isNot(contains(UtilityInputSource.liveLink)),
+          );
+          continue;
+        }
+        expect(
           tool.inputSources.contains(UtilityInputSource.liveLink),
           tool.liveLinkTypes.isNotEmpty,
           reason: tool.id,
         );
         expect(tool.acceptedTypes, containsAll(tool.liveLinkTypes));
       }
+      expect(
+        <String>{
+          for (final UtilityDescriptor tool in UtilityCatalog.all)
+            if (tool.linkCapability == LinkCapability.followOnly) tool.id,
+        },
+        <String>{
+          'hash',
+          'case',
+          'unicode_string_inspector',
+          'mojibake',
+          'regex',
+          'markdown',
+          'qr_code',
+        },
+      );
+      expect(UtilityCatalog.byId('color').linkTextShape, TextShape.color);
+      expect(UtilityCatalog.byId('json').linkTextShape, TextShape.json);
+      expect(
+        UtilityCatalog.byId('json').linkAcceptsTextShapes,
+        isNot(contains(TextShape.color)),
+      );
     });
 
     test(

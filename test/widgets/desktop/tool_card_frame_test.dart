@@ -97,7 +97,7 @@ void main() {
                   required measuredHeight,
                 }) {},
             onResizeEnd: () {},
-            onLink: () => linked = true,
+            onLink: (_) => linked = true,
             child: const Text('body'),
           ),
         ),

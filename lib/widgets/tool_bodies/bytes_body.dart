@@ -4,11 +4,13 @@ import 'dart:typed_data';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
 import '../../utils/bytes_parser.dart';
+import '../../utils/hex_codec.dart';
 import '../../utils/sensitive_data_policy.dart';
 import '../mq/mq_button.dart';
 import '../mq/mq_empty_hint.dart';
@@ -18,6 +20,7 @@ import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_segmented.dart';
 import '../mq/tool_action_bar.dart';
+import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 import 'tool_body_scaffold.dart';
@@ -37,6 +40,7 @@ class BytesBody extends StatefulWidget implements ToolBodyWidget {
     this.seedSource = SeedSource.none,
     this.onSwitchTool,
     this.actionBar,
+    this.link,
   });
 
   @override
@@ -47,12 +51,16 @@ class BytesBody extends StatefulWidget implements ToolBodyWidget {
   @override
   final ToolActionBarController? actionBar;
 
+  /// Non-null when this card is in a canvas Link group. The canonical is hex
+  /// bytes (`bytes` group) or UTF-8 text (`text` group); see docs/adr/0001.
+  final LinkChannel? link;
+
   @override
   State<BytesBody> createState() => _BytesBodyState();
 }
 
 class _BytesBodyState extends State<BytesBody>
-    with ToolBodyScaffold<BytesBody> {
+    with ToolBodyScaffold<BytesBody>, LinkableToolBody<BytesBody> {
   BytesMode _mode = BytesMode.decode;
   BytesEncoding _encoding = BytesEncoding.utf8;
   String? _outSpace;
@@ -108,6 +116,39 @@ class _BytesBodyState extends State<BytesBody>
     _inputError = null;
   }
 
+  // ─── Canonical-hub link (bytes = hex, text = UTF-8 text) ────────────────
+  @override
+  LinkChannel? get linkChannel => widget.link;
+
+  bool get _bytesCanonical => widget.link?.canonicalType == ContentType.bytes;
+
+  @override
+  String currentCanonical() {
+    if (_bytesCanonical) {
+      return HexCodec.encode(
+        _mode == BytesMode.encode
+            ? utf8.encode(controller.text)
+            : (_decodedBytes ?? const <int>[]),
+      );
+    }
+    return _mode == BytesMode.encode ? controller.text : (_decodedText ?? '');
+  }
+
+  @override
+  void applyInbound(String canonical) {
+    final Uint8List? bytes = _bytesCanonical
+        ? HexCodec.decode(canonical)
+        : BytesParser.encodeUtf8(canonical);
+    if (bytes == null) return;
+    // Encode mode edits text; Decode mode edits the decimal byte array.
+    setInput(
+      _mode == BytesMode.encode
+          ? utf8.decode(bytes, allowMalformed: true)
+          : BytesParser.format(bytes, BytesFormat.space),
+      asPaste: false,
+    );
+  }
+
   @override
   void parse(String input) {
     if (_mode == BytesMode.encode) {
@@ -119,6 +160,7 @@ class _BytesBodyState extends State<BytesBody>
         _outHex = BytesParser.format(bytes, BytesFormat.hex);
       });
       recordOutput(input, _outSpace!);
+      emitToLink();
       return;
     }
 
@@ -128,6 +170,7 @@ class _BytesBodyState extends State<BytesBody>
           _resetOutputs();
           _inputError = message;
         });
+        emitToLink();
       case BytesParseOk(:final bytes):
         final String hex = BytesParser.format(bytes, BytesFormat.hex);
         final ({String? text, String? error}) decoded = _decode(bytes);
@@ -139,12 +182,14 @@ class _BytesBodyState extends State<BytesBody>
           _error = decoded.error;
         });
         recordOutput(input, decoded.text ?? hex);
+        emitToLink();
     }
   }
 
   @override
   void reset() {
     setState(_resetOutputs);
+    emitToLink();
   }
 
   /// Decodes [bytes] under the currently-selected [_encoding]. UTF-8 is the

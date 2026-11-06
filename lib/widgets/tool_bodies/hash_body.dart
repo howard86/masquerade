@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../utility_catalog.dart';
 import '../../utils/hash_parser.dart';
@@ -12,6 +13,7 @@ import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/tool_action_bar.dart';
 import 'copy_all_button.dart';
+import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 import 'tool_body_scaffold.dart';
@@ -23,6 +25,7 @@ class HashBody extends StatefulWidget implements ToolBodyWidget {
     this.seedSource = SeedSource.none,
     this.onSwitchTool,
     this.actionBar,
+    this.link,
   });
 
   @override
@@ -33,11 +36,25 @@ class HashBody extends StatefulWidget implements ToolBodyWidget {
   @override
   final ToolActionBarController? actionBar;
 
+  /// Non-null when this card follows a canvas Link group (text canonical).
+  /// Follow-only: the group's text becomes this body's input; it never sends.
+  final LinkChannel? link;
+
   @override
   State<HashBody> createState() => _HashBodyState();
 }
 
-class _HashBodyState extends State<HashBody> with ToolBodyScaffold<HashBody> {
+class _HashBodyState extends State<HashBody>
+    with ToolBodyScaffold<HashBody>, LinkableToolBody<HashBody> {
+  @override
+  LinkChannel? get linkChannel => widget.link;
+
+  @override
+  String currentCanonical() => controller.text;
+
+  @override
+  void applyInbound(String canonical) => setInput(canonical, asPaste: false);
+
   final TextEditingController _expectController = TextEditingController();
 
   String _md5 = '';

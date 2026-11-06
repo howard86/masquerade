@@ -19,6 +19,7 @@ import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_segmented.dart';
 import '../mq/tool_action_bar.dart';
+import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 
@@ -35,8 +36,9 @@ class GeneratorBody extends StatefulWidget {
     this.link,
   });
 
-  // initialInput / link accepted for builder-signature parity; a generator has
-  // no input to seed and is not linkable, so both are ignored.
+  // initialInput is accepted for builder-signature parity; a generator has no
+  // input to seed. [link] is source-only: it publishes the generated value and
+  // never receives one.
   final String? initialInput;
   final SeedSource seedSource;
   final OpenInToolCallback? onSwitchTool;
@@ -47,7 +49,8 @@ class GeneratorBody extends StatefulWidget {
   State<GeneratorBody> createState() => _GeneratorBodyState();
 }
 
-class _GeneratorBodyState extends State<GeneratorBody> {
+class _GeneratorBodyState extends State<GeneratorBody>
+    with LinkableToolBody<GeneratorBody> {
   final TextEditingController _lengthCtrl = TextEditingController(text: '20');
   final TextEditingController _bytesCtrl = TextEditingController(text: '16');
 
@@ -170,6 +173,17 @@ class _GeneratorBodyState extends State<GeneratorBody> {
     super.dispose();
   }
 
+  @override
+  LinkChannel? get linkChannel => widget.link;
+
+  /// The current generated value (a single item today).
+  @override
+  String currentCanonical() => _output;
+
+  /// Source-only: a generator never takes a value from the link.
+  @override
+  void applyInbound(String canonical) {}
+
   void _updateActionBar() {
     widget.actionBar?.bind(onClear: _reset);
   }
@@ -200,6 +214,7 @@ class _GeneratorBodyState extends State<GeneratorBody> {
   /// option change and on the Regenerate button.
   void _generate() {
     setState(() => _output = _build());
+    emitToLink();
     _record();
     _saveDraft();
   }
@@ -300,6 +315,7 @@ class _GeneratorBodyState extends State<GeneratorBody> {
       _uuidVersion = GenUuidVersion.v4;
       _output = _build();
     });
+    emitToLink();
     _record();
     _saveDraft();
   }

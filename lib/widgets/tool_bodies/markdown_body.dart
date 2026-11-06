@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 
 import '../../models/artifact.dart';
 import '../../state/history_controller.dart';
+import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../utils/markdown_parser.dart';
 import '../../utils/sensitive_data_policy.dart';
@@ -11,6 +12,7 @@ import '../mq/mq_input.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_status.dart';
 import '../mq/tool_action_bar.dart';
+import 'linkable_body.dart';
 import 'seed_source.dart';
 import 'tool_body_scaffold.dart';
 
@@ -21,6 +23,7 @@ class MarkdownBody extends StatefulWidget implements ToolBodyWidget {
     this.initialArtifact,
     this.seedSource = SeedSource.none,
     this.actionBar,
+    this.link,
   });
 
   @override
@@ -31,12 +34,25 @@ class MarkdownBody extends StatefulWidget implements ToolBodyWidget {
   @override
   final ToolActionBarController? actionBar;
 
+  /// Non-null when this card follows a canvas Link group (text canonical).
+  /// Follow-only: the group's text becomes this body's input; it never sends.
+  final LinkChannel? link;
+
   @override
   State<MarkdownBody> createState() => _MarkdownBodyState();
 }
 
 class _MarkdownBodyState extends State<MarkdownBody>
-    with ToolBodyScaffold<MarkdownBody> {
+    with ToolBodyScaffold<MarkdownBody>, LinkableToolBody<MarkdownBody> {
+  @override
+  LinkChannel? get linkChannel => widget.link;
+
+  @override
+  String currentCanonical() => controller.text;
+
+  @override
+  void applyInbound(String canonical) => setInput(canonical, asPaste: false);
+
   MarkdownOk? _document;
   String? _error;
 

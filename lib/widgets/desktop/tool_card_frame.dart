@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/gestures.dart' show DragStartBehavior;
+import 'package:flutter/gestures.dart'
+    show DragStartBehavior, PointerEnterEvent, PointerExitEvent;
 
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
@@ -31,7 +34,11 @@ class ToolCardFrame extends StatelessWidget {
     this.height,
     this.linked = false,
     this.linkTooltip,
+    this.linkHint,
+    this.linkStatus,
+    this.linkColor,
     this.onLink,
+    this.onUnlink,
     this.scrollBody = true,
     this.onSecondaryTapDown,
   });
@@ -58,7 +65,21 @@ class ToolCardFrame extends StatelessWidget {
   /// it gold (active) and [linkTooltip] is its accessibility label.
   final bool linked;
   final String? linkTooltip;
-  final VoidCallback? onLink;
+  final String? linkHint;
+
+  /// Short visible connection state, such as `A · TEXT` (group letter · type).
+  final String? linkStatus;
+
+  /// Tint of this window's link group (badge, link icon, outline); null falls
+  /// back to the warning color.
+  final Color? linkColor;
+
+  /// Receives the link button's global rect so callers can anchor a popover.
+  final ValueChanged<Rect>? onLink;
+
+  /// When non-null (a linked window), the header shows a separate Unlink
+  /// button beside the link button.
+  final VoidCallback? onUnlink;
 
   /// Called with the drag delta while the title bar is dragged.
   final ValueChanged<Offset> onMoveDelta;
@@ -107,276 +128,283 @@ class ToolCardFrame extends StatelessWidget {
     } else {
       body = Padding(padding: const EdgeInsets.all(MqSpacing.lg), child: child);
     }
-    final Widget focusableBody = GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onTapDown: (_) => onFocus(),
-      child: body,
-    );
-    return Stack(
-      clipBehavior: Clip.none,
-      children: <Widget>[
-        Container(
-          height: height,
-          decoration: BoxDecoration(
-            color: c.surface,
-            borderRadius: BorderRadius.circular(MqRadius.md),
-            border: Border.all(
-              color: focused ? c.accent : c.border,
-              width: focused ? 1 : 0.5,
+    // Raise on any pointer-down (primary or secondary, like macOS) via a raw
+    // Listener: it bypasses the gesture arena, so inner text fields, buttons
+    // and scrollables that win the arena can't swallow the raise, and it never
+    // consumes the event.
+    return Listener(
+      onPointerDown: (_) => onFocus(),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: <Widget>[
+          Container(
+            height: height,
+            decoration: BoxDecoration(
+              color: c.surface,
+              borderRadius: BorderRadius.circular(MqRadius.md),
+              border: Border.all(
+                color: linked && linkColor != null
+                    ? linkColor!.withValues(alpha: focused ? 0.9 : 0.55)
+                    : focused
+                    ? c.accent
+                    : c.border,
+                width: focused || (linked && linkColor != null) ? 1 : 0.5,
+              ),
+              boxShadow: c.shadowLg,
             ),
-            boxShadow: c.shadowLg,
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(MqRadius.md),
-            child: Column(
-              mainAxisSize: height != null
-                  ? MainAxisSize.max
-                  : MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                _Header(
-                  title: title,
-                  slot: slot,
-                  maximized: maximized,
-                  onFocus: onFocus,
-                  onClose: onClose,
-                  onMinimize: onMinimize,
-                  onToggleMaximize: onToggleMaximize,
-                  onDuplicate: onDuplicate,
-                  onMoveDelta: onMoveDelta,
-                  onMoveEnd: onMoveEnd,
-                  linked: linked,
-                  linkTooltip: linkTooltip,
-                  onLink: onLink,
-                  onSecondaryTapDown: onSecondaryTapDown,
-                ),
-                if (height != null)
-                  Expanded(child: focusableBody)
-                else
-                  focusableBody,
-              ],
-            ),
-          ),
-        ),
-        if (!maximized) ...<Widget>[
-          // Top edge
-          Positioned(
-            top: -4,
-            left: 8,
-            right: 8,
-            height: 8,
-            child: _ResizeHandle(
-              cursor: SystemMouseCursors.resizeUpDown,
-              left: false,
-              right: false,
-              top: true,
-              bottom: false,
-              onResizeDelta: (dx, dy, left, right, top, bottom) {
-                final double measuredHeight = context.size?.height ?? 400.0;
-                onResizeEdge(
-                  dx,
-                  dy,
-                  left: left,
-                  right: right,
-                  top: top,
-                  bottom: bottom,
-                  measuredHeight: measuredHeight,
-                );
-              },
-              onResizeEnd: onResizeEnd,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(MqRadius.md),
+              child: Column(
+                mainAxisSize: height != null
+                    ? MainAxisSize.max
+                    : MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  _Header(
+                    title: title,
+                    slot: slot,
+                    maximized: maximized,
+                    onFocus: onFocus,
+                    onClose: onClose,
+                    onMinimize: onMinimize,
+                    onToggleMaximize: onToggleMaximize,
+                    onDuplicate: onDuplicate,
+                    onMoveDelta: onMoveDelta,
+                    onMoveEnd: onMoveEnd,
+                    linked: linked,
+                    linkTooltip: linkTooltip,
+                    linkHint: linkHint,
+                    linkStatus: linkStatus,
+                    linkColor: linkColor,
+                    onLink: onLink,
+                    onUnlink: onUnlink,
+                    onSecondaryTapDown: onSecondaryTapDown,
+                  ),
+                  if (height != null) Expanded(child: body) else body,
+                ],
+              ),
             ),
           ),
-          // Bottom edge
-          Positioned(
-            bottom: -4,
-            left: 8,
-            right: 8,
-            height: 8,
-            child: _ResizeHandle(
-              cursor: SystemMouseCursors.resizeUpDown,
-              left: false,
-              right: false,
-              top: false,
-              bottom: true,
-              onResizeDelta: (dx, dy, left, right, top, bottom) {
-                final double measuredHeight = context.size?.height ?? 400.0;
-                onResizeEdge(
-                  dx,
-                  dy,
-                  left: left,
-                  right: right,
-                  top: top,
-                  bottom: bottom,
-                  measuredHeight: measuredHeight,
-                );
-              },
-              onResizeEnd: onResizeEnd,
+          if (!maximized) ...<Widget>[
+            // Top edge
+            Positioned(
+              top: -4,
+              left: 8,
+              right: 8,
+              height: 8,
+              child: _ResizeHandle(
+                cursor: SystemMouseCursors.resizeUpDown,
+                left: false,
+                right: false,
+                top: true,
+                bottom: false,
+                onResizeDelta: (dx, dy, left, right, top, bottom) {
+                  final double measuredHeight = context.size?.height ?? 400.0;
+                  onResizeEdge(
+                    dx,
+                    dy,
+                    left: left,
+                    right: right,
+                    top: top,
+                    bottom: bottom,
+                    measuredHeight: measuredHeight,
+                  );
+                },
+                onResizeEnd: onResizeEnd,
+              ),
             ),
-          ),
-          // Left edge
-          Positioned(
-            left: -4,
-            top: 8,
-            bottom: 8,
-            width: 8,
-            child: _ResizeHandle(
-              cursor: SystemMouseCursors.resizeLeftRight,
-              left: true,
-              right: false,
-              top: false,
-              bottom: false,
-              onResizeDelta: (dx, dy, left, right, top, bottom) {
-                final double measuredHeight = context.size?.height ?? 400.0;
-                onResizeEdge(
-                  dx,
-                  dy,
-                  left: left,
-                  right: right,
-                  top: top,
-                  bottom: bottom,
-                  measuredHeight: measuredHeight,
-                );
-              },
-              onResizeEnd: onResizeEnd,
+            // Bottom edge
+            Positioned(
+              bottom: -4,
+              left: 8,
+              right: 8,
+              height: 8,
+              child: _ResizeHandle(
+                cursor: SystemMouseCursors.resizeUpDown,
+                left: false,
+                right: false,
+                top: false,
+                bottom: true,
+                onResizeDelta: (dx, dy, left, right, top, bottom) {
+                  final double measuredHeight = context.size?.height ?? 400.0;
+                  onResizeEdge(
+                    dx,
+                    dy,
+                    left: left,
+                    right: right,
+                    top: top,
+                    bottom: bottom,
+                    measuredHeight: measuredHeight,
+                  );
+                },
+                onResizeEnd: onResizeEnd,
+              ),
             ),
-          ),
-          // Right edge
-          Positioned(
-            right: -4,
-            top: 8,
-            bottom: 8,
-            width: 8,
-            child: _ResizeHandle(
-              cursor: SystemMouseCursors.resizeLeftRight,
-              left: false,
-              right: true,
-              top: false,
-              bottom: false,
-              onResizeDelta: (dx, dy, left, right, top, bottom) {
-                final double measuredHeight = context.size?.height ?? 400.0;
-                onResizeEdge(
-                  dx,
-                  dy,
-                  left: left,
-                  right: right,
-                  top: top,
-                  bottom: bottom,
-                  measuredHeight: measuredHeight,
-                );
-              },
-              onResizeEnd: onResizeEnd,
+            // Left edge
+            Positioned(
+              left: -4,
+              top: 8,
+              bottom: 8,
+              width: 8,
+              child: _ResizeHandle(
+                cursor: SystemMouseCursors.resizeLeftRight,
+                left: true,
+                right: false,
+                top: false,
+                bottom: false,
+                onResizeDelta: (dx, dy, left, right, top, bottom) {
+                  final double measuredHeight = context.size?.height ?? 400.0;
+                  onResizeEdge(
+                    dx,
+                    dy,
+                    left: left,
+                    right: right,
+                    top: top,
+                    bottom: bottom,
+                    measuredHeight: measuredHeight,
+                  );
+                },
+                onResizeEnd: onResizeEnd,
+              ),
             ),
-          ),
-          // Top-Left corner
-          Positioned(
-            left: -6,
-            top: -6,
-            width: 14,
-            height: 14,
-            child: _ResizeHandle(
-              cursor: SystemMouseCursors.resizeUpLeftDownRight,
-              left: true,
-              right: false,
-              top: true,
-              bottom: false,
-              onResizeDelta: (dx, dy, left, right, top, bottom) {
-                final double measuredHeight = context.size?.height ?? 400.0;
-                onResizeEdge(
-                  dx,
-                  dy,
-                  left: left,
-                  right: right,
-                  top: top,
-                  bottom: bottom,
-                  measuredHeight: measuredHeight,
-                );
-              },
-              onResizeEnd: onResizeEnd,
+            // Right edge
+            Positioned(
+              right: -4,
+              top: 8,
+              bottom: 8,
+              width: 8,
+              child: _ResizeHandle(
+                cursor: SystemMouseCursors.resizeLeftRight,
+                left: false,
+                right: true,
+                top: false,
+                bottom: false,
+                onResizeDelta: (dx, dy, left, right, top, bottom) {
+                  final double measuredHeight = context.size?.height ?? 400.0;
+                  onResizeEdge(
+                    dx,
+                    dy,
+                    left: left,
+                    right: right,
+                    top: top,
+                    bottom: bottom,
+                    measuredHeight: measuredHeight,
+                  );
+                },
+                onResizeEnd: onResizeEnd,
+              ),
             ),
-          ),
-          // Top-Right corner
-          Positioned(
-            right: -6,
-            top: -6,
-            width: 14,
-            height: 14,
-            child: _ResizeHandle(
-              cursor: SystemMouseCursors.resizeUpRightDownLeft,
-              left: false,
-              right: true,
-              top: true,
-              bottom: false,
-              onResizeDelta: (dx, dy, left, right, top, bottom) {
-                final double measuredHeight = context.size?.height ?? 400.0;
-                onResizeEdge(
-                  dx,
-                  dy,
-                  left: left,
-                  right: right,
-                  top: top,
-                  bottom: bottom,
-                  measuredHeight: measuredHeight,
-                );
-              },
-              onResizeEnd: onResizeEnd,
+            // Top-Left corner
+            Positioned(
+              left: -6,
+              top: -6,
+              width: 14,
+              height: 14,
+              child: _ResizeHandle(
+                cursor: SystemMouseCursors.resizeUpLeftDownRight,
+                left: true,
+                right: false,
+                top: true,
+                bottom: false,
+                onResizeDelta: (dx, dy, left, right, top, bottom) {
+                  final double measuredHeight = context.size?.height ?? 400.0;
+                  onResizeEdge(
+                    dx,
+                    dy,
+                    left: left,
+                    right: right,
+                    top: top,
+                    bottom: bottom,
+                    measuredHeight: measuredHeight,
+                  );
+                },
+                onResizeEnd: onResizeEnd,
+              ),
             ),
-          ),
-          // Bottom-Left corner
-          Positioned(
-            left: -6,
-            bottom: -6,
-            width: 14,
-            height: 14,
-            child: _ResizeHandle(
-              cursor: SystemMouseCursors.resizeUpRightDownLeft,
-              left: true,
-              right: false,
-              top: false,
-              bottom: true,
-              onResizeDelta: (dx, dy, left, right, top, bottom) {
-                final double measuredHeight = context.size?.height ?? 400.0;
-                onResizeEdge(
-                  dx,
-                  dy,
-                  left: left,
-                  right: right,
-                  top: top,
-                  bottom: bottom,
-                  measuredHeight: measuredHeight,
-                );
-              },
-              onResizeEnd: onResizeEnd,
+            // Top-Right corner
+            Positioned(
+              right: -6,
+              top: -6,
+              width: 14,
+              height: 14,
+              child: _ResizeHandle(
+                cursor: SystemMouseCursors.resizeUpRightDownLeft,
+                left: false,
+                right: true,
+                top: true,
+                bottom: false,
+                onResizeDelta: (dx, dy, left, right, top, bottom) {
+                  final double measuredHeight = context.size?.height ?? 400.0;
+                  onResizeEdge(
+                    dx,
+                    dy,
+                    left: left,
+                    right: right,
+                    top: top,
+                    bottom: bottom,
+                    measuredHeight: measuredHeight,
+                  );
+                },
+                onResizeEnd: onResizeEnd,
+              ),
             ),
-          ),
-          // Bottom-Right corner
-          Positioned(
-            right: -6,
-            bottom: -6,
-            width: 14,
-            height: 14,
-            child: _ResizeHandle(
-              cursor: SystemMouseCursors.resizeUpLeftDownRight,
-              left: false,
-              right: true,
-              top: false,
-              bottom: true,
-              onResizeDelta: (dx, dy, left, right, top, bottom) {
-                final double measuredHeight = context.size?.height ?? 400.0;
-                onResizeEdge(
-                  dx,
-                  dy,
-                  left: left,
-                  right: right,
-                  top: top,
-                  bottom: bottom,
-                  measuredHeight: measuredHeight,
-                );
-              },
-              onResizeEnd: onResizeEnd,
+            // Bottom-Left corner
+            Positioned(
+              left: -6,
+              bottom: -6,
+              width: 14,
+              height: 14,
+              child: _ResizeHandle(
+                cursor: SystemMouseCursors.resizeUpRightDownLeft,
+                left: true,
+                right: false,
+                top: false,
+                bottom: true,
+                onResizeDelta: (dx, dy, left, right, top, bottom) {
+                  final double measuredHeight = context.size?.height ?? 400.0;
+                  onResizeEdge(
+                    dx,
+                    dy,
+                    left: left,
+                    right: right,
+                    top: top,
+                    bottom: bottom,
+                    measuredHeight: measuredHeight,
+                  );
+                },
+                onResizeEnd: onResizeEnd,
+              ),
             ),
-          ),
+            // Bottom-Right corner
+            Positioned(
+              right: -6,
+              bottom: -6,
+              width: 14,
+              height: 14,
+              child: _ResizeHandle(
+                cursor: SystemMouseCursors.resizeUpLeftDownRight,
+                left: false,
+                right: true,
+                top: false,
+                bottom: true,
+                onResizeDelta: (dx, dy, left, right, top, bottom) {
+                  final double measuredHeight = context.size?.height ?? 400.0;
+                  onResizeEdge(
+                    dx,
+                    dy,
+                    left: left,
+                    right: right,
+                    top: top,
+                    bottom: bottom,
+                    measuredHeight: measuredHeight,
+                  );
+                },
+                onResizeEnd: onResizeEnd,
+              ),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
@@ -398,7 +426,11 @@ class _Header extends StatefulWidget {
     required this.onMoveEnd,
     required this.linked,
     required this.linkTooltip,
+    required this.linkHint,
+    required this.linkStatus,
+    required this.linkColor,
     required this.onLink,
+    required this.onUnlink,
     this.onSecondaryTapDown,
   });
 
@@ -414,7 +446,11 @@ class _Header extends StatefulWidget {
   final VoidCallback onMoveEnd;
   final bool linked;
   final String? linkTooltip;
-  final VoidCallback? onLink;
+  final String? linkHint;
+  final String? linkStatus;
+  final Color? linkColor;
+  final ValueChanged<Rect>? onLink;
+  final VoidCallback? onUnlink;
   final GestureTapDownCallback? onSecondaryTapDown;
 
   @override
@@ -423,6 +459,15 @@ class _Header extends StatefulWidget {
 
 class _HeaderState extends State<_Header> {
   bool _isDragging = false;
+  final GlobalKey _linkKey = GlobalKey();
+
+  void _handleLink() {
+    final RenderObject? box = _linkKey.currentContext?.findRenderObject();
+    final Rect rect = box is RenderBox && box.hasSize
+        ? box.localToGlobal(Offset.zero) & box.size
+        : Rect.zero;
+    widget.onLink!(rect);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -521,12 +566,36 @@ class _HeaderState extends State<_Header> {
                 ),
                 const SizedBox(width: MqSpacing.sm),
               ],
+              if (widget.linkStatus != null) ...<Widget>[
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 150),
+                  child: Text(
+                    widget.linkStatus!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MqTextStyles.monoSm.copyWith(
+                      color: widget.linkColor ?? c.warning,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: MqSpacing.xs),
+              ],
               if (widget.onLink != null)
                 _IconButton(
+                  key: _linkKey,
                   icon: MqIcons.link,
                   tooltip: widget.linkTooltip ?? 'Link',
-                  onTap: widget.onLink!,
-                  color: widget.linked ? c.warning : null,
+                  hint: widget.linkHint,
+                  onTap: _handleLink,
+                  color: widget.linked ? (widget.linkColor ?? c.warning) : null,
+                ),
+              if (widget.onUnlink != null)
+                _IconButton(
+                  icon: MqIcons.unlink,
+                  tooltip: 'Unlink',
+                  hint: 'Remove this window from its link group.',
+                  onTap: widget.onUnlink!,
                 ),
               if (widget.onDuplicate != null)
                 _IconButton(
@@ -609,35 +678,129 @@ class _TrafficLightState extends State<_TrafficLight> {
   }
 }
 
-class _IconButton extends StatelessWidget {
+class _IconButton extends StatefulWidget {
   const _IconButton({
+    super.key,
     required this.icon,
     required this.tooltip,
+    this.hint,
     required this.onTap,
     this.color,
   });
 
   final IconData icon;
   final String tooltip;
+  final String? hint;
   final VoidCallback onTap;
 
   /// Icon tint; defaults to the tertiary text color when null.
   final Color? color;
 
   @override
+  State<_IconButton> createState() => _IconButtonState();
+}
+
+class _IconButtonState extends State<_IconButton> {
+  final LayerLink _layerLink = LayerLink();
+  Timer? _hoverTimer;
+  OverlayEntry? _hintEntry;
+
+  @override
+  void didUpdateWidget(_IconButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.tooltip != oldWidget.tooltip) _hideHint();
+  }
+
+  void _showHint() {
+    _hoverTimer?.cancel();
+    _hoverTimer = Timer(const Duration(milliseconds: 450), () {
+      if (!mounted || _hintEntry != null) return;
+      final OverlayState? overlay = Overlay.maybeOf(context);
+      if (overlay == null) return;
+      final c = context.mq.colors;
+      final OverlayEntry entry = OverlayEntry(
+        builder: (BuildContext context) => Positioned.fill(
+          child: IgnorePointer(
+            child: UnconstrainedBox(
+              alignment: Alignment.topLeft,
+              child: ExcludeSemantics(
+                child: CompositedTransformFollower(
+                  link: _layerLink,
+                  showWhenUnlinked: false,
+                  targetAnchor: Alignment.topCenter,
+                  followerAnchor: Alignment.bottomCenter,
+                  offset: const Offset(0, -4),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: c.surface,
+                      borderRadius: BorderRadius.circular(MqRadius.sm),
+                      border: Border.all(color: c.border),
+                      boxShadow: c.shadow,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: MqSpacing.sm,
+                        vertical: MqSpacing.xs,
+                      ),
+                      child: Text(
+                        widget.tooltip,
+                        style: MqTextStyles.caption1.copyWith(color: c.textPri),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      _hintEntry = entry;
+      overlay.insert(entry);
+    });
+  }
+
+  void _hideHint() {
+    _hoverTimer?.cancel();
+    _hoverTimer = null;
+    _hintEntry?.remove();
+    _hintEntry = null;
+  }
+
+  @override
+  void dispose() {
+    _hideHint();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
     return Semantics(
       button: true,
-      label: tooltip,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: Padding(
+      label: widget.tooltip,
+      hint: widget.hint,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (PointerEnterEvent _) => _showHint(),
+        onExit: (PointerExitEvent _) => _hideHint(),
+        child: CompositedTransformTarget(
+          link: _layerLink,
+          child: CupertinoButton(
+            onPressed: () {
+              _hideHint();
+              widget.onTap();
+            },
+            minimumSize: const Size(32, 32),
             padding: const EdgeInsets.symmetric(horizontal: MqSpacing.xs),
-            child: Icon(icon, size: 15, color: color ?? c.textTer),
+            pressedOpacity: 0.75,
+            focusColor: c.accentBg,
+            borderRadius: BorderRadius.circular(MqRadius.sm),
+            mouseCursor: SystemMouseCursors.click,
+            child: Icon(
+              widget.icon,
+              size: 15,
+              color: widget.color ?? c.textTer,
+            ),
           ),
         ),
       ),
