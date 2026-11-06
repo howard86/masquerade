@@ -247,4 +247,65 @@ void main() {
     expect(fresh.x, source.x + source.width + 24);
     expect(fresh.y, source.y);
   });
+
+  testWidgets('picker tags follow-only and send-only targets', (
+    WidgetTester tester,
+  ) async {
+    await _pumpDesktop(tester);
+    await _open(tester, 'Base64');
+    await _openPicker(tester, hint: 'suggested');
+
+    expect(
+      find.bySemanticsLabel(RegExp(r'^Open Hash.*Follows')),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsLabel(RegExp(r'^Open Generator.*Sends only')),
+      findsOneWidget,
+    );
+    expect(find.bySemanticsLabel(RegExp(r'^Open JSON.*Follows')), findsNothing);
+  });
+
+  testWidgets('picker hides text targets the source shape cannot feed', (
+    WidgetTester tester,
+  ) async {
+    await _pumpDesktop(tester);
+    await _open(tester, 'JSON / YAML / TOML');
+    await _openPicker(tester, hint: 'suggested');
+
+    expect(find.bySemanticsLabel(RegExp(r'^Open Base64')), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp(r'^Open Color')), findsNothing);
+  });
+
+  testWidgets('follow-only source picker follows and lists senders only', (
+    WidgetTester tester,
+  ) async {
+    await _pumpDesktop(tester);
+    final CanvasController c = _canvas(tester);
+    c.openTool(UtilityCatalog.byId('hash'));
+    await tester.pumpAndSettle();
+    await _openPicker(tester);
+
+    expect(find.text('Follow Hash'), findsOneWidget);
+    expect(find.textContaining('Target follows'), findsNothing);
+    expect(find.bySemanticsLabel(RegExp(r'^Open Base64')), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp(r'^Open Regex')), findsNothing);
+    expect(find.bySemanticsLabel(RegExp(r'^Open Hash')), findsNothing);
+  });
+
+  testWidgets('context menu omits Follow Only for fixed-role windows', (
+    WidgetTester tester,
+  ) async {
+    await _pumpDesktop(tester);
+    final CanvasController c = _canvas(tester);
+    final int a = c.openTool(UtilityCatalog.byId('base64'));
+    final int h = c.openTool(UtilityCatalog.byId('hash'));
+    expect(c.linkCards(a, h, type: ContentType.text), isNotNull);
+    await tester.pumpAndSettle(_settle);
+
+    await _rightClickTitle(tester, 'Hash');
+    expect(find.text('Follow Only'), findsNothing);
+    expect(find.text('✓ Follow Only'), findsNothing);
+    expect(find.text('Unlink Sibling'), findsOneWidget);
+  });
 }

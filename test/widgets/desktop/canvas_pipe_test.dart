@@ -198,7 +198,7 @@ void main() {
     await tester.enterText(_jsonInput, '{"a":1}');
     await tester.pumpAndSettle(_settle);
 
-    await _openViaPalette(tester, 'url', 'URL');
+    await _openViaPalette(tester, 'jwt', 'JWT');
     await tester.dragFrom(
       tester.getTopLeft(find.byType(ToolCardFrame).last) +
           const Offset(120, 14),

@@ -549,4 +549,220 @@ void main() {
       expect(c.defaultLinkType(math, timestamp, sourceGroup: txt), isNull);
     });
   });
+
+  group('link capabilities and text shapes', () {
+    final UtilityDescriptor hash = UtilityCatalog.byId('hash');
+    final UtilityDescriptor gen = UtilityCatalog.byId('generator');
+    final UtilityDescriptor color = UtilityCatalog.byId('color');
+    final UtilityDescriptor list = UtilityCatalog.byId('list');
+    final UtilityDescriptor regex = UtilityCatalog.byId('regex');
+
+    test(
+      'follow-only target is forced to follow; source-only never follows',
+      () {
+        final CanvasController c = CanvasController();
+        final int a = c.openTool(base64);
+        final int h = c.openTool(hash);
+        c.linkCards(a, h, type: ContentType.text);
+        expect(c.isFollower(h), isTrue);
+        expect(c.isFollower(a), isFalse);
+        expect(c.followFixed(h), isTrue);
+        expect(c.followFixed(a), isFalse);
+        expect(c.setFollower(h, false), isFalse);
+        expect(c.isFollower(h), isTrue);
+
+        final CanvasController d = CanvasController();
+        final int x = d.openTool(base64);
+        final int g = d.openTool(gen);
+        d.linkCards(x, g, type: ContentType.text, targetFollows: true);
+        expect(d.isFollower(g), isFalse);
+        expect(d.canFollow(g), isFalse);
+        expect(d.setFollower(g, true), isFalse);
+        expect(d.followFixed(g), isTrue);
+      },
+    );
+
+    test('follow-only source follows and the target seeds', () {
+      final CanvasController c = CanvasController();
+      final int h = c.openTool(hash);
+      final int a = c.openTool(base64);
+      c.linkCards(h, a, type: ContentType.text);
+      expect(c.isFollower(h), isTrue);
+      expect(c.isFollower(a), isFalse);
+      expect(c.groupForCard(a)!.seedOwnerCardId, a);
+    });
+
+    test('two follow-only windows have no sender', () {
+      final CanvasController c = CanvasController();
+      final int h = c.openTool(hash);
+      final int r = c.openTool(regex);
+      expect(c.linkIssueFor(h, r, type: ContentType.text), LinkIssue.noSender);
+      expect(c.linkCards(h, r, type: ContentType.text), isNull);
+      expect(
+        c.linkIssueFor(h, r, type: ContentType.text)!.message(ContentType.text),
+        contains('must be able to send'),
+      );
+    });
+
+    test('group dissolves when only follow-only members remain', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(base64);
+      final int h = c.openTool(hash);
+      final int r = c.openTool(regex);
+      c.linkCards(a, h, type: ContentType.text);
+      c.linkCards(a, r, type: ContentType.text);
+      expect(c.groups.single.members, hasLength(3));
+      c.unlinkCard(a);
+      expect(c.groups, isEmpty);
+    });
+
+    test('source-only member may send into a follow-only one', () {
+      final CanvasController c = CanvasController();
+      final int g = c.openTool(gen);
+      final int h = c.openTool(hash);
+      expect(c.linkIssueFor(g, h, type: ContentType.text), isNull);
+      expect(c.linkCards(g, h, type: ContentType.text), isNotNull);
+    });
+
+    test('Color text cannot feed JSON, in either direction', () {
+      final CanvasController c = CanvasController();
+      final int col = c.openTool(color);
+      final int j = c.openTool(json);
+      expect(
+        c.linkIssueFor(col, j, type: ContentType.text),
+        LinkIssue.shapeMismatch,
+      );
+      expect(
+        c.linkIssueFor(j, col, type: ContentType.text),
+        LinkIssue.shapeMismatch,
+      );
+      expect(c.linkCards(col, j, type: ContentType.text), isNull);
+      expect(
+        LinkIssue.shapeMismatch.message(ContentType.text),
+        contains('different kinds of text'),
+      );
+    });
+
+    test('plain tools still link with Color and JSON', () {
+      final CanvasController c = CanvasController();
+      final int l = c.openTool(list);
+      final int col = c.openTool(color);
+      final int b = c.openTool(base64);
+      final int j = c.openTool(json);
+      expect(c.linkIssueFor(l, col, type: ContentType.text), isNull);
+      expect(c.linkIssueFor(b, j, type: ContentType.text), isNull);
+    });
+
+    test('merged group checks every sender -> receiver pair', () {
+      final CanvasController c = CanvasController();
+      final int col = c.openTool(color);
+      final int l = c.openTool(list);
+      final int j = c.openTool(json);
+      final int b = c.openTool(base64);
+      c.linkCards(col, l, type: ContentType.text);
+      c.linkCards(j, b, type: ContentType.text);
+      // Merging would let Color send into JSON.
+      expect(
+        c.linkIssueFor(l, b, type: ContentType.text),
+        LinkIssue.shapeMismatch,
+      );
+      // A follow-only inspector joining the Color group never sends.
+      final int h = c.openTool(hash);
+      expect(c.linkIssueFor(l, h, type: ContentType.text), isNull);
+      // Joining the JSON group from Color's side is also rejected.
+      expect(
+        c.linkIssueFor(col, j, type: ContentType.text),
+        LinkIssue.shapeMismatch,
+      );
+    });
+
+    test('a follower Color does not block a JSON sender it cannot read', () {
+      final CanvasController c = CanvasController();
+      final int j = c.openTool(json);
+      final int l = c.openTool(list);
+      c.linkCards(j, l, type: ContentType.text);
+      final int col = c.openTool(color);
+      // JSON sends json text; Color only reads color/plain.
+      expect(
+        c.linkIssueFor(l, col, type: ContentType.text),
+        LinkIssue.shapeMismatch,
+      );
+    });
+
+    test('non-member source reads as a new-window drop', () {
+      final CanvasController c = CanvasController();
+      final int jwt = c.openTool(UtilityCatalog.byId('jwt'));
+      final int j = c.openTool(json);
+      final LinkIssue? issue = c.linkIssueFor(jwt, j, type: ContentType.text);
+      expect(issue, LinkIssue.sourceUnsupported);
+      expect(
+        issue!.message(ContentType.text),
+        'Drop on the desktop to open it in a new window.',
+      );
+    });
+
+    test('restore: capabilities and shapes are sanitized', () {
+      Map<String, dynamic> card(int id, String tool) => <String, dynamic>{
+        'id': id,
+        'tool': tool,
+        'x': 0,
+        'y': 0,
+        'w': 380,
+      };
+      final CanvasController c = CanvasController()
+        ..applyJson(<String, dynamic>{
+          'cards': <Map<String, dynamic>>[
+            card(1, 'base64'),
+            card(2, 'hash'),
+            card(3, 'generator'),
+            card(4, 'json'),
+            card(5, 'color'),
+          ],
+          'groups': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'id': 1,
+              'type': 'text',
+              'canonical': 'x',
+              'members': <int>[1, 2, 3],
+              'roles': <String, String>{'3': 'receive'},
+            },
+            <String, dynamic>{
+              'id': 2,
+              'type': 'text',
+              'canonical': 'y',
+              'members': <int>[4, 5],
+            },
+          ],
+        });
+      expect(c.groups, hasLength(1));
+      final LinkGroup g = c.groups.single;
+      expect(g.members, <int>{1, 2, 3});
+      expect(c.isFollower(2), isTrue);
+      expect(c.isFollower(3), isFalse);
+      expect(c.isFollower(1), isFalse);
+    });
+
+    test('restore drops groups with no possible sender', () {
+      Map<String, dynamic> card(int id, String tool) => <String, dynamic>{
+        'id': id,
+        'tool': tool,
+        'x': 0,
+        'y': 0,
+        'w': 380,
+      };
+      final CanvasController c = CanvasController()
+        ..applyJson(<String, dynamic>{
+          'cards': <Map<String, dynamic>>[card(1, 'hash'), card(2, 'regex')],
+          'groups': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'id': 1,
+              'type': 'text',
+              'canonical': '',
+              'members': <int>[1, 2],
+            },
+          ],
+        });
+      expect(c.groups, isEmpty);
+    });
+  });
 }

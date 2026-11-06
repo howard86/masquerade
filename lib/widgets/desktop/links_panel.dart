@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show listEquals;
 
 import '../../state/canvas_controller.dart';
 import '../../state/link_group.dart';
+import '../../utility_catalog.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
@@ -302,8 +303,14 @@ class _MemberNode extends StatelessWidget {
         _FollowToggle(
           name: name,
           follows: controller.isFollower(card.id),
-          enabled:
-              controller.canFollow(card.id) || controller.isFollower(card.id),
+          enabled: controller.followFixed(card.id)
+              ? false
+              : controller.canFollow(card.id) || controller.isFollower(card.id),
+          fixedHint: !controller.followFixed(card.id)
+              ? null
+              : card.toolDescriptor?.linkCapability == LinkCapability.sourceOnly
+              ? 'Only sends'
+              : 'Always follows',
           color: identity.color,
           onChanged: (bool v) => controller.setFollower(card.id, v),
         ),
@@ -329,6 +336,7 @@ class _FollowToggle extends StatelessWidget {
     required this.name,
     required this.follows,
     required this.enabled,
+    this.fixedHint,
     required this.color,
     required this.onChanged,
   });
@@ -336,6 +344,7 @@ class _FollowToggle extends StatelessWidget {
   final String name;
   final bool follows;
   final bool enabled;
+  final String? fixedHint;
   final Color color;
   final ValueChanged<bool> onChanged;
 
@@ -350,7 +359,7 @@ class _FollowToggle extends StatelessWidget {
       toggled: follows,
       enabled: enabled,
       label: '$name follow only',
-      hint: enabled ? null : 'At least one window must send',
+      hint: enabled ? null : (fixedHint ?? 'At least one window must send'),
       excludeSemantics: true,
       onTap: enabled ? _toggle : null,
       child: GestureDetector(

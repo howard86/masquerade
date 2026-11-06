@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/state/canvas_controller.dart';
 import 'package:masquerade/state/link_group.dart';
@@ -202,5 +203,30 @@ void main() {
     c.setFollower(a, true);
     await _pump(tester, c);
     expect(find.textContaining('No window sends'), findsNothing);
+  });
+
+  testWidgets('follow toggle is disabled with a hint for fixed roles', (
+    tester,
+  ) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+    final CanvasController c = CanvasController();
+    final int a = c.openTool(base64);
+    final int h = c.openTool(UtilityCatalog.byId('hash'));
+    final int g = c.openTool(UtilityCatalog.byId('generator'));
+    c.linkCards(a, h, type: ContentType.text);
+    c.linkCards(g, a, type: ContentType.text);
+    await _pump(tester, c);
+
+    SemanticsData data(String label) =>
+        tester.getSemantics(find.bySemanticsLabel(label)).getSemanticsData();
+    expect(
+      data('${UtilityCatalog.byId('hash').name} follow only').hint,
+      'Always follows',
+    );
+    expect(
+      data('${UtilityCatalog.byId('generator').name} follow only').hint,
+      'Only sends',
+    );
+    handle.dispose();
   });
 }

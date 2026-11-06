@@ -102,13 +102,7 @@ void main() {
         final CanvasController c = CanvasController();
         c.applyJson(<String, dynamic>{
           'cards': <Map<String, dynamic>>[
-            <String, dynamic>{
-              'id': 1,
-              'tool': 'generator',
-              'x': 0,
-              'y': 0,
-              'w': 380,
-            },
+            <String, dynamic>{'id': 1, 'tool': 'jwt', 'x': 0, 'y': 0, 'w': 380},
             <String, dynamic>{
               'id': 2,
               'tool': 'json',
@@ -142,7 +136,7 @@ void main() {
             'cards': <Map<String, dynamic>>[
               <String, dynamic>{
                 'id': 1,
-                'tool': 'generator',
+                'tool': 'jwt',
                 'x': 0,
                 'y': 0,
                 'w': 380,
@@ -189,7 +183,7 @@ void main() {
           'cards': <Map<String, dynamic>>[
             <String, dynamic>{
               'id': 1,
-              'tool': 'generator',
+              'tool': 'jwt',
               'x': 0,
               'y': 0,
               'w': 380,
@@ -673,8 +667,8 @@ void main() {
         c.channelForCard(a)!.emit('second-value');
         expect(canonical(), 'second-value');
 
-        // The sensitive generator cannot accept live text, so joining is rejected.
-        final int gen = c.openTool(generator);
+        // The sensitive JWT tool cannot accept live text, so joining is rejected.
+        final int gen = c.openTool(UtilityCatalog.byId('jwt'));
         expect(c.linkCards(b, gen, type: ContentType.text), isNull);
         expect(canonical(), 'second-value');
       },

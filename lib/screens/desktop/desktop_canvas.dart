@@ -977,9 +977,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     if (left >= visibleLeft) _c.moveTo(newId, left, source.y);
   }
 
-  bool _isLinkable(UtilityDescriptor descriptor) =>
-      descriptor.inputSources.contains(UtilityInputSource.liveLink) &&
-      descriptor.liveLinkTypes.isNotEmpty;
+  bool _isLinkable(UtilityDescriptor descriptor) => descriptor.supportsLiveLink;
 
   String? _linkedMemberNames(CanvasCard card, LinkGroup group) {
     final Set<String> names = group.members
@@ -1001,10 +999,16 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     final List<_LinkTargetChoice> newChoices = <_LinkTargetChoice>[];
     final Set<String> blockedTargets = <String>{};
     final LinkGroup? sourceGroup = _c.groupForCard(source.id);
+    final bool sourceFollowsOnly =
+        sourceDescriptor.linkCapability == LinkCapability.followOnly;
+    // A follow-only source follows its target, so the target must be able to
+    // send.
+    bool canPair(UtilityDescriptor t) =>
+        !sourceFollowsOnly || t.linkCapability != LinkCapability.followOnly;
     for (final CanvasCard target in _c.cards) {
       if (target.id == source.id) continue;
       final UtilityDescriptor? targetDescriptor = target.toolDescriptor;
-      if (targetDescriptor == null) continue;
+      if (targetDescriptor == null || !canPair(targetDescriptor)) continue;
       final LinkGroup? targetGroup = _c.groupForCard(target.id);
       final ContentType? type = _c.defaultLinkType(
         sourceDescriptor,
@@ -1034,13 +1038,21 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
       ));
     }
     for (final UtilityDescriptor target in UtilityCatalog.all) {
-      if (!_isLinkable(target)) continue;
+      if (!_isLinkable(target) || !canPair(target)) continue;
       final ContentType? type = _c.defaultLinkType(
         sourceDescriptor,
         target,
         sourceGroup: sourceGroup,
       );
       if (type == null) continue;
+      if (type == ContentType.text &&
+          target.linkCapability != LinkCapability.sourceOnly &&
+          sourceDescriptor.linkCapability != LinkCapability.followOnly &&
+          !target.linkAcceptsTextShapes.contains(
+            sourceDescriptor.linkTextShape,
+          )) {
+        continue;
+      }
       newChoices.add((
         descriptor: target,
         type: type,
@@ -1060,6 +1072,8 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
 
     final String explanation = empty
         ? 'No compatible target is available. Try dragging an output onto a window that supports the same value type.'
+        : sourceFollowsOnly
+        ? '${sourceDescriptor.name} only displays what it receives, so it follows the window you pick.'
         : 'Linked windows share one value. Followers only receive it.';
     final String sourceBlockedNote = sourceGroup == null
         ? ''
@@ -1083,14 +1097,16 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
       choice = await showCupertinoModalPopup<_LinkTargetChoice>(
         context: context,
         builder: (BuildContext sheetContext) => CupertinoActionSheet(
-          title: Text('Link ${sourceDescriptor.name}'),
+          title: Text(
+            '${sourceFollowsOnly ? 'Follow' : 'Link'} ${sourceDescriptor.name}',
+          ),
           message: StatefulBuilder(
             builder: (BuildContext context, StateSetter setSheetState) =>
                 Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
                     Text('$explanation$sourceBlockedNote$targetBlockedNote'),
-                    if (!empty) ...<Widget>[
+                    if (!empty && !sourceFollowsOnly) ...<Widget>[
                       const SizedBox(height: MqSpacing.md),
                       _followToggle(
                         context,
@@ -1208,10 +1224,16 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
         ? null
         : identities[targetGroup.id];
     final String name = target.descriptor.name;
+    final String? roleTag = switch (target.descriptor.linkCapability) {
+      LinkCapability.followOnly => 'Follows',
+      LinkCapability.sourceOnly => 'Sends only',
+      LinkCapability.twoWay => null,
+    };
     final String semantic = <String>[
       '${isOpen ? 'Link to' : 'Open'} $name',
       if (target.suggested) 'Suggested',
       ?availability,
+      ?roleTag,
       if (groupIdentity != null) 'in link group ${groupIdentity.letter}',
     ].join(', ');
     return CupertinoActionSheetAction(
@@ -1229,6 +1251,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
             Text(isOpen ? 'Link to $name' : 'Open $name'),
             if (target.suggested) const LinkTag(label: 'Suggested'),
             if (availability != null) LinkTag(label: availability),
+            if (roleTag != null) LinkTag(label: roleTag),
             if (groupIdentity != null)
               LinkTag(label: groupIdentity.letter, color: groupIdentity.color),
           ],
@@ -1485,13 +1508,13 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
           icon: MqIcons.copy,
           action: () => _c.duplicate(card.id),
         ),
-        if (linked && _c.isFollower(card.id))
+        if (linked && !_c.followFixed(card.id) && _c.isFollower(card.id))
           ContextMenuItem(
             label: '✓ Follow Only',
             icon: MqIcons.link,
             action: () => _c.setFollower(card.id, false),
           )
-        else if (linked && _c.canFollow(card.id))
+        else if (linked && !_c.followFixed(card.id) && _c.canFollow(card.id))
           ContextMenuItem(
             label: 'Follow Only',
             icon: MqIcons.link,
