@@ -19,6 +19,7 @@ import '../../utils/sensitive_data_policy.dart';
 import '../../widgets/desktop/command_palette.dart';
 import '../../widgets/desktop/desktop_icon_grid.dart';
 import '../../widgets/desktop/link_identity.dart';
+import '../../widgets/desktop/link_picker_popover.dart';
 import '../../widgets/desktop/link_tag.dart';
 import '../../widgets/desktop/links_panel.dart';
 import '../../widgets/desktop/pipe.dart';
@@ -61,6 +62,10 @@ typedef _LinkTargetChoice = ({
   ContentType type,
   int? cardId,
   bool suggested,
+
+  /// The link is only valid with the target following (it would send a
+  /// shape the group can't read).
+  bool mustFollow,
 });
 
 /// The desktop work surface: a pannable canvas hosting the fixed
@@ -726,11 +731,11 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
           },
       onResizeEnd: _c.commit,
       linked: linked,
-      linkTooltip: linked ? 'Unlink' : 'Choose live link target',
+      linkTooltip: linked ? 'Link more windows' : 'Choose live link target',
       linkHint: linked
           ? follower
-                ? 'Link group ${identity?.letter ?? ''}. Follows ${linkedNames ?? 'other windows'}. Tap to unlink this window.'
-                : 'Link group ${identity?.letter ?? ''}, two-way with ${linkedNames ?? 'other windows'}. Tap to unlink this window.'
+                ? 'Link group ${identity?.letter ?? ''}. Follows ${linkedNames ?? 'other windows'}. Tap to link more windows.'
+                : 'Link group ${identity?.letter ?? ''}, two-way with ${linkedNames ?? 'other windows'}. Tap to link more windows.'
           : partner != null
           ? 'Choose a window to link; ${UtilityCatalog.byId(partner.partnerId).name} is suggested.'
           : 'Choose an open window or a new tool to link. Drag an output cell onto another window to link it directly.',
@@ -738,11 +743,11 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
           ? '${identity?.letter ?? ''}${follower ? ' · follows' : ''}'
           : null,
       linkColor: identity?.color,
-      onLink: linked
-          ? () => _c.unlinkCard(card.id)
-          : !linkable
+      onLink: !linkable
           ? null
-          : () => _showLinkPicker(card, partner: partner),
+          : (Rect anchor) =>
+                _showLinkPicker(card, anchor: anchor, partner: partner),
+      onUnlink: linked ? () => _c.unlinkCard(card.id) : null,
       onSecondaryTapDown: (TapDownDetails details) =>
           _showWindowContextMenuFor(details.globalPosition, card.id),
       child: _toolBody(card, descriptor),
@@ -990,6 +995,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
 
   Future<void> _showLinkPicker(
     CanvasCard source, {
+    required Rect anchor,
     ({String partnerId, ContentType type})? partner,
   }) async {
     final UtilityDescriptor? sourceDescriptor = source.toolDescriptor;
@@ -1005,6 +1011,14 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     // send.
     bool canPair(UtilityDescriptor t) =>
         !sourceFollowsOnly || t.linkCapability != LinkCapability.followOnly;
+    // Only links that can actually be made are listed: null hides the row,
+    // true means it works only with the target following.
+    bool? followNeed(LinkIssue? Function(bool follows) issue) {
+      if (issue(false) == null) return false;
+      if (!sourceFollowsOnly && issue(true) == null) return true;
+      return null;
+    }
+
     for (final CanvasCard target in _c.cards) {
       if (target.id == source.id) continue;
       final UtilityDescriptor? targetDescriptor = target.toolDescriptor;
@@ -1029,12 +1043,21 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
         }
         continue;
       }
-      if (_c.linkIssueFor(source.id, target.id, type: type) != null) continue;
+      final bool? mustFollow = followNeed(
+        (bool follows) => _c.linkIssueFor(
+          source.id,
+          target.id,
+          type: type,
+          targetFollows: follows,
+        ),
+      );
+      if (mustFollow == null) continue;
       openChoices.add((
         descriptor: targetDescriptor,
         type: type,
         cardId: target.id,
         suggested: partner?.partnerId == targetDescriptor.id,
+        mustFollow: mustFollow,
       ));
     }
     for (final UtilityDescriptor target in UtilityCatalog.all) {
@@ -1045,19 +1068,21 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
         sourceGroup: sourceGroup,
       );
       if (type == null) continue;
-      if (type == ContentType.text &&
-          target.linkCapability != LinkCapability.sourceOnly &&
-          sourceDescriptor.linkCapability != LinkCapability.followOnly &&
-          !target.linkAcceptsTextShapes.contains(
-            sourceDescriptor.linkTextShape,
-          )) {
-        continue;
-      }
+      final bool? mustFollow = followNeed(
+        (bool follows) => _c.linkIssueForTool(
+          source.id,
+          target,
+          type: type,
+          targetFollows: follows,
+        ),
+      );
+      if (mustFollow == null) continue;
       newChoices.add((
         descriptor: target,
         type: type,
         cardId: null,
         suggested: partner?.partnerId == target.id,
+        mustFollow: mustFollow,
       ));
     }
     // The suggested partner leads its section.
@@ -1075,58 +1100,48 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
         : sourceFollowsOnly
         ? '${sourceDescriptor.name} only displays what it receives, so it follows the window you pick.'
         : 'Linked windows share one value. Followers only receive it.';
-    final String sourceBlockedNote = sourceGroup == null
-        ? ''
-        : '\n\nThis window is already linked as ${contentTypeLabel(sourceGroup.type)}. Unlink it before choosing another type.';
-    final String targetBlockedNote = blockedTargets.isEmpty
-        ? ''
-        : blockedTargets.length == 1
-        ? '\n\n${blockedTargets.single} already uses another link type. Unlink it before joining.'
-        : '\n\n${blockedTargets.join(', ')} already use another link type. Unlink them before joining.';
+    final List<String> notes = <String>[
+      if (sourceGroup != null)
+        'Linked as ${contentTypeLabel(sourceGroup.type)}. Unlink it to choose another type.',
+      if (blockedTargets.length == 1)
+        '${blockedTargets.single} already uses another link type. Unlink it before joining.'
+      else if (blockedTargets.length > 1)
+        '${blockedTargets.join(', ')} already use another link type. Unlink them before joining.',
+    ];
 
     final Map<int, LinkIdentity> identities = linkIdentities(
       _c.groups,
       context.mq.colors,
     );
     final List<CanvasCard> openOrder = _c.cards;
-    bool targetFollows = false;
+
+    LinkPickerRow<_LinkTargetChoice> rowFor(
+      _LinkTargetChoice target, {
+      required int slot,
+    }) => _linkTargetRow(target, identities: identities, slot: slot);
 
     _linkPickerOpen = true;
-    _LinkTargetChoice? choice;
+    LinkPickerResult<_LinkTargetChoice>? result;
     try {
-      choice = await showCupertinoModalPopup<_LinkTargetChoice>(
-        context: context,
-        builder: (BuildContext sheetContext) => CupertinoActionSheet(
-          title: Text(
+      result = await showLinkPickerPopover<_LinkTargetChoice>(
+        context,
+        anchor: anchor,
+        title:
             '${sourceFollowsOnly ? 'Follow' : 'Link'} ${sourceDescriptor.name}',
-          ),
-          message: StatefulBuilder(
-            builder: (BuildContext context, StateSetter setSheetState) =>
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Text('$explanation$sourceBlockedNote$targetBlockedNote'),
-                    if (!empty && !sourceFollowsOnly) ...<Widget>[
-                      const SizedBox(height: MqSpacing.md),
-                      _followToggle(
-                        context,
-                        label: 'Target follows ${sourceDescriptor.name}',
-                        value: targetFollows,
-                        onChanged: (bool v) =>
-                            setSheetState(() => targetFollows = v),
-                      ),
-                    ],
-                  ],
-                ),
-          ),
-          actions: <Widget>[
-            if (openChoices.isNotEmpty) ...<Widget>[
-              _pickerHeader(sheetContext, 'Open windows'),
+        explanation: explanation,
+        notes: notes,
+        followLabel: sourceFollowsOnly
+            ? null
+            : 'Target follows ${sourceDescriptor.name}',
+        // From an existing group, new picks join downstream by default.
+        initialFollows: sourceGroup != null,
+        sections: <LinkPickerSection<_LinkTargetChoice>>[
+          LinkPickerSection<_LinkTargetChoice>(
+            title: 'Open windows',
+            rows: <LinkPickerRow<_LinkTargetChoice>>[
               for (final _LinkTargetChoice target in openChoices)
-                _linkTargetAction(
-                  sheetContext,
+                rowFor(
                   target,
-                  identities: identities,
                   slot:
                       openOrder.indexWhere(
                         (CanvasCard c) => c.id == target.cardId,
@@ -1134,83 +1149,34 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
                       1,
                 ),
             ],
-            if (newChoices.isNotEmpty) ...<Widget>[
-              _pickerHeader(sheetContext, 'New window'),
-              for (final _LinkTargetChoice target in newChoices)
-                _linkTargetAction(
-                  sheetContext,
-                  target,
-                  identities: identities,
-                  slot: 0,
-                ),
-            ],
-          ],
-          cancelButton: CupertinoActionSheetAction(
-            onPressed: () => Navigator.of(sheetContext).pop(),
-            child: const Text('Cancel'),
           ),
-        ),
+          LinkPickerSection<_LinkTargetChoice>(
+            title: 'New window',
+            rows: <LinkPickerRow<_LinkTargetChoice>>[
+              for (final _LinkTargetChoice target in newChoices)
+                rowFor(target, slot: 0),
+            ],
+          ),
+        ],
       );
     } finally {
       _linkPickerOpen = false;
     }
-    if (choice == null || !mounted) return;
-    await _applyLinkChoice(source, choice, targetFollows: targetFollows);
-  }
-
-  Widget _pickerHeader(BuildContext context, String label) => Padding(
-    padding: const EdgeInsets.symmetric(
-      horizontal: MqSpacing.md,
-      vertical: MqSpacing.sm,
-    ),
-    child: Text(
-      label,
-      style: MqTextStyles.monoSm.copyWith(color: context.mq.colors.textSec),
-    ),
-  );
-
-  Widget _followToggle(
-    BuildContext context, {
-    required String label,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    final MqColors c = context.mq.colors;
-    return Semantics(
-      label: label,
-      checked: value,
-      button: true,
-      excludeSemantics: true,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => onChanged(!value),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(
-              value
-                  ? CupertinoIcons.check_mark_circled_solid
-                  : CupertinoIcons.circle,
-              size: 20,
-              color: value ? c.accent : c.textSec,
-            ),
-            const SizedBox(width: MqSpacing.sm),
-            Text(label),
-          ],
-        ),
-      ),
+    if (result == null || !mounted) return;
+    await _applyLinkChoice(
+      source,
+      result.value,
+      targetFollows: result.follows || result.value.mustFollow,
     );
   }
 
   /// One picker row: tool icon + name, tagged with its open slot, a
   /// suggestion mark, and the target's group when linked.
-  Widget _linkTargetAction(
-    BuildContext sheetContext,
+  LinkPickerRow<_LinkTargetChoice> _linkTargetRow(
     _LinkTargetChoice target, {
     required Map<int, LinkIdentity> identities,
     required int slot,
   }) {
-    final MqColors c = sheetContext.mq.colors;
     final bool isOpen = target.cardId != null;
     final String? availability = !isOpen
         ? null
@@ -1224,11 +1190,13 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
         ? null
         : identities[targetGroup.id];
     final String name = target.descriptor.name;
-    final String? roleTag = switch (target.descriptor.linkCapability) {
-      LinkCapability.followOnly => 'Follows',
-      LinkCapability.sourceOnly => 'Sends only',
-      LinkCapability.twoWay => null,
-    };
+    final String? roleTag = target.mustFollow
+        ? 'Follows'
+        : switch (target.descriptor.linkCapability) {
+            LinkCapability.followOnly => 'Follows',
+            LinkCapability.sourceOnly => 'Sends only',
+            LinkCapability.twoWay => null,
+          };
     final String semantic = <String>[
       '${isOpen ? 'Link to' : 'Open'} $name',
       if (target.suggested) 'Suggested',
@@ -1236,27 +1204,18 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
       ?roleTag,
       if (groupIdentity != null) 'in link group ${groupIdentity.letter}',
     ].join(', ');
-    return CupertinoActionSheetAction(
-      onPressed: () => Navigator.of(sheetContext).pop(target),
-      child: Semantics(
-        label: semantic,
-        excludeSemantics: true,
-        child: Wrap(
-          alignment: WrapAlignment.center,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: MqSpacing.sm,
-          runSpacing: MqSpacing.xs,
-          children: <Widget>[
-            Icon(target.descriptor.icon, size: 18, color: c.textSec),
-            Text(isOpen ? 'Link to $name' : 'Open $name'),
-            if (target.suggested) const LinkTag(label: 'Suggested'),
-            if (availability != null) LinkTag(label: availability),
-            if (roleTag != null) LinkTag(label: roleTag),
-            if (groupIdentity != null)
-              LinkTag(label: groupIdentity.letter, color: groupIdentity.color),
-          ],
-        ),
-      ),
+    return LinkPickerRow<_LinkTargetChoice>(
+      value: target,
+      name: name,
+      icon: target.descriptor.icon,
+      semanticsLabel: semantic,
+      tags: <Widget>[
+        if (target.suggested) const LinkTag(label: 'Suggested'),
+        if (availability != null) LinkTag(label: availability),
+        if (roleTag != null) LinkTag(label: roleTag),
+        if (groupIdentity != null)
+          LinkTag(label: groupIdentity.letter, color: groupIdentity.color),
+      ],
     );
   }
 
@@ -1276,6 +1235,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
       source.id,
       targetId,
       type: choice.type,
+      targetFollows: targetFollows,
     );
     if (issue != null) {
       if (openedTarget) _c.close(targetId);
@@ -1291,7 +1251,12 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
         null) {
       if (openedTarget) _c.close(targetId);
       final LinkIssue issue =
-          _c.linkIssueFor(source.id, targetId, type: choice.type) ??
+          _c.linkIssueFor(
+            source.id,
+            targetId,
+            type: choice.type,
+            targetFollows: targetFollows,
+          ) ??
           LinkIssue.alreadyLinked;
       await _showLinkIssue(issue, choice.type);
     }
@@ -1543,7 +1508,11 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
           ContextMenuItem(
             label: 'Choose Link Target…',
             icon: MqIcons.link,
-            action: () => _showLinkPicker(card, partner: partner),
+            action: () => _showLinkPicker(
+              card,
+              anchor: position & Size.zero,
+              partner: partner,
+            ),
           ),
         ],
       ],

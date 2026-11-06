@@ -129,7 +129,7 @@ void main() {
     );
     final Finder rows = find.bySemanticsLabel(RegExp(r'^Open '));
     expect(
-      tester.getTopLeft(find.text('Open Base64')).dy,
+      tester.getTopLeft(find.bySemanticsLabel(RegExp(r'^Open Base64'))).dy,
       lessThanOrEqualTo(tester.getTopLeft(rows.at(1)).dy),
     );
     expect(_canvas(tester).cards, hasLength(1));

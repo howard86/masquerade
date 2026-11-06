@@ -1196,20 +1196,69 @@ class CanvasController extends ChangeNotifier {
   }
 
   /// Returns the reason the proposed link is invalid, or null when it can be
-  /// made. [a] is the source and [b] the target.
-  LinkIssue? linkIssueFor(int a, int b, {required ContentType type}) {
+  /// made. [a] is the source and [b] the target; [targetFollows] matches the
+  /// [linkCards] argument (a following target is not checked as a sender).
+  LinkIssue? linkIssueFor(
+    int a,
+    int b, {
+    required ContentType type,
+    bool targetFollows = false,
+  }) {
     if (a == b) return LinkIssue.sameWindow;
     final CanvasCard? source = _cardById(a);
     if (source == null) return LinkIssue.sourceMissing;
     final CanvasCard? target = _cardById(b);
     if (target == null) return LinkIssue.targetMissing;
-    if (source.toolDescriptor == null || target.toolDescriptor == null) {
+    final UtilityDescriptor? targetDescriptor = target.toolDescriptor;
+    if (source.toolDescriptor == null || targetDescriptor == null) {
       return LinkIssue.notToolWindow;
     }
-    if (!_supportsLiveLink(source, type)) return LinkIssue.sourceUnsupported;
-    if (!_supportsLiveLink(target, type)) return LinkIssue.targetUnsupported;
+    return _issueWith(
+      a,
+      targetId: b,
+      target: targetDescriptor,
+      targetGroup: groupForCard(b),
+      type: type,
+      targetFollows: targetFollows,
+    );
+  }
+
+  /// [linkIssueFor] for a [target] tool that is not open yet (the picker's
+  /// "New window" rows), so only links that can be made are offered.
+  LinkIssue? linkIssueForTool(
+    int a,
+    UtilityDescriptor target, {
+    required ContentType type,
+    bool targetFollows = false,
+  }) {
+    final CanvasCard? source = _cardById(a);
+    if (source == null) return LinkIssue.sourceMissing;
+    if (source.toolDescriptor == null) return LinkIssue.notToolWindow;
+    return _issueWith(
+      a,
+      targetId: null,
+      target: target,
+      targetGroup: null,
+      type: type,
+      targetFollows: targetFollows,
+    );
+  }
+
+  LinkIssue? _issueWith(
+    int a, {
+    required int? targetId,
+    required UtilityDescriptor target,
+    required LinkGroup? targetGroup,
+    required ContentType type,
+    required bool targetFollows,
+  }) {
+    if (!_supportsLiveLink(_cardById(a)!, type)) {
+      return LinkIssue.sourceUnsupported;
+    }
+    if (!target.supportsLiveLink || !target.liveLinkTypes.contains(type)) {
+      return LinkIssue.targetUnsupported;
+    }
     final LinkGroup? sourceGroup = groupForCard(a);
-    final LinkGroup? targetGroup = groupForCard(b);
     if ((sourceGroup != null && sourceGroup.type != type) ||
         (targetGroup != null && targetGroup.type != type)) {
       return LinkIssue.groupTypeConflict;
@@ -1218,23 +1267,46 @@ class CanvasController extends ChangeNotifier {
       return LinkIssue.alreadyLinked;
     }
     bool follows(int id) => _capability(id) == LinkCapability.followOnly;
-    if (follows(a) && follows(b) && !_otherSender(sourceGroup, targetGroup)) {
+    final bool targetFollowOnly =
+        target.linkCapability == LinkCapability.followOnly;
+    final bool otherSender = _otherSender(sourceGroup, targetGroup);
+    if (follows(a) && targetFollowOnly && !otherSender) {
       return LinkIssue.noSender;
     }
     if (type == ContentType.text) {
+      // The target sends unless it follows; a follow-only source with no
+      // other sender promotes the target to sender regardless.
+      final bool targetSends =
+          !targetFollowOnly &&
+          (!targetFollows ||
+              target.linkCapability == LinkCapability.sourceOnly ||
+              (follows(a) && !otherSender)) &&
+          (targetId == null ||
+              (targetGroup?.roleOf(targetId) ?? LinkRole.both).sends);
       final Set<int> ids = <int>{
         ...?sourceGroup?.members,
         ...?targetGroup?.members,
         a,
-        b,
+        ?targetId,
       };
-      bool sends(int id) =>
-          !follows(id) && (groupForCard(id)?.roleOf(id) ?? LinkRole.both).sends;
-      for (final int s in ids.where(sends)) {
-        final UtilityDescriptor sd = _cardById(s)!.toolDescriptor!;
-        for (final int r in ids) {
-          if (r == s) continue;
-          final UtilityDescriptor rd = _cardById(r)!.toolDescriptor!;
+      UtilityDescriptor describe(int id) =>
+          id == targetId ? target : _cardById(id)!.toolDescriptor!;
+      bool sends(int id) => id == targetId
+          ? targetSends
+          : !follows(id) &&
+                (groupForCard(id)?.roleOf(id) ?? LinkRole.both).sends;
+      final List<UtilityDescriptor> senders = <UtilityDescriptor>[
+        for (final int id in ids)
+          if (sends(id)) describe(id),
+        if (targetId == null && targetSends) target,
+      ];
+      final List<UtilityDescriptor> receivers = <UtilityDescriptor>[
+        for (final int id in ids) describe(id),
+        if (targetId == null) target,
+      ];
+      for (final UtilityDescriptor sd in senders) {
+        for (final UtilityDescriptor rd in receivers) {
+          if (identical(rd, sd)) continue;
           if (rd.linkCapability == LinkCapability.sourceOnly) continue;
           if (!_shapeOk(sd, rd)) return LinkIssue.shapeMismatch;
         }
@@ -1289,7 +1361,9 @@ class CanvasController extends ChangeNotifier {
       }
       return sourceGroup.id;
     }
-    if (linkIssueFor(a, b, type: type) != null) return null;
+    if (linkIssueFor(a, b, type: type, targetFollows: targetFollows) != null) {
+      return null;
+    }
 
     final LinkGroup group;
     if (sourceGroup != null) {

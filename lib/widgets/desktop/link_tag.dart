@@ -29,7 +29,7 @@ class LinkTag extends StatelessWidget {
       child: Text(
         label,
         maxLines: 1,
-        style: MqTextStyles.monoSm.copyWith(color: tint, letterSpacing: 0.3),
+        style: MqTextStyles.caption2.copyWith(color: tint, letterSpacing: 0.3),
       ),
     );
   }

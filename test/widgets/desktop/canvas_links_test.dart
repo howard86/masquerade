@@ -326,7 +326,7 @@ void main() {
     final int base64Card = canvas.cards.last.id;
     final Finder jsonUnlink = find.descendant(
       of: find.byType(ToolCardFrame).first,
-      matching: find.bySemanticsLabel('Unlink'),
+      matching: find.bySemanticsLabel('Link more windows'),
     );
 
     String linkHint() =>

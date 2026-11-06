@@ -38,6 +38,7 @@ class ToolCardFrame extends StatelessWidget {
     this.linkStatus,
     this.linkColor,
     this.onLink,
+    this.onUnlink,
     this.scrollBody = true,
     this.onSecondaryTapDown,
   });
@@ -72,7 +73,13 @@ class ToolCardFrame extends StatelessWidget {
   /// Tint of this window's link group (badge, link icon, outline); null falls
   /// back to the warning color.
   final Color? linkColor;
-  final VoidCallback? onLink;
+
+  /// Receives the link button's global rect so callers can anchor a popover.
+  final ValueChanged<Rect>? onLink;
+
+  /// When non-null (a linked window), the header shows a separate Unlink
+  /// button beside the link button.
+  final VoidCallback? onUnlink;
 
   /// Called with the drag delta while the title bar is dragged.
   final ValueChanged<Offset> onMoveDelta;
@@ -170,6 +177,7 @@ class ToolCardFrame extends StatelessWidget {
                     linkStatus: linkStatus,
                     linkColor: linkColor,
                     onLink: onLink,
+                    onUnlink: onUnlink,
                     onSecondaryTapDown: onSecondaryTapDown,
                   ),
                   if (height != null) Expanded(child: body) else body,
@@ -422,6 +430,7 @@ class _Header extends StatefulWidget {
     required this.linkStatus,
     required this.linkColor,
     required this.onLink,
+    required this.onUnlink,
     this.onSecondaryTapDown,
   });
 
@@ -440,7 +449,8 @@ class _Header extends StatefulWidget {
   final String? linkHint;
   final String? linkStatus;
   final Color? linkColor;
-  final VoidCallback? onLink;
+  final ValueChanged<Rect>? onLink;
+  final VoidCallback? onUnlink;
   final GestureTapDownCallback? onSecondaryTapDown;
 
   @override
@@ -449,6 +459,15 @@ class _Header extends StatefulWidget {
 
 class _HeaderState extends State<_Header> {
   bool _isDragging = false;
+  final GlobalKey _linkKey = GlobalKey();
+
+  void _handleLink() {
+    final RenderObject? box = _linkKey.currentContext?.findRenderObject();
+    final Rect rect = box is RenderBox && box.hasSize
+        ? box.localToGlobal(Offset.zero) & box.size
+        : Rect.zero;
+    widget.onLink!(rect);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -564,11 +583,19 @@ class _HeaderState extends State<_Header> {
               ],
               if (widget.onLink != null)
                 _IconButton(
+                  key: _linkKey,
                   icon: MqIcons.link,
                   tooltip: widget.linkTooltip ?? 'Link',
                   hint: widget.linkHint,
-                  onTap: widget.onLink!,
+                  onTap: _handleLink,
                   color: widget.linked ? (widget.linkColor ?? c.warning) : null,
+                ),
+              if (widget.onUnlink != null)
+                _IconButton(
+                  icon: MqIcons.unlink,
+                  tooltip: 'Unlink',
+                  hint: 'Remove this window from its link group.',
+                  onTap: widget.onUnlink!,
                 ),
               if (widget.onDuplicate != null)
                 _IconButton(
@@ -653,6 +680,7 @@ class _TrafficLightState extends State<_TrafficLight> {
 
 class _IconButton extends StatefulWidget {
   const _IconButton({
+    super.key,
     required this.icon,
     required this.tooltip,
     this.hint,

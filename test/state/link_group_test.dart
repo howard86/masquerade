@@ -689,6 +689,72 @@ void main() {
       );
     });
 
+    test(
+      'a target that only works as a follower passes with targetFollows',
+      () {
+        final CanvasController c = CanvasController();
+        final int b = c.openTool(base64);
+        final int col = c.openTool(color);
+        // Base64 sends plain text; Color only follows it.
+        c.linkCards(b, col, type: ContentType.text, targetFollows: true);
+        final int j = c.openTool(json);
+        // As a sender JSON would push json text into Color.
+        expect(
+          c.linkIssueFor(b, j, type: ContentType.text),
+          LinkIssue.shapeMismatch,
+        );
+        expect(
+          c.linkIssueFor(b, j, type: ContentType.text, targetFollows: true),
+          isNull,
+        );
+        expect(c.linkCards(b, j, type: ContentType.text), isNull);
+        expect(
+          c.linkCards(b, j, type: ContentType.text, targetFollows: true),
+          isNotNull,
+        );
+        expect(c.isFollower(j), isTrue);
+      },
+    );
+
+    test('linkIssueForTool matches linkIssueFor for a tool not yet open', () {
+      final CanvasController c = CanvasController();
+      final int u = c.openTool(UtilityCatalog.byId('url'));
+      final int j = c.openTool(json);
+      c.linkCards(u, j, type: ContentType.text);
+      // The group carries JSON text, which Color cannot read.
+      expect(
+        c.linkIssueForTool(u, color, type: ContentType.text),
+        LinkIssue.shapeMismatch,
+      );
+      expect(c.linkIssueForTool(u, list, type: ContentType.text), isNull);
+      for (final UtilityDescriptor t in UtilityCatalog.all) {
+        if (!t.supportsLiveLink ||
+            !t.liveLinkTypes.contains(ContentType.text)) {
+          continue;
+        }
+        for (final bool follows in <bool>[false, true]) {
+          final LinkIssue? predicted = c.linkIssueForTool(
+            u,
+            t,
+            type: ContentType.text,
+            targetFollows: follows,
+          );
+          final int id = c.openTool(t);
+          expect(
+            c.linkIssueFor(
+              u,
+              id,
+              type: ContentType.text,
+              targetFollows: follows,
+            ),
+            predicted,
+            reason: '${t.id} follows=$follows',
+          );
+          c.close(id);
+        }
+      }
+    });
+
     test('non-member source reads as a new-window drop', () {
       final CanvasController c = CanvasController();
       final int jwt = c.openTool(UtilityCatalog.byId('jwt'));
