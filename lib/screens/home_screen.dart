@@ -8,6 +8,7 @@ import '../models/artifact.dart';
 import '../models/saved_workflow.dart';
 import '../models/work_session.dart';
 import '../state/detection_preference_controller.dart';
+import '../state/history_controller.dart';
 import '../state/share_inbox_controller.dart';
 import '../state/work_session_controller.dart';
 import '../theme/mq_metrics.dart';
@@ -91,6 +92,9 @@ class _HomeScreenState extends State<HomeScreen> {
       const <DetectionMatch<Object?>>[];
   Timer? _detectDebounce;
   String? _seenText;
+  List<HistoryEntry>? _recentsEntries;
+  Duration? _recentsRetention;
+  List<UtilityDescriptor> _recentTools = const <UtilityDescriptor>[];
 
   /// Typed single-keystroke edits to text at least this long wait
   /// [_detectDelay] for typing to pause; shorter text sweeps in well under a
@@ -926,15 +930,36 @@ class _HomeScreenState extends State<HomeScreen> {
     final DetectionPreferenceController preferences =
         DetectionPreferenceScope.of(context);
     if (state == _WorkbenchState.empty) {
+      final WorkSession? session = WorkSessionScope.of(context).session;
+      final List<UtilityDescriptor> recent;
+      if (session == null || session.steps.isEmpty) {
+        recent = _recentsFor(HistoryScope.of(context));
+      } else {
+        recent = const <UtilityDescriptor>[];
+      }
       return Semantics(
         container: true,
         liveRegion: true,
         label: 'Empty Workbench',
-        child: MqEmptyHint(
-          label: 'Capture something to begin',
-          detail: widget.importEnabled
-              ? 'Type, paste, import a file, or scan a QR code.'
-              : 'Type, paste, or scan a QR code.',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            MqEmptyHint(
+              label: 'Capture something to begin',
+              detail: widget.importEnabled
+                  ? 'Type, paste, import a file, or scan a QR code.'
+                  : 'Type, paste, or scan a QR code.',
+            ),
+            if (recent.isNotEmpty)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  const SectionRule(label: 'Recent tools'),
+                  for (final UtilityDescriptor tool in recent)
+                    _SuggestionRow(tool: tool, onTap: () => _open(tool)),
+                ],
+              ),
+          ],
         ),
       );
     }
@@ -1058,6 +1083,26 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ],
     );
+  }
+
+  List<UtilityDescriptor> _recentsFor(HistoryController history) {
+    final List<HistoryEntry> entries = history.entries;
+    if (identical(entries, _recentsEntries) &&
+        _recentsRetention == history.retention) {
+      return _recentTools;
+    }
+    final Set<String> seen = <String>{};
+    _recentTools = <UtilityDescriptor>[
+      if (history.retention != Duration.zero)
+        for (final HistoryEntry entry in entries)
+          if (seen.add(entry.utilityId))
+            if (UtilityCatalog.byIdOrNull(entry.utilityId)
+                case final UtilityDescriptor tool)
+              tool,
+    ].take(5).toList(growable: false);
+    _recentsEntries = entries;
+    _recentsRetention = history.retention;
+    return _recentTools;
   }
 
   List<_DetectedSuggestion> _rankedSuggestions(

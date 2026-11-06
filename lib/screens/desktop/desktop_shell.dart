@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +12,7 @@ import '../../state/window_content.dart';
 import '../../theme/mq_colors.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
+import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
 import '../../widgets/desktop/desktop_dock.dart';
 import '../../widgets/desktop/desktop_menubar.dart';
@@ -30,6 +33,8 @@ class DesktopShell extends StatefulWidget {
 class _DesktopShellState extends State<DesktopShell>
     with WidgetsBindingObserver {
   final CanvasController _canvas = CanvasController();
+  Timer? _noticeTimer;
+  bool _showUnrecognizedNotice = false;
 
   @override
   void initState() {
@@ -53,6 +58,7 @@ class _DesktopShellState extends State<DesktopShell>
 
   @override
   void dispose() {
+    _noticeTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _canvas.dispose();
     super.dispose();
@@ -71,11 +77,22 @@ class _DesktopShellState extends State<DesktopShell>
             provenance: ArtifactProvenance.clipboard,
           ),
         );
-    if (matches.isEmpty) return;
+    if (matches.isEmpty) {
+      _showUnrecognizedPasteNotice();
+      return;
+    }
     _canvas.openTool(
       UtilityCatalog.byId(matches.first.primaryToolId),
       seed: matches.first.artifact.rawValue,
     );
+  }
+
+  void _showUnrecognizedPasteNotice() {
+    _noticeTimer?.cancel();
+    setState(() => _showUnrecognizedNotice = true);
+    _noticeTimer = Timer(const Duration(milliseconds: 2200), () {
+      if (mounted) setState(() => _showUnrecognizedNotice = false);
+    });
   }
 
   void _openSettings() {
@@ -96,6 +113,10 @@ class _DesktopShellState extends State<DesktopShell>
   }
 
   Widget _scaffold(MqColors c) {
+    final Widget noticeLabel = Text(
+      'No tool recognized this text',
+      style: MqTextStyles.footnote.copyWith(color: c.textPri),
+    );
     return CupertinoPageScaffold(
       backgroundColor: c.bg,
       child: Column(
@@ -122,6 +143,39 @@ class _DesktopShellState extends State<DesktopShell>
                   right: 0,
                   bottom: MqSpacing.md,
                   child: Center(child: _DesktopDockHost(controller: _canvas)),
+                ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 84,
+                  child: IgnorePointer(
+                    child: Center(
+                      child: AnimatedOpacity(
+                        key: const ValueKey<String>(
+                          'unrecognized-paste-notice',
+                        ),
+                        duration: MediaQuery.disableAnimationsOf(context)
+                            ? Duration.zero
+                            : const Duration(milliseconds: 160),
+                        opacity: _showUnrecognizedNotice ? 1 : 0,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: MqSpacing.md,
+                            vertical: MqSpacing.sm,
+                          ),
+                          decoration: BoxDecoration(
+                            color: c.surface.withValues(alpha: 0.96),
+                            borderRadius: BorderRadius.circular(MqRadius.md),
+                            border: Border.all(color: c.border),
+                            boxShadow: c.shadowLg,
+                          ),
+                          child: _showUnrecognizedNotice
+                              ? Semantics(liveRegion: true, child: noticeLabel)
+                              : ExcludeSemantics(child: noticeLabel),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),

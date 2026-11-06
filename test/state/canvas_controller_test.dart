@@ -22,6 +22,15 @@ void main() {
       expect(notified, 1);
     });
 
+    test('a later open supersedes a pending initial body focus', () {
+      final CanvasController c = CanvasController();
+      final int delayed = c.openTool(timestamp);
+      final int current = c.openTool(json);
+
+      expect(c.consumeInitialFocus(delayed), isFalse);
+      expect(c.consumeInitialFocus(current), isTrue);
+    });
+
     test('opens at the tool\'s default card width', () {
       final CanvasController c = CanvasController();
       c.openTool(timestamp); // standard

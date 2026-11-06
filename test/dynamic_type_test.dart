@@ -9,8 +9,8 @@ import 'package:masquerade/widgets/mq/mq_mono_cell.dart';
 /// Inventory test for Dynamic Type (xxxLarge ≈ TextScaler 2.0).
 ///
 /// Every tab and every tool body must pump at 2.0× without throwing a
-/// `RenderFlex` overflow. Library cards grow with the text scale, chip rows use
-/// `Wrap`, and settings rows let their labels flex, so
+/// `RenderFlex` overflow. Library cards grow with the text scale, category
+/// chips scroll horizontally, and settings rows let their labels flex, so
 /// the layouts survive large Dynamic Type. If a future change reintroduces an
 /// overflow, the matching test below fails.
 ///

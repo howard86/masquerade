@@ -67,7 +67,15 @@ void main() {
 
     expect(_cardIds(tester), UtilityCatalog.all.map((u) => u.id));
 
-    await tester.tap(find.text('Generate'));
+    tester
+        .widget<MqChip>(
+          find.ancestor(
+            of: find.text('Generate'),
+            matching: find.byType(MqChip),
+          ),
+        )
+        .onTap!();
+    await tester.pumpAndSettle();
     await tester.pumpAndSettle();
 
     expect(
@@ -78,7 +86,7 @@ void main() {
     );
   });
 
-  testWidgets('cards expose catalog routing and history metadata', (
+  testWidgets('cards expose routing and omit developer metadata', (
     WidgetTester tester,
   ) async {
     await _pumpLibrary(tester);
@@ -89,13 +97,13 @@ void main() {
             widget is ToolGridCard && widget.descriptor.id == 'uuid',
       ),
     );
-    expect(uuid.showMetadata, isTrue);
+    expect(uuid.showMetadata, isFalse);
     expect(
       find.descendant(
         of: find.byWidgetPredicate((Widget widget) => identical(widget, uuid)),
         matching: find.text(uuid.descriptor.metadataSummary),
       ),
-      findsOneWidget,
+      findsNothing,
     );
     expect(
       find.descendant(
@@ -114,7 +122,8 @@ void main() {
     final Finder cards = find.byType(ToolGridCard);
     final Size firstCard = tester.getSize(cards.first);
     expect(firstCard.width, greaterThan(340));
-    expect(firstCard.height, inInclusiveRange(112, 132));
+    expect(firstCard.height, lessThan(100));
+    expect(firstCard.height, inInclusiveRange(80, 85));
     expect(
       tester.getTopLeft(cards.at(1)).dy,
       greaterThan(tester.getTopLeft(cards.first).dy),
@@ -238,6 +247,7 @@ void main() {
       'base64',
     ]);
     expect(recentCards.first.lastEntry!.input, newest);
+    expect(tester.getSize(find.byWidget(recentCards.first)).height, 100);
     expect(
       find.bySemanticsLabel('Open JSON / YAML / TOML with recent input'),
       findsOneWidget,
@@ -270,9 +280,7 @@ void main() {
     expect(route.seed, isNull);
   });
 
-  testWidgets('search finds tools across categories in stable order', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('search ranks matching names first', (WidgetTester tester) async {
     await _pumpLibrary(tester);
 
     await tester.enterText(find.byType(CupertinoTextField), 'encode');
@@ -280,9 +288,31 @@ void main() {
 
     expect(
       _cardIds(tester),
-      UtilityCatalog.searchStable('encode').map((UtilityDescriptor u) => u.id),
+      UtilityCatalog.searchByName('encode').map((UtilityDescriptor u) => u.id),
     );
     expect(find.text('SEARCH RESULTS'), findsOneWidget);
+  });
+
+  testWidgets('json search ranks JSON / YAML / TOML first', (
+    WidgetTester tester,
+  ) async {
+    await _pumpLibrary(tester);
+
+    await tester.enterText(find.byType(CupertinoTextField), 'json');
+    await tester.pump();
+
+    expect(_cardIds(tester).first, 'json');
+  });
+
+  testWidgets('All tools chip is first in one horizontal row', (
+    WidgetTester tester,
+  ) async {
+    await _pumpLibrary(tester);
+
+    final Finder chips = find.byType(MqChip);
+    expect(tester.widget<MqChip>(chips.first).label, 'All tools');
+    expect(find.byType(SingleChildScrollView), findsWidgets);
+    expect(tester.getTopLeft(chips.last).dy, tester.getTopLeft(chips.first).dy);
   });
 
   testWidgets('search hides and then restores the selected category', (
@@ -292,7 +322,15 @@ void main() {
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
     await _pumpLibrary(tester);
 
-    await tester.tap(find.text('Generate'));
+    tester
+        .widget<MqChip>(
+          find.ancestor(
+            of: find.text('Generate'),
+            matching: find.byType(MqChip),
+          ),
+        )
+        .onTap!();
+    await tester.pumpAndSettle();
     await tester.pump();
     expect(
       _cardIds(tester),

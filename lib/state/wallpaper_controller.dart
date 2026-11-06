@@ -9,6 +9,13 @@ enum MqWallpaperType {
 }
 
 extension MqWallpaperTypeExtension on MqWallpaperType {
+  bool get isDark => switch (this) {
+    MqWallpaperType.auroraEspresso => true,
+    MqWallpaperType.parchmentMinimalist => false,
+    MqWallpaperType.cyberGlass => true,
+    MqWallpaperType.slateSolid => true,
+  };
+
   String get displayName => switch (this) {
     MqWallpaperType.auroraEspresso => 'Aurora Espresso',
     MqWallpaperType.parchmentMinimalist => 'Parchment Minimalist',

@@ -29,6 +29,20 @@ void main() {
     expect(find.text('{\n  "a": 1\n}'), findsOneWidget);
   });
 
+  testWidgets(
+    'JSON format picker uses short title-case values at desktop width',
+    (WidgetTester tester) async {
+      await pumpBodyAtWidth(
+        tester,
+        const JSONBody(initialInput: '{"a":1}'),
+        640,
+      );
+
+      expect(find.text('Pretty'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('JSON — Minified target re-renders on each parse', (
     WidgetTester tester,
   ) async {
@@ -37,9 +51,9 @@ void main() {
       const JSONBody(initialInput: '{ "a" : 1 }'),
       380,
     );
-    await tester.tap(find.text('Pretty JSON'));
+    await tester.tap(find.text('Pretty'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Minified JSON').last);
+    await tester.tap(find.text('Minified'));
     await tester.pumpAndSettle();
     expect(find.text('{"a":1}'), findsOneWidget);
 
@@ -139,7 +153,7 @@ void main() {
     await tester.pumpAndSettle(kDebouncePump);
 
     // Open the Target dropdown and pick Tree.
-    await tester.tap(find.text('Pretty JSON'));
+    await tester.tap(find.text('Pretty'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Tree').last);
     await tester.pumpAndSettle();
@@ -214,7 +228,7 @@ void main() {
     await tester.pumpAndSettle(kDebouncePump);
 
     // Switch Target to YAML.
-    await tester.tap(find.text('Pretty JSON'));
+    await tester.tap(find.text('Pretty'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('YAML').last);
     await tester.pumpAndSettle();
@@ -229,7 +243,8 @@ void main() {
     await tester.pumpAndSettle(kDebouncePump);
 
     // Input now holds YAML; Target now shows Pretty JSON.
-    expect(find.text('Pretty JSON'), findsOneWidget);
+    expect(find.text('Pretty'), findsOneWidget);
+    expect(find.text('PRETTY'), findsOneWidget);
     expect(find.text('YAML'), findsWidgets); // source dropdown shows YAML
     expect(find.text('{\n  "a": 1\n}'), findsOneWidget);
     semantics.dispose();
@@ -244,7 +259,7 @@ void main() {
     await tester.pumpAndSettle(kDebouncePump);
 
     // Open the Target dropdown.
-    await tester.tap(find.text('Pretty JSON'));
+    await tester.tap(find.text('Pretty'));
     await tester.pumpAndSettle();
 
     // A bare array has no TOML table representation, so the TOML target is
@@ -261,7 +276,7 @@ void main() {
     // A Map root lets TOML be selected as the target.
     await tester.enterText(find.byType(EditableText).last, '{"a": 1}');
     await tester.pumpAndSettle(kDebouncePump);
-    await tester.tap(find.text('Pretty JSON'));
+    await tester.tap(find.text('Pretty'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('TOML').last);
     await tester.pumpAndSettle();
@@ -272,7 +287,8 @@ void main() {
     await tester.enterText(find.byType(EditableText).last, '[1, 2, 3]');
     await tester.pumpAndSettle(kDebouncePump);
 
-    expect(find.text('Pretty JSON'), findsOneWidget);
+    expect(find.text('Pretty'), findsOneWidget);
+    expect(find.text('PRETTY'), findsOneWidget);
     expect(find.text('[\n  1,\n  2,\n  3\n]'), findsOneWidget);
   });
 }

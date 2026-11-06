@@ -12,11 +12,13 @@ import '../../state/window_content.dart';
 import '../../theme/mq_colors.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_metrics.dart';
+import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
 import '../../widgets/desktop/command_palette.dart';
 import '../../widgets/desktop/desktop_icon_grid.dart';
 import '../../widgets/desktop/pipe.dart';
 import '../../widgets/desktop/tool_card_frame.dart';
+import '../../widgets/tool_bodies/deferred_tool_body.dart';
 import '../../widgets/tool_bodies/seed_source.dart';
 import '../history_screen.dart';
 import '../settings_screen.dart';
@@ -279,6 +281,19 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
               ),
             ),
             Positioned.fill(child: _iconGrid),
+            if (_c.isEmpty)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Center(
+                    child: Text(
+                      '⌘K open a tool · ⌘V paste anything',
+                      style: MqTextStyles.footnote.copyWith(
+                        color: c.textTer.withValues(alpha: 0.55),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             if (_c.hasLinks)
               Positioned.fill(
                 child: IgnorePointer(
@@ -632,7 +647,11 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
           : null,
       onSecondaryTapDown: (TapDownDetails details) =>
           _showWindowContextMenuFor(details.globalPosition, card.id),
-      child: _toolBody(card, descriptor),
+      child: _FocusOpenedToolBody(
+        controller: _c,
+        cardId: card.id,
+        child: _toolBody(card, descriptor),
+      ),
     );
     return DragTarget<PipePayload>(
       onWillAcceptWithDetails: (DragTargetDetails<PipePayload> d) =>
@@ -835,6 +854,77 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
       ),
     ]);
   }
+}
+
+class _FocusOpenedToolBody extends StatefulWidget {
+  const _FocusOpenedToolBody({
+    required this.controller,
+    required this.cardId,
+    required this.child,
+  });
+
+  final CanvasController controller;
+  final int cardId;
+  final Widget child;
+
+  @override
+  State<_FocusOpenedToolBody> createState() => _FocusOpenedToolBodyState();
+}
+
+class _FocusOpenedToolBodyState extends State<_FocusOpenedToolBody> {
+  final FocusScopeNode _scope = FocusScopeNode(
+    debugLabel: 'tool body',
+    traversalEdgeBehavior: TraversalEdgeBehavior.parentScope,
+  );
+  FocusNode? _openingFocus;
+  bool _focusGuardArmed = false;
+  bool _focusAbandoned = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _openingFocus = FocusManager.instance.primaryFocus;
+      FocusManager.instance.addListener(_onFocusChanged);
+      _focusGuardArmed = true;
+    });
+  }
+
+  void _onFocusChanged() {
+    if (_focusGuardArmed &&
+        FocusManager.instance.primaryFocus != _openingFocus) {
+      _focusAbandoned = true;
+    }
+  }
+
+  void _onBodyReady() {
+    if (!mounted) return;
+    final bool shouldFocus = widget.controller.consumeInitialFocus(
+      widget.cardId,
+    );
+    FocusManager.instance.removeListener(_onFocusChanged);
+    _focusGuardArmed = false;
+    if (shouldFocus &&
+        !_focusAbandoned &&
+        widget.controller.focusedId == widget.cardId &&
+        FocusManager.instance.primaryFocus == _openingFocus) {
+      _scope.nextFocus();
+    }
+  }
+
+  @override
+  void dispose() {
+    FocusManager.instance.removeListener(_onFocusChanged);
+    _scope.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => FocusScope(
+    node: _scope,
+    child: ToolBodyReadinessScope(onReady: _onBodyReady, child: widget.child),
+  );
 }
 
 /// Subtle dot grid that scrolls with the canvas pan, echoing the design mock.

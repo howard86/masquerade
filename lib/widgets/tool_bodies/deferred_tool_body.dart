@@ -72,6 +72,27 @@ bool _loaded = false;
 /// synchronously.
 bool get toolBodiesLoaded => _loaded;
 
+/// A canvas wrapper that wants to focus a tool's first input after its
+/// deferred body has replaced the loading placeholder.
+class ToolBodyReadinessScope extends InheritedWidget {
+  const ToolBodyReadinessScope({
+    super.key,
+    required this.onReady,
+    required super.child,
+  });
+
+  final VoidCallback onReady;
+
+  /// Reports that a real tool body has been built beneath this scope.
+  static void reportReady(BuildContext context) {
+    context.getInheritedWidgetOfExactType<ToolBodyReadinessScope>()?.onReady();
+  }
+
+  @override
+  bool updateShouldNotify(ToolBodyReadinessScope oldWidget) =>
+      onReady != oldWidget.onReady;
+}
+
 /// Loads the deferred tool-body library once. The app calls it after the
 /// first frame so the part is warm before the first tap; tests await it in
 /// `test/flutter_test_config.dart`. A failed load is forgotten so the next
@@ -130,6 +151,8 @@ class DeferredToolBody extends StatefulWidget {
 }
 
 class _DeferredToolBodyState extends State<DeferredToolBody> {
+  bool _readyCallbackScheduled = false;
+
   @override
   void initState() {
     super.initState();
@@ -154,7 +177,15 @@ class _DeferredToolBodyState extends State<DeferredToolBody> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loaded) return bodies.buildToolBody(widget.kind, widget.args);
+    if (_loaded) {
+      if (!_readyCallbackScheduled) {
+        _readyCallbackScheduled = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) ToolBodyReadinessScope.reportReady(context);
+        });
+      }
+      return bodies.buildToolBody(widget.kind, widget.args);
+    }
     return Container(
       key: const ValueKey<String>('deferred-tool-body-placeholder'),
       height: 160,

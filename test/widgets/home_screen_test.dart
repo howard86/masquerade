@@ -23,7 +23,7 @@ void main() {
     final Finder input = find.byWidgetPredicate(
       (Widget widget) =>
           widget is CupertinoTextField &&
-          widget.placeholder == 'Paste timestamp, JSON, hex, base64, color…',
+          widget.placeholder == 'Paste or type anything…',
     );
     expect(input, findsOneWidget);
     return input;
@@ -150,7 +150,7 @@ void main() {
       find.byWidgetPredicate(
         (Widget widget) =>
             widget is CupertinoTextField &&
-            widget.placeholder == 'Paste timestamp, JSON, hex, base64, color…',
+            widget.placeholder == 'Paste or type anything…',
       ),
     );
     expect(field.controller!.text, '{"from":"shortcut"}');
