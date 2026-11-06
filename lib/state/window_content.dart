@@ -5,7 +5,7 @@ import '../widgets/mq/mq_icons.dart';
 
 /// System apps that open as first-class desktop windows (not tool-catalog
 /// entries). Each has a fixed icon, title, and tint.
-enum SystemApp { history, settings }
+enum SystemApp { history, settings, links }
 
 /// Discriminated union for what a canvas card contains: either a catalog tool
 /// or a system app (History / Settings).
@@ -57,12 +57,14 @@ class SystemWindow extends WindowContent {
   String get title => switch (app) {
     SystemApp.history => 'History',
     SystemApp.settings => 'Settings',
+    SystemApp.links => 'Links',
   };
 
   @override
   IconData get icon => switch (app) {
     SystemApp.history => MqIcons.history,
     SystemApp.settings => MqIcons.setting,
+    SystemApp.links => MqIcons.link,
   };
 
   @override

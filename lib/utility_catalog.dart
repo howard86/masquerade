@@ -77,6 +77,19 @@ enum UtilityCategory {
 
 enum UtilityInputSource { text, clipboard, camera, liveLink }
 
+/// How a tool may take part in a desktop live link (docs/adr/0001).
+/// [twoWay] members send and receive. [followOnly] tools only display what
+/// they receive (inspectors, hashes), so they always join as followers.
+/// [sourceOnly] tools have no input to receive into (generators), so they
+/// can only send and never follow.
+enum LinkCapability { twoWay, followOnly, sourceOnly }
+
+/// What a tool's text-typed link value looks like. Text links are only
+/// offered when the sender's [UtilityDescriptor.linkTextShape] is in the
+/// receiver's [UtilityDescriptor.linkAcceptsTextShapes], so a color hex is
+/// never pushed into a JSON parser.
+enum TextShape { plain, json, color }
+
 enum UtilityQuickAction { paste, copy, share, openIn, scan }
 
 enum UtilitySensitivity { standard, sensitive }
@@ -125,6 +138,13 @@ class UtilityDescriptor {
     required this.builder,
     this.detectArtifact,
     this.defaultCardWidth = CardWidthClass.standard,
+    this.linkCapability = LinkCapability.twoWay,
+    this.linkTextShape = TextShape.plain,
+    this.linkAcceptsTextShapes = const <TextShape>{
+      TextShape.plain,
+      TextShape.json,
+      TextShape.color,
+    },
   });
 
   final String id;
@@ -147,6 +167,23 @@ class UtilityDescriptor {
 
   /// Width this tool's card opens at on the desktop canvas. Mobile ignores it.
   final CardWidthClass defaultCardWidth;
+
+  /// How this tool may join a live link; see [LinkCapability].
+  final LinkCapability linkCapability;
+
+  /// Shape of the text this tool sends on a [ContentType.text] link.
+  final TextShape linkTextShape;
+
+  /// Text shapes this tool can receive on a [ContentType.text] link.
+  final Set<TextShape> linkAcceptsTextShapes;
+
+  /// Whether this tool can join a desktop live link at all. Receiving tools
+  /// list [UtilityInputSource.liveLink]; a [LinkCapability.sourceOnly] tool
+  /// has no input, so its link types alone qualify it.
+  bool get supportsLiveLink =>
+      liveLinkTypes.isNotEmpty &&
+      (inputSources.contains(UtilityInputSource.liveLink) ||
+          linkCapability == LinkCapability.sourceOnly);
 
   String get metadataSummary {
     final String accepted = acceptedTypes.isEmpty
@@ -266,8 +303,9 @@ class UtilityCatalog {
       inputSources: <UtilityInputSource>{
         UtilityInputSource.text,
         UtilityInputSource.clipboard,
+        UtilityInputSource.liveLink,
       },
-      liveLinkTypes: <ContentType>{},
+      liveLinkTypes: <ContentType>{ContentType.text},
       quickActions: <UtilityQuickAction>{
         UtilityQuickAction.paste,
         UtilityQuickAction.openIn,
@@ -276,6 +314,7 @@ class UtilityCatalog {
       historyPolicy: HistoryPolicy.disabled,
       defaultCardWidth: CardWidthClass.wide,
       builder: deferredToolBuilder(ToolBodyKind.unicodeStringInspector),
+      linkCapability: LinkCapability.followOnly,
     ),
     UtilityDescriptor(
       id: 'x509_inspector',
@@ -406,14 +445,15 @@ class UtilityCatalog {
         UtilityCategory.inspect,
         UtilityCategory.compareValidate,
       },
-      acceptedTypes: <ContentType>{ContentType.text},
+      acceptedTypes: <ContentType>{ContentType.text, ContentType.number},
       producedTypes: <ContentType>{ContentType.text},
       sensitivity: UtilitySensitivity.standard,
       inputSources: <UtilityInputSource>{
         UtilityInputSource.text,
         UtilityInputSource.clipboard,
+        UtilityInputSource.liveLink,
       },
-      liveLinkTypes: <ContentType>{},
+      liveLinkTypes: <ContentType>{ContentType.number},
       quickActions: <UtilityQuickAction>{
         UtilityQuickAction.paste,
         UtilityQuickAction.copy,
@@ -542,7 +582,7 @@ class UtilityCatalog {
         UtilityInputSource.clipboard,
         UtilityInputSource.liveLink,
       },
-      liveLinkTypes: <ContentType>{ContentType.text},
+      liveLinkTypes: <ContentType>{ContentType.text, ContentType.json},
       quickActions: <UtilityQuickAction>{
         UtilityQuickAction.paste,
         UtilityQuickAction.copy,
@@ -553,6 +593,8 @@ class UtilityCatalog {
       defaultCardWidth: CardWidthClass.xwide,
       builder: deferredToolBuilder(ToolBodyKind.json),
       detectArtifact: _detectStructured,
+      linkTextShape: TextShape.json,
+      linkAcceptsTextShapes: const <TextShape>{TextShape.json, TextShape.plain},
     ),
     UtilityDescriptor(
       id: 'csv',
@@ -571,8 +613,9 @@ class UtilityCatalog {
       inputSources: <UtilityInputSource>{
         UtilityInputSource.text,
         UtilityInputSource.clipboard,
+        UtilityInputSource.liveLink,
       },
-      liveLinkTypes: <ContentType>{},
+      liveLinkTypes: <ContentType>{ContentType.json},
       quickActions: <UtilityQuickAction>{
         UtilityQuickAction.paste,
         UtilityQuickAction.copy,
@@ -628,7 +671,7 @@ class UtilityCatalog {
         UtilityInputSource.clipboard,
         UtilityInputSource.liveLink,
       },
-      liveLinkTypes: <ContentType>{ContentType.text},
+      liveLinkTypes: <ContentType>{ContentType.text, ContentType.bytes},
       quickActions: <UtilityQuickAction>{
         UtilityQuickAction.paste,
         UtilityQuickAction.copy,
@@ -661,8 +704,9 @@ class UtilityCatalog {
       inputSources: <UtilityInputSource>{
         UtilityInputSource.text,
         UtilityInputSource.clipboard,
+        UtilityInputSource.liveLink,
       },
-      liveLinkTypes: <ContentType>{},
+      liveLinkTypes: <ContentType>{ContentType.text},
       quickActions: <UtilityQuickAction>{
         UtilityQuickAction.paste,
         UtilityQuickAction.copy,
@@ -672,6 +716,7 @@ class UtilityCatalog {
       historyPolicy: HistoryPolicy.enabled,
       builder: deferredToolBuilder(ToolBodyKind.textCase),
       detectArtifact: _detectCase,
+      linkCapability: LinkCapability.followOnly,
     ),
     UtilityDescriptor(
       id: 'url',
@@ -699,8 +744,9 @@ class UtilityCatalog {
       inputSources: <UtilityInputSource>{
         UtilityInputSource.text,
         UtilityInputSource.clipboard,
+        UtilityInputSource.liveLink,
       },
-      liveLinkTypes: <ContentType>{},
+      liveLinkTypes: <ContentType>{ContentType.text},
       quickActions: <UtilityQuickAction>{
         UtilityQuickAction.paste,
         UtilityQuickAction.copy,
@@ -742,6 +788,11 @@ class UtilityCatalog {
       defaultCardWidth: CardWidthClass.wide,
       builder: deferredToolBuilder(ToolBodyKind.color),
       detectArtifact: _detectColor,
+      linkTextShape: TextShape.color,
+      linkAcceptsTextShapes: const <TextShape>{
+        TextShape.color,
+        TextShape.plain,
+      },
     ),
     UtilityDescriptor(
       id: 'math',
@@ -794,8 +845,9 @@ class UtilityCatalog {
       inputSources: <UtilityInputSource>{
         UtilityInputSource.text,
         UtilityInputSource.clipboard,
+        UtilityInputSource.liveLink,
       },
-      liveLinkTypes: <ContentType>{},
+      liveLinkTypes: <ContentType>{ContentType.number},
       quickActions: <UtilityQuickAction>{
         UtilityQuickAction.paste,
         UtilityQuickAction.copy,
@@ -823,8 +875,9 @@ class UtilityCatalog {
       inputSources: <UtilityInputSource>{
         UtilityInputSource.text,
         UtilityInputSource.clipboard,
+        UtilityInputSource.liveLink,
       },
-      liveLinkTypes: <ContentType>{},
+      liveLinkTypes: <ContentType>{ContentType.bytes, ContentType.text},
       quickActions: <UtilityQuickAction>{
         UtilityQuickAction.paste,
         UtilityQuickAction.copy,
@@ -888,8 +941,9 @@ class UtilityCatalog {
       inputSources: <UtilityInputSource>{
         UtilityInputSource.text,
         UtilityInputSource.clipboard,
+        UtilityInputSource.liveLink,
       },
-      liveLinkTypes: <ContentType>{},
+      liveLinkTypes: <ContentType>{ContentType.text},
       quickActions: <UtilityQuickAction>{
         UtilityQuickAction.paste,
         UtilityQuickAction.copy,
@@ -899,6 +953,7 @@ class UtilityCatalog {
       defaultCardWidth: CardWidthClass.wide,
       builder: deferredToolBuilder(ToolBodyKind.regex),
       detectArtifact: _detectRegex,
+      linkCapability: LinkCapability.followOnly,
     ),
     UtilityDescriptor(
       id: 'diff',
@@ -950,8 +1005,9 @@ class UtilityCatalog {
       inputSources: <UtilityInputSource>{
         UtilityInputSource.text,
         UtilityInputSource.clipboard,
+        UtilityInputSource.liveLink,
       },
-      liveLinkTypes: <ContentType>{},
+      liveLinkTypes: <ContentType>{ContentType.text},
       quickActions: <UtilityQuickAction>{
         UtilityQuickAction.paste,
         UtilityQuickAction.copy,
@@ -961,6 +1017,7 @@ class UtilityCatalog {
       historyPolicy: HistoryPolicy.enabled,
       builder: deferredToolBuilder(ToolBodyKind.hash),
       detectArtifact: _detectHashAndPem,
+      linkCapability: LinkCapability.followOnly,
     ),
     UtilityDescriptor(
       id: 'qr_code',
@@ -980,8 +1037,9 @@ class UtilityCatalog {
         UtilityInputSource.text,
         UtilityInputSource.clipboard,
         UtilityInputSource.camera,
+        UtilityInputSource.liveLink,
       },
-      liveLinkTypes: <ContentType>{},
+      liveLinkTypes: <ContentType>{ContentType.text},
       quickActions: <UtilityQuickAction>{
         UtilityQuickAction.paste,
         UtilityQuickAction.copy,
@@ -992,6 +1050,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
       builder: deferredToolBuilder(ToolBodyKind.qrCode),
+      linkCapability: LinkCapability.followOnly,
     ),
     UtilityDescriptor(
       id: 'generator',
@@ -1014,7 +1073,7 @@ class UtilityCatalog {
       producedTypes: <ContentType>{ContentType.text},
       sensitivity: UtilitySensitivity.sensitive,
       inputSources: <UtilityInputSource>{},
-      liveLinkTypes: <ContentType>{},
+      liveLinkTypes: <ContentType>{ContentType.text},
       quickActions: <UtilityQuickAction>{
         UtilityQuickAction.copy,
         UtilityQuickAction.openIn,
@@ -1022,6 +1081,7 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.disabled,
       builder: deferredToolBuilder(ToolBodyKind.generator),
+      linkCapability: LinkCapability.sourceOnly,
     ),
     UtilityDescriptor(
       id: 'mojibake',
@@ -1051,8 +1111,9 @@ class UtilityCatalog {
       inputSources: <UtilityInputSource>{
         UtilityInputSource.text,
         UtilityInputSource.clipboard,
+        UtilityInputSource.liveLink,
       },
-      liveLinkTypes: <ContentType>{},
+      liveLinkTypes: <ContentType>{ContentType.text},
       quickActions: <UtilityQuickAction>{
         UtilityQuickAction.paste,
         UtilityQuickAction.copy,
@@ -1063,6 +1124,7 @@ class UtilityCatalog {
       defaultCardWidth: CardWidthClass.wide,
       builder: deferredToolBuilder(ToolBodyKind.mojibake),
       detectArtifact: _detectMojibake,
+      linkCapability: LinkCapability.followOnly,
     ),
     UtilityDescriptor(
       id: 'markdown',
@@ -1085,14 +1147,16 @@ class UtilityCatalog {
       inputSources: <UtilityInputSource>{
         UtilityInputSource.text,
         UtilityInputSource.clipboard,
+        UtilityInputSource.liveLink,
       },
-      liveLinkTypes: <ContentType>{},
+      liveLinkTypes: <ContentType>{ContentType.text},
       quickActions: <UtilityQuickAction>{UtilityQuickAction.paste},
       batchCapable: false,
       historyPolicy: HistoryPolicy.enabled,
       defaultCardWidth: CardWidthClass.wide,
       builder: deferredToolBuilder(ToolBodyKind.markdown),
       detectArtifact: _detectMarkdown,
+      linkCapability: LinkCapability.followOnly,
     ),
   ];
 

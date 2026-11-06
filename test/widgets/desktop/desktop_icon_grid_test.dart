@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/app.dart';
 import 'package:masquerade/state/view_mode_controller.dart';
+import 'package:masquerade/state/wallpaper_controller.dart';
 import 'package:masquerade/state/window_content.dart';
 import 'package:masquerade/theme/mq_colors.dart';
 import 'package:masquerade/theme/mq_theme.dart';
@@ -37,12 +38,15 @@ Future<void> _pumpGrid(
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
     CupertinoApp(
-      home: MqTheme(
-        tokens: MqTokens(
-          colors: MqColors.light(),
-          brightness: Brightness.light,
+      home: WallpaperScope(
+        controller: WallpaperController(),
+        child: MqTheme(
+          tokens: MqTokens(
+            colors: MqColors.light(),
+            brightness: Brightness.light,
+          ),
+          child: DesktopIconGrid(onOpen: opened.add, onOpenSystem: (_) {}),
         ),
-        child: DesktopIconGrid(onOpen: opened.add, onOpenSystem: (_) {}),
       ),
     ),
   );

@@ -58,6 +58,7 @@ Widget buildToolBody(ToolBodyKind kind, ToolBodyArgs a) => switch (kind) {
     seedSource: a.seedSource,
     onSwitchTool: a.onSwitchTool,
     actionBar: a.actionBar,
+    link: a.link,
   ),
   ToolBodyKind.x509Inspector => X509InspectorBody(
     initialInput: a.initialInput,
@@ -130,6 +131,7 @@ Widget buildToolBody(ToolBodyKind kind, ToolBodyArgs a) => switch (kind) {
     seedSource: a.seedSource,
     onSwitchTool: a.onSwitchTool,
     actionBar: a.actionBar,
+    link: a.link,
   ),
   ToolBodyKind.jwt => JwtBody(
     initialInput: a.initialInput,
@@ -150,6 +152,7 @@ Widget buildToolBody(ToolBodyKind kind, ToolBodyArgs a) => switch (kind) {
     seedSource: a.seedSource,
     onSwitchTool: a.onSwitchTool,
     actionBar: a.actionBar,
+    link: a.link,
   ),
   ToolBodyKind.url => UrlBody(
     initialInput: a.initialInput,
@@ -177,12 +180,14 @@ Widget buildToolBody(ToolBodyKind kind, ToolBodyArgs a) => switch (kind) {
     seedSource: a.seedSource,
     onSwitchTool: a.onSwitchTool,
     actionBar: a.actionBar,
+    link: a.link,
   ),
   ToolBodyKind.bytes => BytesBody(
     initialInput: a.initialInput,
     seedSource: a.seedSource,
     onSwitchTool: a.onSwitchTool,
     actionBar: a.actionBar,
+    link: a.link,
   ),
   ToolBodyKind.list => ListToolBody(
     initialInput: a.initialInput,
@@ -195,6 +200,7 @@ Widget buildToolBody(ToolBodyKind kind, ToolBodyArgs a) => switch (kind) {
     initialInput: a.initialInput,
     seedSource: a.seedSource,
     actionBar: a.actionBar,
+    link: a.link,
   ),
   ToolBodyKind.diff => DiffBody(
     initialInput: a.initialInput,
@@ -207,12 +213,14 @@ Widget buildToolBody(ToolBodyKind kind, ToolBodyArgs a) => switch (kind) {
     seedSource: a.seedSource,
     onSwitchTool: a.onSwitchTool,
     actionBar: a.actionBar,
+    link: a.link,
   ),
   ToolBodyKind.qrCode => QrCodeBody(
     initialInput: a.initialInput,
     seedSource: a.seedSource,
     onSwitchTool: a.onSwitchTool,
     actionBar: a.actionBar,
+    link: a.link,
   ),
   ToolBodyKind.generator => GeneratorBody(
     initialInput: a.initialInput,
@@ -226,11 +234,13 @@ Widget buildToolBody(ToolBodyKind kind, ToolBodyArgs a) => switch (kind) {
     initialArtifact: a.initialArtifact,
     seedSource: a.seedSource,
     actionBar: a.actionBar,
+    link: a.link,
   ),
   ToolBodyKind.mojibake => MojibakeBody(
     initialInput: a.initialInput,
     seedSource: a.seedSource,
     onSwitchTool: a.onSwitchTool,
     actionBar: a.actionBar,
+    link: a.link,
   ),
 };

@@ -1,3 +1,4 @@
+import 'package:masquerade/state/link_group.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/utility_catalog.dart';
@@ -142,6 +143,32 @@ void main() {
     );
     expect(button.onPressed, isNull);
     expect(tester.takeException(), isNull);
+  });
+  testWidgets('follows linked text and never emits', (
+    WidgetTester tester,
+  ) async {
+    final ValueNotifier<String> inbound = ValueNotifier<String>('');
+    final List<String> emitted = <String>[];
+    final LinkChannel channel = LinkChannel(
+      canonicalType: ContentType.text,
+      inbound: inbound,
+      seedOnAttach: false,
+      role: () => LinkRole.receive,
+      onEmit: emitted.add,
+    );
+    await pumpBodyAtWidth(
+      tester,
+      UnicodeStringInspectorBody(link: channel),
+      340,
+    );
+    inbound.value = 'e\u0301';
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(_input(tester), 'e\u0301');
+    expect(find.textContaining('1 graphemes'), findsOneWidget);
+    await tester.enterText(find.byType(EditableText).first, 'local');
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(emitted, isEmpty);
   });
 }
 

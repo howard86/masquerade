@@ -1,7 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
+import '../../state/wallpaper_controller.dart';
 import '../../state/window_content.dart';
+import '../../theme/mq_colors.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
@@ -45,8 +49,47 @@ class DesktopIconGrid extends StatelessWidget {
   static const double _columnWidth = 84;
   static const double _tileStride = 78 + MqSpacing.sm;
 
+  /// Fill behind a launcher icon: the theme surface with a faint tint wash.
+  /// Tints span the whole luminance range, so a tint that would drop below
+  /// 3:1 on that fill gets the opposite-brightness surface instead.
+  @visibleForTesting
+  static Color iconBacking(MqTokens tokens, Color tint) {
+    Color wash(Color surface) =>
+        Color.alphaBlend(tint.withValues(alpha: 0.15), surface);
+    double ratio(Color fill) {
+      final double a = tint.computeLuminance(), b = fill.computeLuminance();
+      return (math.max(a, b) + 0.05) / (math.min(a, b) + 0.05);
+    }
+
+    final Color themed = wash(tokens.colors.surface);
+    if (ratio(themed) >= 3) return themed;
+    final Color opposite = wash(
+      tokens.isDark ? MqColors.light().surface : MqColors.dark().surface,
+    );
+    return ratio(opposite) > ratio(themed) ? opposite : themed;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final MqTokens outer = context.mq;
+    // Labels sit directly on the wallpaper, so they take the wallpaper's
+    // palette rather than the app theme's.
+    final Brightness wallpaper = WallpaperScope.of(
+      context,
+    ).type.brightness(outer.brightness);
+    return MqTheme(
+      tokens: MqTokens(
+        colors: wallpaper == Brightness.dark
+            ? MqColors.dark()
+            : MqColors.light(),
+        brightness: wallpaper,
+        density: outer.density,
+      ),
+      child: _buildGrid(),
+    );
+  }
+
+  Widget _buildGrid() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         MqSpacing.md,
@@ -231,7 +274,19 @@ class _LauncherTileState extends State<_LauncherTile>
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: <Widget>[
-                      Icon(widget.icon, size: 24, color: widget.tint),
+                      Container(
+                        width: 38,
+                        height: 38,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: DesktopIconGrid.iconBacking(
+                            context.mq,
+                            widget.tint,
+                          ),
+                          borderRadius: BorderRadius.circular(MqRadius.sm),
+                        ),
+                        child: Icon(widget.icon, size: 24, color: widget.tint),
+                      ),
                       const SizedBox(height: MqSpacing.xs),
                       Text(
                         widget.label,
@@ -239,6 +294,15 @@ class _LauncherTileState extends State<_LauncherTile>
                         overflow: TextOverflow.ellipsis,
                         style: MqTextStyles.caption2.copyWith(
                           color: c.textPri,
+                          shadows: <Shadow>[
+                            Shadow(
+                              color: context.mq.isDark
+                                  ? const Color(0xB3000000)
+                                  : const Color(0xB3FFFFFF),
+                              blurRadius: 3,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
                           fontWeight: highlighted
                               ? FontWeight.w600
                               : FontWeight.w400,

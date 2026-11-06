@@ -28,12 +28,14 @@ class DesktopMenubar extends StatefulWidget {
     required this.onPasteOpen,
     required this.onOpenSettings,
     required this.onOpenHistory,
+    required this.onOpenLinks,
   });
 
   final CanvasController controller;
   final VoidCallback onPasteOpen;
   final VoidCallback onOpenSettings;
   final VoidCallback onOpenHistory;
+  final VoidCallback onOpenLinks;
 
   @override
   State<DesktopMenubar> createState() => _DesktopMenubarState();
@@ -96,6 +98,7 @@ class _DesktopMenubarState extends State<DesktopMenubar> {
               _MenuItem('About Masquerade', _showAbout),
               _MenuItem('Settings…', widget.onOpenSettings),
               _MenuItem('History…', widget.onOpenHistory),
+              _MenuItem('Links…', widget.onOpenLinks),
               _MenuItem('Mobile view', _switchToMobile),
             ],
           ),

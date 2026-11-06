@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../screens/detail/qr_scanner_route.dart';
 import '../../state/history_controller.dart';
+import '../../state/link_group.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../utility_catalog.dart';
@@ -22,6 +23,7 @@ import '../mq/mq_mono_cell.dart';
 import '../mq/mq_section_header.dart';
 import '../mq/mq_segmented.dart';
 import '../mq/tool_action_bar.dart';
+import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 import 'tool_layout.dart';
@@ -39,6 +41,7 @@ class QrCodeBody extends StatefulWidget {
     this.seedSource = SeedSource.none,
     this.onSwitchTool,
     this.actionBar,
+    this.link,
   });
 
   final String? initialInput;
@@ -46,11 +49,16 @@ class QrCodeBody extends StatefulWidget {
   final OpenInToolCallback? onSwitchTool;
   final ToolActionBarController? actionBar;
 
+  /// Non-null when this card is in a desktop Link group. Follow-only: the
+  /// group's text becomes the generate-mode content and this body never sends.
+  final LinkChannel? link;
+
   @override
   State<QrCodeBody> createState() => _QrCodeBodyState();
 }
 
-class _QrCodeBodyState extends State<QrCodeBody> {
+class _QrCodeBodyState extends State<QrCodeBody>
+    with LinkableToolBody<QrCodeBody> {
   final TextEditingController _controller = TextEditingController();
   final GlobalKey _qrBoundaryKey = GlobalKey();
   Timer? _debounce;
@@ -75,6 +83,22 @@ class _QrCodeBodyState extends State<QrCodeBody> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _updateActionBar();
     });
+  }
+
+  @override
+  LinkChannel? get linkChannel => widget.link;
+
+  @override
+  String currentCanonical() => _controller.text;
+
+  @override
+  void applyInbound(String canonical) {
+    _debounce?.cancel();
+    setState(() {
+      _mode = QrMode.generate;
+      _controller.text = canonical;
+    });
+    _updateActionBar();
   }
 
   void _updateActionBar() {

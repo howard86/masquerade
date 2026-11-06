@@ -221,4 +221,44 @@ void main() {
     await gesture.up();
     await tester.pumpAndSettle();
   });
+
+  testWidgets('pipeValue overrides the drag payload but not the display', (
+    WidgetTester tester,
+  ) async {
+    PipePayload? dropped;
+    await tester.pumpWidget(
+      _wrap(
+        PipeScope(
+          cardId: 1,
+          child: Column(
+            children: <Widget>[
+              const MqMonoCell(
+                label: 'When',
+                value: '2026-01-01T00:00:00.000Z',
+                pipeType: ContentType.epoch,
+                pipeValue: '1767225600',
+              ),
+              DragTarget<PipePayload>(
+                onAcceptWithDetails: (DragTargetDetails<PipePayload> d) =>
+                    dropped = d.data,
+                builder: (_, _, _) => const SizedBox(width: 200, height: 200),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('2026-01-01T00:00:00.000Z'), findsOneWidget);
+    final TestGesture g = await tester.startGesture(
+      tester.getCenter(find.text('2026-01-01T00:00:00.000Z')),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    await g.moveTo(tester.getCenter(find.byType(DragTarget<PipePayload>)));
+    await tester.pump();
+    await g.up();
+    await tester.pump();
+    expect(dropped?.value, '1767225600');
+    expect(dropped?.type, ContentType.epoch);
+  });
 }

@@ -23,7 +23,6 @@ import 'utils/external_input_importer.dart';
 import 'widgets/iphone_frame.dart';
 import 'widgets/mq/mq_splash_screen.dart';
 import 'widgets/tool_bodies/deferred_tool_body.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class MyApp extends StatefulWidget {
   const MyApp({
@@ -35,6 +34,7 @@ class MyApp extends StatefulWidget {
     this.densityController,
     this.detectionPreferenceController,
     this.viewModeController,
+    this.wallpaperController,
     this.workSessionController,
     this.toolDraftController,
     this.externalInputImporter,
@@ -51,6 +51,7 @@ class MyApp extends StatefulWidget {
   final DensityController? densityController;
   final DetectionPreferenceController? detectionPreferenceController;
   final ViewModeController? viewModeController;
+  final WallpaperController? wallpaperController;
   final WorkSessionController? workSessionController;
   final ToolDraftController? toolDraftController;
   final ExternalInputImporter? externalInputImporter;
@@ -118,8 +119,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _detectionPreference =
         widget.detectionPreferenceController ?? DetectionPreferenceController();
     _viewMode = widget.viewModeController ?? ViewModeController();
-    _wallpaper = WallpaperController();
-    _attachWallpaperPrefs();
+    _wallpaper = widget.wallpaperController ?? WallpaperController();
     // _viewMode is intentionally absent: it drives layout solely through
     // ViewModeScope (an InheritedNotifier), so toggling rebuilds only the
     // layout consumers — not the whole CupertinoApp this builder produces.
@@ -145,20 +145,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           if (mounted) setState(() => _showSplash = false);
         });
       });
-    }
-  }
-
-  Future<void> _attachWallpaperPrefs() async {
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
-    final String? raw = prefs.getString('mb.wallpaper.type');
-    if (raw != null) {
-      final MqWallpaperType? type = MqWallpaperType.values
-          .cast<MqWallpaperType?>()
-          .firstWhere((t) => t!.name == raw, orElse: () => null);
-      if (type != null) {
-        _wallpaper.setType(type);
-      }
     }
   }
 

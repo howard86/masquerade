@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/widgets.dart';
 import 'package:intl/intl.dart';
 
+import '../../models/content_type.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_typography.dart';
@@ -180,11 +181,7 @@ class _CronBodyState extends State<CronBody> with ToolBodyScaffold<CronBody> {
             copyable: false,
           ),
           const SizedBox(height: MqSpacing.sm),
-          MqMonoCell(
-            label: 'Next 5 (local)',
-            value: _renderNextRuns(_schedule!, _referenceNow!),
-            copyable: true,
-          ),
+          ..._nextRunCells(_schedule!, _referenceNow!),
           // Canvas-wide: a compact horizontal strip of every fire in the next
           // 7 days. Below 460 this is absent — mobile parity (the Next 5 cell
           // already covers upcoming runs).
@@ -219,6 +216,26 @@ class _CronBodyState extends State<CronBody> with ToolBodyScaffold<CronBody> {
       'weekday=${s.dayOfWeek.render()}';
 
   static final DateFormat _runFormat = DateFormat('yyyy-MM-dd HH:mm (EEE)');
+
+  static List<Widget> _nextRunCells(CronSchedule s, DateTime from) {
+    final List<DateTime> runs = s.nextRuns(from, count: 5).toList();
+    if (runs.isEmpty) {
+      return const <Widget>[
+        MqMonoCell(label: 'Next 5 (local)', value: 'No upcoming runs.'),
+      ];
+    }
+    return <Widget>[
+      for (int i = 0; i < runs.length; i++) ...<Widget>[
+        if (i > 0) const SizedBox(height: MqSpacing.sm),
+        MqMonoCell(
+          label: 'Next run ${i + 1} (local)',
+          value: _runFormat.format(runs[i].toLocal()),
+          pipeType: ContentType.epoch,
+          pipeValue: (runs[i].millisecondsSinceEpoch ~/ 1000).toString(),
+        ),
+      ],
+    ];
+  }
 
   static String _renderNextRuns(CronSchedule s, DateTime from) {
     final List<DateTime> runs = s.nextRuns(from, count: 5).toList();

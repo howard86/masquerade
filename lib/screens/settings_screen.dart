@@ -157,7 +157,7 @@ class SettingsBody extends StatelessWidget {
                 ),
                 const SizedBox(height: MqSpacing.sm),
                 Text(
-                  'Choose a generative or solid background style for your desktop.',
+                  'Auto follows the theme; or pick a generative or solid style.',
                   style: MqTextStyles.subhead.copyWith(color: c.textSec),
                 ),
                 const SizedBox(height: MqSpacing.md),
@@ -167,6 +167,7 @@ class SettingsBody extends StatelessWidget {
                     final WallpaperController wp = WallpaperScope.of(context);
                     return MqSegmented<MqWallpaperType>(
                       options: const <MqWallpaperType, String>{
+                        MqWallpaperType.auto: 'Auto',
                         MqWallpaperType.auroraEspresso: 'Aurora',
                         MqWallpaperType.parchmentMinimalist: 'Minimalist',
                         MqWallpaperType.cyberGlass: 'Cyber',

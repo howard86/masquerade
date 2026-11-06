@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
+import '../../models/content_type.dart';
 import '../../models/artifact.dart';
 import '../../theme/mq_metrics.dart';
 import '../../utility_catalog.dart';
@@ -274,11 +275,15 @@ class _CertificateCard extends StatelessWidget {
           MqMonoCell(
             label: 'Valid from',
             value: certificate.notBefore.toIso8601String(),
+            pipeType: ContentType.epoch,
+            pipeValue: _epochSeconds(certificate.notBefore),
           ),
           const SizedBox(height: MqSpacing.sm),
           MqMonoCell(
             label: 'Valid until',
             value: certificate.notAfter.toIso8601String(),
+            pipeType: ContentType.epoch,
+            pipeValue: _epochSeconds(certificate.notAfter),
           ),
           if (certificate.sans.isNotEmpty) ...<Widget>[
             const SizedBox(height: MqSpacing.sm),
@@ -351,3 +356,6 @@ String _fingerprint(String hex) => <String>[
   for (int index = 0; index < hex.length; index += 2)
     hex.substring(index, index + 2).toUpperCase(),
 ].join(':');
+
+String _epochSeconds(DateTime t) =>
+    (t.millisecondsSinceEpoch ~/ 1000).toString();

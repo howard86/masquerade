@@ -13,6 +13,7 @@ import '../mq/mq_section_header.dart';
 import '../mq/mq_status.dart';
 import '../mq/tool_action_bar.dart';
 import 'copy_all_button.dart';
+import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 import 'tool_body_scaffold.dart';
@@ -34,14 +35,41 @@ class IpBody extends StatefulWidget implements ToolBodyWidget {
   final OpenInToolCallback? onSwitchTool;
   @override
   final ToolActionBarController? actionBar;
+
+  /// Non-null when this card is in a canvas Link group. The canonical value is
+  /// the single address as an unsigned integer decimal string.
   final LinkChannel? link;
 
   @override
   State<IpBody> createState() => _IpBodyState();
 }
 
-class _IpBodyState extends State<IpBody> with ToolBodyScaffold<IpBody> {
+class _IpBodyState extends State<IpBody>
+    with ToolBodyScaffold<IpBody>, LinkableToolBody<IpBody> {
   IpParseResult? _result;
+
+  @override
+  LinkChannel? get linkChannel => widget.link;
+
+  /// The address as an unsigned integer for a lone address; empty for a CIDR
+  /// block, an error, or no input.
+  @override
+  String currentCanonical() {
+    final IpParseResult? r = _result;
+    return r is IpOk && r.prefix == null ? r.address.toString() : '';
+  }
+
+  @override
+  void applyInbound(String canonical) {
+    final BigInt? n = BigInt.tryParse(canonical);
+    if (n == null || n.isNegative || n >= (BigInt.one << 128)) return;
+    setInput(
+      n <= BigInt.from(0xFFFFFFFF)
+          ? IpParser.formatV4(n)
+          : IpParser.formatV6(n),
+      asPaste: false,
+    );
+  }
 
   @override
   String get utilityId => 'ip';
@@ -59,6 +87,7 @@ class _IpBodyState extends State<IpBody> with ToolBodyScaffold<IpBody> {
     setState(() => _result = result);
     if (result is IpOk) {
       recordOutput(trimmed, _formatSummary(result));
+      emitToLink();
     }
   }
 

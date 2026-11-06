@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -191,10 +192,20 @@ class _JSONBodyState extends State<JSONBody>
   LinkChannel? get linkChannel => widget.link;
 
   @override
-  String currentCanonical() => controller.text;
+  String currentCanonical() => widget.link?.canonicalType == ContentType.json
+      ? (_footerMinified ?? '')
+      : controller.text;
 
   @override
   void applyInbound(String canonical) {
+    if (widget.link?.canonicalType == ContentType.json) {
+      try {
+        setInput(JSONParser.pretty(jsonDecode(canonical)), asPaste: false);
+      } on FormatException {
+        // Not valid JSON: keep the current input.
+      }
+      return;
+    }
     setInput(canonical, asPaste: false);
   }
 

@@ -22,6 +22,7 @@ class MqIcons {
   static const IconData clock = LucideIcons.clock;
   static const IconData brackets = LucideIcons.code_xml;
   static const IconData link = LucideIcons.link;
+  static const IconData unlink = LucideIcons.unlink;
   static const IconData drop = LucideIcons.droplet;
   static const IconData binary = LucideIcons.binary;
   static const IconData pct = LucideIcons.percent;

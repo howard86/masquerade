@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 
 import '../../state/history_controller.dart';
+import '../../state/link_group.dart';
 import '../../theme/mq_colors.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
@@ -19,6 +20,7 @@ import '../mq/mq_mono_cell.dart';
 import '../mq/mq_status.dart';
 import '../mq/mq_surface.dart';
 import '../mq/tool_action_bar.dart';
+import 'linkable_body.dart';
 import 'open_in_footer.dart';
 import 'seed_source.dart';
 
@@ -39,6 +41,7 @@ class RegexBody extends StatefulWidget {
     this.seedSource = SeedSource.none,
     this.actionBar,
     this.runner = RegexTester.runAsync,
+    this.link,
   });
 
   final String? initialInput;
@@ -46,11 +49,16 @@ class RegexBody extends StatefulWidget {
   final ToolActionBarController? actionBar;
   final RegexRunner runner;
 
+  /// Non-null when this card is in a desktop Link group. Follow-only: the
+  /// group's text becomes the test string and this body never sends.
+  final LinkChannel? link;
+
   @override
   State<RegexBody> createState() => _RegexBodyState();
 }
 
-class _RegexBodyState extends State<RegexBody> {
+class _RegexBodyState extends State<RegexBody>
+    with LinkableToolBody<RegexBody> {
   static const int _pageSize = 20;
 
   final TextEditingController _pattern = TextEditingController();
@@ -137,6 +145,19 @@ class _RegexBodyState extends State<RegexBody> {
     _pattern.dispose();
     _input.dispose();
     super.dispose();
+  }
+
+  @override
+  LinkChannel? get linkChannel => widget.link;
+
+  @override
+  String currentCanonical() => _input.text;
+
+  @override
+  void applyInbound(String canonical) {
+    _debounce?.cancel();
+    _input.text = canonical;
+    _run();
   }
 
   void _changed(String _) {

@@ -11,6 +11,7 @@ import 'state/share_inbox_controller.dart';
 import 'state/theme_controller.dart';
 import 'state/tool_draft_controller.dart';
 import 'state/view_mode_controller.dart';
+import 'state/wallpaper_controller.dart';
 import 'state/work_session_controller.dart';
 
 Future<void> main() async {
@@ -28,6 +29,7 @@ Future<void> main() async {
     ToolDraftController.load(),
     WorkSessionController.load(),
     ShareInboxController.load(),
+    WallpaperController.load(),
   ]);
   runApp(
     MyApp(
@@ -39,6 +41,7 @@ Future<void> main() async {
       toolDraftController: loaded[5] as ToolDraftController,
       workSessionController: loaded[6] as WorkSessionController,
       shareInboxController: loaded[7] as ShareInboxController,
+      wallpaperController: loaded[8] as WallpaperController,
     ),
   );
 }

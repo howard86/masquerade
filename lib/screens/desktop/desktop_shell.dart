@@ -86,6 +86,10 @@ class _DesktopShellState extends State<DesktopShell>
     _canvas.openSystem(SystemApp.history);
   }
 
+  void _openLinks() {
+    _canvas.openSystem(SystemApp.links);
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = context.mq.colors;
@@ -105,6 +109,7 @@ class _DesktopShellState extends State<DesktopShell>
             onPasteOpen: _pasteOpen,
             onOpenSettings: _openSettings,
             onOpenHistory: _openHistory,
+            onOpenLinks: _openLinks,
           ),
           Expanded(
             child: Stack(

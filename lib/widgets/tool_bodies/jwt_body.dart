@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../models/content_type.dart';
 import '../../models/artifact.dart';
 import '../../theme/mq_metrics.dart';
 import '../../theme/mq_theme.dart';
@@ -167,6 +168,21 @@ class _JwtBodyState extends State<JwtBody> with ToolBodyScaffold<JwtBody> {
         accent: true,
         sensitive: true,
       ),
+      for (final (String, DateTime?) claim in <(String, DateTime?)>[
+        ('exp', ok.expiresAt),
+        ('iat', ok.issuedAt),
+        ('nbf', ok.notBefore),
+      ])
+        if (claim.$2 != null) ...<Widget>[
+          const SizedBox(height: MqSpacing.sm),
+          MqMonoCell(
+            label: claim.$1,
+            value: claim.$2!.toIso8601String(),
+            copyable: false,
+            pipeType: ContentType.epoch,
+            pipeValue: (claim.$2!.millisecondsSinceEpoch ~/ 1000).toString(),
+          ),
+        ],
       const SizedBox(height: MqSpacing.sm),
       Wrap(
         spacing: MqSpacing.sm,

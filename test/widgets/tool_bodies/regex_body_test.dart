@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masquerade/state/history_controller.dart';
+import 'package:masquerade/state/link_group.dart';
 import 'package:masquerade/theme/mq_colors.dart';
 import 'package:masquerade/theme/mq_theme.dart';
 import 'package:masquerade/utility_catalog.dart';
@@ -363,6 +364,38 @@ void main() {
     // Unmounting disposes the worker (kills its isolate) without errors.
     await tester.pumpWidget(const SizedBox.shrink());
     expect(tester.takeException(), isNull);
+  });
+  testWidgets('linked text becomes the test string and never emits', (
+    WidgetTester tester,
+  ) async {
+    final ValueNotifier<String> inbound = ValueNotifier<String>('');
+    final List<String> emitted = <String>[];
+    final LinkChannel channel = LinkChannel(
+      canonicalType: ContentType.text,
+      inbound: inbound,
+      seedOnAttach: false,
+      role: () => LinkRole.receive,
+      onEmit: emitted.add,
+    );
+    await pumpBodyAtWidth(
+      tester,
+      RegexBody(runner: _runRegex, link: channel),
+      340,
+    );
+    String text(Finder f) => tester.widget<EditableText>(f).controller.text;
+    await tester.enterText(find.byType(EditableText).first, r'\d+');
+    await tester.pump(const Duration(milliseconds: 200));
+
+    inbound.value = 'a12b34';
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(text(find.byType(EditableText).first), r'\d+');
+    expect(text(find.byType(EditableText).last), 'a12b34');
+    expect(find.text('MATCH 2 · 4..6'), findsOneWidget);
+    await tester.enterText(find.byType(EditableText).last, 'local');
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(emitted, isEmpty);
   });
 }
 

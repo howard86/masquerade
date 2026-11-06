@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
@@ -12,9 +13,15 @@ import '../../state/window_content.dart';
 import '../../theme/mq_colors.dart';
 import '../../theme/mq_theme.dart';
 import '../../theme/mq_metrics.dart';
+import '../../theme/mq_typography.dart';
 import '../../utility_catalog.dart';
+import '../../utils/sensitive_data_policy.dart';
 import '../../widgets/desktop/command_palette.dart';
 import '../../widgets/desktop/desktop_icon_grid.dart';
+import '../../widgets/desktop/link_identity.dart';
+import '../../widgets/desktop/link_picker_popover.dart';
+import '../../widgets/desktop/link_tag.dart';
+import '../../widgets/desktop/links_panel.dart';
 import '../../widgets/desktop/pipe.dart';
 import '../../widgets/desktop/tool_card_frame.dart';
 import '../../widgets/tool_bodies/seed_source.dart';
@@ -24,12 +31,11 @@ import '../../widgets/desktop/desktop_context_menu.dart';
 import '../../widgets/mq/mq_icons.dart';
 import '../../widgets/desktop/shortcuts_hud.dart';
 
-/// Header-toggle link pairings (see docs/adr/0001): a card's link button opens
+/// Header-toggle shortcuts (see docs/adr/0001): a card's link button opens
 /// this fixed partner tool and links the two on one canonical type. Keyed by
-/// tool id → its partner tool + the shared canonical type. Only *unambiguous*
-/// pairs live here; tools reachable on several types (or with no clean tool
-/// partner) link via phase-4 drop-to-link instead. The canvas owns this; the
-/// bodies stay shell-agnostic.
+/// tool id → its partner tool + the shared canonical type. Other linkable
+/// tools open a target picker, while output-cell dragging remains available.
+/// The canvas owns this; the bodies stay shell-agnostic.
 ///
 /// Math sits in two pairs (number ↔ math, epoch ↔ math); its toggle defaults
 /// to Number Base, and the Timestamp pairing is reachable via drop-to-link.
@@ -47,7 +53,19 @@ typedef _ToolBodyCacheEntry = ({
   UtilityDescriptor descriptor,
   String? seed,
   ValueListenable<String>? inbound,
+  bool follower,
   Widget body,
+});
+
+typedef _LinkTargetChoice = ({
+  UtilityDescriptor descriptor,
+  ContentType type,
+  int? cardId,
+  bool suggested,
+
+  /// The link is only valid with the target following (it would send a
+  /// shape the group can't read).
+  bool mustFollow,
 });
 
 /// The desktop work surface: a pannable canvas hosting the fixed
@@ -69,6 +87,7 @@ class DesktopCanvas extends StatefulWidget {
 
 class _DesktopCanvasState extends State<DesktopCanvas> {
   final FocusNode _focusNode = FocusNode(debugLabel: 'canvas');
+  bool _linkPickerOpen = false;
   final Map<int, _ToolBodyCacheEntry> _toolBodies =
       <int, _ToolBodyCacheEntry>{};
 
@@ -199,6 +218,14 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     final LogicalKeyboardKey k = event.logicalKey;
     final HardwareKeyboard hw = HardwareKeyboard.instance;
 
+    if (k == LogicalKeyboardKey.escape && _linkPickerOpen) {
+      final NavigatorState navigator = Navigator.of(
+        context,
+        rootNavigator: true,
+      );
+      if (navigator.canPop()) navigator.pop();
+      return KeyEventResult.handled;
+    }
     if (k == LogicalKeyboardKey.escape && _c.focusedId != null) {
       _c.close(_c.focusedId!);
       return KeyEventResult.handled;
@@ -252,47 +279,99 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
           children: <Widget>[
             Positioned.fill(
               child: DragTarget<PipePayload>(
+                onWillAcceptWithDetails: (DragTargetDetails<PipePayload> d) =>
+                    _cardById(d.data.sourceCardId) != null,
                 onAcceptWithDetails: _onDropOnCanvas,
                 builder:
                     (
                       BuildContext context,
                       List<PipePayload?> candidate,
                       List<dynamic> rejected,
-                    ) => GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onPanUpdate: (DragUpdateDetails d) =>
-                          _pan.value += d.delta,
-                      onSecondaryTapDown: (TapDownDetails details) =>
-                          _showWallpaperContextMenu(
-                            context,
-                            details.globalPosition,
-                          ),
-                      child: RepaintBoundary(
-                        child: CustomPaint(
-                          painter: _DotGridPainter(
-                            color: c.border,
-                            offset: _pan,
+                    ) {
+                      final bool canOpen = candidate.any(
+                        (PipePayload? payload) => payload != null,
+                      );
+                      final bool rejectedStaleSource = rejected.any(
+                        (dynamic payload) =>
+                            payload is PipePayload &&
+                            _cardById(payload.sourceCardId) == null,
+                      );
+                      final Widget wallpaper = GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onPanUpdate: (DragUpdateDetails d) =>
+                            _pan.value += d.delta,
+                        onSecondaryTapDown: (TapDownDetails details) =>
+                            _showWallpaperContextMenu(
+                              context,
+                              details.globalPosition,
+                            ),
+                        child: RepaintBoundary(
+                          child: CustomPaint(
+                            painter: _DotGridPainter(
+                              color: c.border,
+                              offset: _pan,
+                            ),
                           ),
                         ),
-                      ),
-                    ),
+                      );
+                      // Same Stack slot either way so the wallpaper subtree is
+                      // not remounted when drag feedback appears.
+                      if (!canOpen && !rejectedStaleSource) {
+                        return Stack(
+                          fit: StackFit.expand,
+                          children: <Widget>[wallpaper],
+                        );
+                      }
+                      final String feedback = canOpen
+                          ? 'Release to open an unlinked tool. Drop on a window to create a live link.'
+                          : 'Source window closed. Cancel this drag and try again.';
+                      return Stack(
+                        fit: StackFit.expand,
+                        children: <Widget>[
+                          wallpaper,
+                          Center(
+                            child: IgnorePointer(
+                              child: Semantics(
+                                liveRegion: true,
+                                label: feedback,
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    color: context.mq.colors.surface,
+                                    borderRadius: BorderRadius.circular(
+                                      MqRadius.sm,
+                                    ),
+                                    border: Border.all(
+                                      color: rejectedStaleSource
+                                          ? context.mq.colors.danger
+                                          : context.mq.colors.accent,
+                                    ),
+                                    boxShadow: context.mq.colors.shadow,
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: MqSpacing.md,
+                                      vertical: MqSpacing.sm,
+                                    ),
+                                    child: Text(
+                                      feedback,
+                                      textAlign: TextAlign.center,
+                                      style: MqTextStyles.caption1.copyWith(
+                                        color: rejectedStaleSource
+                                            ? context.mq.colors.danger
+                                            : context.mq.colors.accent,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
               ),
             ),
             Positioned.fill(child: _iconGrid),
-            if (_c.hasLinks)
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: ListenableBuilder(
-                    listenable: _overlayListenable,
-                    builder: (BuildContext context, Widget? _) => CustomPaint(
-                      painter: _LinkLinePainter(
-                        segments: _linkSegments(_c.cards, _pan.value),
-                        color: c.warning,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
             ListenableBuilder(
               listenable: _overlayListenable,
               builder: (BuildContext context, Widget? _) => _snapPreview(c),
@@ -305,6 +384,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
                   openOrder: openOrder,
                   canvasSize: canvasSize ?? const Size(1200, 800),
                 ),
+            if (_c.hasLinks) ..._linkOverlay(context),
           ],
         ),
       ),
@@ -380,6 +460,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
   }
 
   void _onDropOnCanvas(DragTargetDetails<PipePayload> details) {
+    if (_cardById(details.data.sourceCardId) == null) return;
     final List<DetectionMatch<Object?>> matches =
         DetectionPreferenceScope.read(context).rank(
           UtilityCatalog.detectArtifacts(
@@ -387,7 +468,10 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
             provenance: ArtifactProvenance.liveLink,
           ),
         );
-    if (matches.isEmpty) return;
+    if (matches.isEmpty) {
+      unawaited(_showNoToolDrop());
+      return;
+    }
     final RenderBox? box =
         _surfaceKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null) return;
@@ -461,6 +545,12 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
   /// position / width changes.
   Widget _cardFrame(CanvasCard card, {required int slot}) {
     final LinkGroup? group = _c.groupForCard(card.id);
+    final String? linkedMemberKey = group == null
+        ? null
+        : (group.members.toList()..sort()).join(',');
+    final LinkIdentity? identity = group == null
+        ? null
+        : linkIdentities(_c.groups, context.mq.colors)[group.id];
     final Object key = (
       card.content,
       slot,
@@ -469,6 +559,9 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
       card.height,
       card.seed,
       group,
+      linkedMemberKey,
+      identity,
+      group == null ? null : _c.isFollower(card.id),
     );
     final ({Object key, Widget frame})? cached = _frames[card.id];
     if (cached != null && cached.key == key) return cached.frame;
@@ -477,7 +570,13 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     // re-recording its content, shadow and clip.
     final Widget frame = RepaintBoundary(
       child: switch (content) {
-        ToolWindow tw => _toolCardFrame(card, tw, slot: slot, group: group),
+        ToolWindow tw => _toolCardFrame(
+          card,
+          tw,
+          slot: slot,
+          group: group,
+          identity: identity,
+        ),
         SystemWindow sw => _systemCardFrame(card, sw, slot: slot),
       },
     );
@@ -487,10 +586,12 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
 
   Widget _toolBody(CanvasCard card, UtilityDescriptor descriptor) {
     final LinkChannel? channel = _c.channelForCard(card.id);
+    final bool follower = _c.isFollower(card.id);
     final _ToolBodyCacheEntry? cached = _toolBodies[card.id];
     if (cached != null &&
         identical(cached.descriptor, descriptor) &&
         cached.seed == card.seed &&
+        cached.follower == follower &&
         identical(cached.inbound, channel?.inbound)) {
       return cached.body;
     }
@@ -510,6 +611,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
       descriptor: descriptor,
       seed: card.seed,
       inbound: channel?.inbound,
+      follower: follower,
       body: body,
     );
     return body;
@@ -534,6 +636,7 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     final Widget body = switch (sw.app) {
       SystemApp.history => const HistoryBody(),
       SystemApp.settings => const SettingsBody(desktopShellOverride: true),
+      SystemApp.links => LinksPanel(controller: _c),
     };
     return ToolCardFrame(
       title: sw.title,
@@ -581,11 +684,17 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     ToolWindow tw, {
     required int slot,
     required LinkGroup? group,
+    required LinkIdentity? identity,
   }) {
     final UtilityDescriptor descriptor = tw.descriptor;
     final ({String partnerId, ContentType type})? partner =
         _linkPartners[descriptor.id];
     final bool linked = group != null;
+    final bool linkable = _isLinkable(descriptor);
+    final bool follower = group != null && _c.isFollower(card.id);
+    final String? linkedNames = group == null
+        ? null
+        : _linkedMemberNames(card, group);
     final ToolCardFrame frame = ToolCardFrame(
       title: tw.title,
       slot: slot <= 9 ? slot : null,
@@ -622,35 +731,157 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
           },
       onResizeEnd: _c.commit,
       linked: linked,
-      linkTooltip: linked
-          ? 'Unlink'
-          : partner == null
-          ? null
-          : 'Open linked ${UtilityCatalog.byId(partner.partnerId).name}',
-      onLink: (linked || partner != null)
-          ? () => _toggleLink(card, partner)
+      linkTooltip: linked ? 'Link more windows' : 'Choose live link target',
+      linkHint: linked
+          ? follower
+                ? 'Link group ${identity?.letter ?? ''}. Follows ${linkedNames ?? 'other windows'}. Tap to link more windows.'
+                : 'Link group ${identity?.letter ?? ''}, two-way with ${linkedNames ?? 'other windows'}. Tap to link more windows.'
+          : partner != null
+          ? 'Choose a window to link; ${UtilityCatalog.byId(partner.partnerId).name} is suggested.'
+          : 'Choose an open window or a new tool to link. Drag an output cell onto another window to link it directly.',
+      linkStatus: linked
+          ? '${identity?.letter ?? ''}${follower ? ' · follows' : ''}'
           : null,
+      linkColor: identity?.color,
+      onLink: !linkable
+          ? null
+          : (Rect anchor) =>
+                _showLinkPicker(card, anchor: anchor, partner: partner),
+      onUnlink: linked ? () => _c.unlinkCard(card.id) : null,
       onSecondaryTapDown: (TapDownDetails details) =>
           _showWindowContextMenuFor(details.globalPosition, card.id),
       child: _toolBody(card, descriptor),
     );
     return DragTarget<PipePayload>(
       onWillAcceptWithDetails: (DragTargetDetails<PipePayload> d) =>
-          d.data.sourceCardId != card.id &&
-          descriptor.inputSources.contains(UtilityInputSource.liveLink) &&
-          descriptor.liveLinkTypes.contains(d.data.type),
-      onAcceptWithDetails: (DragTargetDetails<PipePayload> d) => _c.linkCards(
-        d.data.sourceCardId,
-        card.id,
-        type: d.data.type,
-        seedCanonical: d.data.value,
-      ),
+          _c.linkIssueFor(d.data.sourceCardId, card.id, type: d.data.type) ==
+          null,
+      onAcceptWithDetails: (DragTargetDetails<PipePayload> d) {
+        final int? result = _c.linkCards(
+          d.data.sourceCardId,
+          card.id,
+          type: d.data.type,
+          seedCanonical: d.data.value,
+          targetFollows: true,
+        );
+        if (result == null) {
+          final LinkIssue issue =
+              _c.linkIssueFor(
+                d.data.sourceCardId,
+                card.id,
+                type: d.data.type,
+              ) ??
+              LinkIssue.targetMissing;
+          unawaited(_showLinkIssue(issue, d.data.type));
+        }
+      },
       builder:
           (
             BuildContext context,
             List<PipePayload?> candidate,
             List<dynamic> rejected,
-          ) => frame,
+          ) {
+            PipePayload? acceptedPayload;
+            for (final PipePayload? payload in candidate) {
+              if (payload != null) {
+                acceptedPayload = payload;
+                break;
+              }
+            }
+            PipePayload? rejectedPayload;
+            for (final dynamic payload in rejected) {
+              if (payload is PipePayload) {
+                rejectedPayload = payload;
+                break;
+              }
+            }
+            final bool canLink = acceptedPayload != null;
+            final PipePayload? payload = acceptedPayload ?? rejectedPayload;
+            final String? feedback = payload == null
+                ? null
+                : canLink
+                ? 'Release to follow · ${contentTypeLabel(payload.type)}'
+                : (_c.linkIssueFor(
+                            payload.sourceCardId,
+                            card.id,
+                            type: payload.type,
+                          ) ??
+                          LinkIssue.targetUnsupported)
+                      .message(payload.type);
+            // Always return the frame inside the same Stack slot: swapping
+            // between a bare frame and a wrapped one changes the tree shape and
+            // remounts the window's body, wiping its local state mid-drag.
+            if (feedback == null) {
+              return Stack(clipBehavior: Clip.none, children: <Widget>[frame]);
+            }
+            final Color feedbackColor = canLink
+                ? context.mq.colors.accent
+                : context.mq.colors.danger;
+            return Stack(
+              clipBehavior: Clip.none,
+              children: <Widget>[
+                frame,
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Semantics(
+                      container: true,
+                      liveRegion: true,
+                      label: feedback,
+                      child: Stack(
+                        children: <Widget>[
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 100),
+                            decoration: BoxDecoration(
+                              color: feedbackColor.withValues(alpha: 0.05),
+                              border: Border.all(
+                                color: feedbackColor,
+                                width: 2,
+                              ),
+                              borderRadius: BorderRadius.circular(MqRadius.md),
+                            ),
+                          ),
+                          Positioned(
+                            top: 42,
+                            left: 8,
+                            right: 8,
+                            child: Center(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: context.mq.colors.surface,
+                                  borderRadius: BorderRadius.circular(
+                                    MqRadius.sm,
+                                  ),
+                                  border: Border.all(
+                                    color: feedbackColor,
+                                    width: 0.75,
+                                  ),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: MqSpacing.sm,
+                                    vertical: MqSpacing.xs,
+                                  ),
+                                  child: Text(
+                                    feedback,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
+                                    style: MqTextStyles.caption1.copyWith(
+                                      color: feedbackColor,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
     );
   }
 
@@ -713,50 +944,478 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
     return box?.size;
   }
 
-  /// Toggles the header link on [card]: unlinks if already linked (works even
-  /// for a drop-linked card whose [partner] is null), otherwise opens its fixed
-  /// [partner] tool as a new card and links the two. The source card's value
+  /// Quick path for a paired tool: opens its fixed [partner] tool as a new
+  /// window beside [card] and links the two (two-way). The source card's value
   /// seeds the group (the linkable body emits on attach).
-  void _toggleLink(
+  void _openPartner(
     CanvasCard card,
-    ({String partnerId, ContentType type})? partner,
+    ({String partnerId, ContentType type}) partner,
   ) {
-    if (_c.groupForCard(card.id) != null) {
-      _c.unlinkCard(card.id);
-      return;
-    }
-    if (partner == null) return;
     final int siblingId = _c.openTool(UtilityCatalog.byId(partner.partnerId));
-    _c.linkCards(card.id, siblingId, type: partner.type);
+    _placeBeside(card.id, siblingId);
+    if (_c.linkCards(card.id, siblingId, type: partner.type) == null) {
+      final LinkIssue issue =
+          _c.linkIssueFor(card.id, siblingId, type: partner.type) ??
+          LinkIssue.sourceMissing;
+      _c.close(siblingId);
+      unawaited(_showLinkIssue(issue, partner.type));
+    }
   }
 
-  /// One gold segment per linked pair, anchored at each card's title bar (in
-  /// the same panned coordinates as the cards).
-  List<({Offset a, Offset b})> _linkSegments(
+  /// Moves the newly opened [newId] next to [sourceId]: right of it when that
+  /// fits the canvas, else left of it, else leaves the cascade position.
+  void _placeBeside(int sourceId, int newId) {
+    final Size? size = _canvasSize;
+    final CanvasCard? source = _cardById(sourceId);
+    final CanvasCard? fresh = _cardById(newId);
+    if (size == null || source == null || fresh == null) return;
+    const double gap = 24;
+    // Card coordinates are pre-pan; the visible span is [-pan, -pan + width].
+    final double visibleLeft = -_pan.value.dx;
+    final double visibleRight = visibleLeft + size.width;
+    final double right = source.x + source.width + gap;
+    if (right + fresh.width <= visibleRight) {
+      _c.moveTo(newId, right, source.y);
+      return;
+    }
+    final double left = source.x - gap - fresh.width;
+    if (left >= visibleLeft) _c.moveTo(newId, left, source.y);
+  }
+
+  bool _isLinkable(UtilityDescriptor descriptor) => descriptor.supportsLiveLink;
+
+  String? _linkedMemberNames(CanvasCard card, LinkGroup group) {
+    final Set<String> names = group.members
+        .where((int id) => id != card.id)
+        .map((int id) => _cardById(id)?.toolDescriptor?.name)
+        .whereType<String>()
+        .toSet();
+    return names.isEmpty ? null : names.join(', ');
+  }
+
+  Future<void> _showLinkPicker(
+    CanvasCard source, {
+    required Rect anchor,
+    ({String partnerId, ContentType type})? partner,
+  }) async {
+    final UtilityDescriptor? sourceDescriptor = source.toolDescriptor;
+    if (sourceDescriptor == null || !_isLinkable(sourceDescriptor)) return;
+
+    final List<_LinkTargetChoice> openChoices = <_LinkTargetChoice>[];
+    final List<_LinkTargetChoice> newChoices = <_LinkTargetChoice>[];
+    final Set<String> blockedTargets = <String>{};
+    final LinkGroup? sourceGroup = _c.groupForCard(source.id);
+    final bool sourceFollowsOnly =
+        sourceDescriptor.linkCapability == LinkCapability.followOnly;
+    // A follow-only source follows its target, so the target must be able to
+    // send.
+    bool canPair(UtilityDescriptor t) =>
+        !sourceFollowsOnly || t.linkCapability != LinkCapability.followOnly;
+    // Only links that can actually be made are listed: null hides the row,
+    // true means it works only with the target following.
+    bool? followNeed(LinkIssue? Function(bool follows) issue) {
+      if (issue(false) == null) return false;
+      if (!sourceFollowsOnly && issue(true) == null) return true;
+      return null;
+    }
+
+    for (final CanvasCard target in _c.cards) {
+      if (target.id == source.id) continue;
+      final UtilityDescriptor? targetDescriptor = target.toolDescriptor;
+      if (targetDescriptor == null || !canPair(targetDescriptor)) continue;
+      final LinkGroup? targetGroup = _c.groupForCard(target.id);
+      final ContentType? type = _c.defaultLinkType(
+        sourceDescriptor,
+        targetDescriptor,
+        sourceGroup: sourceGroup,
+        targetGroup: targetGroup,
+      );
+      if (type == null) {
+        // Blocked only when the tools could link but the target's group is
+        // locked to another type.
+        final bool shared = sourceDescriptor.liveLinkTypes.any(
+          targetDescriptor.liveLinkTypes.contains,
+        );
+        if (shared && targetGroup != null) {
+          blockedTargets.add(
+            '${targetDescriptor.name} (${contentTypeLabel(targetGroup.type)})',
+          );
+        }
+        continue;
+      }
+      final bool? mustFollow = followNeed(
+        (bool follows) => _c.linkIssueFor(
+          source.id,
+          target.id,
+          type: type,
+          targetFollows: follows,
+        ),
+      );
+      if (mustFollow == null) continue;
+      openChoices.add((
+        descriptor: targetDescriptor,
+        type: type,
+        cardId: target.id,
+        suggested: partner?.partnerId == targetDescriptor.id,
+        mustFollow: mustFollow,
+      ));
+    }
+    for (final UtilityDescriptor target in UtilityCatalog.all) {
+      if (!_isLinkable(target) || !canPair(target)) continue;
+      final ContentType? type = _c.defaultLinkType(
+        sourceDescriptor,
+        target,
+        sourceGroup: sourceGroup,
+      );
+      if (type == null) continue;
+      final bool? mustFollow = followNeed(
+        (bool follows) => _c.linkIssueForTool(
+          source.id,
+          target,
+          type: type,
+          targetFollows: follows,
+        ),
+      );
+      if (mustFollow == null) continue;
+      newChoices.add((
+        descriptor: target,
+        type: type,
+        cardId: null,
+        suggested: partner?.partnerId == target.id,
+        mustFollow: mustFollow,
+      ));
+    }
+    // The suggested partner leads its section.
+    for (final List<_LinkTargetChoice> list in <List<_LinkTargetChoice>>[
+      openChoices,
+      newChoices,
+    ]) {
+      final int at = list.indexWhere((_LinkTargetChoice c) => c.suggested);
+      if (at > 0) list.insert(0, list.removeAt(at));
+    }
+    final bool empty = openChoices.isEmpty && newChoices.isEmpty;
+
+    final String explanation = empty
+        ? 'No compatible target is available. Try dragging an output onto a window that supports the same value type.'
+        : sourceFollowsOnly
+        ? '${sourceDescriptor.name} only displays what it receives, so it follows the window you pick.'
+        : 'Linked windows share one value. Followers only receive it.';
+    final List<String> notes = <String>[
+      if (sourceGroup != null)
+        'Linked as ${contentTypeLabel(sourceGroup.type)}. Unlink it to choose another type.',
+      if (blockedTargets.length == 1)
+        '${blockedTargets.single} already uses another link type. Unlink it before joining.'
+      else if (blockedTargets.length > 1)
+        '${blockedTargets.join(', ')} already use another link type. Unlink them before joining.',
+    ];
+
+    final Map<int, LinkIdentity> identities = linkIdentities(
+      _c.groups,
+      context.mq.colors,
+    );
+    final List<CanvasCard> openOrder = _c.cards;
+
+    LinkPickerRow<_LinkTargetChoice> rowFor(
+      _LinkTargetChoice target, {
+      required int slot,
+    }) => _linkTargetRow(target, identities: identities, slot: slot);
+
+    _linkPickerOpen = true;
+    LinkPickerResult<_LinkTargetChoice>? result;
+    try {
+      result = await showLinkPickerPopover<_LinkTargetChoice>(
+        context,
+        anchor: anchor,
+        title:
+            '${sourceFollowsOnly ? 'Follow' : 'Link'} ${sourceDescriptor.name}',
+        explanation: explanation,
+        notes: notes,
+        followLabel: sourceFollowsOnly
+            ? null
+            : 'Target follows ${sourceDescriptor.name}',
+        // From an existing group, new picks join downstream by default.
+        initialFollows: sourceGroup != null,
+        sections: <LinkPickerSection<_LinkTargetChoice>>[
+          LinkPickerSection<_LinkTargetChoice>(
+            title: 'Open windows',
+            rows: <LinkPickerRow<_LinkTargetChoice>>[
+              for (final _LinkTargetChoice target in openChoices)
+                rowFor(
+                  target,
+                  slot:
+                      openOrder.indexWhere(
+                        (CanvasCard c) => c.id == target.cardId,
+                      ) +
+                      1,
+                ),
+            ],
+          ),
+          LinkPickerSection<_LinkTargetChoice>(
+            title: 'New window',
+            rows: <LinkPickerRow<_LinkTargetChoice>>[
+              for (final _LinkTargetChoice target in newChoices)
+                rowFor(target, slot: 0),
+            ],
+          ),
+        ],
+      );
+    } finally {
+      _linkPickerOpen = false;
+    }
+    if (result == null || !mounted) return;
+    await _applyLinkChoice(
+      source,
+      result.value,
+      targetFollows: result.follows || result.value.mustFollow,
+    );
+  }
+
+  /// One picker row: tool icon + name, tagged with its open slot, a
+  /// suggestion mark, and the target's group when linked.
+  LinkPickerRow<_LinkTargetChoice> _linkTargetRow(
+    _LinkTargetChoice target, {
+    required Map<int, LinkIdentity> identities,
+    required int slot,
+  }) {
+    final bool isOpen = target.cardId != null;
+    final String? availability = !isOpen
+        ? null
+        : slot >= 1 && slot <= 9
+        ? 'Open · ⌥$slot'
+        : 'Open';
+    final LinkGroup? targetGroup = isOpen
+        ? _c.groupForCard(target.cardId!)
+        : null;
+    final LinkIdentity? groupIdentity = targetGroup == null
+        ? null
+        : identities[targetGroup.id];
+    final String name = target.descriptor.name;
+    final String? roleTag = target.mustFollow
+        ? 'Follows'
+        : switch (target.descriptor.linkCapability) {
+            LinkCapability.followOnly => 'Follows',
+            LinkCapability.sourceOnly => 'Sends only',
+            LinkCapability.twoWay => null,
+          };
+    final String semantic = <String>[
+      '${isOpen ? 'Link to' : 'Open'} $name',
+      if (target.suggested) 'Suggested',
+      ?availability,
+      ?roleTag,
+      if (groupIdentity != null) 'in link group ${groupIdentity.letter}',
+    ].join(', ');
+    return LinkPickerRow<_LinkTargetChoice>(
+      value: target,
+      name: name,
+      icon: target.descriptor.icon,
+      semanticsLabel: semantic,
+      tags: <Widget>[
+        if (target.suggested) const LinkTag(label: 'Suggested'),
+        if (availability != null) LinkTag(label: availability),
+        if (roleTag != null) LinkTag(label: roleTag),
+        if (groupIdentity != null)
+          LinkTag(label: groupIdentity.letter, color: groupIdentity.color),
+      ],
+    );
+  }
+
+  Future<void> _applyLinkChoice(
+    CanvasCard source,
+    _LinkTargetChoice choice, {
+    required bool targetFollows,
+  }) async {
+    if (_cardById(source.id) == null) {
+      await _showLinkIssue(LinkIssue.sourceMissing, choice.type);
+      return;
+    }
+    final bool openedTarget = choice.cardId == null;
+    final int targetId = choice.cardId ?? _c.openTool(choice.descriptor);
+    if (openedTarget) _placeBeside(source.id, targetId);
+    final LinkIssue? issue = _c.linkIssueFor(
+      source.id,
+      targetId,
+      type: choice.type,
+      targetFollows: targetFollows,
+    );
+    if (issue != null) {
+      if (openedTarget) _c.close(targetId);
+      await _showLinkIssue(issue, choice.type);
+      return;
+    }
+    if (_c.linkCards(
+          source.id,
+          targetId,
+          type: choice.type,
+          targetFollows: targetFollows,
+        ) ==
+        null) {
+      if (openedTarget) _c.close(targetId);
+      final LinkIssue issue =
+          _c.linkIssueFor(
+            source.id,
+            targetId,
+            type: choice.type,
+            targetFollows: targetFollows,
+          ) ??
+          LinkIssue.alreadyLinked;
+      await _showLinkIssue(issue, choice.type);
+    }
+  }
+
+  Future<void> _showLinkIssue(LinkIssue issue, ContentType type) async {
+    if (!mounted) return;
+    await showCupertinoDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) => CupertinoAlertDialog(
+        title: const Text('Couldn’t link windows'),
+        content: Text(issue.message(type)),
+        actions: <Widget>[
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showNoToolDrop() async {
+    if (!mounted) return;
+    await showCupertinoDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) => CupertinoAlertDialog(
+        title: const Text('No tool found for this value'),
+        content: const Text(
+          'Keep it in the source window, or drop the output onto a compatible window to create a live link.',
+        ),
+        actions: <Widget>[
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Hub star per group: every member's title-bar anchor, plus the centroid
+  /// they all tether to (canonical-hub model, docs/adr/0001). Pan coordinates,
+  /// like the cards.
+  List<_LinkHub> _linkHubs(
     List<CanvasCard> cards,
     Offset pan,
+    Map<int, LinkIdentity> identities,
   ) {
     final Map<int, CanvasCard> byId = <int, CanvasCard>{
       for (final CanvasCard card in cards) card.id: card,
     };
-    final List<({Offset a, Offset b})> segments = <({Offset a, Offset b})>[];
+    final List<_LinkHub> hubs = <_LinkHub>[];
     for (final LinkGroup g in _c.groups) {
+      final LinkIdentity? identity = identities[g.id];
+      if (identity == null) continue;
       final List<CanvasCard> members = g.members
           .map((int id) => byId[id])
           .whereType<CanvasCard>()
+          .where((CanvasCard card) => !card.minimized)
           .toList();
-      for (int i = 0; i + 1 < members.length; i++) {
-        segments.add((
-          a: _anchor(members[i], pan),
-          b: _anchor(members[i + 1], pan),
-        ));
+      if (members.isEmpty) continue;
+      final List<Offset> anchors = <Offset>[
+        for (final CanvasCard m in members) _anchor(m, pan),
+      ];
+      // The hub sits on a row just above the highest member, so tethers rise
+      // from each window's top edge and meet over the windows, never across a
+      // title bar.
+      double sumX = 0;
+      double top = double.infinity;
+      for (final Offset a in anchors) {
+        sumX += a.dx;
+        if (a.dy < top) top = a.dy;
       }
+      hubs.add(
+        _LinkHub(
+          group: g,
+          identity: identity,
+          anchors: anchors,
+          followers: <bool>[
+            for (final CanvasCard m in members) _c.isFollower(m.id),
+          ],
+          hub: Offset(
+            sumX / anchors.length,
+            (top - _hubRise).clamp(_hubMinY, double.infinity),
+          ),
+        ),
+      );
     }
-    return segments;
+    return hubs;
   }
 
+  /// Tethers and hub chips, painted above the windows. The tethers never take
+  /// hits; each chip is tappable and focuses its group's top-most member.
+  List<Widget> _linkOverlay(BuildContext context) {
+    final Map<int, LinkIdentity> identities = linkIdentities(
+      _c.groups,
+      context.mq.colors,
+    );
+    return <Widget>[
+      Positioned.fill(
+        child: IgnorePointer(
+          child: ListenableBuilder(
+            listenable: _overlayListenable,
+            builder: (BuildContext context, Widget? _) => CustomPaint(
+              painter: _LinkLinePainter(
+                hubs: _linkHubs(_c.cards, _pan.value, identities),
+              ),
+            ),
+          ),
+        ),
+      ),
+      Positioned.fill(
+        child: ListenableBuilder(
+          listenable: _overlayListenable,
+          builder: (BuildContext context, Widget? _) => Stack(
+            clipBehavior: Clip.none,
+            children: <Widget>[
+              for (final _LinkHub h in _linkHubs(
+                _c.cards,
+                _pan.value,
+                identities,
+              ))
+                Positioned(
+                  key: ValueKey<int>(h.group.id),
+                  left: h.hub.dx,
+                  top: h.hub.dy,
+                  child: FractionalTranslation(
+                    translation: const Offset(-0.5, -0.5),
+                    child: _LinkHubChip(
+                      group: h.group,
+                      identity: h.identity,
+                      sensitive: _c.groupIsSensitive(h.group),
+                      onTap: () => _focusTopMember(h.group),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    ];
+  }
+
+  void _focusTopMember(LinkGroup group) {
+    for (final CanvasCard card in _c.cardsByZ.reversed) {
+      if (group.members.contains(card.id) && !card.minimized) {
+        _c.focus(card.id);
+        return;
+      }
+    }
+  }
+
+  static const double _hubRise = 22;
+  static const double _hubMinY = 14;
+
+  /// Top-edge midpoint of [card], in panned coordinates.
   Offset _anchor(CanvasCard card, Offset pan) =>
-      Offset(card.x + pan.dx + card.width / 2, card.y + pan.dy + 18);
+      Offset(card.x + pan.dx + card.width / 2, card.y + pan.dy);
 
   void _showWallpaperContextMenu(BuildContext context, Offset position) {
     showDesktopContextMenu(context, position, <ContextMenuItem>[
@@ -814,18 +1473,48 @@ class _DesktopCanvasState extends State<DesktopCanvas> {
           icon: MqIcons.copy,
           action: () => _c.duplicate(card.id),
         ),
+        if (linked && !_c.followFixed(card.id) && _c.isFollower(card.id))
+          ContextMenuItem(
+            label: '✓ Follow Only',
+            icon: MqIcons.link,
+            action: () => _c.setFollower(card.id, false),
+          )
+        else if (linked && !_c.followFixed(card.id) && _c.canFollow(card.id))
+          ContextMenuItem(
+            label: 'Follow Only',
+            icon: MqIcons.link,
+            action: () => _c.setFollower(card.id, true),
+          ),
         if (linked)
           ContextMenuItem(
             label: 'Unlink Sibling',
             icon: MqIcons.link,
             action: () => _c.unlinkCard(card.id),
-          )
-        else if (partner != null)
-          ContextMenuItem(
-            label: 'Open Linked ${UtilityCatalog.byId(partner.partnerId).name}',
-            icon: MqIcons.link,
-            action: () => _toggleLink(card, partner),
           ),
+        if (linked)
+          ContextMenuItem(
+            label: 'Show Links',
+            icon: MqIcons.link,
+            action: () => _c.openSystem(SystemApp.links),
+          )
+        else if (_isLinkable(descriptor)) ...<ContextMenuItem>[
+          if (partner != null)
+            ContextMenuItem(
+              label:
+                  'Open Linked ${UtilityCatalog.byId(partner.partnerId).name}',
+              icon: MqIcons.link,
+              action: () => _openPartner(card, partner),
+            ),
+          ContextMenuItem(
+            label: 'Choose Link Target…',
+            icon: MqIcons.link,
+            action: () => _showLinkPicker(
+              card,
+              anchor: position & Size.zero,
+              partner: partner,
+            ),
+          ),
+        ],
       ],
       ContextMenuItem(
         label: 'Close Window  Esc',
@@ -889,33 +1578,145 @@ class _DotGridPainter extends CustomPainter {
       old.offset != offset || old.color != color;
 }
 
-/// Draws the gold tether between linked cards using orthogonal routing (at most 1 turnaround).
-class _LinkLinePainter extends CustomPainter {
-  _LinkLinePainter({required this.segments, required this.color});
+class _LinkHub {
+  const _LinkHub({
+    required this.group,
+    required this.identity,
+    required this.anchors,
+    required this.followers,
+    required this.hub,
+  });
 
-  final List<({Offset a, Offset b})> segments;
-  final Color color;
+  final LinkGroup group;
+  final LinkIdentity identity;
+  final List<Offset> anchors;
+
+  /// Parallel to [anchors]: whether each member's window only follows.
+  final List<bool> followers;
+  final Offset hub;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _LinkHub &&
+      other.group == group &&
+      other.identity == identity &&
+      other.hub == hub &&
+      listEquals(other.anchors, anchors) &&
+      listEquals(other.followers, followers);
+
+  @override
+  int get hashCode =>
+      Object.hash(group, identity, hub, anchors.length, followers.length);
+}
+
+/// Draws each group's hub star: one orthogonal (at most one turn) tether per
+/// member rising from its top-edge anchor to the hub row, then across to the
+/// hub, in the group color.
+class _LinkLinePainter extends CustomPainter {
+  _LinkLinePainter({required this.hubs});
+
+  final List<_LinkHub> hubs;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final Paint paint = Paint()
-      ..color = color
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke
-      ..strokeJoin = StrokeJoin.round
-      ..strokeCap = StrokeCap.round;
-    for (final ({Offset a, Offset b}) s in segments) {
-      final Path path = Path()
-        ..moveTo(s.a.dx, s.a.dy)
-        ..lineTo(s.b.dx, s.a.dy)
-        ..lineTo(s.b.dx, s.b.dy);
-      canvas.drawPath(path, paint);
+    for (final _LinkHub h in hubs) {
+      final Paint paint = Paint()
+        ..color = h.identity.color
+        ..strokeWidth = 2
+        ..style = PaintingStyle.stroke
+        ..strokeJoin = StrokeJoin.round
+        ..strokeCap = StrokeCap.round;
+      final Paint fill = Paint()..color = h.identity.color;
+      for (int i = 0; i < h.anchors.length; i++) {
+        final Offset a = h.anchors[i];
+        final Path path = Path()
+          ..moveTo(a.dx, a.dy)
+          ..lineTo(a.dx, h.hub.dy)
+          ..lineTo(h.hub.dx, h.hub.dy);
+        canvas.drawPath(path, paint);
+        if (h.followers[i]) {
+          // Follower: head on the window edge, pointing into it.
+          canvas.drawPath(_arrowhead(a, 1), fill);
+        } else {
+          canvas.drawCircle(a, 3, fill);
+        }
+      }
     }
   }
 
+  /// Filled triangle with its tip at [tip], pointing along [dir] (-1 up,
+  /// 1 down) on the vertical axis.
+  static Path _arrowhead(Offset tip, double dir) => Path()
+    ..moveTo(tip.dx, tip.dy)
+    ..lineTo(tip.dx - 4.5, tip.dy - dir * 8)
+    ..lineTo(tip.dx + 4.5, tip.dy - dir * 8)
+    ..close();
+
   @override
-  bool shouldRepaint(_LinkLinePainter old) =>
-      old.color != color || !listEquals(old.segments, segments);
+  bool shouldRepaint(_LinkLinePainter old) => !listEquals(old.hubs, hubs);
+}
+
+/// Hub label: group letter, content type, and the live canonical value
+/// (masked for sensitive groups). Listens to the group's canonical so only
+/// the chip rebuilds on an emit.
+class _LinkHubChip extends StatelessWidget {
+  const _LinkHubChip({
+    required this.group,
+    required this.identity,
+    required this.sensitive,
+    required this.onTap,
+  });
+
+  final LinkGroup group;
+  final LinkIdentity identity;
+  final bool sensitive;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final MqColors c = context.mq.colors;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 220),
+        padding: const EdgeInsets.symmetric(
+          horizontal: MqSpacing.sm,
+          vertical: MqSpacing.xs,
+        ),
+        decoration: BoxDecoration(
+          color: c.surface,
+          borderRadius: BorderRadius.circular(MqRadius.md),
+          border: Border.all(color: identity.color, width: 1),
+          boxShadow: c.shadow,
+        ),
+        child: ValueListenableBuilder<String>(
+          valueListenable: group.canonical,
+          builder: (BuildContext context, String canonical, Widget? _) {
+            final String preview = SensitiveDataPolicy.safePreview(
+              canonical,
+              max: 24,
+              sensitive: sensitive,
+            );
+            final String label =
+                '${identity.letter} · ${contentTypeLabel(group.type)}';
+            return Semantics(
+              label:
+                  'Link group ${identity.letter}, ${contentTypeLabel(group.type)}',
+              value: preview,
+              excludeSemantics: true,
+              child: Text(
+                preview.isEmpty ? label : '$label · $preview',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: MqTextStyles.monoSm.copyWith(color: identity.color),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
 }
 
 class _AnimatedWindow extends StatelessWidget {
