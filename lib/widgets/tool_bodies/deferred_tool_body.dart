@@ -42,6 +42,7 @@ enum ToolBodyKind {
   qrCode,
   generator,
   markdown,
+  mojibake,
 }
 
 /// The [UtilityBuilder] arguments, carried across the deferred boundary.

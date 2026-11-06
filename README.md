@@ -8,7 +8,7 @@ A Flutter utility-toolbox app — a digital toolbox for the small everyday conve
 
 ## What's in the toolbox today
 
-Twenty-eight tools, each reachable from the Home screen's grid or via search:
+Twenty-nine tools, each reachable from the Home screen's grid or via search:
 
 - **Log & Stack Inspector** — locally group, search, redact, copy, and share JSON Lines, plain logs, and stack traces.
 - **Environment & Config Inspector** — locally normalize, compare, redact, and convert `.env`, properties, headers, and key/value configuration.
@@ -31,6 +31,7 @@ Twenty-eight tools, each reachable from the Home screen's grid or via search:
 - **Math** — expression evaluator with constants and functions (`pi`, `sin`, `log`, …).
 - **bps · % · decimal** — basis points ↔ percent ↔ decimal.
 - **Bytes** — byte array ↔ text (UTF-8).
+- **Mojibake Repair** — fix UTF-8 text garbled by a Mac Roman, Windows-1252, or Latin-1 mis-decode (`â€™` → `’`, `‚îå` → `┌`).
 - **List** — split ↔ join with custom separators.
 - **Regex** — test Dart regular expressions, highlight matches, and inspect numbered or named captures.
 - **Markdown** — preview headings, emphasis, code, lists, links, and tables with inert local rendering.

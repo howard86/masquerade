@@ -19,6 +19,7 @@ import 'utils/json_parser.dart';
 import 'utils/jwt_parser.dart';
 import 'utils/math_parser.dart';
 import 'utils/markdown_parser.dart';
+import 'utils/mojibake_parser.dart';
 import 'utils/number_base_parser.dart';
 import 'utils/sensitive_data_policy.dart';
 import 'utils/toml_parser.dart';
@@ -1021,6 +1022,47 @@ class UtilityCatalog {
       batchCapable: false,
       historyPolicy: HistoryPolicy.disabled,
       builder: deferredToolBuilder(ToolBodyKind.generator),
+    ),
+    UtilityDescriptor(
+      id: 'mojibake',
+      name: 'Mojibake Repair',
+      description: 'Fix garbled UTF-8 text',
+      icon: MqIcons.wrench,
+      tint: const Color(0xFFEA580C),
+      synonyms: <String>[
+        'mojibake',
+        'garbled',
+        'encoding',
+        'charset',
+        'mac roman',
+        'windows-1252',
+        'latin1',
+        'utf8',
+        'repair',
+        'fix',
+      ],
+      categories: <UtilityCategory>{
+        UtilityCategory.inspect,
+        UtilityCategory.transform,
+      },
+      acceptedTypes: <ContentType>{ContentType.text},
+      producedTypes: <ContentType>{ContentType.text},
+      sensitivity: UtilitySensitivity.standard,
+      inputSources: <UtilityInputSource>{
+        UtilityInputSource.text,
+        UtilityInputSource.clipboard,
+      },
+      liveLinkTypes: <ContentType>{},
+      quickActions: <UtilityQuickAction>{
+        UtilityQuickAction.paste,
+        UtilityQuickAction.copy,
+        UtilityQuickAction.openIn,
+      },
+      batchCapable: false,
+      historyPolicy: HistoryPolicy.enabled,
+      defaultCardWidth: CardWidthClass.wide,
+      builder: deferredToolBuilder(ToolBodyKind.mojibake),
+      detectArtifact: _detectMojibake,
     ),
     UtilityDescriptor(
       id: 'markdown',
@@ -2252,6 +2294,29 @@ List<DetectionMatch<Object?>> _detectBytes(
       confidence: .9,
       reason: 'Parsed ${r.bytes.length} integers in the byte range 0–255.',
       primaryToolId: 'bytes',
+    ),
+  ];
+}
+
+List<DetectionMatch<Object?>> _detectMojibake(
+  String input,
+  ArtifactProvenance provenance,
+) {
+  if (!MojibakeParser.looksLike(input)) {
+    return const <DetectionMatch<Object?>>[];
+  }
+  final MojibakeResult r = MojibakeParser.parse(input);
+  if (r is! MojibakeOk) return const <DetectionMatch<Object?>>[];
+  return <DetectionMatch<Object?>>[
+    _evidence(
+      provenance: provenance,
+      kind: ArtifactKind.unknown,
+      rawValue: input,
+      parserResult: r,
+      confidence: .85,
+      reason:
+          'Repaired ${r.fixedSequences} garbled sequences (${r.codec.label}).',
+      primaryToolId: 'mojibake',
     ),
   ];
 }
