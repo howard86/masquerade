@@ -273,8 +273,7 @@ void main() {
       c.applyJson(oldJson);
 
       expect(c.length, 2);
-      expect(c.cards[0].z, 1); // defaults to id
-      expect(c.cards[1].z, 2);
+      expect(c.cardsByZ.map((CanvasCard x) => x.id), <int>[1, 2]); // by id
       expect(c.cards[0].minimized, isFalse);
       expect(c.cards[0].maximized, isFalse);
       expect(c.cards[0].height, isNull);
@@ -295,6 +294,48 @@ void main() {
       expect(restored.cards[0].height, 800);
       expect(restored.cards[0].restoreBounds, isNotNull);
       expect(restored.cards[1].minimized, isTrue);
+    });
+  });
+
+  group('z-order persistence', () {
+    Map<String, dynamic> card(int id, {int? z}) => <String, dynamic>{
+      'id': id,
+      'tool': 'json',
+      'x': 0,
+      'y': 0,
+      'w': 380.0,
+      'z': ?z,
+    };
+
+    test('sparse saved z values restore in that order', () {
+      final CanvasController c = CanvasController()
+        ..applyJson(<String, dynamic>{
+          'cards': <dynamic>[card(1, z: 3), card(2, z: 17), card(3, z: 9)],
+        });
+      expect(c.cardsByZ.map((CanvasCard x) => x.id), <int>[1, 3, 2]);
+    });
+
+    test('round trip keeps order and writes dense ranks', () {
+      final CanvasController c = CanvasController();
+      final int a = c.openTool(json);
+      final int b = c.openTool(timestamp);
+      final int d = c.openTool(json);
+      c.focus(a);
+      final Map<String, dynamic> snap = c.toJson();
+      expect(
+        (snap['cards'] as List<dynamic>).map((dynamic m) => (m as Map)['z']),
+        <int>[3, 1, 2],
+      );
+      final CanvasController r = CanvasController()..applyJson(snap);
+      expect(r.cardsByZ.map((CanvasCard x) => x.id), <int>[b, d, a]);
+    });
+
+    test('snapshot without z falls back to id order', () {
+      final CanvasController c = CanvasController()
+        ..applyJson(<String, dynamic>{
+          'cards': <dynamic>[card(5), card(2), card(9)],
+        });
+      expect(c.cardsByZ.map((CanvasCard x) => x.id), <int>[2, 5, 9]);
     });
   });
 

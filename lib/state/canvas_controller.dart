@@ -8,6 +8,7 @@ import '../utility_catalog.dart';
 import '../utils/sensitive_data_policy.dart';
 import 'link_group.dart';
 import 'window_content.dart';
+import 'z_order_store.dart';
 
 /// Saved geometry before a maximize/snap so the window can restore.
 typedef RestoreBounds = ({double x, double y, double width, double? height});
@@ -52,7 +53,6 @@ class CanvasCard {
     required this.y,
     required this.width,
     this.seed,
-    this.z = 0,
     this.minimized = false,
     this.maximized = false,
     this.height,
@@ -64,9 +64,6 @@ class CanvasCard {
   final double x;
   final double y;
   final double width;
-
-  /// Paint order — higher = front.
-  final int z;
 
   /// Whether the card is minimized (hidden from canvas, shown in dock).
   final bool minimized;
@@ -94,7 +91,6 @@ class CanvasCard {
     double? x,
     double? y,
     double? width,
-    int? z,
     bool? minimized,
     bool? maximized,
     double? Function()? height,
@@ -106,7 +102,6 @@ class CanvasCard {
     y: y ?? this.y,
     width: width ?? this.width,
     seed: seed,
-    z: z ?? this.z,
     minimized: minimized ?? this.minimized,
     maximized: maximized ?? this.maximized,
     height: height != null ? height() : this.height,
@@ -146,7 +141,7 @@ class CanvasController extends ChangeNotifier {
 
   final List<CanvasCard> _cards = <CanvasCard>[];
   int _nextId = 1;
-  int _nextZ = 1;
+  final ZOrderStore _z = ZOrderStore();
   int? _focusedId;
 
   final List<LinkGroup> _groups = <LinkGroup>[];
@@ -200,9 +195,12 @@ class CanvasController extends ChangeNotifier {
 
   /// Cards sorted by z-order (paint order: lowest first). The canvas paints
   /// in this order so higher-z cards appear on top.
-  List<CanvasCard> get cardsByZ =>
-      List<CanvasCard>.of(_cards)
-        ..sort((CanvasCard a, CanvasCard b) => a.z.compareTo(b.z));
+  List<CanvasCard> get cardsByZ {
+    final Map<int, CanvasCard> byId = <int, CanvasCard>{
+      for (final CanvasCard c in _cards) c.id: c,
+    };
+    return <CanvasCard>[for (final int id in _z.order) byId[id]!];
+  }
 
   bool get isEmpty => _cards.isEmpty;
   int get length => _cards.length;
@@ -224,9 +222,9 @@ class CanvasController extends ChangeNotifier {
       y: 24 + step * _cascadeStep,
       width: descriptor.defaultCardWidth.px,
       seed: (seed == null || seed.isEmpty) ? null : seed,
-      z: _nextZ++,
     );
     _cards.add(card);
+    _z.add(card.id);
     _focusedId = card.id;
     notifyListeners();
     _persist();
@@ -258,9 +256,9 @@ class CanvasController extends ChangeNotifier {
       y: 24 + step * _cascadeStep,
       width: 440,
       height: 600,
-      z: _nextZ++,
     );
     _cards.add(card);
+    _z.add(card.id);
     _focusedId = card.id;
     notifyListeners();
     _persist();
@@ -272,6 +270,7 @@ class CanvasController extends ChangeNotifier {
     final int before = _cards.length;
     _cards.removeWhere((CanvasCard c) => c.id == id);
     if (_cards.length == before) return;
+    _z.remove(id);
     _watchers.remove(id);
     _persistedSeeds.remove(id);
     _detachFromGroup(id);
@@ -286,6 +285,7 @@ class CanvasController extends ChangeNotifier {
   void closeAll() {
     if (_cards.isEmpty) return;
     _cards.clear();
+    _z.clear();
     _watchers.clear();
     _persistedSeeds.clear();
     _persistedCanonicals.clear();
@@ -301,11 +301,8 @@ class CanvasController extends ChangeNotifier {
   /// Also raises the card to the front (highest z).
   void focus(int id) {
     if (!_cards.any((CanvasCard c) => c.id == id)) return;
-    final int i = _cards.indexWhere((CanvasCard c) => c.id == id);
-    if (_focusedId != id || _cards[i].z != _nextZ - 1) {
-      _replace(i, _cards[i].copyWith(z: _nextZ++));
-    }
-    if (_focusedId == id) return;
+    final bool raised = _z.raise(id);
+    if (_focusedId == id && !raised) return;
     _focusedId = id;
     notifyListeners();
     // Focus clicks are frequent and only change focus / z: coalesce them.
@@ -444,7 +441,8 @@ class CanvasController extends ChangeNotifier {
   void restoreWindow(int id) {
     final int i = _cards.indexWhere((CanvasCard c) => c.id == id);
     if (i < 0 || !_cards[i].minimized) return;
-    _replace(i, _cards[i].copyWith(minimized: false, z: _nextZ++));
+    _replace(i, _cards[i].copyWith(minimized: false));
+    _z.raise(id);
     _focusedId = id;
     notifyListeners();
     _persist();
@@ -473,9 +471,9 @@ class CanvasController extends ChangeNotifier {
         maximized: true,
         height: () => height,
         restoreBounds: () => rb,
-        z: _nextZ++,
       ),
     );
+    _z.raise(id);
     _focusedId = id;
     notifyListeners();
     _persist();
@@ -543,9 +541,9 @@ class CanvasController extends ChangeNotifier {
         maximized: false,
         height: () => height,
         restoreBounds: () => rb,
-        z: _nextZ++,
       ),
     );
+    _z.raise(id);
     _focusedId = id;
     notifyListeners();
     _persist();
@@ -576,7 +574,7 @@ class CanvasController extends ChangeNotifier {
   Map<String, dynamic> toJson() => <String, dynamic>{
     'nextId': _nextId,
     'nextGroupId': _nextGroupId,
-    'nextZ': _nextZ,
+    'nextZ': _z.length + 1,
     'focused': _focusedId,
     'cards': _cards.map(_cardToJson).toList(),
     'groups': _groups.map(_groupToJson).toList(),
@@ -623,7 +621,7 @@ class CanvasController extends ChangeNotifier {
       'x': c.x,
       'y': c.y,
       'w': c.width,
-      'z': c.z,
+      'z': _z.rankOf(c.id) + 1,
       'seed': ?seed,
       if (c.minimized) 'minimized': true,
       if (c.maximized) 'maximized': true,
@@ -695,7 +693,7 @@ class CanvasController extends ChangeNotifier {
     _persistedSeeds.clear();
     _persistedCanonicals.clear();
     int maxId = 0;
-    int maxZ = 0;
+    final Map<int, int> savedZ = <int, int>{};
     for (final dynamic raw
         in (json['cards'] as List<dynamic>? ?? const <dynamic>[])) {
       final Map<String, dynamic> m = raw as Map<String, dynamic>;
@@ -718,7 +716,7 @@ class CanvasController extends ChangeNotifier {
       final int id = (m['id'] as num).toInt();
       final int z = (m['z'] as num?)?.toInt() ?? id;
       maxId = id > maxId ? id : maxId;
-      maxZ = z > maxZ ? z : maxZ;
+      savedZ[id] = z;
       RestoreBounds? rb;
       if (m['rb'] is Map<String, dynamic>) {
         final Map<String, dynamic> rbm = m['rb'] as Map<String, dynamic>;
@@ -740,7 +738,6 @@ class CanvasController extends ChangeNotifier {
             m['seed'] as String?,
             utilityId: content is ToolWindow ? content.descriptor.id : null,
           ),
-          z: z,
           minimized: m['minimized'] as bool? ?? false,
           maximized: m['maximized'] as bool? ?? false,
           height: (m['h'] as num?)?.toDouble(),
@@ -750,8 +747,12 @@ class CanvasController extends ChangeNotifier {
     }
     _nextId = (json['nextId'] as num?)?.toInt() ?? (maxId + 1);
     if (_nextId <= maxId) _nextId = maxId + 1;
-    _nextZ = (json['nextZ'] as num?)?.toInt() ?? (maxZ + 1);
-    if (_nextZ <= maxZ) _nextZ = maxZ + 1;
+    _z.restore(
+      (_cards.map((CanvasCard c) => c.id).toList()..sort((int a, int b) {
+        final int byZ = savedZ[a]!.compareTo(savedZ[b]!);
+        return byZ != 0 ? byZ : a.compareTo(b);
+      })),
+    );
     final int? focused = (json['focused'] as num?)?.toInt();
     _focusedId = _cards.any((CanvasCard c) => c.id == focused) ? focused : null;
 
